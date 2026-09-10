@@ -240,9 +240,26 @@ def ingest_virus(em: Emit, cfg: dict, defaults: dict, prov: dict, proteome_dir: 
         chains = [f for f in entry.get("features", []) if f.get("type") == "Chain"]
         parent_len[acc] = len(chains)
 
-        # A single-chain entry IS the mature protein; expanding it would create
-        # a duplicate node for the same molecule.
+        # A single-chain entry IS the mature protein, so expanding it would
+        # duplicate the same molecule. But sources cite the chain id anyway --
+        # VirHostNet references ORF7a and ORF9b by PRO_ id, and those edges
+        # silently failed to join while this branch just skipped. Emit an alias
+        # to the parent instead of dropping the identifier.
         if len(chains) < 2:
+            for feat in chains:
+                cid = _chain_id(feat)
+                if not cid:
+                    continue
+                em.node(f"UniProtKB:{cid}", "Protein",
+                        taxon_id=taxon_curie,
+                        is_viral=True,
+                        sequence_hash=_sha(f"{acc}:{cid}"),
+                        reviewed=entry.get("entryType", "").startswith("UniProtKB reviewed"))
+                em.edge(f"UniProtKB:{cid}", "SAME_AS", pcurie,
+                        source=prov["proteome_source"], date=date,
+                        tier=prov["evidence_tier"],
+                        quals={"merge_rule": "single_chain_equals_parent_protein"})
+                em.notes["single_chain_aliased_to_parent"] += 1
             continue
 
         for feat in chains:
@@ -254,6 +271,24 @@ def ingest_virus(em: Emit, cfg: dict, defaults: dict, prov: dict, proteome_dir: 
 
             key = label.lower() or cid
             if key in seen_chains:
+                # Same physical protein, different chain id: pp1a and pp1ab both
+                # annotate nsp1-nsp11. The winner is kept as the node, but the
+                # loser's id must remain resolvable -- VirHostNet and IntAct
+                # cite pp1a chain ids freely, and without this alias those
+                # interactions silently fail to join.
+                # Minimal stub so the alias edge resolves. Deliberately NOT
+                # given mature_peptide or protein_family: it is an identifier,
+                # not a second copy of the protein, and must never be counted
+                # as a distinct target or appear in a metapath.
+                em.node(f"UniProtKB:{cid}", "Protein",
+                        taxon_id=taxon_curie,
+                        is_viral=True,
+                        sequence_hash=_sha(f"{acc}:{cid}"),
+                        reviewed=entry.get("entryType", "").startswith("UniProtKB reviewed"))
+                em.edge(f"UniProtKB:{cid}", "SAME_AS", seen_chains[key],
+                        source=prov["proteome_source"], date=date,
+                        tier=prov["evidence_tier"],
+                        quals={"merge_rule": "shared_chain_between_polyproteins"})
                 em.notes["chain_shared_between_polyproteins"] += 1
                 continue
 

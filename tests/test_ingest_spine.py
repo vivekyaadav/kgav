@@ -76,9 +76,18 @@ def test_shared_chains_are_not_duplicated(spine):
     assert spine.notes["chain_shared_between_polyproteins"] == 12
 
 
-def test_single_chain_entries_are_not_expanded(spine):
-    """Spike is one chain; expanding it would duplicate the same molecule."""
-    assert "UniProtKB:PRO_0000449647" not in spine.nodes
+def test_single_chain_entries_become_aliases_not_targets(spine):
+    """Spike is one chain: the chain IS the protein, so it must not become a
+    second target. But sources cite the chain id (VirHostNet references ORF7a
+    and ORF9b that way), so the identifier has to resolve. It exists as an
+    alias -- no mature_peptide, no protein_family, SAME_AS to the parent."""
+    cid = "UniProtKB:PRO_0000449647"
+    assert cid in spine.nodes, "chain id must resolve, or source edges silently drop"
+    props = spine.nodes[cid]["properties"]
+    assert not props.get("mature_peptide"), "alias must not count as a target"
+    assert not props.get("protein_family")
+    aliases = {(e["subject"], e["object"]) for e in spine.edges if e["predicate"] == "SAME_AS"}
+    assert (cid, "UniProtKB:P0DTC2") in aliases
 
 
 def test_nsp_family_is_extracted(spine):
