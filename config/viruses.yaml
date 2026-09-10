@@ -1,0 +1,75 @@
+# Curated virus register for the Coronaviridae v1 spine.
+#
+# Every field here is a CURATION DECISION, not a lookup result. proteome_id is
+# pinned because several taxa expose more than one "Reference proteome" and an
+# unpinned choice makes the build non-reproducible. mondo is pinned because
+# label matching is banned — see normalize_bio.MondoResolver.
+#
+# mondo: null means "not yet curated"; the ingest emits no CAUSES edge and
+# reports it. Use scripts/find_mondo.py to list candidate terms, then pin one.
+
+viruses:
+  - taxon: "2697049"
+    name: SARS-CoV-2
+    proteome_id: UP000464024
+    mondo: "MONDO:0100096"
+    mondo_source: "DOID:0080600 xref, verified 2026-09"
+
+  - taxon: "694009"
+    name: SARS-CoV
+    proteome_id: UP000000354
+    mondo: null
+    mondo_source: null
+
+  - taxon: "1335626"
+    name: MERS-CoV
+    proteome_id: UP000112279
+    # UP000112279 is TrEMBL-only: its ORF1ab entry (K0BWD0) carries zero Chain
+    # features, so Mpro and RdRp would be absent from the graph entirely.
+    # Swiss-Prot curates the HCoV-EMC/2012 isolate (taxon 1263720) instead.
+    # These accessions are pulled in addition to the proteome and reassigned
+    # to the SPECIES taxon, so cross-viral metapaths still resolve.
+    extra_accessions: [K9N7C7, K9N638, K9N5Q8, K9N4V7, K9N5R3, K9N7A1,
+                       K9N643, K9N7D2, K9N4V0, K9N796]
+    curation_note: "reviewed entries filed under isolate taxon 1263720"
+    mondo: null
+    mondo_source: null
+
+  - taxon: "11137"
+    name: HCoV-229E
+    proteome_id: UP000006716
+    mondo: null
+    mondo_source: null
+
+  - taxon: "277944"
+    name: HCoV-NL63
+    proteome_id: UP000008573
+    mondo: null
+    mondo_source: null
+
+  - taxon: "31631"
+    name: HCoV-OC43
+    proteome_id: UP000007552
+    mondo: null
+    mondo_source: null
+
+  - taxon: "290028"
+    name: HCoV-HKU1
+    proteome_id: UP000008170
+    mondo: null
+    mondo_source: null
+
+# Shared properties. All Coronaviridae are Baltimore class IV (+ssRNA) and
+# enveloped; asserted once here rather than repeated per virus.
+defaults:
+  family: Coronaviridae
+  baltimore_class: "IV"
+  genome_type: "ssRNA(+)"
+  is_enveloped: true
+
+# Provenance stamped on every edge this ingest emits.
+provenance:
+  proteome_source: "infores:uniprot"
+  taxonomy_source: "infores:ncbi-taxonomy"
+  disease_source: "infores:mondo"
+  evidence_tier: 1
