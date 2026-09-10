@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+title: "kgav: an antiviral drug repurposing knowledge graph"
+message: "If you use this software or a release derived from it, please cite it, and separately cite the data sources that contributed to the subgraph you used."
+type: software
+authors:
+  - family-names: Yadav
+    given-names: Vivek
+    affiliation: "Hansraj College, University of Delhi"
+repository-code: "https://github.com/vivekyaadav/kgav"
+license: MIT
+version: 0.1.0
