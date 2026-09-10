@@ -1,0 +1,359 @@
+schema_version: "0.1.0"
+scope: "Coronaviridae v1 — SARS-CoV-2, SARS-CoV, MERS-CoV, HCoV-229E, HCoV-OC43, HCoV-NL63, HCoV-HKU1"
+
+prefixes:
+  INCHIKEY:   "https://identifiers.org/inchikey:"
+  UniProtKB:  "https://identifiers.org/uniprot:"
+  NCBIGene:   "https://identifiers.org/ncbigene:"
+  NCBITaxon:  "http://purl.obolibrary.org/obo/NCBITaxon_"
+  MONDO:      "http://purl.obolibrary.org/obo/MONDO_"
+  REACT:      "https://identifiers.org/reactome:"
+  GO:         "http://purl.obolibrary.org/obo/GO_"
+  CVCL:       "https://identifiers.org/cellosaurus:"
+  PMID:       "https://pubmed.ncbi.nlm.nih.gov/"
+  DOI:        "https://doi.org/"
+  DBSNP:      "https://identifiers.org/dbsnp:"
+  KGAV:       "internal"
+
+enums:
+  evidence_tier: [1, 2, 3, 4]
+  host_factor_direction: [dependency, restriction]
+  target_direction:      [inhibitor, agonist, modulator, unknown]
+  lifecycle_stage:
+    [attachment, entry, uncoating, genome_replication, translation,
+     polyprotein_processing, assembly, egress, immune_modulation, unknown]
+  screen_type:      [CRISPRko, CRISPRa, CRISPRi, RNAi, haploid, other]
+  baltimore_class:  [I, II, III, IV, V, VI, VII]
+  assay_type:
+    [cell_based_antiviral, cytotoxicity, biochemical, binding,
+     reporter, plaque_reduction, other]
+  approval_status:  [approved, withdrawn, investigational, off_label]
+  trial_status:
+    [not_yet_recruiting, recruiting, active, completed, terminated,
+     withdrawn, suspended, unknown]
+  trial_outcome:    [positive, negative, inconclusive, not_reported]
+  synergy_model:    [bliss, loewe, hsa, zip]
+  ontology_source:  [reactome, wikipathways, go]
+
+node_classes:
+
+  SmallMolecule:
+    id_prefixes: [INCHIKEY]
+    properties:
+      smiles:        {type: string,  required: true}
+      inchikey_skel: {type: string,  required: true}
+      chembl_id:     {type: string}
+      drugbank_id:   {type: string}
+      atc_codes:     {type: "list[string]"}
+      max_phase:     {type: int, min: 0, max: 4}
+      approval_year: {type: int, min: 1900, max: 2100}
+      is_approved:   {type: bool, required: true}
+      ecfp4:         {type: string}
+      salt_collapsed:   {type: bool, required: true}
+      stereo_collapsed: {type: bool, required: true}
+
+  Protein:
+    id_prefixes: [UniProtKB]
+    properties:
+      gene_symbol:    {type: string}
+      taxon_id:       {type: string, required: true}
+      is_viral:       {type: bool,   required: true}
+      protein_family: {type: string}
+      mature_peptide: {type: string}
+      sequence_hash:  {type: string, required: true}
+      reviewed:       {type: bool,   required: true}
+
+  Gene:
+    id_prefixes: [NCBIGene, KGAV]
+    properties:
+      symbol:         {type: string, required: true}
+      taxon_id:       {type: string, required: true}
+      is_viral:       {type: bool,   required: true}
+      ensembl_id:     {type: string}
+      genome_segment: {type: string}
+
+  OrganismTaxon:
+    id_prefixes: [NCBITaxon]
+    properties:
+      label:           {type: string, required: true}
+      ictv_species:    {type: string}
+      ictv_genus:      {type: string}
+      family:          {type: string, required: true}
+      baltimore_class: {type: string, enum: baltimore_class, required: true}
+      genome_type:     {type: string}
+      is_enveloped:    {type: bool, required: true}
+
+  VirusStrain:
+    id_prefixes: [KGAV, NCBITaxon]
+    properties:
+      strain_label:    {type: string, required: true}
+      lineage:         {type: string}
+      collection_year: {type: int, min: 1900, max: 2100}
+      parent_taxon:    {type: string, required: true}
+
+  Disease:
+    id_prefixes: [MONDO]
+    properties:
+      label:           {type: string, required: true}
+      xrefs:           {type: "list[string]"}
+      is_infectious:   {type: bool, required: true}
+      causative_taxon: {type: string}
+
+  Variant:
+    id_prefixes: [DBSNP, KGAV]
+    properties:
+      hgvs_p:        {type: string, required: true}
+      position:      {type: int, min: 1}
+      ref:           {type: string}
+      alt:           {type: string}
+      on_protein:    {type: string, required: true}
+      is_resistance: {type: bool,   required: true}
+
+  Pathway:
+    id_prefixes: [REACT, GO]
+    properties:
+      label:             {type: string, required: true}
+      top_level_pathway: {type: string}
+      source_ontology:   {type: string, enum: ontology_source, required: true}
+
+  CellLine:
+    id_prefixes: [CVCL]
+    properties:
+      label:          {type: string, required: true}
+      tissue:         {type: string}
+      species:        {type: string, required: true}
+      tmprss2_status: {type: string}
+      ace2_status:    {type: string}
+      misidentified:  {type: bool, required: true}
+
+  Publication:
+    id_prefixes: [PMID, DOI]
+    properties:
+      year:        {type: int, min: 1800, max: 2100, required: true}
+      journal:     {type: string}
+      is_preprint: {type: bool, required: true}
+
+edge_classes:
+
+  - predicate: INHIBITS
+    subject: SmallMolecule
+    object: Protein
+    object_constraints: {is_viral: true}
+    held_out: false
+    qualifiers:
+      ec50_nm:           {type: float, min: 0}
+      ic50_nm:           {type: float, min: 0}
+      cc50_nm:           {type: float, min: 0}
+      selectivity_index: {type: float, min: 0}
+      cell_line:         {type: string}
+      assay_type:        {type: string, enum: assay_type}
+      lifecycle_stage:   {type: string, enum: lifecycle_stage}
+      unquantified:      {type: bool}
+    required_qualifiers: [assay_type]
+
+  - predicate: ENCODED_BY
+    subject: Protein
+    object: Gene
+    qualifiers:
+      mature_peptide: {type: string}
+      cleavage_order: {type: int, min: 0}
+
+  - predicate: BELONGS_TO
+    subject: Gene
+    object: OrganismTaxon
+    subject_constraints: {is_viral: true}
+    qualifiers:
+      genome_segment: {type: string}
+
+  - predicate: CONFERS_RESISTANCE_TO
+    subject: VirusStrain
+    object: SmallMolecule
+    qualifiers:
+      fold_change:   {type: float, min: 0}
+      variant_ref:   {type: string}
+      evidence_type: {type: string}
+
+  - predicate: OCCURS_IN
+    subject: Variant
+    object: Protein
+    qualifiers:
+      is_resistance: {type: bool}
+
+  - predicate: TARGETS
+    subject: SmallMolecule
+    object: Protein
+    object_constraints: {is_viral: false}
+    qualifiers:
+      kd_nm:      {type: float, min: 0}
+      ic50_nm:    {type: float, min: 0}
+      direction:  {type: string, enum: target_direction}
+      assay_type: {type: string, enum: assay_type}
+    required_qualifiers: [direction]
+
+  - predicate: HOST_FACTOR_FOR
+    subject: Protein
+    object: OrganismTaxon
+    subject_constraints: {is_viral: false}
+    qualifiers:
+      direction:   {type: string, enum: host_factor_direction}
+      screen_type: {type: string, enum: screen_type}
+      effect_size: {type: float}
+      cell_line:   {type: string}
+    required_qualifiers: [direction, screen_type, cell_line]
+
+  - predicate: PHYSICALLY_INTERACTS_WITH
+    subject: Protein
+    object: Protein
+    qualifiers:
+      detection_method: {type: string}
+      interaction_type: {type: string}
+      string_score:     {type: float, min: 0, max: 1000}
+      channel:          {type: string}
+    required_qualifiers: [detection_method]
+
+  - predicate: PARTICIPATES_IN
+    subject: Protein
+    object: Pathway
+    qualifiers:
+      role: {type: string}
+
+  - predicate: HAS_VARIANT
+    subject: Gene
+    object: Variant
+    qualifiers:
+      consequence: {type: string}
+
+  - predicate: TREATS
+    subject: SmallMolecule
+    object: Disease
+    held_out: true
+    qualifiers:
+      approval_status: {type: string, enum: approval_status}
+      regulator:       {type: string}
+      approval_year:   {type: int, min: 1900, max: 2100}
+    required_qualifiers: [approval_status]
+
+  - predicate: IN_TRIAL_FOR
+    subject: SmallMolecule
+    object: Disease
+    held_out: true
+    qualifiers:
+      nct_id:     {type: string}
+      phase:      {type: string}
+      status:     {type: string, enum: trial_status}
+      outcome:    {type: string, enum: trial_outcome}
+      start_date: {type: date}
+    required_qualifiers: [nct_id, status]
+
+  - predicate: HAS_ANTIVIRAL_ACTIVITY_AGAINST
+    subject: SmallMolecule
+    object: OrganismTaxon
+    held_out: true
+    qualifiers:
+      ec50_nm:           {type: float, min: 0}
+      cc50_nm:           {type: float, min: 0}
+      selectivity_index: {type: float, min: 0}
+      cell_line:         {type: string}
+      virus_strain:      {type: string}
+      assay_type:        {type: string, enum: assay_type}
+      unquantified:      {type: bool}
+    required_qualifiers: [cell_line, assay_type]
+
+  - predicate: COMBINED_WITH
+    subject: SmallMolecule
+    object: SmallMolecule
+    qualifiers:
+      synergy_score: {type: float}
+      synergy_model: {type: string, enum: synergy_model}
+      virus_context: {type: string}
+      cell_line:     {type: string}
+
+  - predicate: CHEMICALLY_SIMILAR_TO
+    subject: SmallMolecule
+    object: SmallMolecule
+    qualifiers:
+      tanimoto_ecfp4: {type: float, min: 0.7, max: 1.0}
+    required_qualifiers: [tanimoto_ecfp4]
+
+  - predicate: CAUSES
+    subject: OrganismTaxon
+    object: Disease
+    qualifiers:
+      is_primary_agent: {type: bool}
+
+  - predicate: HAS_STRAIN
+    subject: OrganismTaxon
+    object: VirusStrain
+    qualifiers: {}
+
+  - predicate: SUBCLASS_OF
+    subject: OrganismTaxon
+    object: OrganismTaxon
+    qualifiers: {}
+
+  - predicate: SUBCLASS_OF_DISEASE
+    subject: Disease
+    object: Disease
+    qualifiers: {}
+
+  - predicate: SAME_AS
+    subject: any
+    object: any
+    qualifiers:
+      merge_rule: {type: string}
+    required_qualifiers: [merge_rule]
+
+  - predicate: PREDICTED_INDICATION
+    subject: SmallMolecule
+    object: OrganismTaxon
+    is_model_output: true
+    qualifiers:
+      score:                         {type: float}
+      rank:                          {type: int, min: 1}
+      percentile_vs_degree_baseline: {type: float, min: 0, max: 100}
+      top_metapaths:                 {type: "list[string]"}
+      model_version:                 {type: string}
+    required_qualifiers: [score, rank, model_version]
+
+edge_provenance:
+  required:
+    - primary_knowledge_source
+    - evidence_tier
+    - first_asserted_date
+  optional:
+    - aggregator_source
+    - publications
+    - evidence_code
+    - source_score
+    - kg_release
+
+metapaths:
+  M1:
+    doc: "direct-acting"
+    path: [SmallMolecule, INHIBITS, Protein, ENCODED_BY, Gene, BELONGS_TO, OrganismTaxon]
+  M2:
+    doc: "host-directed, single hop"
+    path: [SmallMolecule, TARGETS, Protein, HOST_FACTOR_FOR, OrganismTaxon]
+    constraints: {HOST_FACTOR_FOR.direction: dependency}
+  M3:
+    doc: "host-directed via virus-host PPI"
+    path: [SmallMolecule, TARGETS, Protein, PHYSICALLY_INTERACTS_WITH, Protein, ENCODED_BY, Gene, BELONGS_TO, OrganismTaxon]
+  M4:
+    doc: "pathway-mediated"
+    path: [SmallMolecule, TARGETS, Protein, PARTICIPATES_IN, Pathway, PARTICIPATES_IN, Protein, HOST_FACTOR_FOR, OrganismTaxon]
+    constraints: {HOST_FACTOR_FOR.direction: dependency}
+    exclude_hubs: true
+  M5:
+    doc: "host PPI-mediated"
+    path: [SmallMolecule, TARGETS, Protein, PHYSICALLY_INTERACTS_WITH, Protein, HOST_FACTOR_FOR, OrganismTaxon]
+    constraints: {HOST_FACTOR_FOR.direction: dependency}
+    exclude_hubs: true
+  M6:
+    doc: "cold start via chemical similarity"
+    path: [SmallMolecule, CHEMICALLY_SIMILAR_TO, SmallMolecule, TARGETS, Protein, HOST_FACTOR_FOR, OrganismTaxon]
+    constraints: {HOST_FACTOR_FOR.direction: dependency}
+
+retrieval_limits:
+  hub_percentile: 99.9
+  max_neighbors_per_node: 50
+  max_subgraph_edges: 100

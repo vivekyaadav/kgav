@@ -1,0 +1,4 @@
+{"id": "INCHIKEY:RWWYLEGWBNMMLJ-YSOARWBDSA-N", "class": "SmallMolecule", "properties": {"smiles": "CCO", "inchikey_skel": "RWWYLEGWBNMM", "is_approved": true, "salt_collapsed": true, "stereo_collapsed": false}}
+{"id": "UniProtKB:P0DTD1", "class": "Protein", "properties": {"taxon_id": "NCBITaxon:2697049", "is_viral": true, "sequence_hash": "ab", "reviewed": true}}
+{"id": "UniProtKB:O15393", "class": "Protein", "properties": {"taxon_id": "NCBITaxon:9606", "is_viral": false, "sequence_hash": "cd", "reviewed": true}}
+{"id": "NCBITaxon:2697049", "class": "OrganismTaxon", "properties": {"label": "SARS-CoV-2", "family": "Coronaviridae", "baltimore_class": "IV", "is_enveloped": true}}
