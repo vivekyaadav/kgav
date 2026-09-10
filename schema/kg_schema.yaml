@@ -1,4 +1,4 @@
-schema_version: "0.1.0"
+schema_version: "0.2.0"
 scope: "Coronaviridae v1 — SARS-CoV-2, SARS-CoV, MERS-CoV, HCoV-229E, HCoV-OC43, HCoV-NL63, HCoV-HKU1"
 
 prefixes:
@@ -355,5 +355,10 @@ metapaths:
 
 retrieval_limits:
   hub_percentile: 99.9
+  # A GO term with 1,389 members generates ~1.9M protein pairs in M4, so every
+  # drug touching any transcription regulator looks adjacent to every host
+  # factor. Upper-level GO terms are taxonomy, not mechanism. Calibrated
+  # against the v0.1 host layer: p99 pathway size is well under this.
+  max_pathway_members: 200
   max_neighbors_per_node: 50
   max_subgraph_edges: 100
