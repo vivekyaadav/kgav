@@ -1,6 +1,10 @@
-schema_version: "0.2.0"
+schema_version: "0.3.1"
 scope: "Coronaviridae v1 — SARS-CoV-2, SARS-CoV, MERS-CoV, HCoV-229E, HCoV-OC43, HCoV-NL63, HCoV-HKU1"
 
+# ---------------------------------------------------------------------------
+# Accepted CURIE prefixes. A node id MUST be "<PREFIX>:<local>" with PREFIX
+# listed here and permitted for that node class.
+# ---------------------------------------------------------------------------
 prefixes:
   INCHIKEY:   "https://identifiers.org/inchikey:"
   UniProtKB:  "https://identifiers.org/uniprot:"
@@ -13,10 +17,18 @@ prefixes:
   PMID:       "https://pubmed.ncbi.nlm.nih.gov/"
   DOI:        "https://doi.org/"
   DBSNP:      "https://identifiers.org/dbsnp:"
-  KGAV:       "internal"
+  KGAV:       "internal"          # internally minted (strains, curated variants)
 
+# ---------------------------------------------------------------------------
+# Controlled vocabularies. Any qualifier declared with enum: <name> must take
+# one of these values. Free-text where a vocabulary exists is a schema error.
+# ---------------------------------------------------------------------------
 enums:
-  evidence_tier: [1, 2, 3, 4]
+  evidence_tier:
+    - 1   # curated experimental
+    - 2   # curated inferred
+    - 3   # high-confidence computational
+    - 4   # text-mined
   host_factor_direction: [dependency, restriction]
   target_direction:      [inhibitor, agonist, modulator, unknown]
   lifecycle_stage:
@@ -34,30 +46,44 @@ enums:
   trial_outcome:    [positive, negative, inconclusive, not_reported]
   synergy_model:    [bliss, loewe, hsa, zip]
   ontology_source:  [reactome, wikipathways, go]
+  # ChEMBL standard_relation. A censored value ("IC50 > 10000 nM") is a
+  # NEGATIVE result; coercing it to a number inverts its meaning. 10,766 of
+  # 17,366 coronavirus IC50 records are censored, so this is not an edge case.
+  activity_relation: ["=", ">", "<", ">=", "<=", "~"]
+  # ChEMBL has no chain-level coronavirus targets: every activity maps to the
+  # whole replicase polyprotein. 72% can be resolved to a specific nsp from the
+  # assay description. This records which, so an unresolved edge is never
+  # mistaken for a measured one.
+  target_resolution: [chain_from_assay_description, parent_unresolved]
 
+# ---------------------------------------------------------------------------
+# NODE CLASSES
+# ---------------------------------------------------------------------------
 node_classes:
 
   SmallMolecule:
     id_prefixes: [INCHIKEY]
     properties:
       smiles:        {type: string,  required: true}
-      inchikey_skel: {type: string,  required: true}
+      inchikey_skel: {type: string,  required: true, doc: "first 14 chars; stereo/salt-agnostic grouping key"}
       chembl_id:     {type: string}
       drugbank_id:   {type: string}
       atc_codes:     {type: "list[string]"}
-      max_phase:     {type: int, min: 0, max: 4}
+      # ChEMBL uses -1 for compounds explicitly known NOT to be clinical
+      # candidates; 0 means unknown. Both are real values, not corruption.
+      max_phase:     {type: int, min: -1, max: 4}
       approval_year: {type: int, min: 1900, max: 2100}
       is_approved:   {type: bool, required: true}
-      ecfp4:         {type: string}
+      ecfp4:         {type: string, doc: "hex-encoded 2048-bit fingerprint"}
       salt_collapsed:   {type: bool, required: true}
       stereo_collapsed: {type: bool, required: true}
 
   Protein:
     id_prefixes: [UniProtKB]
     properties:
-      gene_symbol:    {type: string}
-      taxon_id:       {type: string, required: true}
-      is_viral:       {type: bool,   required: true}
+      gene_symbol:   {type: string}
+      taxon_id:      {type: string, required: true, doc: "NCBITaxon CURIE"}
+      is_viral:      {type: bool,   required: true}
       protein_family: {type: string}
       mature_peptide: {type: string}
       sequence_hash:  {type: string, required: true}
@@ -66,10 +92,10 @@ node_classes:
   Gene:
     id_prefixes: [NCBIGene, KGAV]
     properties:
-      symbol:         {type: string, required: true}
-      taxon_id:       {type: string, required: true}
-      is_viral:       {type: bool,   required: true}
-      ensembl_id:     {type: string}
+      symbol:        {type: string, required: true}
+      taxon_id:      {type: string, required: true}
+      is_viral:      {type: bool,   required: true}
+      ensembl_id:    {type: string}
       genome_segment: {type: string}
 
   OrganismTaxon:
@@ -87,7 +113,7 @@ node_classes:
     id_prefixes: [KGAV, NCBITaxon]
     properties:
       strain_label:    {type: string, required: true}
-      lineage:         {type: string}
+      lineage:         {type: string, doc: "e.g. Pango lineage"}
       collection_year: {type: int, min: 1900, max: 2100}
       parent_taxon:    {type: string, required: true}
 
@@ -112,19 +138,19 @@ node_classes:
   Pathway:
     id_prefixes: [REACT, GO]
     properties:
-      label:             {type: string, required: true}
-      top_level_pathway: {type: string}
-      source_ontology:   {type: string, enum: ontology_source, required: true}
+      label:              {type: string, required: true}
+      top_level_pathway:  {type: string}
+      source_ontology:    {type: string, enum: ontology_source, required: true}
 
   CellLine:
     id_prefixes: [CVCL]
     properties:
-      label:          {type: string, required: true}
-      tissue:         {type: string}
-      species:        {type: string, required: true}
-      tmprss2_status: {type: string}
-      ace2_status:    {type: string}
-      misidentified:  {type: bool, required: true}
+      label:           {type: string, required: true}
+      tissue:          {type: string}
+      species:         {type: string, required: true}
+      tmprss2_status:  {type: string, doc: "positive | negative | unknown"}
+      ace2_status:     {type: string}
+      misidentified:   {type: bool, required: true}
 
   Publication:
     id_prefixes: [PMID, DOI]
@@ -133,30 +159,51 @@ node_classes:
       journal:     {type: string}
       is_preprint: {type: bool, required: true}
 
+# ---------------------------------------------------------------------------
+# EDGE CLASSES
+# Each entry is a permitted (subject_class, predicate, object_class) triple.
+# Anything not listed here is REJECTED at ingest.
+#
+#   *_constraints  — property values the endpoint node must have. This is how
+#                    viral and host proteins are distinguished without
+#                    creating two node classes.
+#   required_qualifiers — must be present and non-null on every instance.
+#   held_out       — true means this edge is an evaluation label and MUST be
+#                    stripped from the training graph, not just the test set.
+# ---------------------------------------------------------------------------
 edge_classes:
 
+  # ---- direct-acting channel -------------------------------------------
   - predicate: INHIBITS
     subject: SmallMolecule
     object: Protein
     object_constraints: {is_viral: true}
     held_out: false
     qualifiers:
-      ec50_nm:           {type: float, min: 0}
-      ic50_nm:           {type: float, min: 0}
-      cc50_nm:           {type: float, min: 0}
-      selectivity_index: {type: float, min: 0}
-      cell_line:         {type: string}
-      assay_type:        {type: string, enum: assay_type}
-      lifecycle_stage:   {type: string, enum: lifecycle_stage}
-      unquantified:      {type: bool}
+      ec50_nm:            {type: float, min: 0}
+      ic50_nm:            {type: float, min: 0}
+      cc50_nm:            {type: float, min: 0}
+      selectivity_index:  {type: float, min: 0, doc: "cc50_nm / ec50_nm; derived, never ingested"}
+      cell_line:          {type: string, doc: "CVCL CURIE"}
+      assay_type:         {type: string, enum: assay_type}
+      lifecycle_stage:    {type: string, enum: lifecycle_stage}
+      ki_nm:              {type: float, min: 0}
+      kd_nm:              {type: float, min: 0}
+      relation:           {type: string, enum: activity_relation}
+      target_resolution:  {type: string, enum: target_resolution}
+      # nsp3 carries both PLpro and the ADP-ribose macrodomain -- separate
+      # druggable sites on one protein. A macrodomain binder says nothing about
+      # protease inhibition, so the site is recorded rather than collapsed.
+      domain:             {type: string}
+      unquantified:       {type: bool, doc: "true when activity asserted with no EC50/CC50"}
     required_qualifiers: [assay_type]
 
   - predicate: ENCODED_BY
     subject: Protein
     object: Gene
     qualifiers:
-      mature_peptide: {type: string}
-      cleavage_order: {type: int, min: 0}
+      mature_peptide:  {type: string}
+      cleavage_order:  {type: int, min: 0}
 
   - predicate: BELONGS_TO
     subject: Gene
@@ -179,6 +226,7 @@ edge_classes:
     qualifiers:
       is_resistance: {type: bool}
 
+  # ---- host-directed channel -------------------------------------------
   - predicate: TARGETS
     subject: SmallMolecule
     object: Protein
@@ -186,6 +234,9 @@ edge_classes:
     qualifiers:
       kd_nm:      {type: float, min: 0}
       ic50_nm:    {type: float, min: 0}
+      ki_nm:      {type: float, min: 0}
+      ec50_nm:    {type: float, min: 0}
+      relation:   {type: string, enum: activity_relation}
       direction:  {type: string, enum: target_direction}
       assay_type: {type: string, enum: assay_type}
     required_qualifiers: [direction]
@@ -195,20 +246,20 @@ edge_classes:
     object: OrganismTaxon
     subject_constraints: {is_viral: false}
     qualifiers:
-      direction:   {type: string, enum: host_factor_direction}
-      screen_type: {type: string, enum: screen_type}
-      effect_size: {type: float}
-      cell_line:   {type: string}
+      direction:    {type: string, enum: host_factor_direction}
+      screen_type:  {type: string, enum: screen_type}
+      effect_size:  {type: float}
+      cell_line:    {type: string}
     required_qualifiers: [direction, screen_type, cell_line]
 
   - predicate: PHYSICALLY_INTERACTS_WITH
     subject: Protein
     object: Protein
     qualifiers:
-      detection_method: {type: string}
-      interaction_type: {type: string}
-      string_score:     {type: float, min: 0, max: 1000}
-      channel:          {type: string}
+      detection_method:  {type: string, doc: "PSI-MI CURIE"}
+      interaction_type:  {type: string}
+      string_score:      {type: float, min: 0, max: 1000}
+      channel:           {type: string}
     required_qualifiers: [detection_method]
 
   - predicate: PARTICIPATES_IN
@@ -223,6 +274,7 @@ edge_classes:
     qualifiers:
       consequence: {type: string}
 
+  # ---- clinical / chemical / structural --------------------------------
   - predicate: TREATS
     subject: SmallMolecule
     object: Disease
@@ -255,9 +307,11 @@ edge_classes:
       selectivity_index: {type: float, min: 0}
       cell_line:         {type: string}
       virus_strain:      {type: string}
+      ic50_nm:           {type: float, min: 0}
+      relation:          {type: string, enum: activity_relation}
       assay_type:        {type: string, enum: assay_type}
       unquantified:      {type: bool}
-    required_qualifiers: [cell_line, assay_type]
+    required_qualifiers: [assay_type]
 
   - predicate: COMBINED_WITH
     subject: SmallMolecule
@@ -303,18 +357,22 @@ edge_classes:
       merge_rule: {type: string}
     required_qualifiers: [merge_rule]
 
+  # ---- model output (never an evidence tier) ---------------------------
   - predicate: PREDICTED_INDICATION
     subject: SmallMolecule
     object: OrganismTaxon
     is_model_output: true
     qualifiers:
-      score:                         {type: float}
-      rank:                          {type: int, min: 1}
+      score:                        {type: float}
+      rank:                         {type: int, min: 1}
       percentile_vs_degree_baseline: {type: float, min: 0, max: 100}
-      top_metapaths:                 {type: "list[string]"}
-      model_version:                 {type: string}
+      top_metapaths:                {type: "list[string]"}
+      model_version:                {type: string}
     required_qualifiers: [score, rank, model_version]
 
+# ---------------------------------------------------------------------------
+# Provenance required on EVERY edge instance.
+# ---------------------------------------------------------------------------
 edge_provenance:
   required:
     - primary_knowledge_source
@@ -327,6 +385,9 @@ edge_provenance:
     - source_score
     - kg_release
 
+# ---------------------------------------------------------------------------
+# Metapaths whitelisted for retrieval and DWPC scoring.
+# ---------------------------------------------------------------------------
 metapaths:
   M1:
     doc: "direct-acting"
@@ -357,8 +418,7 @@ retrieval_limits:
   hub_percentile: 99.9
   # A GO term with 1,389 members generates ~1.9M protein pairs in M4, so every
   # drug touching any transcription regulator looks adjacent to every host
-  # factor. Upper-level GO terms are taxonomy, not mechanism. Calibrated
-  # against the v0.1 host layer: p99 pathway size is well under this.
+  # factor. Upper-level GO terms are taxonomy, not mechanism.
   max_pathway_members: 200
   max_neighbors_per_node: 50
   max_subgraph_edges: 100
