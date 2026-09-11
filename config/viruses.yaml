@@ -18,8 +18,8 @@ viruses:
   - taxon: "694009"
     name: SARS-CoV
     proteome_id: UP000000354
-    mondo: null
-    mondo_source: null
+    mondo: "MONDO:0005091"
+    mondo_source: "severe acute respiratory syndrome; sole exact match, verified 2026-09"
 
   - taxon: "1335626"
     name: MERS-CoV
@@ -35,24 +35,45 @@ viruses:
     extra_accessions: [K9N7C7, K9N638, K9N5Q8, K9N4V7, K9N5R3, K9N7A1,
                        K9N643, K9N7D2, K9N4V0, K9N796]
     curation_note: "reviewed entries filed under isolate taxon 1263720"
-    mondo: null
-    mondo_source: null
+    mondo: "MONDO:0100116"
+    mondo_source: "Middle East respiratory syndrome; verified 2026-09"
 
   - taxon: "11137"
     name: HCoV-229E
     proteome_id: UP000006716
+    # No specific MONDO term exists. The only candidate is the generic
+    # MONDO:0005709 (common cold), shared with the other seasonal
+    # coronaviruses. Mapping four distinct viruses -- two alpha, two beta --
+    # onto one disease node would make them look connected when they are not,
+    # and a prediction "for the common cold" could not be attributed back to
+    # the virus it came from. Left null: nothing in M1-M6 routes through
+    # Disease, so no signal is lost.
     mondo: null
     mondo_source: null
 
   - taxon: "277944"
     name: HCoV-NL63
     proteome_id: UP000008573
+    # No specific MONDO term exists. The only candidate is the generic
+    # MONDO:0005709 (common cold), shared with the other seasonal
+    # coronaviruses. Mapping four distinct viruses -- two alpha, two beta --
+    # onto one disease node would make them look connected when they are not,
+    # and a prediction "for the common cold" could not be attributed back to
+    # the virus it came from. Left null: nothing in M1-M6 routes through
+    # Disease, so no signal is lost.
     mondo: null
     mondo_source: null
 
   - taxon: "31631"
     name: HCoV-OC43
     proteome_id: UP000007552
+    # No specific MONDO term exists. The only candidate is the generic
+    # MONDO:0005709 (common cold), shared with the other seasonal
+    # coronaviruses. Mapping four distinct viruses -- two alpha, two beta --
+    # onto one disease node would make them look connected when they are not,
+    # and a prediction "for the common cold" could not be attributed back to
+    # the virus it came from. Left null: nothing in M1-M6 routes through
+    # Disease, so no signal is lost.
     mondo: null
     mondo_source: null
 
@@ -62,6 +83,13 @@ viruses:
     # the species query returns zero rows.
     isolate_taxa: ["443239"]
     proteome_id: UP000008170
+    # No specific MONDO term exists. The only candidate is the generic
+    # MONDO:0005709 (common cold), shared with the other seasonal
+    # coronaviruses. Mapping four distinct viruses -- two alpha, two beta --
+    # onto one disease node would make them look connected when they are not,
+    # and a prediction "for the common cold" could not be attributed back to
+    # the virus it came from. Left null: nothing in M1-M6 routes through
+    # Disease, so no signal is lost.
     mondo: null
     mondo_source: null
 
