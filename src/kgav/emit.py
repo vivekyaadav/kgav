@@ -23,7 +23,8 @@ class Emit:
         return nid
 
     def edge(self, subj: str, pred: str, obj: str, *, source: str, date: str,
-             tier: int = 1, quals: dict | None = None, pmids: list | None = None) -> None:
+             tier: int = 1, quals: dict | None = None, pmids: list | None = None,
+             score: float | None = None) -> None:
         e = {
             "subject": subj, "predicate": pred, "object": obj,
             "qualifiers": quals or {},
@@ -33,4 +34,9 @@ class Emit:
         }
         if pmids:
             e["publications"] = pmids
+        if score is not None:
+            # Raw score as the source reports it. Deliberately NOT called
+            # confidence: a VirHostNet miscore and a STRING combined score are
+            # not commensurable and neither is a probability.
+            e["source_score"] = score
         self.edges.append(e)

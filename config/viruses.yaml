@@ -23,6 +23,9 @@ viruses:
 
   - taxon: "1335626"
     name: MERS-CoV
+    # VirHostNet and Swiss-Prot both file this under an isolate taxon;
+    # the species query returns zero rows.
+    isolate_taxa: ["1263720"]
     proteome_id: UP000112279
     # UP000112279 is TrEMBL-only: its ORF1ab entry (K0BWD0) carries zero Chain
     # features, so Mpro and RdRp would be absent from the graph entirely.
@@ -55,6 +58,9 @@ viruses:
 
   - taxon: "290028"
     name: HCoV-HKU1
+    # VirHostNet and Swiss-Prot both file this under an isolate taxon;
+    # the species query returns zero rows.
+    isolate_taxa: ["443239"]
     proteome_id: UP000008170
     mondo: null
     mondo_source: null
