@@ -1,4 +1,4 @@
-schema_version: "0.5.0"
+schema_version: "0.6.0"
 scope: "Coronaviridae v1 — SARS-CoV-2, SARS-CoV, MERS-CoV, HCoV-229E, HCoV-OC43, HCoV-NL63, HCoV-HKU1"
 
 # ---------------------------------------------------------------------------
@@ -418,9 +418,18 @@ metapaths:
     constraints: {HOST_FACTOR_FOR.direction: dependency}
     exclude_hubs: true
   M6:
-    doc: "cold start via chemical similarity"
+    doc: "cold start via chemical similarity, host-directed"
     path: [SmallMolecule, CHEMICALLY_SIMILAR_TO, SmallMolecule, TARGETS, Protein, HOST_FACTOR_FOR, OrganismTaxon]
     constraints: {HOST_FACTOR_FOR.direction: dependency}
+  M7:
+    # M6 borrows a neighbour's HOST targets, but most annotated compounds here
+    # carry VIRAL targets instead: of 854 compounds with a similarity edge, 547
+    # reach a host-annotated neighbour and 367 a viral-annotated one, yet M6
+    # scored only 232 because the onward dependency-factor route usually does
+    # not exist. M7 is M1 with a similarity hop in front, which matters because
+    # M1 is the channel that works: 15.5% positive rate in its pool vs M4's 6.3%.
+    doc: "cold start via chemical similarity, direct-acting"
+    path: [SmallMolecule, CHEMICALLY_SIMILAR_TO, SmallMolecule, INHIBITS, Protein, ENCODED_BY, Gene, BELONGS_TO, OrganismTaxon]
 
 retrieval_limits:
   # Hub exclusion is CLASS-SCOPED, and only for host proteins acting as path

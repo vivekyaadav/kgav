@@ -35,7 +35,8 @@ from typing import Any
 # hand-curated and authoritative for viral entities; the host layer is derived
 # from reference proteomes; chembl mints compounds and knows least about
 # anything it did not create.
-LAYER_PRECEDENCE = ["spine", "host", "vhppi", "orcs", "chembl", "hosttargets"]
+LAYER_PRECEDENCE = ["spine", "host", "vhppi", "orcs", "chembl", "hosttargets",
+                    "similarity"]
 
 
 def _read_jsonl(path: Path) -> list[dict]:
