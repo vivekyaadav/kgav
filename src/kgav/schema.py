@@ -5,6 +5,8 @@ declared in kg_schema.yaml to enter the graph, and impossible for an edge to
 enter without provenance and a date.
 
 Every validate_* function returns a list of Violation. Empty list == valid.
+Nothing here raises on invalid data; callers decide whether to reject the row
+or fail the batch.
 """
 from __future__ import annotations
 
@@ -27,7 +29,7 @@ class Violation:
     message: str
     ref: str = ""
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover - display only
         return f"[{self.code}] {self.ref}: {self.message}" if self.ref else f"[{self.code}] {self.message}"
 
 
@@ -42,20 +44,11 @@ class EdgeClass:
     required_qualifiers: list = field(default_factory=list)
     held_out: bool = False
     is_model_output: bool = False
+    identity_qualifiers: list = field(default_factory=list)
 
     @property
     def key(self) -> tuple:
         return (self.subject, self.predicate, self.object)
-
-
-def _is_iso_date(v: Any) -> bool:
-    if not isinstance(v, str):
-        return False
-    try:
-        _dt.date.fromisoformat(v[:10])
-        return True
-    except ValueError:
-        return False
 
 
 _TYPE_CHECKS = {
@@ -66,6 +59,16 @@ _TYPE_CHECKS = {
     "date": lambda v: isinstance(v, (_dt.date, _dt.datetime)) or _is_iso_date(v),
     "list[string]": lambda v: isinstance(v, (list, tuple)) and all(isinstance(x, str) for x in v),
 }
+
+
+def _is_iso_date(v: Any) -> bool:
+    if not isinstance(v, str):
+        return False
+    try:
+        _dt.date.fromisoformat(v[:10])
+        return True
+    except ValueError:
+        return False
 
 
 class Schema:
@@ -92,6 +95,7 @@ class Schema:
                 required_qualifiers=list(e.get("required_qualifiers") or []),
                 held_out=bool(e.get("held_out", False)),
                 is_model_output=bool(e.get("is_model_output", False)),
+                identity_qualifiers=list(e.get("identity_qualifiers") or []),
             )
             for e in doc["edge_classes"]
         ]
@@ -100,10 +104,20 @@ class Schema:
         for ec in self.edge_classes:
             self._by_predicate.setdefault(ec.predicate, []).append(ec)
 
+    # -- loading ---------------------------------------------------------
     @classmethod
     def load(cls, path: str | Path) -> Schema:
-        with open(path, encoding="utf-8") as fh:
+        with open(path, "r", encoding="utf-8") as fh:
             return cls(yaml.safe_load(fh))
+
+    # -- lookups ---------------------------------------------------------
+    def identity_qualifiers(self, predicate: str) -> list[str]:
+        """Qualifiers that make two edges DIFFERENT FACTS rather than two
+        witnesses to one. The assembler includes them in the edge key."""
+        for ec in self._by_predicate.get(predicate, []):
+            if ec.identity_qualifiers:
+                return ec.identity_qualifiers
+        return []
 
     def held_out_predicates(self) -> set[str]:
         """Predicates that must be stripped from the TRAINING graph."""
@@ -121,14 +135,17 @@ class Schema:
                 return self._by_key[key]
         return None
 
+    # -- internal helpers ------------------------------------------------
     def _check_value(self, name: str, spec: Mapping, value: Any, ref: str) -> list[Violation]:
         out: list[Violation] = []
         typ = spec.get("type", "string")
         check = _TYPE_CHECKS.get(typ)
         if check is None:
-            return [Violation("SCHEMA_BAD_TYPE", f"unknown declared type {typ!r} for {name}", ref)]
+            out.append(Violation("SCHEMA_BAD_TYPE", f"unknown declared type {typ!r} for {name}", ref))
+            return out
         if not check(value):
-            return [Violation("TYPE", f"{name}={value!r} is not {typ}", ref)]
+            out.append(Violation("TYPE", f"{name}={value!r} is not {typ}", ref))
+            return out
         if "enum" in spec:
             allowed = self.enums.get(spec["enum"], [])
             if value not in allowed:
@@ -144,6 +161,7 @@ class Schema:
         m = CURIE_RE.match(curie or "")
         return m.group(1) if m else None
 
+    # -- node validation -------------------------------------------------
     def validate_node(self, node: Mapping[str, Any]) -> list[Violation]:
         out: list[Violation] = []
         nid = node.get("id", "")
@@ -157,12 +175,13 @@ class Schema:
         prefix = self._curie_prefix(nid)
         if prefix is None:
             out.append(Violation("CURIE", f"id {nid!r} is not a CURIE", ref))
-        elif prefix not in self.prefixes:
-            out.append(Violation("PREFIX", f"prefix {prefix!r} is not declared", ref))
-        elif prefix not in spec.get("id_prefixes", []):
-            out.append(Violation("PREFIX",
-                                 f"prefix {prefix!r} not permitted for {cls} "
-                                 f"(allowed: {spec.get('id_prefixes')})", ref))
+        else:
+            if prefix not in self.prefixes:
+                out.append(Violation("PREFIX", f"prefix {prefix!r} is not declared", ref))
+            elif prefix not in spec.get("id_prefixes", []):
+                out.append(Violation("PREFIX",
+                                     f"prefix {prefix!r} not permitted for {cls} "
+                                     f"(allowed: {spec.get('id_prefixes')})", ref))
 
         props = node.get("properties") or {}
         declared = spec.get("properties") or {}
@@ -172,13 +191,21 @@ class Schema:
         for pname, value in props.items():
             if pname not in declared:
                 out.append(Violation("UNDECLARED_PROPERTY", f"{pname!r} is not declared on {cls}", ref))
-            elif value is not None:
+                continue
+            if value is not None:
                 out.extend(self._check_value(pname, declared[pname], value, ref))
         return out
 
+    # -- edge validation -------------------------------------------------
     def validate_edge(self,
                       edge: Mapping[str, Any],
                       node_index: Mapping[str, Mapping[str, Any]] | None = None) -> list[Violation]:
+        """Validate one edge.
+
+        node_index maps node id -> node dict. When supplied, endpoint classes
+        and endpoint property constraints are enforced; without it only the
+        predicate, qualifiers and provenance can be checked.
+        """
         out: list[Violation] = []
         subj, pred, obj = edge.get("subject"), edge.get("predicate"), edge.get("object")
         ref = f"{subj} -{pred}-> {obj}"
@@ -216,6 +243,7 @@ class Schema:
             candidates = self._by_predicate[pred]
             ec = candidates[0] if len(candidates) == 1 else None
 
+        # qualifiers
         quals = edge.get("qualifiers") or {}
         if ec is not None:
             for qname, value in quals.items():
@@ -228,6 +256,7 @@ class Schema:
                 if quals.get(qname) is None:
                     out.append(Violation("MISSING_QUALIFIER", f"{pred} requires {qname}", ref))
 
+        # provenance — absolute
         for pname in self.required_provenance:
             if edge.get(pname) in (None, "", []):
                 out.append(Violation("MISSING_PROVENANCE", f"{pname} is required on every edge", ref))
@@ -240,11 +269,13 @@ class Schema:
         if date is not None and not _is_iso_date(date) and not isinstance(date, (_dt.date, _dt.datetime)):
             out.append(Violation("TYPE", f"first_asserted_date={date!r} is not an ISO date", ref))
 
+        # model output must never be written into an evidence tier
         if ec is not None and ec.is_model_output and tier in self.enums["evidence_tier"]:
             out.append(Violation("MODEL_OUTPUT_IN_EVIDENCE",
                                  f"{pred} is model output and must not carry an evidence tier", ref))
         return out
 
+    # -- batch -----------------------------------------------------------
     def validate_batch(self,
                        nodes: Iterable[Mapping[str, Any]],
                        edges: Iterable[Mapping[str, Any]]) -> list[Violation]:

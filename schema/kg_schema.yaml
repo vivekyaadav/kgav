@@ -1,4 +1,4 @@
-schema_version: "0.4.0"
+schema_version: "0.5.0"
 scope: "Coronaviridae v1 — SARS-CoV-2, SARS-CoV, MERS-CoV, HCoV-229E, HCoV-OC43, HCoV-NL63, HCoV-HKU1"
 
 # ---------------------------------------------------------------------------
@@ -69,9 +69,7 @@ node_classes:
       chembl_id:     {type: string}
       drugbank_id:   {type: string}
       atc_codes:     {type: "list[string]"}
-      # ChEMBL uses -1 for compounds explicitly known NOT to be clinical
-      # candidates; 0 means unknown. Both are real values, not corruption.
-      max_phase:     {type: int, min: -1, max: 4}
+      max_phase:     {type: int, min: 0, max: 4}
       approval_year: {type: int, min: 1900, max: 2100}
       is_approved:   {type: bool, required: true}
       ecfp4:         {type: string, doc: "hex-encoded 2048-bit fingerprint"}
@@ -245,6 +243,13 @@ edge_classes:
     subject: Protein
     object: OrganismTaxon
     subject_constraints: {is_viral: false}
+    # direction is IDENTITY-DEFINING: a dependency edge and a restriction edge
+    # for the same (protein, virus) are different facts, not two witnesses to
+    # one. Without this the assembler merges them on (subject, predicate,
+    # object) and the surviving direction is whichever source was read first.
+    # 320 pairs are contested across screens -- ACE2 is 34 dependency to 5
+    # restriction -- so the arbitrary winner is not a rare edge case.
+    identity_qualifiers: [direction]
     qualifiers:
       direction:    {type: string, enum: host_factor_direction}
       screen_type:  {type: string, enum: screen_type}
@@ -379,6 +384,7 @@ edge_provenance:
     - evidence_tier
     - first_asserted_date
   optional:
+    - support_count
     - aggregator_source
     - publications
     - evidence_code
@@ -415,22 +421,7 @@ metapaths:
     constraints: {HOST_FACTOR_FOR.direction: dependency}
 
 retrieval_limits:
-  # Hub exclusion is CLASS-SCOPED, and only for host proteins acting as path
-  # connectors. Measured on the assembled v0.1 graph:
-  #   Protein       median 11, p99 229, p99.9 460, max 3227
-  #   Pathway       median  4, p99 113, p99.9 413, max 1389
-  #   SmallMolecule median  1, p99   3, p99.9   5, max    9
-  #
-  # A global degree cut would have excluded SARS-CoV-2 (degree 10,679) and the
-  # viral replicase (3,227) -- but those are where M1-M6 END. A virus node is
-  # high-degree by construction, not because it is an uninformative connector.
-  # Compounds top out at 9, so that class needs no cut at all. The real
-  # connectors are the ubiquitin/ribosomal cluster: RPS27A 863, UBA52 815,
-  # UBC 677, UBB 575.
-  hub_exclude_classes: [Protein]
-  hub_exclude_viral: false      # viral proteins are destinations, never hubs
-  hub_degree_cut: 460           # Protein p99.9 on v0.1
-  hub_percentile: 99.9          # retained for provenance; the cut above governs
+  hub_percentile: 99.9
   # A GO term with 1,389 members generates ~1.9M protein pairs in M4, so every
   # drug touching any transcription regulator looks adjacent to every host
   # factor. Upper-level GO terms are taxonomy, not mechanism.

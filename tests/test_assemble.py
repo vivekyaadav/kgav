@@ -197,3 +197,56 @@ def test_real_assembled_release_validates():
     ids = {n["id"] for n in nodes}
     dangling = [e for e in edges if e["subject"] not in ids or e["object"] not in ids]
     assert not dangling, f"{len(dangling)} dangling edges in the assembled release"
+
+
+# ------------------------------------------------- identity-defining qualifiers
+IDENTITY = {"HOST_FACTOR_FOR": ["direction"]}
+
+
+def _hf(protein, virus, direction, source, date):
+    return _edge(protein, "HOST_FACTOR_FOR", virus, source, date,
+                 q={"direction": direction, "screen_type": "CRISPRko",
+                    "cell_line": "CVCL_0574"})
+
+
+def test_opposite_directions_stay_separate_facts(tmp_path):
+    """A dependency edge and a restriction edge for the same (protein, virus)
+    are different facts. Merging on the triple alone let whichever source was
+    read first decide the direction -- 320 ORCS pairs are contested, ACE2
+    among them at 34 dependency to 5 restriction."""
+    d = tmp_path / "v0.1-orcs"
+    d.mkdir()
+    (d / "nodes.jsonl").write_text("")
+    (d / "edges.jsonl").write_text("\n".join(json.dumps(x) for x in [
+        _hf(ACE2, "NCBITaxon:2697049", "dependency", "infores:biogrid-orcs", "2020-01-01"),
+        _hf(ACE2, "NCBITaxon:2697049", "restriction", "infores:biogrid-orcs", "2021-01-01"),
+    ]))
+    a = assemble({"orcs": d}, IDENTITY)
+    hf = [k for k in a.edges if k[1] == "HOST_FACTOR_FOR"]
+    assert len(hf) == 2, "opposite directions collapsed into one fact"
+    assert {k[3] for k in hf} == {"dependency", "restriction"}
+
+
+def test_same_direction_from_many_screens_records_support_count(tmp_path):
+    """Fifteen screens agreeing is stronger evidence than one. Without a count
+    DWPC weights a lone noisy hit exactly like ACE2."""
+    d = tmp_path / "v0.1-orcs"
+    d.mkdir()
+    (d / "nodes.jsonl").write_text("")
+    (d / "edges.jsonl").write_text("\n".join(json.dumps(
+        _hf(ACE2, "NCBITaxon:2697049", "dependency", "infores:biogrid-orcs",
+            f"20{20+i}-01-01")) for i in range(4)))
+    a = assemble({"orcs": d}, IDENTITY)
+    e = a.edges[(ACE2, "HOST_FACTOR_FOR", "NCBITaxon:2697049", "dependency")]
+    assert e["support_count"] == 4
+    assert e["first_asserted_date"] == "2020-01-01"
+
+
+def test_identity_qualifiers_do_not_affect_other_predicates(built):
+    """INHIBITS declares none, so its key stays the plain triple."""
+    assert (DRUG, "INHIBITS", NSP5) in built.edges
+
+
+def test_support_count_defaults_to_one(built):
+    e = built.edges[(DRUG, "INHIBITS", NSP5)]
+    assert e.get("support_count", 1) == 1

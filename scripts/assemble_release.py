@@ -47,8 +47,13 @@ def main() -> int:
     if not layers:
         raise SystemExit(f"no v0.1-* release directories in {args.releases}")
 
+    schema_early = load_schema()
+    identity = {ec.predicate: ec.identity_qualifiers
+                for ec in schema_early.edge_classes if ec.identity_qualifiers}
     print(f"assembling {len(layers)} layers: {', '.join(layers)}")
-    a = assemble(layers)
+    if identity:
+        print(f"  identity-defining qualifiers: {identity}")
+    a = assemble(layers, identity)
 
     print(f"\n{len(a.nodes):,} nodes, {len(a.edges):,} edges")
     for c, n in a.by_class().most_common():
@@ -86,7 +91,7 @@ def main() -> int:
         for combo, n in combos.most_common(3):
             print(f"  {p:<32} {combo:<34} {n:>8,}")
 
-    schema = load_schema()
+    schema = schema_early
     print("\nvalidating assembled graph")
     violations = schema.validate_batch(a.nodes.values(), a.edges.values())
     if violations:
@@ -99,25 +104,14 @@ def main() -> int:
         return 1
     print("schema: PASS")
 
-    # Hub exclusion is class-scoped. A global cut would exclude the virus nodes
-    # (SARS-CoV-2 has degree 10,679) and the viral replicase -- but those are
-    # where M1-M6 END. High degree there is structural, not uninformative.
-    lim = schema.retrieval_limits
-    cut = lim.get("hub_degree_cut", 460)
-    classes = set(lim.get("hub_exclude_classes") or ["Protein"])
-    include_viral = bool(lim.get("hub_exclude_viral", False))
+    cut, hubs = a.hub_threshold(schema.retrieval_limits.get("hub_percentile", 99.9))
+    print(f"\nhub cut at p{schema.retrieval_limits.get('hub_percentile')}: "
+          f"degree > {cut} ({len(hubs)} nodes)")
     deg = a.degree()
-    hubs = [nid for nid, k in deg.items()
-            if k > cut
-            and a.nodes[nid]["class"] in classes
-            and (include_viral or not a.nodes[nid]["properties"].get("is_viral"))]
-    print(f"\nhub exclusion: {sorted(classes)} with degree > {cut}"
-          f"{'' if include_viral else ', viral excluded from the cut'}")
-    print(f"  {len(hubs)} nodes excluded as path connectors")
     for nid in sorted(hubs, key=lambda n: -deg[n])[:10]:
         props = a.nodes[nid].get("properties", {})
         label = props.get("gene_symbol") or props.get("label") or nid
-        print(f"    {str(label)[:24]:<26} {deg[nid]:>7,}")
+        print(f"  {str(label)[:24]:<26} {a.nodes[nid]['class']:<14} {deg[nid]:>7,}")
 
     a.write(args.out)
     manifest = a.manifest(

@@ -44,8 +44,23 @@ def _read_jsonl(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
-def edge_key(e: dict) -> tuple:
-    return (e["subject"], e["predicate"], e["object"])
+def edge_key(e: dict, identity: dict[str, list[str]] | None = None) -> tuple:
+    """Identity of a fact.
+
+    (subject, predicate, object) alone is WRONG for predicates with a
+    direction-bearing qualifier: a dependency edge and a restriction edge for
+    the same (protein, virus) are different facts, not two witnesses to one.
+    320 pairs in the ORCS layer carry both, and merging on the triple alone let
+    whichever source was read first decide the direction.
+    """
+    base = (e["subject"], e["predicate"], e["object"])
+    if not identity:
+        return base
+    quals = identity.get(e["predicate"]) or []
+    if not quals:
+        return base
+    eq = e.get("qualifiers") or {}
+    return base + tuple(eq.get(q) for q in quals)
 
 
 def _earliest(a: str | None, b: str | None) -> str | None:
@@ -54,8 +69,16 @@ def _earliest(a: str | None, b: str | None) -> str | None:
 
 
 def merge_edges(a: dict, b: dict) -> dict:
-    """One fact, two witnesses."""
+    """One fact, two witnesses.
+
+    support_count records HOW MANY independent assertions back the fact. A
+    (protein, virus) dependency pair supported by fifteen CRISPR screens is
+    much stronger evidence than one supported by a single screen, and without
+    this the two are indistinguishable after merging -- so DWPC would weight a
+    lone noisy hit exactly like ACE2.
+    """
     out = dict(a)
+    out["support_count"] = a.get("support_count", 1) + b.get("support_count", 1)
     sources = {a.get("primary_knowledge_source"), b.get("primary_knowledge_source")}
     sources.discard(None)
     out["primary_knowledge_source"] = "|".join(sorted(sources))
@@ -73,7 +96,8 @@ def merge_edges(a: dict, b: dict) -> dict:
 
 
 class Assembly:
-    def __init__(self) -> None:
+    def __init__(self, identity: dict[str, list[str]] | None = None) -> None:
+        self.identity = identity or {}
         self.nodes: dict[str, dict] = {}
         self.node_layer: dict[str, str] = {}
         self.edges: dict[tuple, dict] = {}
@@ -101,7 +125,7 @@ class Assembly:
 
         for e in _read_jsonl(Path(release_dir) / "edges.jsonl"):
             local["edges"] += 1
-            k = edge_key(e)
+            k = edge_key(e, self.identity)
             if k in self.edges:
                 self.edges[k] = merge_edges(self.edges[k], e)
                 self.stats["edge_merged"] += 1
@@ -179,9 +203,10 @@ class Assembly:
         }
 
 
-def assemble(layers: dict[str, Path]) -> Assembly:
+def assemble(layers: dict[str, Path],
+             identity: dict[str, list[str]] | None = None) -> Assembly:
     """Layers are added in LAYER_PRECEDENCE order regardless of dict order."""
-    a = Assembly()
+    a = Assembly(identity)
     for name in LAYER_PRECEDENCE:
         if name in layers:
             a.add_layer(name, layers[name])
