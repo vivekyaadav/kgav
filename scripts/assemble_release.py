@@ -74,9 +74,9 @@ def main() -> int:
     dangling = a.dangling()
     if dangling:
         print(f"\nDANGLING — {len(dangling):,} edges reference a node that does not exist")
-        for s, p, o in dangling[:8]:
-            missing = s if s not in a.nodes else o
-            print(f"  {s} -{p}-> {o}   (missing: {missing})")
+        for k in dangling[:8]:
+            missing = k[0] if k[0] not in a.nodes else k[2]
+            print(f"  {k[0]} -{k[1]}-> {k[2]}   (missing: {missing})")
         return 1
 
     orphans = orphan_nodes(a)
@@ -104,14 +104,24 @@ def main() -> int:
         return 1
     print("schema: PASS")
 
-    cut, hubs = a.hub_threshold(schema.retrieval_limits.get("hub_percentile", 99.9))
-    print(f"\nhub cut at p{schema.retrieval_limits.get('hub_percentile')}: "
-          f"degree > {cut} ({len(hubs)} nodes)")
+    # Hub exclusion is class-scoped. A global cut would exclude the virus
+    # nodes (SARS-CoV-2 has degree 10,679) and the viral replicase -- but those
+    # are where M1-M6 END. High degree there is structural, not uninformative.
+    lim = schema.retrieval_limits
+    cut = lim.get("hub_degree_cut", 460)
+    classes = set(lim.get("hub_exclude_classes") or ["Protein"])
+    include_viral = bool(lim.get("hub_exclude_viral", False))
     deg = a.degree()
+    hubs = [nid for nid, k in deg.items()
+            if k > cut and a.nodes[nid]["class"] in classes
+            and (include_viral or not a.nodes[nid]["properties"].get("is_viral"))]
+    print(f"\nhub exclusion: {sorted(classes)} with degree > {cut}"
+          f"{'' if include_viral else ', viral excluded from the cut'}")
+    print(f"  {len(hubs)} nodes excluded as path connectors")
     for nid in sorted(hubs, key=lambda n: -deg[n])[:10]:
         props = a.nodes[nid].get("properties", {})
         label = props.get("gene_symbol") or props.get("label") or nid
-        print(f"  {str(label)[:24]:<26} {a.nodes[nid]['class']:<14} {deg[nid]:>7,}")
+        print(f"    {str(label)[:24]:<26} {deg[nid]:>7,}")
 
     a.write(args.out)
     manifest = a.manifest(

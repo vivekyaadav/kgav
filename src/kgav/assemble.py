@@ -154,9 +154,11 @@ class Assembly:
 
     def degree(self) -> Counter:
         d: Counter = Counter()
-        for s, _p, o in self.edges:
-            d[s] += 1
-            d[o] += 1
+        # Keys may carry identity qualifiers beyond (subject, predicate,
+        # object), so index rather than unpack.
+        for k in self.edges:
+            d[k[0]] += 1
+            d[k[2]] += 1
         return d
 
     def hub_threshold(self, percentile: float) -> tuple[int, list[str]]:
@@ -224,17 +226,17 @@ def orphan_nodes(a: Assembly) -> Counter:
     connected (SmallMolecule, for instance) means a join failed.
     """
     touched: set[str] = set()
-    for s, _p, o in a.edges:
-        touched.add(s)
-        touched.add(o)
+    for k in a.edges:
+        touched.add(k[0])
+        touched.add(k[2])
     return Counter(n["class"] for nid, n in a.nodes.items() if nid not in touched)
 
 
 def connectivity_report(a: Assembly) -> dict[str, Counter]:
     """Per-class edge-type breakdown, for spotting a layer that failed to join."""
     out: dict[str, Counter] = defaultdict(Counter)
-    for (s, p, o) in a.edges:
-        sc = a.nodes.get(s, {}).get("class", "?")
-        oc = a.nodes.get(o, {}).get("class", "?")
-        out[p][f"{sc}->{oc}"] += 1
+    for k in a.edges:
+        sc = a.nodes.get(k[0], {}).get("class", "?")
+        oc = a.nodes.get(k[2], {}).get("class", "?")
+        out[k[1]][f"{sc}->{oc}"] += 1
     return out

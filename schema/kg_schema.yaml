@@ -69,7 +69,9 @@ node_classes:
       chembl_id:     {type: string}
       drugbank_id:   {type: string}
       atc_codes:     {type: "list[string]"}
-      max_phase:     {type: int, min: 0, max: 4}
+      # ChEMBL uses -1 for compounds explicitly known NOT to be clinical
+      # candidates; 0 means unknown. Both are real values, not corruption.
+      max_phase:     {type: int, min: -1, max: 4}
       approval_year: {type: int, min: 1900, max: 2100}
       is_approved:   {type: bool, required: true}
       ecfp4:         {type: string, doc: "hex-encoded 2048-bit fingerprint"}
@@ -421,7 +423,21 @@ metapaths:
     constraints: {HOST_FACTOR_FOR.direction: dependency}
 
 retrieval_limits:
-  hub_percentile: 99.9
+  # Hub exclusion is CLASS-SCOPED, and only for host proteins acting as path
+  # connectors. Measured on the assembled v0.1 graph:
+  #   Protein       median 11, p99 229, p99.9 460, max 3227
+  #   Pathway       median  4, p99 113, p99.9 413, max 1389
+  #   SmallMolecule median  1, p99   3, p99.9   5, max    9
+  #
+  # A global degree cut would exclude SARS-CoV-2 (degree 10,679) and the viral
+  # replicase (3,227) -- but those are where M1-M6 END. High degree there is
+  # structural, not uninformative. Compounds top out at 9 and need no cut. The
+  # real connectors are the ubiquitin/ribosomal cluster: RPS27A 863, UBA52
+  # 815, UBC 677, UBB 575.
+  hub_exclude_classes: [Protein]
+  hub_exclude_viral: false      # viral proteins are destinations, never hubs
+  hub_degree_cut: 460           # Protein p99.9 on v0.1
+  hub_percentile: 99.9          # retained for provenance; the cut above governs
   # A GO term with 1,389 members generates ~1.9M protein pairs in M4, so every
   # drug touching any transcription regulator looks adjacent to every host
   # factor. Upper-level GO terms are taxonomy, not mechanism.
