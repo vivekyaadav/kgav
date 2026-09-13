@@ -112,7 +112,7 @@ def test_layer_order_is_deterministic(layers):
 
 def test_precedence_covers_every_layer():
     assert set(LAYER_PRECEDENCE) == {"spine", "host", "vhppi", "orcs", "chembl",
-                                     "hosttargets", "similarity"}
+                                     "selectivity", "hosttargets", "similarity"}
 
 
 # -------------------------------------------------------------- edge merging

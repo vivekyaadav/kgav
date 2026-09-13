@@ -67,12 +67,37 @@ def main() -> int:
     ap.add_argument("--results", type=Path, default=root / "data/results")
     ap.add_argument("--cutoff", type=int, default=2021)
     ap.add_argument("--inactive-above-nm", type=float, default=10_000.0)
+    ap.add_argument("--selectivity", default="all",
+                    choices=["all", "selective-only", "verified-only"],
+                    help="all: every measured active (the original protocol). "
+                         "selective-only: actives with a verified SI >= 10. "
+                         "verified-only: actives with ANY verified SI, "
+                         "selective or not -- isolates the effect of "
+                         "restricting to compounds with matched data from the "
+                         "effect of the selectivity filter itself.")
+    ap.add_argument("--si-threshold", type=float, default=10.0)
     args = ap.parse_args()
 
     schema = load_schema()
     held = schema.held_out_predicates()
 
     all_labels = build_labels(args.release, inactive_above_nm=args.inactive_above_nm)
+
+    if args.selectivity != "all":
+        from kgav.selectivity import selectivity_index_by_compound
+        si = selectivity_index_by_compound(args.release)
+        print(f"selectivity filter '{args.selectivity}': "
+              f"{len(si):,} (compound, virus) pairs have a verified index")
+        for virus, pos in list(all_labels.positives.items()):
+            if args.selectivity == "verified-only":
+                keep = {d for d in pos if (d, virus) in si}
+            else:
+                keep = {d for d in pos if si.get((d, virus), -1) >= args.si_threshold}
+            dropped = len(pos) - len(keep)
+            all_labels.positives[virus] = keep
+            if dropped:
+                print(f"  {virus}: {len(pos):,} -> {len(keep):,} actives "
+                      f"({dropped:,} excluded)")
     print(f"labels from the full release (inactive if censored above "
           f"{args.inactive_above_nm:,.0f} nM):")
     for key in ("active", "inactive", "undecidable", "ambiguous_dropped"):
@@ -92,6 +117,19 @@ def main() -> int:
         print("=" * 66)
         test_labels = build_labels(args.release, year_from=args.cutoff + 1,
                                    inactive_above_nm=args.inactive_above_nm)
+        # The selectivity filter must apply here too. Filtering only the
+        # cross-sectional labels would report a temporal number computed on a
+        # different positive set from the one it is being compared against.
+        if args.selectivity != "all":
+            from kgav.selectivity import selectivity_index_by_compound
+            si_t = selectivity_index_by_compound(args.release)
+            for virus, pos in list(test_labels.positives.items()):
+                if args.selectivity == "verified-only":
+                    keep = {d for d in pos if (d, virus) in si_t}
+                else:
+                    keep = {d for d in pos
+                            if si_t.get((d, virus), -1) >= args.si_threshold}
+                test_labels.positives[virus] = keep
         print(f"post-{args.cutoff} labels: {test_labels.stats['active']:,} active, "
               f"{test_labels.stats['inactive']:,} inactive")
         g_train = Graph.load(args.train, skip_predicates=held)
@@ -102,6 +140,7 @@ def main() -> int:
     args.results.mkdir(parents=True, exist_ok=True)
     (args.results / "hard_negatives.json").write_text(json.dumps(
         {"inactive_above_nm": args.inactive_above_nm,
+         "selectivity_filter": args.selectivity,
          "label_stats": dict(all_labels.stats),
          "cross_sectional": cross, "temporal": temporal}, indent=2))
     print(f"\nwrote {args.results / 'hard_negatives.json'}")

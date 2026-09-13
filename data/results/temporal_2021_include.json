@@ -5,16 +5,16 @@
     "edge_train": 193988,
     "edge_dropped_future": 158251,
     "undated_kept": 2212,
-    "label_train": 928,
+    "label_train": 1022,
     "label_censored": 4748,
-    "label_test": 1594,
+    "label_test": 1823,
     "undated_kept_computed": 1583
   },
   "audits": [
-    "ceiling: 926/1,209 test compounds for NCBITaxon:2697049 have no pre-2021 evidence",
-    "ceiling: 9/41 test compounds for NCBITaxon:694009 have no pre-2021 evidence",
+    "ceiling: 1,135/1,433 test compounds for NCBITaxon:2697049 have no pre-2021 evidence",
+    "ceiling: 13/45 test compounds for NCBITaxon:694009 have no pre-2021 evidence",
     "ceiling: 24/53 test compounds for NCBITaxon:1335626 have no pre-2021 evidence",
-    "ceiling: 68/93 test compounds for NCBITaxon:11137 have no pre-2021 evidence",
+    "ceiling: 69/94 test compounds for NCBITaxon:11137 have no pre-2021 evidence",
     "ceiling: 155/192 test compounds for NCBITaxon:31631 have no pre-2021 evidence",
     "ceiling: 4/6 test compounds for NCBITaxon:277944 have no pre-2021 evidence"
   ],
@@ -22,10 +22,10 @@
     "SARS-CoV-2": {
       "M1": {
         "pool": 393,
-        "pos": 14,
-        "hits": 5,
-        "expected": 3.5623409669211195,
-        "lift": 1.4035714285714287,
+        "pos": 13,
+        "hits": 4,
+        "expected": 3.3078880407124682,
+        "lift": 1.209230769230769,
         "mrr": 0.015151515151515152,
         "trustworthy": true
       },
@@ -67,19 +67,19 @@
       },
       "COMBINED": {
         "pool": 3361,
-        "pos": 67,
+        "pos": 66,
         "hits": 2,
-        "expected": 1.9934543290687294,
-        "lift": 1.0032835820895523,
+        "expected": 1.9637012793811366,
+        "lift": 1.0184848484848485,
         "mrr": 0.02857142857142857,
         "trustworthy": true
       },
       "degree": {
         "pool": 4633,
-        "pos": 283,
+        "pos": 298,
         "hits": 5,
-        "expected": 6.108353118929419,
-        "lift": 0.8185512367491166,
+        "expected": 6.432117418519318,
+        "lift": 0.7773489932885906,
         "mrr": 0.01639344262295082,
         "trustworthy": true
       }

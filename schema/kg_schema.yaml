@@ -1,4 +1,4 @@
-schema_version: "0.6.0"
+schema_version: "0.7.0"
 scope: "Coronaviridae v1 — SARS-CoV-2, SARS-CoV, MERS-CoV, HCoV-229E, HCoV-OC43, HCoV-NL63, HCoV-HKU1"
 
 # ---------------------------------------------------------------------------
@@ -318,6 +318,12 @@ edge_classes:
       relation:          {type: string, enum: activity_relation}
       assay_type:        {type: string, enum: assay_type}
       unquantified:      {type: bool}
+      # True only when CC50 and EC50 come from the SAME document, so the
+      # selectivity index reflects one experimental context. Cytotoxicity in
+      # ChEMBL is filed against the cell line rather than the virus, which is
+      # why an earlier version of this project wrongly recorded that almost no
+      # CC50 data existed.
+      selectivity_verified: {type: bool}
     required_qualifiers: [assay_type]
 
   - predicate: COMBINED_WITH
