@@ -36,10 +36,13 @@ def test_gi50_is_not_treated_as_cytotoxicity():
     assert set(TOX_TYPES) == {"CC50", "TC50"}
 
 
-def _row(inchikey, ec50, cc50, tax=2697049, doc=1, year=2021):
+def _row(inchikey, ec50, cc50, tax=2697049, doc=1, year=2021, exact=True):
+    """all_exact follows the SQL convention: 0 means every CC50 in the document
+    was an exact measurement, 1 means at least one was censored."""
     return {"molregno": 1, "doc_id": doc, "tax_id": tax, "ec50_nm": ec50,
             "n_activity": 1, "cc50_nm": cc50, "n_tox": 1, "compound": "CHEMBL1",
-            "inchikey": inchikey, "year": year, "pubmed_id": 33333333}
+            "inchikey": inchikey, "year": year, "pubmed_id": 33333333,
+            "all_exact": 0 if exact else 1, "assay_text": "assay in Vero E6 cells"}
 
 
 @pytest.fixture
@@ -57,15 +60,47 @@ def test_selective_and_cytotoxic_are_counted(tmap):
     assert stats["edges"] == 2
 
 
-def test_worst_selectivity_wins_across_documents(tmap):
-    """A compound shown cytotoxic anywhere is cytotoxic. Taking the flattering
-    measurement is how a selectivity filter stops filtering."""
+def test_median_of_exact_measurements_is_used(tmap):
+    """Neither the worst nor the best measurement: both select a study by its
+    answer. Taking the worst of 34 remdesivir measurements picked an outlier
+    and reported a licensed antiviral at SI 0.9; taking the best exonerated
+    chloroquine at 17.7. The median of exact measurements is the summary that
+    survived the named controls."""
     em = Emit()
     ingest_selectivity(em, [_row(KEY_A, 100.0, 9000.0, doc=1),   # SI 90
-                            _row(KEY_A, 100.0, 300.0, doc=2)],   # SI 3
+                            _row(KEY_A, 100.0, 300.0, doc=2),    # SI 3
+                            _row(KEY_A, 100.0, 1000.0, doc=3)],  # SI 10
                        tmap, "infores:chembl")
     assert len(em.edges) == 1
-    assert em.edges[0]["qualifiers"]["selectivity_index"] == 3.0
+    assert em.edges[0]["qualifiers"]["selectivity_index"] == 10.0
+
+
+def test_censored_measurement_below_threshold_is_uninformative(tmap):
+    """"CC50 > 300 nM" means NOT toxic up to 300 nM -- a lower bound on
+    selectivity, never evidence of cytotoxicity."""
+    em = Emit()
+    stats = ingest_selectivity(em, [_row(KEY_A, 100.0, 300.0, exact=False)],
+                               tmap, "infores:chembl")
+    assert stats["censored_uninformative"] == 1
+    assert stats["edges"] == 0
+
+
+def test_censored_measurement_above_threshold_proves_selectivity(tmap):
+    """"CC50 > 50000 nM" against EC50 100 nM establishes SI of at least 500."""
+    em = Emit()
+    stats = ingest_selectivity(em, [_row(KEY_A, 100.0, 50000.0, exact=False)],
+                               tmap, "infores:chembl")
+    assert stats["selective"] == 1
+
+
+def test_row_without_a_relation_flag_is_dropped(tmap):
+    """Defaulting a missing direction-bearing field is the error that produced
+    SI 1.8 for nirmatrelvir."""
+    row = _row(KEY_A, 100.0, 5000.0)
+    del row["all_exact"]
+    em = Emit()
+    stats = ingest_selectivity(em, [row], tmap, "infores:chembl")
+    assert stats["missing_relation_flag"] == 1 and stats["edges"] == 0
 
 
 def test_edges_are_marked_verified_and_quantified(tmap):
@@ -131,7 +166,7 @@ def test_query_pairs_requires_same_document(tmp_path):
     CREATE TABLE molecule_dictionary(molregno INT, chembl_id TEXT);
     CREATE TABLE compound_structures(molregno INT, standard_inchi_key TEXT);
     CREATE TABLE target_dictionary(tid INT, tax_id INT);
-    CREATE TABLE assays(assay_id INT, tid INT, doc_id INT);
+    CREATE TABLE assays(assay_id INT, tid INT, doc_id INT, description TEXT);
     CREATE TABLE docs(doc_id INT, year INT, pubmed_id INT);
     CREATE TABLE activities(activity_id INT, assay_id INT, molregno INT,
       standard_type TEXT, standard_value REAL, standard_units TEXT,
@@ -140,8 +175,10 @@ def test_query_pairs_requires_same_document(tmp_path):
     con.executemany("INSERT INTO molecule_dictionary VALUES(?,?)", [(1, "CHEMBL1")])
     con.executemany("INSERT INTO compound_structures VALUES(?,?)", [(1, KEY_A)])
     con.executemany("INSERT INTO target_dictionary VALUES(?,?)", [(10, 2697049), (11, 9606)])
-    con.executemany("INSERT INTO assays VALUES(?,?,?)",
-                    [(1, 10, 100), (2, 11, 100), (3, 11, 200)])
+    con.executemany("INSERT INTO assays VALUES(?,?,?,?)",
+                    [(1, 10, 100, "Antiviral activity in Vero E6 cells"),
+                     (2, 11, 100, "Cytotoxicity against Vero E6 cells"),
+                     (3, 11, 200, "Cytotoxicity against HeLa cells")])
     con.executemany("INSERT INTO docs VALUES(?,?,?)", [(100, 2021, 1), (200, 2022, 2)])
     con.executemany("INSERT INTO activities VALUES(?,?,?,?,?,?,?)",
                     [(1, 1, 1, "EC50", 100.0, "nM", "="),
@@ -153,3 +190,30 @@ def test_query_pairs_requires_same_document(tmp_path):
     rows = query_pairs(db, ["2697049"])
     assert len(rows) == 1
     assert rows[0]["cc50_nm"] == 5000.0
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("Cytotoxicity against African green monkey Vero E6 cells", "Vero E6"),
+    ("Antiviral activity in Vero cells", "Vero"),
+    ("Antiviral activity against SARS-CoV-2 in Calu-3 cells", "Calu-3"),
+    ("Inhibition in human Huh-7.5 hepatoma cells", "Huh-7.5"),
+    ("Inhibition in human Huh-7 cells", "Huh-7"),
+    ("Cytotoxicity against HEK293T cells transfected with ACE2", "HEK293T"),
+    ("Antiviral activity with no cell line stated", None),
+])
+def test_cell_line_extraction_prefers_the_specific_line(text, expected):
+    """Vero E6 must be matched before Vero, and Huh-7.5 before Huh-7.
+    Substring ordering has caused two prior bugs in this project: SARS-CoV
+    matching inside SARS-CoV-2, and nsp1 patterns catching nsp1x."""
+    from kgav.selectivity import extract_cell_line
+    assert extract_cell_line(text) == expected
+
+
+def test_vero_lines_are_the_dominant_evidence_base():
+    """Not a code test: a recorded measurement. 668 of 1,144 selectivity edges
+    with a named cell line come from Vero lines, against 54 from Calu-3 and 43
+    from A549 -- roughly twelve times more evidence from the system that
+    misled the field in 2020 than from the systems where results transfer."""
+    from kgav.selectivity import extract_cell_line
+    assert extract_cell_line("Vero E6") == "Vero E6"
+    assert extract_cell_line("Calu-3") == "Calu-3"

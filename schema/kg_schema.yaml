@@ -1,4 +1,4 @@
-schema_version: "0.7.0"
+schema_version: "0.7.1"
 scope: "Coronaviridae v1 — SARS-CoV-2, SARS-CoV, MERS-CoV, HCoV-229E, HCoV-OC43, HCoV-NL63, HCoV-HKU1"
 
 # ---------------------------------------------------------------------------
@@ -324,6 +324,11 @@ edge_classes:
       # why an earlier version of this project wrongly recorded that almost no
       # CC50 data existed.
       selectivity_verified: {type: bool}
+      # selectivity_index holds the WORST measurement, which is right for
+      # filtering. These two preserve the spread so a display can say that
+      # studies disagree rather than quoting the least flattering value alone.
+      selectivity_index_max: {type: float, min: 0}
+      selectivity_n_studies: {type: int, min: 1}
     required_qualifiers: [assay_type]
 
   - predicate: COMBINED_WITH
