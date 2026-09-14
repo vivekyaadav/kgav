@@ -142,7 +142,10 @@ class GraphTools:
             name = self.preferred_names.get(node_id)
             if name:
                 return name
-            return str(p.get("chembl_id") or node_id)
+            # Fall back to a label on the node before the bare accession. A
+            # release without PREF_NAMES.json should still render readable
+            # names rather than "CHEMBL1".
+            return str(p.get("label") or p.get("chembl_id") or node_id)
         if p.get("mature_peptide") and p.get("protein_family"):
             return f"{p['protein_family']} ({p['mature_peptide']})"
         return str(p.get("protein_family") or p.get("gene_symbol")
@@ -283,6 +286,15 @@ class GraphTools:
                           warnings=list(dict.fromkeys(w for w in warns if w)),
                           edge_ids=ids)
 
+    def _best_direct_potency(self, compound: str) -> float | None:
+        """Most potent INHIBITS measurement, in nM."""
+        vals = [q[k]
+                for e in self.out.get(("INHIBITS", compound), [])
+                for q in [e.get("qualifiers") or {}]
+                for k in ("ic50_nm", "ki_nm", "kd_nm")
+                if q.get(k) is not None]
+        return min(vals) if vals else None
+
     def _selectivity_for(self, compound: str, virus: str) -> str:
         """Selectivity as a RANGE, not a single value.
 
@@ -337,8 +349,13 @@ class GraphTools:
         are in the graph by construction.
         """
         verdict = guards.check(guards.QueryKind.TRIAGE, virus)
+        # Report anything that could not be scored. Silently returning three
+        # of four requested compounds is a failure a user cannot detect.
+        missing = [c for c in compounds if c not in self.nodes]
         scored = []
         for c in compounds:
+            if c in missing:
+                continue
             paths = self._find_paths(c, virus, MAX_PATHS)
             direct = sum(1 for r, _ in paths if r.startswith("M1"))
             host = len(paths) - direct
@@ -347,21 +364,64 @@ class GraphTools:
                            "direct_acting_routes": direct,
                            "host_directed_routes": host,
                            "selectivity": sel})
-        # Direct-acting first: AUC 0.823 against measured inactives, versus
-        # below chance for every host-directed route.
-        scored.sort(key=lambda r: (-r["direct_acting_routes"],
-                                   -r["host_directed_routes"]))
-        lines = [f"{i}. {r['label']}: {r['direct_acting_routes']} direct-acting, "
-                 f"{r['host_directed_routes']} host-directed route(s)"
-                 for i, r in enumerate(scored, 1)]
+        # Counting routes is wrong and inverted the controls: chloroquine
+        # ranked ABOVE nirmatrelvir because it has a 160 nM Spike hit and a
+        # 7,280 nM nsp5 hit -- two routes, one of them a screening artifact --
+        # and then won the tiebreak on host-directed routes, which score BELOW
+        # chance and should count for nothing.
+        #
+        # Rank on what the evaluation actually established: potent
+        # direct-acting evidence, then selectivity. Host-directed routes are
+        # reported for context and contribute zero.
+        for r in scored:
+            r["best_potency_nm"] = self._best_direct_potency(r["compound"])
+            r["selectivity_index"] = self.si_range.get(
+                (r["compound"], virus), [None])[0] \
+                if self.si_range.get((r["compound"], virus)) else None
+        def key(r):
+            si = r["selectivity_index"]
+            potent = (r["best_potency_nm"] is not None
+                      and r["best_potency_nm"] <= 1000)
+            # SELECTIVITY BEFORE POTENCY. Ordering on potency first ranked
+            # chloroquine (160 nM, SI 15) above remdesivir (1,560 nM, SI 107)
+            # -- and potency without selectivity is precisely the signal that
+            # made chloroquine look promising in 2020. Selectivity is what
+            # took M1's AUC from 0.729 to 0.826.
+            #
+            # Compounds with an unverified selectivity index rank below those
+            # with one: unknown is not a passing grade.
+            # NO POTENCY GATE. A 1 uM threshold has no basis in this
+            # project's evaluation and put remdesivir (1,560 nM, SI 107) below
+            # chloroquine (160 nM, SI 15) purely by sitting the wrong side of
+            # an arbitrary line. The ranking may only use quantities the
+            # evaluation measured: direct-acting evidence, then selectivity,
+            # with potency as a tiebreak.
+            del potent
+            return (0 if r["direct_acting_routes"] else 1,
+                    0 if si is not None else 1,
+                    -(si or 0),
+                    r["best_potency_nm"] if r["best_potency_nm"] is not None else 1e12)
+        scored.sort(key=key)
+        lines = []
+        for i, r in enumerate(scored, 1):
+            pot = (f"best direct IC50 {r['best_potency_nm']:.0f} nM"
+                   if r["best_potency_nm"] is not None else "no direct-acting data")
+            si = (f", SI {r['selectivity_index']:.0f}"
+                  if r["selectivity_index"] is not None else ", SI unknown")
+            lines.append(f"{i}. {r['label']}: {pot}{si} "
+                         f"({r['direct_acting_routes']} direct-acting, "
+                         f"{r['host_directed_routes']} host-directed routes)")
         warns = list(verdict.warnings)
         warns.append(
             "Ranking is by direct-acting route count. Direct-acting paths "
             "separate selective antivirals from measured inactives at AUC 0.823; "
             "host-directed paths score below chance and are shown for context "
             "only.")
+        if missing:
+            warns.append(f"{len(missing)} requested compound(s) are not in this "
+                         f"graph and were not ranked: {', '.join(missing)}")
         return ToolResult(True, "triage", data=scored, verbalised=lines,
-                          warnings=warns)
+                          warnings=warns, note=f"{len(missing)} unranked" if missing else "")
 
     def evidence(self, subject: str, object_: str | None = None,
                  predicate: str | None = None, limit: int = 25) -> ToolResult:

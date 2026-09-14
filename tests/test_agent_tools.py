@@ -177,3 +177,42 @@ def test_result_serialises_for_a_model(graph):
     payload = json.loads(graph.explain(DRUG, V).to_json())
     assert set(payload) == {"ok", "kind", "data", "text", "warnings",
                             "edge_ids", "note"}
+
+
+REAL = __import__("pathlib").Path(__file__).resolve().parents[1] / "data/releases/v0.1"
+
+
+@pytest.mark.skipif(not (REAL / "nodes.jsonl").exists(), reason="release not built")
+def test_triage_ranks_the_named_controls_correctly():
+    """The ranking has been wrong three ways, and each time the aggregate
+    output looked reasonable while the controls were inverted:
+
+      v1 counting routes        chloroquine above nirmatrelvir
+      v2 potency before SI      chloroquine above remdesivir
+      v3 a 1 uM potency gate    remdesivir demoted below chloroquine for
+                                sitting the wrong side of an arbitrary line
+
+    The rule may use only quantities this project measured: direct-acting
+    evidence, then selectivity, then potency as a tiebreak.
+    """
+    g = GraphTools(REAL)
+    ids = {n: g.resolve(n).data[0]["id"]
+           for n in ("nirmatrelvir", "remdesivir", "chloroquine",
+                     "hydroxychloroquine")}
+    r = g.triage(list(ids.values()), "NCBITaxon:2697049")
+    order = [row["label"] for row in r.data]
+
+    assert order.index("nirmatrelvir") < order.index("chloroquine")
+    assert order.index("remdesivir") < order.index("chloroquine")
+    assert order.index("chloroquine") < order.index("hydroxychloroquine")
+
+
+@pytest.mark.skipif(not (REAL / "nodes.jsonl").exists(), reason="release not built")
+def test_triage_reports_compounds_it_could_not_rank():
+    """Silently returning three of four requested compounds is a failure the
+    user cannot detect."""
+    g = GraphTools(REAL)
+    real_id = g.resolve("nirmatrelvir").data[0]["id"]
+    r = g.triage([real_id, "INCHIKEY:DOESNOTEXIST"], "NCBITaxon:2697049")
+    assert len(r.data) == 1
+    assert any("not in this graph" in w for w in r.warnings)

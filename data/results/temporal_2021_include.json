@@ -5,13 +5,13 @@
     "edge_train": 193988,
     "edge_dropped_future": 158251,
     "undated_kept": 2212,
-    "label_train": 1022,
+    "label_train": 1013,
     "label_censored": 4748,
-    "label_test": 1823,
+    "label_test": 1813,
     "undated_kept_computed": 1583
   },
   "audits": [
-    "ceiling: 1,135/1,433 test compounds for NCBITaxon:2697049 have no pre-2021 evidence",
+    "ceiling: 1,125/1,423 test compounds for NCBITaxon:2697049 have no pre-2021 evidence",
     "ceiling: 13/45 test compounds for NCBITaxon:694009 have no pre-2021 evidence",
     "ceiling: 24/53 test compounds for NCBITaxon:1335626 have no pre-2021 evidence",
     "ceiling: 69/94 test compounds for NCBITaxon:11137 have no pre-2021 evidence",
