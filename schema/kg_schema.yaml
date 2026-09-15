@@ -1,4 +1,4 @@
-schema_version: "0.7.1"
+schema_version: "0.8.0"
 scope: "Coronaviridae v1 — SARS-CoV-2, SARS-CoV, MERS-CoV, HCoV-229E, HCoV-OC43, HCoV-NL63, HCoV-HKU1"
 
 # ---------------------------------------------------------------------------
@@ -30,6 +30,20 @@ enums:
     - 3   # high-confidence computational
     - 4   # text-mined
   host_factor_direction: [dependency, restriction]
+
+  # The nucleophile that defines a protease's catalytic class. Phase 0 measured
+  # this from the sequence at UniProt's annotated active site, because fold
+  # assignment cannot supply it: InterPro calls the CORONAVIRUS protease
+  # superfamily "trypsin-like serine protease" -- that is the architecture, not
+  # the chemistry. Reading entry names returned "ambiguous" for every cysteine
+  # protease tested.
+  catalytic_type: [cysteine, serine, threonine, aspartic, metallo, none, unknown]
+
+  # How a protein was assigned to a target class.
+  class_assignment_method: [interpro, scop, cath, pfam, hmm, manual]
+
+  # How two classes were compared.
+  fold_comparison_method: [interpro_shared, tmalign, dali, foldseek, manual]
   target_direction:      [inhibitor, agonist, modulator, unknown]
   lifecycle_stage:
     [attachment, entry, uncoating, genome_replication, translation,
@@ -88,6 +102,32 @@ node_classes:
       mature_peptide: {type: string}
       sequence_hash:  {type: string, required: true}
       reviewed:       {type: bool,   required: true}
+      # Catalytic machinery, recorded per protein because it is what
+      # distinguishes otherwise fold-identical proteases. catalytic_residues
+      # holds positions in the PARENT accession's numbering, matching how
+      # UniProt reports active sites on a polyprotein.
+      catalytic_type:     {type: string, enum: catalytic_type}
+      catalytic_residues: {type: "list[string]", doc: "e.g. ['H3304', 'C3408']"}
+      nucleophile:        {type: string, doc: "residue and position, e.g. C3408"}
+
+  # A fold or functional family -- NOT an organism. Added in 0.8.0 because
+  # every metapath previously terminated at OrganismTaxon, which made
+  # "this drug inhibits 3C-like proteases" inexpressible rather than merely
+  # unimplemented. Cross-family reasoning requires a node for the class itself.
+  TargetClass:
+    id_prefixes: [SCOP, CATH, PFAM, INTERPRO, SSF, KGAV]
+    properties:
+      label:          {type: string, required: true}
+      source:         {type: string, required: true, enum: class_assignment_method}
+      level:          {type: string, doc: "superfamily | family | domain"}
+      # Identity-defining: two classes differing in catalytic type are
+      # different things, never two views of one. Same role that `direction`
+      # plays on HOST_FACTOR_FOR.
+      catalytic_type: {type: string, enum: catalytic_type, required: true}
+      scop_id:        {type: string}
+      cath_id:        {type: string}
+      pfam_id:        {type: string}
+      interpro_id:    {type: string}
 
   Gene:
     id_prefixes: [NCBIGene, KGAV]
@@ -198,6 +238,37 @@ edge_classes:
       unquantified:       {type: bool, doc: "true when activity asserted with no EC50/CC50"}
     required_qualifiers: [assay_type]
 
+  - predicate: MEMBER_OF_CLASS
+    subject: Protein
+    object: TargetClass
+    qualifiers:
+      method:     {type: string, enum: class_assignment_method}
+      evalue:     {type: float, min: 0}
+      coverage:   {type: float, min: 0, max: 1}
+      identity:   {type: float, min: 0, max: 1}
+      start:      {type: int, min: 1}
+      end:        {type: int, min: 1}
+    required_qualifiers: [method]
+
+  # Structural similarity between two target classes. THE GATE LIVES HERE.
+  #
+  # catalytic_type_match is required and is a HARD gate, not a weight. Phase 0
+  # showed coronavirus, picornavirus and flavivirus proteases share SSF50494
+  # and G3DSA:2.40.10.10 -- by fold they are indistinguishable. Only the
+  # nucleophile separates them (Cys vs Ser). A fold similarity without this
+  # check is exactly how a cysteine-protease inhibitor gets recommended for a
+  # serine protease.
+  - predicate: FOLD_SIMILAR_TO
+    subject: TargetClass
+    object: TargetClass
+    qualifiers:
+      tm_score:             {type: float, min: 0, max: 1}
+      rmsd_angstrom:        {type: float, min: 0}
+      catalytic_type_match: {type: bool}
+      shared_superfamilies: {type: "list[string]"}
+      method:               {type: string, enum: fold_comparison_method}
+    required_qualifiers: [catalytic_type_match, method]
+
   - predicate: ENCODED_BY
     subject: Protein
     object: Gene
@@ -252,6 +323,8 @@ edge_classes:
     # 320 pairs are contested across screens -- ACE2 is 34 dependency to 5
     # restriction -- so the arbitrary winner is not a rare edge case.
     identity_qualifiers: [direction]
+    # (see also TargetClass.catalytic_type, identity-defining for the same
+    #  reason: a cysteine and a serine protease class are different facts)
     qualifiers:
       direction:    {type: string, enum: host_factor_direction}
       screen_type:  {type: string, enum: screen_type}
@@ -432,6 +505,21 @@ metapaths:
     doc: "cold start via chemical similarity, host-directed"
     path: [SmallMolecule, CHEMICALLY_SIMILAR_TO, SmallMolecule, TARGETS, Protein, HOST_FACTOR_FOR, OrganismTaxon]
     constraints: {HOST_FACTOR_FOR.direction: dependency}
+  # THE ROUTE v2 EXISTS FOR. A drug inhibits a protein of class X; class X is
+  # structurally similar to class Y; a protein of class Y belongs to this
+  # virus. This is the only metapath that reaches a virus with ZERO activity
+  # data, which is the population the v1 temporal split showed to be
+  # unreachable (77% of post-cutoff compounds absent from the prior graph).
+  #
+  # The constraint is not optional. Without it M8 traverses from SARS-CoV-2
+  # Mpro to HCV NS3 -- same superfamily, opposite nucleophile -- and recommends
+  # nirmatrelvir for hepatitis C.
+  M8:
+    doc: "cross-family direct-acting via conserved fold, catalytic type gated"
+    path: [SmallMolecule, INHIBITS, Protein, MEMBER_OF_CLASS, TargetClass, FOLD_SIMILAR_TO, TargetClass, MEMBER_OF_CLASS, Protein, ENCODED_BY, Gene, BELONGS_TO, OrganismTaxon]
+    constraints: {FOLD_SIMILAR_TO.catalytic_type_match: true}
+    exclude_hubs: true
+
   M7:
     # M6 borrows a neighbour's HOST targets, but most annotated compounds here
     # carry VIRAL targets instead: of 854 compounds with a similarity edge, 547
