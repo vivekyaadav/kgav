@@ -188,10 +188,27 @@ def catalytic_machinery(acc: str, lo: int, hi: int) -> tuple[list[str], str, str
     sites.sort()
     residues = [f"{aa}{pos}" for pos, aa, _d in sites]
 
-    # An explicitly annotated nucleophile wins; otherwise the last residue.
+    # ONLY an explicitly annotated nucleophile counts. The earlier rule --
+    # "the last catalytic residue is the nucleophile" -- is valid for
+    # chymotrypsin-like proteases and wrong everywhere else. Applied
+    # universally it read SARS-CoV-2 RdRp as "aspartic D5153" and Dengue NS5
+    # as "aspartic E2708": polymerases have catalytic aspartates that
+    # coordinate metal ions, not a covalent nucleophile. That sent the
+    # coronavirus and picornavirus polymerases into different gate modes and
+    # broke the polymerase comparison entirely.
     explicit = [(p, aa) for p, aa, d in sites if "nucleophile" in d.lower()]
-    pos, aa = explicit[-1] if explicit else (sites[-1][0], sites[-1][1])
-    return residues, f"{aa}{pos}", NUCLEOPHILES.get(aa, "unknown")
+    if explicit:
+        pos, aa = explicit[-1]
+        return residues, f"{aa}{pos}", NUCLEOPHILES.get(aa, "unknown")
+
+    # No annotated nucleophile. A His-...-Cys or His-...-Ser triad in a
+    # protease is still recognisable by composition; anything else is
+    # metal-coordinating or structural and gets "none".
+    aas = [aa for _p, aa, _d in sites]
+    if "H" in aas and aas[-1] in ("C", "S"):
+        pos, aa = sites[-1][0], sites[-1][1]
+        return residues, f"{aa}{pos}", NUCLEOPHILES[aa]
+    return residues, "", "none"
 
 
 def fetch_classes(acc: str, lo: int, hi: int) -> list[dict]:

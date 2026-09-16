@@ -34,6 +34,10 @@ SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
 HEDGE_STARTS = (
     "this", "these", "however", "note", "in summary", "overall", "the graph",
     "no ", "there is no", "i cannot", "it is not", "caution", "warning",
+    # Restating a required caveat is not an uncited claim: the caveat is
+    # supplied by the brief, not asserted by the model.
+    "selective", "cytotoxic", "selectivity unknown", "cell context",
+    "cell line", "host-directed route", "the cell line",
 )
 
 
@@ -64,7 +68,18 @@ class Verification:
 
 
 def _sentences(text: str) -> list[str]:
-    return [s.strip() for s in SENTENCE_RE.split(text or "") if s.strip()]
+    """Split into sentences, after neutralising markdown.
+
+    Models format. Numbered list markers ("1.", "2.") are split as sentence
+    ends by any regex keyed on a period, and bold markers put "**" at the
+    start of a line so a hedge-prefix check never matches. Both produced
+    uncited-claim warnings on text that made no uncited claim.
+    """
+    t = text or ""
+    t = re.sub(r"^\s*\d+[.)]\s+", "", t, flags=re.MULTILINE)   # list markers
+    t = re.sub(r"^\s*[-*•]\s+", "", t, flags=re.MULTILINE)      # bullets
+    t = t.replace("**", "").replace("__", "")           # emphasis
+    return [s.strip() for s in SENTENCE_RE.split(t) if s.strip()]
 
 
 def _numbers(text: str) -> set[str]:

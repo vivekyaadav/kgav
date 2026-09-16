@@ -18,6 +18,11 @@ prefixes:
   DOI:        "https://doi.org/"
   DBSNP:      "https://identifiers.org/dbsnp:"
   KGAV:       "internal"          # internally minted (strains, curated variants)
+  INTERPRO: https://www.ebi.ac.uk/interpro/entry/InterPro/
+  SCOP: https://scop.mrc-lmb.cam.ac.uk/term/
+  CATH: https://www.cathdb.info/version/latest/superfamily/
+  PFAM: https://www.ebi.ac.uk/interpro/entry/pfam/
+  SSF: https://supfam.org/SUPERFAMILY/cgi-bin/scop.cgi?sunid=
 
 # ---------------------------------------------------------------------------
 # Controlled vocabularies. Any qualifier declared with enum: <name> must take
