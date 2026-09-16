@@ -412,11 +412,22 @@ class GraphTools:
                          f"({r['direct_acting_routes']} direct-acting, "
                          f"{r['host_directed_routes']} host-directed routes)")
         warns = list(verdict.warnings)
-        warns.append(
-            "Ranking is by direct-acting route count. Direct-acting paths "
+        warns.append(guards.caveat(
+            "ranking",
+            # Describes the sort key above, in its actual order. The previous
+            # wording said "by direct-acting route count", which is what the
+            # ranking deliberately STOPPED doing -- counting routes is what
+            # put chloroquine above nirmatrelvir on a screening artifact.
+            "compounds are ordered by whether they have any direct-acting "
+            "route, then by whether a selectivity index exists, then by higher "
+            "selectivity, with the most potent direct-acting measurement as a "
+            "final tiebreak. The NUMBER of routes does not affect the order, "
+            "host-directed routes contribute nothing to it, and a compound "
+            "whose selectivity is unknown ranks below one with a measured "
+            "index. Direct-acting paths "
             "separate selective antivirals from measured inactives at AUC 0.826; "
             "host-directed paths score below chance and are shown for context "
-            "only.")
+            "only."))
         if missing:
             warns.append(f"{len(missing)} requested compound(s) are not in this "
                          f"graph and were not ranked: {', '.join(missing)}")

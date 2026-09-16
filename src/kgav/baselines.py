@@ -27,6 +27,8 @@ import random
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from kgav.schema import parse_hop
+
 DEFAULT_W = 0.4
 
 
@@ -36,18 +38,58 @@ class Graph:
     out[(predicate, node)] -> [(neighbour, edge)] in the schema's declared
     direction; inv[...] is the reverse, needed because M4 traverses
     PARTICIPATES_IN forwards then backwards.
+
+    Which of the two a hop reads is decided by neighbours(), from the schema's
+    `symmetric` declaration and the hop's own direction marker -- never from
+    what a particular node happens to have.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, symmetry: dict[str, bool] | None = None) -> None:
         self.nodes: dict[str, dict] = {}
         self.out: dict[tuple[str, str], list[tuple[str, dict]]] = defaultdict(list)
         self.inv: dict[tuple[str, str], list[tuple[str, dict]]] = defaultdict(list)
         self.degree: Counter = Counter()
+        # predicate -> symmetric, straight from the schema. A predicate absent
+        # here has no declared symmetry and MUST NOT be traversed: see
+        # neighbours().
+        self.symmetry: dict[str, bool] = dict(symmetry or {})
+
+    def neighbours(self, predicate: str, node: str, reverse: bool = False
+                   ) -> list[tuple[str, dict]]:
+        """Adjacent nodes for one hop, in the direction the SCHEMA declares.
+
+        A symmetric predicate reads both adjacency maps, because which side a
+        pair was stored on is an ingest artifact -- STRING canonicalises each
+        interaction to one row ordered by accession. A directed predicate
+        reads exactly the map the hop asks for.
+
+        This replaces `follow outgoing edges, and fall back to incoming only
+        when there are none`, which truncated every node holding edges in both
+        directions -- 9,016 host proteins in v0.1.
+
+        The union does not dedup, because on v0.1 it cannot double-count:
+        zero symmetric pairs are stored in BOTH orientations (checked for
+        PHYSICALLY_INTERACTS_WITH and CHEMICALLY_SIMILAR_TO, 0 of 150,432 and
+        0 of 1,583). That is an invariant of the ingests -- STRING is
+        canonicalised on read and the similarity layer is bipartite -- not of
+        this function. An ingest that emitted both orientations of one fact
+        would inflate its DWPC weight twofold.
+        """
+        symmetric = self.symmetry.get(predicate)
+        if symmetric is None:
+            raise ValueError(
+                f"predicate {predicate!r} has no declared symmetry, so its "
+                f"traversal direction is unknown. Declare `symmetric` on it in "
+                f"kg_schema.yaml and load the graph with Schema.symmetry().")
+        if symmetric:
+            return self.out.get((predicate, node), []) + self.inv.get((predicate, node), [])
+        return (self.inv if reverse else self.out).get((predicate, node), [])
 
     @classmethod
-    def load(cls, release: Path, skip_predicates: set[str] | None = None) -> Graph:
+    def load(cls, release: Path, skip_predicates: set[str] | None = None,
+             symmetry: dict[str, bool] | None = None) -> Graph:
         skip = skip_predicates or set()
-        g = cls()
+        g = cls(symmetry)
         for line in (Path(release) / "nodes.jsonl").read_text().splitlines():
             if line.strip():
                 n = json.loads(line)
@@ -137,16 +179,13 @@ def walk_metapath(g: Graph, start: str, path: list, constraints: dict | None,
     own intermediate is not evidence.
     """
     frontier: list[tuple[str, float, frozenset]] = [(start, 1.0, frozenset({start}))]
-    steps = [(path[i], path[i + 1]) for i in range(1, len(path) - 1, 2)]
+    steps = [(parse_hop(path[i]), path[i + 1]) for i in range(1, len(path) - 1, 2)]
 
-    for step_i, (predicate, want_class) in enumerate(steps):
+    for step_i, ((predicate, reverse), want_class) in enumerate(steps):
         nxt: list[tuple[str, float, frozenset]] = []
         last = step_i == len(steps) - 1
         for node, weight, visited in frontier:
-            candidates = g.out.get((predicate, node), [])
-            reverse = not candidates and bool(g.inv.get((predicate, node)))
-            if reverse:
-                candidates = g.inv.get((predicate, node), [])
+            candidates = g.neighbours(predicate, node, reverse)
             for nbr, edge in candidates:
                 if nbr in visited or g.klass(nbr) != want_class:
                     continue
@@ -259,8 +298,11 @@ def _bfs_distances(g: Graph, sources: set[str], predicate: str,
     for hop in range(1, max_hops + 1):
         nxt: set[str] = set()
         for node in frontier:
-            for nbr, _e in (g.out.get((predicate, node), [])
-                            + g.inv.get((predicate, node), [])):
+            # Reads the same declared symmetry walk_metapath does. These two
+            # used to disagree -- this one unioned both directions while
+            # walk_metapath guessed -- with nothing authoritative to check
+            # either against.
+            for nbr, _e in g.neighbours(predicate, node):
                 if nbr in dist or nbr in blocked:
                     continue
                 dist[nbr] = hop

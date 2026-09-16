@@ -74,6 +74,9 @@ class Brief:
             "identifier and do not reuse one from these instructions."),
             ("- Every warning below MUST appear in your answer. They are not "
             "optional context; they are what makes the facts interpretable."),
+            ("- Keep each warning's LABEL -- the capitalised words before its "
+            "colon -- exactly as written. You may reword the rest of the "
+            "warning; the label is how it is checked."),
             "- If the facts do not answer the question, say so plainly.",
             "",
             f"QUESTION: {self.question}",

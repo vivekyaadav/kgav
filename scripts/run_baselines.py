@@ -23,6 +23,7 @@ from kgav.baselines import (
     network_proximity,
     rank,
 )
+from kgav.labels import build_labels
 from kgav.schema import load_schema
 
 # Compounds whose behaviour tells us whether the graph works.
@@ -76,24 +77,20 @@ def main() -> int:
     held = schema.held_out_predicates()
     print(f"held out of traversal (evaluation labels): {sorted(held)}")
 
-    g = Graph.load(args.release, skip_predicates=held)
+    g = Graph.load(args.release, skip_predicates=held, symmetry=schema.symmetry())
     print(f"{len(g.nodes):,} nodes | {len(g.drugs()):,} drugs | "
           f"{len(g.viruses())} viruses")
 
-    # Ground truth: the cell-based antiviral edges we withheld.
-    positives: set[str] = set()
-    for line in (args.release / "edges.jsonl").read_text().splitlines():
-        if not line.strip():
-            continue
-        e = json.loads(line)
-        # Only exact relations are ground truth: "EC50 > 10000 nM" is a
-        # measurement of INACTIVITY and would invert the label.
-        if (e["predicate"] == "HAS_ANTIVIRAL_ACTIVITY_AGAINST"
-                and e["object"] == args.virus
-                and (e.get("qualifiers") or {}).get("relation") == "="):
-            positives.add(e["subject"])
-    print(f"{len(positives):,} compounds with measured activity against "
-          f"{args.virus} (ground truth)")
+    # Ground truth: the cell-based antiviral edges we withheld, with polarity
+    # decided by labels.classify rather than by the relation alone. Reading
+    # only the relation counted 578 compounds measured above 10 uM as
+    # positives -- they are measurements of INACTIVITY -- and a positive set
+    # containing measured inactives makes Hits@k and MRR uninterpretable.
+    labels = build_labels(args.release)
+    positives = labels.positives.get(args.virus, set())
+    negatives = labels.negatives.get(args.virus, set())
+    print(f"{len(positives):,} compounds measured ACTIVE against {args.virus} "
+          f"(ground truth), {len(negatives):,} measured inactive")
 
     print("\ncomputing DWPC over M1-M6")
     dwpc = dwpc_scores(g, schema.metapaths, schema.retrieval_limits)
@@ -154,6 +151,7 @@ def main() -> int:
         "virus": args.virus,
         "held_out": sorted(held),
         "n_positives": len(positives),
+        "n_negatives": len(negatives),
         "metrics": {n: {"n": len(r),
                         "hits@10": hits_at_k(r, positives, 10),
                         "hits@50": hits_at_k(r, positives, 50),

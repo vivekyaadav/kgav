@@ -5,7 +5,7 @@ triple. Everything else guards invariants the rest of the pipeline assumes.
 """
 import pytest
 
-from kgav.schema import load_schema
+from kgav.schema import load_schema, parse_hop
 
 
 @pytest.fixture(scope="module")
@@ -70,8 +70,13 @@ def test_schema_is_internally_consistent(schema):
         path = mp["path"]
         assert len(path) % 2 == 1, f"{name}: path must alternate node/edge/node"
         for i, step in enumerate(path):
-            bucket = classes if i % 2 == 0 else preds
-            assert step in bucket, f"{name}: {step!r} undeclared"
+            if i % 2 == 0:
+                assert step in classes, f"{name}: {step!r} undeclared"
+            else:
+                # A hop may carry a direction marker ("<PARTICIPATES_IN");
+                # the predicate is what must be declared.
+                predicate, _reverse = parse_hop(step)
+                assert predicate in preds, f"{name}: {predicate!r} undeclared"
 
 
 def test_enums_referenced_by_qualifiers_exist(schema):
@@ -194,3 +199,41 @@ def test_dangling_edge_is_rejected(schema, world):
 
 def test_batch_validation_catches_duplicate_nodes(schema):
     assert any(x.code == "DUPLICATE_NODE" for x in schema.validate_batch([_mol(), _mol()], []))
+
+
+# ------------------------------------------------- metapath direction (H1)
+def test_every_metapath_hop_declares_its_symmetry():
+    """The guard that stops traversal direction regressing to a guess about
+    local topology. A predicate with no `symmetric` cannot be walked."""
+    assert load_schema().validate_metapaths() == []
+
+
+def test_a_metapath_over_an_undeclared_predicate_is_rejected():
+    s = load_schema()
+    for ec in s.edge_classes:
+        if ec.predicate == "PHYSICALLY_INTERACTS_WITH":
+            ec.symmetric = None
+    codes = {v.code for v in s.validate_metapaths()}
+    assert "METAPATH_UNDECLARED_SYMMETRY" in codes
+
+
+def test_a_reverse_marker_on_a_symmetric_predicate_is_rejected():
+    """Symmetric predicates are walked both ways by definition, so marking
+    one reverse signals a misunderstanding rather than an intent."""
+    s = load_schema()
+    s.metapaths["BAD"] = {"path": ["SmallMolecule", "<CHEMICALLY_SIMILAR_TO",
+                                   "SmallMolecule"]}
+    codes = {v.code for v in s.validate_metapaths()}
+    assert "METAPATH_REDUNDANT_REVERSE" in codes
+
+
+def test_symmetry_is_declared_for_every_edge_class():
+    s = load_schema()
+    undeclared = [ec.predicate for ec in s.edge_classes if ec.symmetric is None]
+    assert not undeclared, f"undeclared symmetry: {undeclared}"
+
+
+def test_the_symmetric_predicates_are_the_ones_we_expect():
+    sym = {p for p, is_sym in load_schema().symmetry().items() if is_sym}
+    assert sym == {"PHYSICALLY_INTERACTS_WITH", "CHEMICALLY_SIMILAR_TO",
+                   "FOLD_SIMILAR_TO", "COMBINED_WITH", "SAME_AS"}

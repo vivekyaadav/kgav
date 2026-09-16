@@ -72,7 +72,7 @@ def main() -> int:
     write_split(split, args.release, args.out)
     print(f"\nwrote training graph -> {args.out}")
 
-    g = Graph.load(args.out, skip_predicates=held)
+    g = Graph.load(args.out, skip_predicates=held, symmetry=s.symmetry())
     print(f"loaded {len(g.nodes):,} nodes | {len(g.drugs()):,} drugs")
 
     dwpc = dwpc_scores(g, s.metapaths, s.retrieval_limits)

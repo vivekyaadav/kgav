@@ -107,7 +107,8 @@ def main() -> int:
     print("\n" + "=" * 66)
     print("CROSS-SECTIONAL: full graph, all measured compounds")
     print("=" * 66)
-    g_full = Graph.load(args.release, skip_predicates=held)
+    g_full = Graph.load(args.release, skip_predicates=held,
+                        symmetry=schema.symmetry())
     cross = run(g_full, schema, all_labels, "cross-sectional")
 
     temporal: dict = {}
@@ -132,7 +133,8 @@ def main() -> int:
                 test_labels.positives[virus] = keep
         print(f"post-{args.cutoff} labels: {test_labels.stats['active']:,} active, "
               f"{test_labels.stats['inactive']:,} inactive")
-        g_train = Graph.load(args.train, skip_predicates=held)
+        g_train = Graph.load(args.train, skip_predicates=held,
+                             symmetry=schema.symmetry())
         temporal = run(g_train, schema, test_labels, f"post-{args.cutoff}")
     else:
         print(f"\n{args.train} not found -- run temporal_split.py first")

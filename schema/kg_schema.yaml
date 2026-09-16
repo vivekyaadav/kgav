@@ -1,4 +1,4 @@
-schema_version: "0.8.0"
+schema_version: "0.9.0"
 scope: "Coronaviridae v1 — SARS-CoV-2, SARS-CoV, MERS-CoV, HCoV-229E, HCoV-OC43, HCoV-NL63, HCoV-HKU1"
 
 # ---------------------------------------------------------------------------
@@ -215,11 +215,28 @@ node_classes:
 #   required_qualifiers — must be present and non-null on every instance.
 #   held_out       — true means this edge is an evaluation label and MUST be
 #                    stripped from the training graph, not just the test set.
+#   symmetric      — REQUIRED on every class a metapath traverses. True means
+#                    the relation holds in both directions and the stored
+#                    orientation is an artifact of ingest, so a walker must
+#                    read both adjacency maps.
+#
+# WHY SYMMETRY IS DECLARED HERE RATHER THAN INFERRED. baselines.walk_metapath
+# used to guess it: follow outgoing edges, and fall back to incoming ones only
+# when a node had no outgoing edge of that predicate. That works for a node
+# with edges in one direction and silently truncates every node with both.
+# STRING stores each interaction once, canonically ordered by accession, so
+# 9,016 host proteins in v0.1 carry PHYSICALLY_INTERACTS_WITH edges in both
+# directions and lost their inbound half: M5 reached 113 fewer drugs and 33%
+# less path mass. _bfs_distances in the same module unioned both directions
+# for the same predicate, so the two disagreed with no way to tell which was
+# right. Symmetry is a property of the relation, not of how any one traversal
+# happens to reach a node, so it is declared once, here.
 # ---------------------------------------------------------------------------
 edge_classes:
 
   # ---- direct-acting channel -------------------------------------------
   - predicate: INHIBITS
+    symmetric: false
     subject: SmallMolecule
     object: Protein
     object_constraints: {is_viral: true}
@@ -244,6 +261,7 @@ edge_classes:
     required_qualifiers: [assay_type]
 
   - predicate: MEMBER_OF_CLASS
+    symmetric: false
     subject: Protein
     object: TargetClass
     qualifiers:
@@ -264,6 +282,7 @@ edge_classes:
   # check is exactly how a cysteine-protease inhibitor gets recommended for a
   # serine protease.
   - predicate: FOLD_SIMILAR_TO
+    symmetric: true
     subject: TargetClass
     object: TargetClass
     qualifiers:
@@ -275,6 +294,7 @@ edge_classes:
     required_qualifiers: [catalytic_type_match, method]
 
   - predicate: ENCODED_BY
+    symmetric: false
     subject: Protein
     object: Gene
     qualifiers:
@@ -282,6 +302,7 @@ edge_classes:
       cleavage_order:  {type: int, min: 0}
 
   - predicate: BELONGS_TO
+    symmetric: false
     subject: Gene
     object: OrganismTaxon
     subject_constraints: {is_viral: true}
@@ -289,6 +310,7 @@ edge_classes:
       genome_segment: {type: string}
 
   - predicate: CONFERS_RESISTANCE_TO
+    symmetric: false
     subject: VirusStrain
     object: SmallMolecule
     qualifiers:
@@ -297,6 +319,7 @@ edge_classes:
       evidence_type: {type: string}
 
   - predicate: OCCURS_IN
+    symmetric: false
     subject: Variant
     object: Protein
     qualifiers:
@@ -304,6 +327,7 @@ edge_classes:
 
   # ---- host-directed channel -------------------------------------------
   - predicate: TARGETS
+    symmetric: false
     subject: SmallMolecule
     object: Protein
     object_constraints: {is_viral: false}
@@ -318,6 +342,7 @@ edge_classes:
     required_qualifiers: [direction]
 
   - predicate: HOST_FACTOR_FOR
+    symmetric: false
     subject: Protein
     object: OrganismTaxon
     subject_constraints: {is_viral: false}
@@ -338,6 +363,7 @@ edge_classes:
     required_qualifiers: [direction, screen_type, cell_line]
 
   - predicate: PHYSICALLY_INTERACTS_WITH
+    symmetric: true
     subject: Protein
     object: Protein
     qualifiers:
@@ -348,12 +374,14 @@ edge_classes:
     required_qualifiers: [detection_method]
 
   - predicate: PARTICIPATES_IN
+    symmetric: false
     subject: Protein
     object: Pathway
     qualifiers:
       role: {type: string}
 
   - predicate: HAS_VARIANT
+    symmetric: false
     subject: Gene
     object: Variant
     qualifiers:
@@ -361,6 +389,7 @@ edge_classes:
 
   # ---- clinical / chemical / structural --------------------------------
   - predicate: TREATS
+    symmetric: false
     subject: SmallMolecule
     object: Disease
     held_out: true
@@ -371,6 +400,7 @@ edge_classes:
     required_qualifiers: [approval_status]
 
   - predicate: IN_TRIAL_FOR
+    symmetric: false
     subject: SmallMolecule
     object: Disease
     held_out: true
@@ -383,6 +413,7 @@ edge_classes:
     required_qualifiers: [nct_id, status]
 
   - predicate: HAS_ANTIVIRAL_ACTIVITY_AGAINST
+    symmetric: false
     subject: SmallMolecule
     object: OrganismTaxon
     held_out: true
@@ -410,6 +441,7 @@ edge_classes:
     required_qualifiers: [assay_type]
 
   - predicate: COMBINED_WITH
+    symmetric: true
     subject: SmallMolecule
     object: SmallMolecule
     qualifiers:
@@ -419,6 +451,7 @@ edge_classes:
       cell_line:     {type: string}
 
   - predicate: CHEMICALLY_SIMILAR_TO
+    symmetric: true
     subject: SmallMolecule
     object: SmallMolecule
     qualifiers:
@@ -426,27 +459,32 @@ edge_classes:
     required_qualifiers: [tanimoto_ecfp4]
 
   - predicate: CAUSES
+    symmetric: false
     subject: OrganismTaxon
     object: Disease
     qualifiers:
       is_primary_agent: {type: bool}
 
   - predicate: HAS_STRAIN
+    symmetric: false
     subject: OrganismTaxon
     object: VirusStrain
     qualifiers: {}
 
   - predicate: SUBCLASS_OF
+    symmetric: false
     subject: OrganismTaxon
     object: OrganismTaxon
     qualifiers: {}
 
   - predicate: SUBCLASS_OF_DISEASE
+    symmetric: false
     subject: Disease
     object: Disease
     qualifiers: {}
 
   - predicate: SAME_AS
+    symmetric: true
     subject: any
     object: any
     qualifiers:
@@ -455,6 +493,7 @@ edge_classes:
 
   # ---- model output (never an evidence tier) ---------------------------
   - predicate: PREDICTED_INDICATION
+    symmetric: false
     subject: SmallMolecule
     object: OrganismTaxon
     is_model_output: true
@@ -486,6 +525,17 @@ edge_provenance:
 # Metapaths whitelisted for retrieval and DWPC scoring.
 # ---------------------------------------------------------------------------
 metapaths:
+  # A hop written "<PREDICATE" is traversed AGAINST the predicate's declared
+  # direction — object to subject. M4's second PARTICIPATES_IN goes Pathway
+  # back to Protein, and M8's second MEMBER_OF_CLASS goes TargetClass back to
+  # Protein; both are reverse hops over a directed predicate. These used to
+  # work only because the walker guessed direction from whether a node had
+  # outgoing edges, which is the same guess that truncated the symmetric
+  # predicates. Direction is now stated, not inferred.
+  #
+  # A reverse marker on a SYMMETRIC predicate is a schema error: symmetric
+  # predicates are traversed both ways by definition, so "<" on one signals a
+  # misunderstanding rather than an intent. validate_release rejects it.
   M1:
     doc: "direct-acting"
     path: [SmallMolecule, INHIBITS, Protein, ENCODED_BY, Gene, BELONGS_TO, OrganismTaxon]
@@ -498,7 +548,7 @@ metapaths:
     path: [SmallMolecule, TARGETS, Protein, PHYSICALLY_INTERACTS_WITH, Protein, ENCODED_BY, Gene, BELONGS_TO, OrganismTaxon]
   M4:
     doc: "pathway-mediated"
-    path: [SmallMolecule, TARGETS, Protein, PARTICIPATES_IN, Pathway, PARTICIPATES_IN, Protein, HOST_FACTOR_FOR, OrganismTaxon]
+    path: [SmallMolecule, TARGETS, Protein, PARTICIPATES_IN, Pathway, "<PARTICIPATES_IN", Protein, HOST_FACTOR_FOR, OrganismTaxon]
     constraints: {HOST_FACTOR_FOR.direction: dependency}
     exclude_hubs: true
   M5:
@@ -521,7 +571,7 @@ metapaths:
   # nirmatrelvir for hepatitis C.
   M8:
     doc: "cross-family direct-acting via conserved fold, catalytic type gated"
-    path: [SmallMolecule, INHIBITS, Protein, MEMBER_OF_CLASS, TargetClass, FOLD_SIMILAR_TO, TargetClass, MEMBER_OF_CLASS, Protein, ENCODED_BY, Gene, BELONGS_TO, OrganismTaxon]
+    path: [SmallMolecule, INHIBITS, Protein, MEMBER_OF_CLASS, TargetClass, FOLD_SIMILAR_TO, TargetClass, "<MEMBER_OF_CLASS", Protein, ENCODED_BY, Gene, BELONGS_TO, OrganismTaxon]
     constraints: {FOLD_SIMILAR_TO.catalytic_type_match: true}
     exclude_hubs: true
 

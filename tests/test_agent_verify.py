@@ -2,6 +2,7 @@
 asking a model to be honest.
 """
 
+from kgav.agent import guards
 from kgav.agent.verify import verify, verify_response
 
 FACTS = [
@@ -72,6 +73,125 @@ def test_warning_present_passes():
     ans = "Chloroquine engages SIGMAR1 [E7]. CELL CONTEXT: measured in Vero E6."
     v = verify(ans, FACTS, IDS, warn)
     assert not any(f.code == "warning_dropped" for f in v.findings)
+
+
+# ------------------------------------------- no citable edges (triage/profile)
+# triage() and profile() return summary counts and never set edge_ids, so an
+# empty citable list is their NORMAL shape, not an edge case. An earlier version
+# returned early here and ran neither of the two checks below, so a fabricated
+# potency and a dropped caveat both printed as "verified".
+TRIAGE_FACTS = [
+    "1. nirmatrelvir: best direct IC50 3 nM, SI 63291 (2 direct-acting, 0 host-directed routes)",
+    "2. chloroquine: best direct IC50 160 nM, SI 15 (2 direct-acting, 1 host-directed routes)",
+]
+TRIAGE_WARN = [
+    ("HOST-DIRECTED ROUTE: measured below chance against known-inactive "
+     "compounds, and worse once cytotoxic compounds are excluded."),
+]
+
+
+def test_invented_number_is_caught_with_no_citable_edges():
+    """A potency the graph never reported must not pass merely because the
+    brief carried no edge ids to cite."""
+    ans = ("HOST-DIRECTED ROUTE: shown for context only. Nirmatrelvir is the "
+           "clear winner with an IC50 of 250 nM.")
+    v = verify(ans, TRIAGE_FACTS, [], TRIAGE_WARN)
+    assert not v.passed, v.report()
+    assert any(f.code == "ungrounded_number" for f in v.failures)
+
+
+def test_dropped_warning_is_caught_with_no_citable_edges():
+    """The host-directed caveat is what makes a triage ranking interpretable.
+    Dropping it must fail whether or not anything was citable."""
+    ans = "Nirmatrelvir ranks first with a best direct IC50 of 3 nM."
+    v = verify(ans, TRIAGE_FACTS, [], TRIAGE_WARN)
+    assert not v.passed, v.report()
+    assert any(f.code == "warning_dropped" for f in v.failures)
+
+
+def test_faithful_triage_answer_still_passes_with_no_citable_edges():
+    """The fix must not make an empty citable list unpassable: a faithful
+    answer that keeps the caveat and invents no figure still verifies."""
+    ans = ("Nirmatrelvir ranks first with a best direct IC50 of 3 nM and SI "
+           "63291; chloroquine follows at 160 nM and SI 15. HOST-DIRECTED "
+           "ROUTE: measured below chance against known-inactive compounds.")
+    v = verify(ans, TRIAGE_FACTS, [], TRIAGE_WARN)
+    assert v.passed, v.report()
+
+
+# ------------------------------------------- caveats are keyed, not quoted
+# Enforcement keys on the caveat's LABEL, so the prose may be paraphrased. The
+# trap this closes: the key used to be the text before the first colon, or the
+# first 40 characters when there was no colon, so a colon-less caveat demanded
+# near-verbatim reproduction and editing any wording silently moved the goalposts.
+def test_paraphrased_warning_passes_when_the_label_survives():
+    w = guards.caveat("host_directed_route",
+                      "measured below chance against known-inactive compounds.")
+    ans = ("Nirmatrelvir ranks first. HOST-DIRECTED ROUTE: routes of this kind "
+           "did worse than chance in evaluation, so read them as hypotheses "
+           "rather than evidence.")
+    v = verify(ans, TRIAGE_FACTS, [], [w])
+    assert v.passed, v.report()
+    assert not any(f.code == "warning_dropped" for f in v.findings)
+
+
+def test_omitted_warning_still_fails_when_paraphrase_is_allowed():
+    """Tolerating paraphrase must not tolerate omission."""
+    w = guards.caveat("host_directed_route",
+                      "measured below chance against known-inactive compounds.")
+    ans = "Nirmatrelvir ranks first on direct-acting evidence and selectivity."
+    v = verify(ans, TRIAGE_FACTS, [], [w])
+    assert not v.passed, v.report()
+    assert any(f.code == "warning_dropped" for f in v.failures)
+
+
+def test_rewording_a_caveat_does_not_change_what_is_enforced():
+    """The point of the explicit key: two wordings of the same caveat impose
+    the same requirement, because neither the key nor the label came from the
+    prose."""
+    original = guards.caveat("ranking", "compounds are ordered by X then Y.")
+    reworded = guards.caveat("ranking", "a completely different explanation.")
+    assert original.key == reworded.key == "ranking"
+    assert original.label == reworded.label == "RANKING"
+    ans = "RANKING: ordering explained. Nirmatrelvir first."
+    assert verify(ans, TRIAGE_FACTS, [], [original]).passed
+    assert verify(ans, TRIAGE_FACTS, [], [reworded]).passed
+
+
+def test_colonless_caveat_no_longer_demands_verbatim_prose():
+    """The specific regression: the triage caveat has no colon of its own, so
+    its key used to be its first 40 characters."""
+    w = guards.caveat("ranking", "compounds are ordered by direct-acting "
+                                 "evidence, then selectivity, then potency.")
+    verbatim = f"{w} Nirmatrelvir first."
+    paraphrase = "RANKING: ordered on direct evidence first. Nirmatrelvir first."
+    assert verify(verbatim, TRIAGE_FACTS, [], [w]).passed
+    assert verify(paraphrase, TRIAGE_FACTS, [], [w]).passed
+
+
+def test_a_dropped_caveat_is_named_by_key_in_the_report():
+    w = guards.caveat("cell_context", "runs through SIGMAR1.")
+    v = verify("Nirmatrelvir ranks first.", TRIAGE_FACTS, [], [w])
+    assert "cell_context" in v.report()
+
+
+def test_unlabelled_string_warnings_are_still_enforced():
+    """A plain string -- not built by guards.caveat(), or round-tripped through
+    JSON -- must not silently stop being checked."""
+    v = verify("Nirmatrelvir ranks first.", TRIAGE_FACTS, [],
+               ["CELL CONTEXT: this path runs through SIGMAR1."])
+    assert not v.passed
+    assert any(f.code == "warning_dropped" for f in v.failures)
+
+
+def test_citation_coverage_stays_gated_on_having_citable_edges():
+    """A claim cannot be checked against citations that do not exist, so the
+    uncited-claim check must stay off -- demanding citations where none are
+    possible is what drove the model to invent them."""
+    ans = ("Nirmatrelvir ranks first with a best direct IC50 of 3 nM, ahead of "
+           "chloroquine on selectivity. HOST-DIRECTED ROUTE: below chance.")
+    v = verify(ans, TRIAGE_FACTS, [], TRIAGE_WARN)
+    assert not any(f.code == "uncited_claim" for f in v.findings)
 
 
 # -------------------------------------------------------------- citations
