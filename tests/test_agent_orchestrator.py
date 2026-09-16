@@ -67,7 +67,7 @@ def test_prospective_question_is_refused_before_retrieval(orch):
     out = orch.answer("what should we test against SARS-CoV-2?")
     assert out["allowed"] is False
     assert out["facts"] == [] and out["citable_edge_ids"] == []
-    assert "0.500" in out["answer"]
+    assert "0.50" in out["answer"]
 
 
 def test_refusal_happens_even_when_entities_resolve(orch):

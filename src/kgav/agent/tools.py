@@ -414,7 +414,7 @@ class GraphTools:
         warns = list(verdict.warnings)
         warns.append(
             "Ranking is by direct-acting route count. Direct-acting paths "
-            "separate selective antivirals from measured inactives at AUC 0.823; "
+            "separate selective antivirals from measured inactives at AUC 0.826; "
             "host-directed paths score below chance and are shown for context "
             "only.")
         if missing:

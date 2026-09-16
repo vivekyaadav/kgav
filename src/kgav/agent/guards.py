@@ -8,7 +8,7 @@ plausible-looking, and in one case actively harmful.
 WHAT THE MEASUREMENTS SAY
 
   Direct-acting paths separate SELECTIVE antivirals from measured-inactive
-  compounds at AUC 0.823, cross-sectionally, for SARS-CoV-2.
+  compounds at AUC 0.826, cross-sectionally, for SARS-CoV-2.
 
   The same paths have NO discrimination prospectively: AUC 0.500 under a
   temporal split, because 77% of compounds screened after the cutoff are absent
@@ -41,7 +41,7 @@ from enum import Enum
 # Measured on release v0.1. Quoted by the refusal messages so a user is given
 # the reason rather than a bare no.
 TEMPORAL_AUC = 0.500
-CROSS_SECTIONAL_AUC = 0.823
+CROSS_SECTIONAL_AUC = 0.826
 ABSENT_FRACTION = 0.77
 SUPPORTED_VIRUS = "NCBITaxon:2697049"
 SI_THRESHOLD = 10.0
@@ -122,7 +122,11 @@ def check(kind: QueryKind, virus: str | None = None) -> Verdict:
                 "the limit is measured rather than assumed. Under a temporal "
                 f"split — training on evidence published before 2022 and testing "
                 f"on compounds measured after — every scorer performs at chance "
-                f"(AUC {TEMPORAL_AUC:.3f}). The reason is that "
+                # Two decimals, not three. 618 positives against 508
+                # negatives does not support a third decimal place, and
+                # "0.500" reads as a suspiciously round measured value when
+                # the honest claim is simply "chance".
+                f"(AUC {TEMPORAL_AUC:.2f}). The reason is that "
                 f"{ABSENT_FRACTION:.0%} of compounds screened after the cutoff do "
                 "not appear anywhere in the graph built before it: compounds "
                 "enter screening because they are novel chemical matter, which "

@@ -47,7 +47,7 @@ def test_prospective_queries_are_refused():
     confident, mechanistically coherent, wrong suggestions."""
     v = check(QueryKind.PROSPECT)
     assert v.allowed is False
-    assert "0.500" in v.reason and "77%" in v.reason
+    assert "0.50" in v.reason and "77%" in v.reason
 
 
 def test_refusal_explains_and_offers_what_is_supported():

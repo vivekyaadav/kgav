@@ -68,8 +68,10 @@ class Brief:
             "RULES:",
             ("- Use ONLY the facts listed below. Add nothing from your own "
             "knowledge, however confident you are."),
-            ("- Cite the edge identifier in square brackets after every factual "
-            "claim, e.g. [E335139]."),
+            ("- Cite the edge identifier in square brackets after every "
+            "factual claim, using ONLY identifiers from the list at the end. "
+            "If that list says none, cite NOTHING: do not invent an "
+            "identifier and do not reuse one from these instructions."),
             ("- Every warning below MUST appear in your answer. They are not "
             "optional context; they are what makes the facts interpretable."),
             "- If the facts do not answer the question, say so plainly.",
@@ -82,7 +84,17 @@ class Brief:
         if self.warnings:
             parts += ["", "WARNINGS THAT MUST APPEAR IN YOUR ANSWER:"]
             parts += [f"  - {w}" for w in self.warnings]
-        parts += ["", f"CITABLE EDGE IDS: {', '.join(self.citable_edge_ids) or 'none'}"]
+        if self.citable_edge_ids:
+            parts += ["", f"CITABLE EDGE IDS: {', '.join(self.citable_edge_ids)}"]
+        else:
+            # Printing "none" beside an example identifier invited the model to
+            # reuse the example: given an empty list it cited E335139 -- the id
+            # that used to appear in the instruction above -- seven times, for
+            # facts that have no edges at all. The example is now gone and the
+            # empty case says explicitly what to do.
+            parts += ["", ("CITABLE EDGE IDS: none. These facts are summary "
+                           "counts, not individual assertions. Write the "
+                           "answer with NO square-bracket citations.")]
         return "\n".join(parts)
 
 
@@ -212,6 +224,7 @@ class Orchestrator:
             return out
         if brief.clarification:
             out["answer"] = brief.clarification
+            out["clarification"] = True
             return out
         if model is None:
             out["answer"] = None

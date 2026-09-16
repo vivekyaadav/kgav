@@ -128,8 +128,16 @@ def verify(answer: str, facts: list[str], citable_edge_ids: list[str],
             "fail", "invented_citation",
             f"cites edge ids that were not retrieved: {', '.join(sorted(set(invented)))}"))
 
-    # 2. Every factual sentence must carry a citation.
+    # 2. Every factual sentence must carry a citation -- UNLESS nothing was
+    #    citable. Triage and profile return summary counts rather than
+    #    individual edges, and demanding citations where none exist is what
+    #    drove the model to invent them. The invented-citation check above
+    #    still applies: with an empty allowed-list, ANY citation is invented.
     uncited: list[str] = []
+    if not citable_edge_ids:
+        return Verification(
+            passed=not any(f.severity == "fail" for f in findings),
+            findings=findings, cited=sorted(set(cited)))
     for s in _sentences(answer):
         if EDGE_ID_RE.search(s):
             continue

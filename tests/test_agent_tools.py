@@ -146,7 +146,7 @@ def test_triage_ranks_direct_acting_above_host_directed(graph):
 
 def test_triage_states_why_it_ranks_that_way(graph):
     r = graph.triage([DRUG], V)
-    assert any("0.823" in w and "below chance" in w for w in r.warnings)
+    assert any("0.826" in w and "below chance" in w for w in r.warnings)
 
 
 # ----------------------------------------------------------------- evidence

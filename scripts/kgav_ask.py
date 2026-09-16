@@ -112,8 +112,14 @@ def main() -> int:
         print(out["prompt"])
         print()
 
+    # A clarification is a system message, not a synthesised claim, so it is
+    # not verified. Keying that on "has no edge ids" was WRONG and dangerous:
+    # triage and profile legitimately produce no edge ids, so the model's
+    # output went unverified and it invented E335139, E335140 and E335141,
+    # which printed. A clarification is identified by the orchestrator having
+    # set it, not by the shape of the result.
     verification = None
-    if out["allowed"] and out.get("answer"):
+    if out["allowed"] and out.get("answer") and not out.get("clarification"):
         verification = verify_response(out)
 
     if args.json:
