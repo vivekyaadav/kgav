@@ -8,7 +8,6 @@ compounds nobody tested?
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
@@ -16,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.baselines import Graph, combine, degree_ranking, dwpc_scores
 from kgav.labels import build_labels, evaluate_against_negatives
+from kgav.provenance import write_results
 from kgav.schema import load_schema
 
 MIN_CLASS_SIZE = 10
@@ -140,11 +140,12 @@ def main() -> int:
         print(f"\n{args.train} not found -- run temporal_split.py first")
 
     args.results.mkdir(parents=True, exist_ok=True)
-    (args.results / "hard_negatives.json").write_text(json.dumps(
-        {"inactive_above_nm": args.inactive_above_nm,
-         "selectivity_filter": args.selectivity,
-         "label_stats": dict(all_labels.stats),
-         "cross_sectional": cross, "temporal": temporal}, indent=2))
+    write_results(args.results / "hard_negatives.json",
+                  {"inactive_above_nm": args.inactive_above_nm,
+                   "selectivity_filter": args.selectivity,
+                   "label_stats": dict(all_labels.stats),
+                   "cross_sectional": cross, "temporal": temporal},
+                  args.release, schema.version)
     print(f"\nwrote {args.results / 'hard_negatives.json'}")
     print("\nAUC 0.5 is chance. Unlike Hits@k this is prevalence-independent, so "
           "it is comparable\nacross viruses whose base rates differ by two orders "
