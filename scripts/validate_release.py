@@ -45,7 +45,11 @@ def main() -> int:
     edges = _read(args.release_dir, "edges")
 
     print(f"schema v{schema.version} | {len(nodes):,} nodes | {len(edges):,} edges")
-    violations = schema.validate_batch(nodes, edges)
+    # Metapath hops are validated even though they describe the schema rather
+    # than the release: a metapath over a predicate with no declared symmetry
+    # cannot be walked without guessing its direction, and that guess is what
+    # H1 removed. Checking it here means it cannot regress unnoticed.
+    violations = schema.validate_metapaths() + schema.validate_batch(nodes, edges)
 
     if not violations:
         print("\nPASS — no violations")

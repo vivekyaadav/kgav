@@ -37,6 +37,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Self
 
 # Measured on release v0.1. Quoted by the refusal messages so a user is given
 # the reason rather than a bare no.
@@ -75,6 +76,56 @@ class Verdict:
     allowed: bool
     reason: str = ""
     warnings: list[str] = field(default_factory=list)
+
+
+# --------------------------------------------------------------- caveats
+# Stable key -> the visible label an answer must carry. The LABEL is what
+# verification enforces, so the prose below it can be rewritten freely without
+# changing what is checked.
+#
+# The trap this closes: verification used to derive its key from the caveat's
+# own text -- the part before the first colon, or the first 40 characters when
+# there was no colon. So a caveat without a colon demanded near-verbatim
+# reproduction, and editing any caveat's wording silently changed the
+# requirement without touching the verifier. Editing a LABEL is now a visible,
+# deliberate act; editing prose is free.
+CAVEAT_LABELS: dict[str, str] = {
+    "cell_context":          "CELL CONTEXT",
+    "host_directed_route":   "HOST-DIRECTED ROUTE",
+    "cell_line":             "CELL LINE",
+    "selectivity_unknown":   "SELECTIVITY UNKNOWN",
+    "selectivity_cytotoxic": "CYTOTOXIC",
+    "selectivity_selective": "SELECTIVE",
+    "proximity_evidence":    "PROXIMITY EVIDENCE",
+    "evidence_tier":         "EVIDENCE",
+    "virus_not_validated":   "VIRUS NOT VALIDATED",
+    "ranking":               "RANKING",
+}
+
+
+class Caveat(str):
+    """A mandatory caveat: prose, plus a stable key and a visible label.
+
+    Subclasses str so it renders, joins, dedups and serialises exactly like the
+    plain string it replaces -- every existing call site keeps working. What it
+    adds is identity: `key` names the caveat and `label` is the marker the
+    answer must carry, both independent of the wording.
+    """
+
+    key: str
+    label: str
+
+    def __new__(cls, key: str, text: str) -> Self:
+        label = CAVEAT_LABELS[key]
+        obj = super().__new__(cls, f"{label}: {text}")
+        obj.key = key
+        obj.label = label
+        return obj
+
+
+def caveat(key: str, text: str) -> Caveat:
+    """Build a labelled caveat. Unknown keys raise rather than pass silently."""
+    return Caveat(key, text)
 
 
 def classify_intent(text: str) -> QueryKind:
@@ -139,13 +190,14 @@ def check(kind: QueryKind, virus: str | None = None) -> Verdict:
 
     warnings: list[str] = []
     if virus and virus != SUPPORTED_VIRUS:
-        warnings.append(
-            "Scoring is not validated for this virus. Cross-sectional AUC is "
+        warnings.append(caveat(
+            "virus_not_validated",
+            "scoring is not validated for this virus. Cross-sectional AUC is "
             "approximately 0.50 for every metapath on all coronaviruses except "
             "SARS-CoV-2, and on four of them a degree-only baseline outperforms "
             "every mechanistic route. Paths retrieved here are evidence to read, "
             "not a ranking to trust."
-        )
+        ))
     return Verdict(allowed=True, warnings=warnings)
 
 
@@ -164,25 +216,27 @@ def path_warnings(path_nodes: list[dict], metapath: str | None = None) -> list[s
     }
     hits = sorted(symbols & CELL_CONTEXT_SENSITIVE)
     if hits:
-        out.append(
-            f"CELL CONTEXT: this path runs through {', '.join(hits)}, whose "
+        out.append(caveat(
+            "cell_context",
+            f"this path runs through {', '.join(hits)}, whose "
             "contribution depends on the cell type used. The endosomal and "
             "sigma-receptor routes are prominent in Vero E6 cells and largely "
             "absent in TMPRSS2-expressing airway cells. Chloroquine's apparent "
             "SARS-CoV-2 activity in 2020 came from exactly this route and did "
             "not translate to patients."
-        )
+        ))
 
     # Route labels carry a description ("M2 host-directed"), so match the
     # identifier prefix rather than the whole string.
     code = (metapath or "").split()[0] if metapath else ""
     if code in {"M2", "M3", "M4", "M5", "M6"}:
-        out.append(
-            "HOST-DIRECTED ROUTE: measured below chance against known-inactive "
+        out.append(caveat(
+            "host_directed_route",
+            "measured below chance against known-inactive "
             "compounds (AUC 0.391-0.482 depending on route), and worse once "
             "cytotoxic compounds are excluded. Read this path as a mechanistic "
             "hypothesis to evaluate, not as evidence of activity."
-        )
+        ))
     return out
 
 
@@ -201,14 +255,15 @@ def cell_line_note(cell_line: str | None) -> str:
         return ""
     c = cell_line.lower()
     if any(x in c for x in NON_TRANSFERRING_CELL_LINES):
-        return (
-            f"CELL LINE: measured in {cell_line}, which lacks meaningful TMPRSS2 "
+        return caveat(
+            "cell_line",
+            f"measured in {cell_line}, which lacks meaningful TMPRSS2 "
             "expression. SARS-CoV-2 enters such cells by the endosomal route, so "
             "compounds acting on endosomal acidification score well here and fail "
             "in TMPRSS2-expressing airway cells. A selectivity index from this "
             "system does not transfer."
         )
-    return f"CELL LINE: measured in {cell_line}."
+    return caveat("cell_line", f"measured in {cell_line}.")
 
 
 def selectivity_note(selectivity_index: float | None,
@@ -221,8 +276,9 @@ def selectivity_note(selectivity_index: float | None,
     38% of apparently active compounds with matched data are cytotoxic.
     """
     if not verified or selectivity_index is None:
-        return (
-            "SELECTIVITY UNKNOWN: no cytotoxicity measurement paired with an "
+        return caveat(
+            "selectivity_unknown",
+            "no cytotoxicity measurement paired with an "
             "activity measurement in the same study, so it is not known whether "
             "the observed activity reflects antiviral effect or cell death. Of "
             "compounds where this could be checked, 38% were cytotoxic."
@@ -239,13 +295,15 @@ def selectivity_note(selectivity_index: float | None,
                  "rather than establishes the compound's selectivity.")
 
     if selectivity_index < SI_THRESHOLD:
-        return (
-            f"CYTOTOXIC: selectivity index {selectivity_index:.1f}, below the "
+        return caveat(
+            "selectivity_cytotoxic",
+            f"selectivity index {selectivity_index:.1f}, below the "
             f"threshold of {SI_THRESHOLD:g}. The apparent activity may reflect "
             f"cell death rather than antiviral effect." + basis
         )
-    return (
-        f"SELECTIVE: selectivity index {selectivity_index:.1f} "
+    return caveat(
+        "selectivity_selective",
+        f"selectivity index {selectivity_index:.1f} "
         f"(CC50/EC50, both measured in the same study)." + basis
     )
 
@@ -254,16 +312,17 @@ def evidence_note(tier: int | None, detection_method: str | None = None) -> str:
     """How the underlying fact was established."""
     if detection_method and detection_method.startswith(("MI:1314", "MI:0400",
                                                          "MI:0676", "MI:0007")):
-        return (
-            "PROXIMITY EVIDENCE: this interaction was detected by proximity "
+        return caveat(
+            "proximity_evidence",
+            "this interaction was detected by proximity "
             "labelling or affinity co-purification, which shows the proteins are "
             "in the same complex neighbourhood rather than that they bind. "
             "Only 1.3% of virus-host edges in this graph come from a binary "
             "binding assay."
         )
-    return {
+    return caveat("evidence_tier", {
         1: "Curated experimental result.",
         2: "Curated but inferred rather than directly measured.",
         3: "Computationally derived, not experimentally asserted.",
         4: "Text-mined; not curated.",
-    }.get(tier or 0, "Provenance not recorded.")
+    }.get(tier or 0, "Provenance not recorded."))

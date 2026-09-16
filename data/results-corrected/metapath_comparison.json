@@ -1,0 +1,446 @@
+{
+  "SARS-CoV-2": {
+    "M1": {
+      "pool": 4742,
+      "pos": 889,
+      "hits": 35,
+      "expected": 18.74736398144243,
+      "lift": 1.8669291338582676,
+      "mrr": 1.0,
+      "trustworthy": true
+    },
+    "M2": {
+      "pool": 1133,
+      "pos": 83,
+      "hits": 16,
+      "expected": 7.3256840247131505,
+      "lift": 2.1840963855421687,
+      "mrr": 0.25,
+      "trustworthy": true
+    },
+    "M3": {
+      "pool": 836,
+      "pos": 74,
+      "hits": 23,
+      "expected": 8.851674641148325,
+      "lift": 2.5983783783783787,
+      "mrr": 0.2,
+      "trustworthy": true
+    },
+    "M4": {
+      "pool": 2982,
+      "pos": 141,
+      "hits": 17,
+      "expected": 4.7283702213279675,
+      "lift": 3.5953191489361704,
+      "mrr": 0.5,
+      "trustworthy": true
+    },
+    "M5": {
+      "pool": 2192,
+      "pos": 126,
+      "hits": 15,
+      "expected": 5.748175182481752,
+      "lift": 2.6095238095238096,
+      "mrr": 0.25,
+      "trustworthy": true
+    },
+    "M6": {
+      "pool": 232,
+      "pos": 30,
+      "hits": 10,
+      "expected": 12.931034482758621,
+      "lift": 0.7733333333333333,
+      "mrr": 0.5,
+      "trustworthy": true
+    },
+    "M7": {
+      "pool": 348,
+      "pos": 144,
+      "hits": 52,
+      "expected": 41.37931034482759,
+      "lift": 1.2566666666666666,
+      "mrr": 0.16666666666666666,
+      "trustworthy": true
+    },
+    "COMBINED": {
+      "pool": 8237,
+      "pos": 1172,
+      "hits": 23,
+      "expected": 14.228481243171057,
+      "lift": 1.616476109215017,
+      "mrr": 1.0,
+      "trustworthy": true
+    },
+    "degree": {
+      "pool": 12821,
+      "pos": 1730,
+      "hits": 24,
+      "expected": 13.493487247484596,
+      "lift": 1.778635838150289,
+      "mrr": 0.25,
+      "trustworthy": true
+    }
+  },
+  "HCoV-OC43": {
+    "M2": {
+      "pool": 412,
+      "pos": 1,
+      "hits": 0,
+      "expected": 0.24271844660194175,
+      "lift": 0.0,
+      "mrr": 0.006578947368421052,
+      "trustworthy": false
+    },
+    "M3": {
+      "pool": 95,
+      "pos": 0,
+      "hits": 0,
+      "expected": 0.0,
+      "lift": 0.0,
+      "mrr": 0.0,
+      "trustworthy": false
+    },
+    "M4": {
+      "pool": 2960,
+      "pos": 4,
+      "hits": 1,
+      "expected": 0.13513513513513514,
+      "lift": 7.3999999999999995,
+      "mrr": 0.011494252873563218,
+      "trustworthy": false
+    },
+    "M5": {
+      "pool": 1361,
+      "pos": 2,
+      "hits": 1,
+      "expected": 0.14695077149155034,
+      "lift": 6.805,
+      "mrr": 0.011764705882352941,
+      "trustworthy": false
+    },
+    "M6": {
+      "pool": 100,
+      "pos": 0,
+      "hits": 0,
+      "expected": 0.0,
+      "lift": 0.0,
+      "mrr": 0.0,
+      "trustworthy": false
+    },
+    "COMBINED": {
+      "pool": 3065,
+      "pos": 4,
+      "hits": 0,
+      "expected": 0.13050570962479607,
+      "lift": 0.0,
+      "mrr": 0.009345794392523364,
+      "trustworthy": false
+    },
+    "degree": {
+      "pool": 12821,
+      "pos": 164,
+      "hits": 2,
+      "expected": 1.2791513922470945,
+      "lift": 1.5635365853658538,
+      "mrr": 0.013333333333333334,
+      "trustworthy": true
+    }
+  },
+  "SARS-CoV": {
+    "M1": {
+      "pool": 506,
+      "pos": 41,
+      "hits": 16,
+      "expected": 8.102766798418973,
+      "lift": 1.9746341463414634,
+      "mrr": 1.0,
+      "trustworthy": true
+    },
+    "M3": {
+      "pool": 570,
+      "pos": 12,
+      "hits": 4,
+      "expected": 2.1052631578947367,
+      "lift": 1.9000000000000001,
+      "mrr": 0.07142857142857142,
+      "trustworthy": true
+    },
+    "M7": {
+      "pool": 114,
+      "pos": 19,
+      "hits": 16,
+      "expected": 16.666666666666668,
+      "lift": 0.96,
+      "mrr": 0.25,
+      "trustworthy": true
+    },
+    "COMBINED": {
+      "pool": 1182,
+      "pos": 70,
+      "hits": 20,
+      "expected": 5.922165820642978,
+      "lift": 3.3771428571428572,
+      "mrr": 1.0,
+      "trustworthy": true
+    },
+    "degree": {
+      "pool": 12821,
+      "pos": 147,
+      "hits": 8,
+      "expected": 1.1465564308556275,
+      "lift": 6.977414965986394,
+      "mrr": 0.06666666666666667,
+      "trustworthy": true
+    }
+  },
+  "MERS-CoV": {
+    "M1": {
+      "pool": 97,
+      "pos": 3,
+      "hits": 3,
+      "expected": 3.0927835051546393,
+      "lift": 0.97,
+      "mrr": 0.07142857142857142,
+      "trustworthy": true
+    },
+    "M2": {
+      "pool": 394,
+      "pos": 7,
+      "hits": 2,
+      "expected": 1.7766497461928934,
+      "lift": 1.1257142857142857,
+      "mrr": 0.041666666666666664,
+      "trustworthy": true
+    },
+    "M3": {
+      "pool": 161,
+      "pos": 3,
+      "hits": 2,
+      "expected": 1.8633540372670807,
+      "lift": 1.0733333333333333,
+      "mrr": 0.0196078431372549,
+      "trustworthy": true
+    },
+    "M4": {
+      "pool": 2966,
+      "pos": 15,
+      "hits": 6,
+      "expected": 0.5057316250842886,
+      "lift": 11.864,
+      "mrr": 0.3333333333333333,
+      "trustworthy": false
+    },
+    "M5": {
+      "pool": 1324,
+      "pos": 11,
+      "hits": 5,
+      "expected": 0.8308157099697885,
+      "lift": 6.0181818181818185,
+      "mrr": 0.05,
+      "trustworthy": false
+    },
+    "M6": {
+      "pool": 88,
+      "pos": 3,
+      "hits": 3,
+      "expected": 3.409090909090909,
+      "lift": 0.88,
+      "mrr": 0.01282051282051282,
+      "trustworthy": true
+    },
+    "M7": {
+      "pool": 29,
+      "pos": 8,
+      "hits": 8,
+      "expected": 27.586206896551722,
+      "lift": 0.29000000000000004,
+      "mrr": 0.5,
+      "trustworthy": true
+    },
+    "COMBINED": {
+      "pool": 3169,
+      "pos": 29,
+      "hits": 8,
+      "expected": 0.9151151782896813,
+      "lift": 8.742068965517241,
+      "mrr": 0.16666666666666666,
+      "trustworthy": false
+    },
+    "degree": {
+      "pool": 12821,
+      "pos": 133,
+      "hits": 8,
+      "expected": 1.0373605802979486,
+      "lift": 7.7118796992481204,
+      "mrr": 0.06666666666666667,
+      "trustworthy": true
+    }
+  },
+  "HCoV-229E": {
+    "M1": {
+      "pool": 21,
+      "pos": 7,
+      "hits": 7,
+      "expected": 33.333333333333336,
+      "lift": 0.21,
+      "mrr": 1.0,
+      "trustworthy": true
+    },
+    "M2": {
+      "pool": 522,
+      "pos": 4,
+      "hits": 2,
+      "expected": 0.7662835249042146,
+      "lift": 2.61,
+      "mrr": 0.012195121951219513,
+      "trustworthy": false
+    },
+    "M3": {
+      "pool": 146,
+      "pos": 1,
+      "hits": 1,
+      "expected": 0.684931506849315,
+      "lift": 1.4600000000000002,
+      "mrr": 0.014925373134328358,
+      "trustworthy": false
+    },
+    "M4": {
+      "pool": 2968,
+      "pos": 7,
+      "hits": 2,
+      "expected": 0.2358490566037736,
+      "lift": 8.48,
+      "mrr": 0.027777777777777776,
+      "trustworthy": false
+    },
+    "M5": {
+      "pool": 1974,
+      "pos": 6,
+      "hits": 1,
+      "expected": 0.303951367781155,
+      "lift": 3.29,
+      "mrr": 0.013888888888888888,
+      "trustworthy": false
+    },
+    "M6": {
+      "pool": 94,
+      "pos": 0,
+      "hits": 0,
+      "expected": 0.0,
+      "lift": 0.0,
+      "mrr": 0.0,
+      "trustworthy": false
+    },
+    "M7": {
+      "pool": 7,
+      "pos": 1,
+      "hits": 1,
+      "expected": 14.285714285714286,
+      "lift": 0.06999999999999999,
+      "mrr": 0.3333333333333333,
+      "trustworthy": true
+    },
+    "COMBINED": {
+      "pool": 3092,
+      "pos": 15,
+      "hits": 2,
+      "expected": 0.4851228978007762,
+      "lift": 4.1226666666666665,
+      "mrr": 0.016666666666666666,
+      "trustworthy": false
+    },
+    "degree": {
+      "pool": 12821,
+      "pos": 121,
+      "hits": 3,
+      "expected": 0.9437641369627954,
+      "lift": 3.1787603305785126,
+      "mrr": 0.017543859649122806,
+      "trustworthy": false
+    }
+  },
+  "HCoV-NL63": {
+    "M1": {
+      "pool": 6,
+      "pos": 0,
+      "hits": 0,
+      "expected": 0.0,
+      "lift": 0.0,
+      "mrr": 0.0,
+      "trustworthy": false
+    },
+    "M2": {
+      "pool": 46,
+      "pos": 0,
+      "hits": 0,
+      "expected": 0.0,
+      "lift": 0.0,
+      "mrr": 0.0,
+      "trustworthy": false
+    },
+    "M3": {
+      "pool": 122,
+      "pos": 0,
+      "hits": 0,
+      "expected": 0.0,
+      "lift": 0.0,
+      "mrr": 0.0,
+      "trustworthy": false
+    },
+    "M4": {
+      "pool": 2636,
+      "pos": 0,
+      "hits": 0,
+      "expected": 0.0,
+      "lift": 0.0,
+      "mrr": 0.0,
+      "trustworthy": false
+    },
+    "M5": {
+      "pool": 632,
+      "pos": 0,
+      "hits": 0,
+      "expected": 0.0,
+      "lift": 0.0,
+      "mrr": 0.0,
+      "trustworthy": false
+    },
+    "M6": {
+      "pool": 15,
+      "pos": 0,
+      "hits": 0,
+      "expected": 0.0,
+      "lift": 0.0,
+      "mrr": 0.0,
+      "trustworthy": false
+    },
+    "M7": {
+      "pool": 6,
+      "pos": 0,
+      "hits": 0,
+      "expected": 0.0,
+      "lift": 0.0,
+      "mrr": 0.0,
+      "trustworthy": false
+    },
+    "COMBINED": {
+      "pool": 2665,
+      "pos": 0,
+      "hits": 0,
+      "expected": 0.0,
+      "lift": 0.0,
+      "mrr": 0.0,
+      "trustworthy": false
+    },
+    "degree": {
+      "pool": 12821,
+      "pos": 5,
+      "hits": 1,
+      "expected": 0.03899851805631386,
+      "lift": 25.642,
+      "mrr": 0.010638297872340425,
+      "trustworthy": false
+    }
+  }
+}

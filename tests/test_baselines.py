@@ -23,6 +23,7 @@ V = "NCBITaxon:2697049"
 D1 = "INCHIKEY:D1"
 D2 = "INCHIKEY:D2"
 D3 = "INCHIKEY:D3"
+D4 = "INCHIKEY:D4"
 
 
 def _prot(pid, viral, sym=None, fam=None):
@@ -94,7 +95,8 @@ def schema():
 
 @pytest.fixture
 def g(release, schema):
-    return Graph.load(release, skip_predicates=schema.held_out_predicates())
+    return Graph.load(release, skip_predicates=schema.held_out_predicates(),
+                      symmetry=schema.symmetry())
 
 
 # ------------------------------------------------------- held-out predicates
@@ -128,6 +130,90 @@ def test_m2_requires_dependency_direction(g, schema):
 def test_m5_two_hop_host_path_is_found(g, schema):
     mp = schema.metapaths["M5"]
     assert V in walk_metapath(g, D3, mp["path"], mp.get("constraints"), set())
+
+
+# ------------------------------------------------ reverse-oriented PPI (H1)
+@pytest.fixture
+def reverse_ppi(tmp_path):
+    """HUB2 holds a PPI in EACH direction: an outgoing one to a protein that
+    is not a host factor, and an incoming one from a dependency factor.
+
+    That shape is the H1 bug. STRING stores each interaction once, ordered by
+    accession, so 9,016 host proteins in v0.1 carry edges both ways; a walker
+    that follows outgoing edges and consults incoming ones only when there
+    are none sees the decoy, stops, and never finds the route.
+    """
+    nodes = [
+        {"id": V, "class": "OrganismTaxon",
+         "properties": {"label": "SARS-CoV-2", "family": "Coronaviridae",
+                        "baltimore_class": "IV", "is_enveloped": True}},
+        _prot("UniProtKB:HUB2", False, sym="HUB2"),
+        _prot("UniProtKB:DECOY", False, sym="DECOY"),
+        _prot("UniProtKB:DEP3", False, sym="DEP3"),
+        _drug(D4),
+    ]
+    edges = [
+        _e(D4, "TARGETS", "UniProtKB:HUB2",
+           {"direction": "unknown", "assay_type": "binding", "ic50_nm": 20.0}),
+        # forward, and a dead end
+        _e("UniProtKB:HUB2", "PHYSICALLY_INTERACTS_WITH", "UniProtKB:DECOY",
+           {"detection_method": "m"}),
+        # stored DEP3 -> HUB2: against the direction M5 walks it
+        _e("UniProtKB:DEP3", "PHYSICALLY_INTERACTS_WITH", "UniProtKB:HUB2",
+           {"detection_method": "m"}),
+        _e("UniProtKB:DEP3", "HOST_FACTOR_FOR", V,
+           {"direction": "dependency", "screen_type": "CRISPRko", "cell_line": "x"}),
+    ]
+    (tmp_path / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in edges))
+    return tmp_path
+
+
+@pytest.fixture
+def g_rev(reverse_ppi, schema):
+    return Graph.load(reverse_ppi, skip_predicates=schema.held_out_predicates(),
+                      symmetry=schema.symmetry())
+
+
+def test_m5_finds_a_ppi_stored_against_the_walk_direction(g_rev, schema):
+    """THE H1 REGRESSION. HUB2 holds one outgoing interaction (to a protein
+    that is not a host factor) and one incoming (from a dependency factor).
+    Inferring direction from `does this node have outgoing edges` sees only
+    the decoy and loses the route entirely."""
+    mp = schema.metapaths["M5"]
+    hits = walk_metapath(g_rev, D4, mp["path"], mp.get("constraints"), set())
+    assert V in hits, "inbound half of a symmetric predicate was not traversed"
+
+
+def test_symmetric_predicates_are_walked_both_ways(g_rev):
+    """Both adjacency maps, because which side a pair was stored on is an
+    ingest artifact -- STRING canonicalises each interaction to one row."""
+    both = g_rev.neighbours("PHYSICALLY_INTERACTS_WITH", "UniProtKB:HUB2")
+    assert {n for n, _e in both} == {"UniProtKB:DECOY", "UniProtKB:DEP3"}
+
+
+def test_directed_predicates_are_not_walked_backwards(g_rev):
+    """TARGETS is directed: a protein must not reach back to its drug."""
+    assert g_rev.neighbours("TARGETS", "UniProtKB:HUB2") == []
+    assert [n for n, _e in g_rev.neighbours("TARGETS", D4)] == ["UniProtKB:HUB2"]
+
+
+def test_a_reverse_hop_reads_the_inverse_map(g_rev):
+    """M4's second PARTICIPATES_IN and M8's second MEMBER_OF_CLASS are
+    reverse hops over a directed predicate; they used to work only because
+    the walker guessed."""
+    fwd = g_rev.neighbours("HOST_FACTOR_FOR", "UniProtKB:DEP3")
+    rev = g_rev.neighbours("HOST_FACTOR_FOR", V, reverse=True)
+    assert [n for n, _e in fwd] == [V]
+    assert "UniProtKB:DEP3" in {n for n, _e in rev}
+
+
+def test_traversing_an_undeclared_predicate_raises(reverse_ppi, schema):
+    """Silence is what H1 was: a predicate with no declared symmetry must
+    stop the walk, not fall back to inferring direction."""
+    bare = Graph.load(reverse_ppi, symmetry={})
+    with pytest.raises(ValueError, match="no declared symmetry"):
+        bare.neighbours("PHYSICALLY_INTERACTS_WITH", "UniProtKB:HUB2")
 
 
 def test_blocked_intermediates_are_skipped_but_endpoints_are_not(g, schema):

@@ -14,16 +14,35 @@ the skeleton as a property, so a bad merge is always reversible.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from rdkit import Chem, RDLogger
-from rdkit.Chem import inchi
-from rdkit.Chem.MolStandardize import rdMolStandardize
+if TYPE_CHECKING:                     # annotations only; never imported at runtime
+    from rdkit import Chem
 
-RDLogger.DisableLog("rdApp.*")
+# rdkit is an OPTIONAL extra ([chem]), so it is imported inside the functions
+# that need it rather than at module scope. Imported at module scope, a missing
+# rdkit makes this module unimportable -- which takes down every test that
+# imports it, and a collection error aborts the WHOLE suite, not just the tests
+# that need chemistry. Same pattern as similarity.py.
+_STANDARDIZERS: tuple | None = None
 
-_UNCHARGER = rdMolStandardize.Uncharger()
-_LFC = rdMolStandardize.LargestFragmentChooser()
-_TE = rdMolStandardize.TautomerEnumerator()
+
+def _standardizers() -> tuple:
+    """RDKit's standardiser objects, built once on first use.
+
+    Cached rather than constructed per call: a TautomerEnumerator is expensive
+    to build and normalize_chemical runs once per compound.
+    """
+    global _STANDARDIZERS
+    if _STANDARDIZERS is None:
+        from rdkit import RDLogger
+        from rdkit.Chem.MolStandardize import rdMolStandardize
+
+        RDLogger.DisableLog("rdApp.*")
+        _STANDARDIZERS = (rdMolStandardize.Uncharger(),
+                          rdMolStandardize.LargestFragmentChooser(),
+                          rdMolStandardize.TautomerEnumerator())
+    return _STANDARDIZERS
 
 
 @dataclass(frozen=True)
@@ -46,6 +65,11 @@ class NormalizationError(ValueError):
 
 def _parse(structure: str) -> Chem.Mol:
     """Accept SMILES, InChI, or molblock. Never guess silently."""
+    from rdkit import Chem, RDLogger
+    from rdkit.Chem import inchi
+
+    RDLogger.DisableLog("rdApp.*")
+
     s = (structure or "").strip()
     if not s:
         raise NormalizationError("empty structure")
@@ -76,14 +100,20 @@ def normalize_chemical(structure: str, *, canonical_tautomer: bool = True) -> Ch
     Order matters. Uncharging before fragment selection can neutralise a
     counterion into something that then wins the largest-fragment contest.
     """
+    from rdkit import Chem
+    from rdkit.Chem import inchi
+    from rdkit.Chem.MolStandardize import rdMolStandardize
+
+    uncharger, largest_fragment, tautomers = _standardizers()
+
     mol = _parse(structure)
 
     n_frags_before = len(Chem.GetMolFrags(mol))
     charge_before = Chem.GetFormalCharge(mol)
 
     mol = rdMolStandardize.Cleanup(mol)
-    mol = _LFC.choose(mol)
-    mol = _UNCHARGER.uncharge(mol)
+    mol = largest_fragment.choose(mol)
+    mol = uncharger.uncharge(mol)
 
     # InChIKey is computed from the standardised-but-NOT-tautomer-canonicalised
     # molecule. RDKit's TautomerEnumerator can strip stereocentres adjacent to a
@@ -98,7 +128,7 @@ def normalize_chemical(structure: str, *, canonical_tautomer: bool = True) -> Ch
     if canonical_tautomer:
         before = Chem.MolToSmiles(mol)
         try:
-            taut = _TE.Canonicalize(mol)
+            taut = tautomers.Canonicalize(mol)
         except Exception as exc:  # RDKit raises on pathological inputs
             raise NormalizationError(f"tautomer canonicalisation failed: {exc}") from exc
         tautomer_changed = Chem.MolToSmiles(taut) != before

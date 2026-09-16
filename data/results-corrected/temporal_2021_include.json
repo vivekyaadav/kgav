@@ -1,0 +1,352 @@
+{
+  "cutoff": 2021,
+  "undated_policy": "include",
+  "stats": {
+    "edge_train": 193988,
+    "edge_dropped_future": 158251,
+    "undated_kept": 2212,
+    "label_train_inactive": 4543,
+    "label_train_active": 771,
+    "label_undecidable": 110,
+    "label_test_active": 1529,
+    "label_test_inactive": 621,
+    "undated_kept_computed": 1583
+  },
+  "audits": [
+    "ceiling: 981/1,205 test compounds for NCBITaxon:2697049 have no pre-2021 evidence",
+    "ceiling: 11/43 test compounds for NCBITaxon:694009 have no pre-2021 evidence",
+    "ceiling: 3/5 test compounds for NCBITaxon:277944 have no pre-2021 evidence",
+    "ceiling: 57/78 test compounds for NCBITaxon:11137 have no pre-2021 evidence",
+    "ceiling: 116/148 test compounds for NCBITaxon:31631 have no pre-2021 evidence",
+    "ceiling: 22/50 test compounds for NCBITaxon:1335626 have no pre-2021 evidence"
+  ],
+  "results": {
+    "SARS-CoV-2": {
+      "M1": {
+        "pool": 393,
+        "pos": 12,
+        "hits": 4,
+        "expected": 3.053435114503817,
+        "lift": 1.3099999999999998,
+        "mrr": 0.015151515151515152,
+        "trustworthy": true
+      },
+      "M2": {
+        "pool": 855,
+        "pos": 6,
+        "hits": 2,
+        "expected": 0.7017543859649122,
+        "lift": 2.85,
+        "mrr": 0.023809523809523808,
+        "trustworthy": false
+      },
+      "M4": {
+        "pool": 2701,
+        "pos": 12,
+        "hits": 2,
+        "expected": 0.44427989633469084,
+        "lift": 4.501666666666667,
+        "mrr": 0.045454545454545456,
+        "trustworthy": false
+      },
+      "M6": {
+        "pool": 186,
+        "pos": 4,
+        "hits": 3,
+        "expected": 2.150537634408602,
+        "lift": 1.395,
+        "mrr": 0.034482758620689655,
+        "trustworthy": true
+      },
+      "M7": {
+        "pool": 116,
+        "pos": 33,
+        "hits": 30,
+        "expected": 28.448275862068964,
+        "lift": 1.0545454545454547,
+        "mrr": 0.25,
+        "trustworthy": true
+      },
+      "COMBINED": {
+        "pool": 3361,
+        "pos": 57,
+        "hits": 2,
+        "expected": 1.6959238321927999,
+        "lift": 1.179298245614035,
+        "mrr": 0.02857142857142857,
+        "trustworthy": true
+      },
+      "degree": {
+        "pool": 4633,
+        "pos": 224,
+        "hits": 5,
+        "expected": 4.834880207209152,
+        "lift": 1.0341517857142857,
+        "mrr": 0.01639344262295082,
+        "trustworthy": true
+      }
+    },
+    "HCoV-OC43": {
+      "M2": {
+        "pool": 370,
+        "pos": 1,
+        "hits": 0,
+        "expected": 0.2702702702702703,
+        "lift": 0.0,
+        "mrr": 0.006535947712418301,
+        "trustworthy": false
+      },
+      "M4": {
+        "pool": 2682,
+        "pos": 1,
+        "hits": 0,
+        "expected": 0.037285607755406416,
+        "lift": 0.0,
+        "mrr": 0.009523809523809525,
+        "trustworthy": false
+      },
+      "M6": {
+        "pool": 91,
+        "pos": 0,
+        "hits": 0,
+        "expected": 0.0,
+        "lift": 0.0,
+        "mrr": 0.0,
+        "trustworthy": false
+      },
+      "COMBINED": {
+        "pool": 2773,
+        "pos": 1,
+        "hits": 0,
+        "expected": 0.03606202668589975,
+        "lift": 0.0,
+        "mrr": 0.008771929824561403,
+        "trustworthy": false
+      },
+      "degree": {
+        "pool": 4633,
+        "pos": 32,
+        "hits": 1,
+        "expected": 0.6906971724584503,
+        "lift": 1.4478125,
+        "mrr": 0.012987012987012988,
+        "trustworthy": false
+      }
+    },
+    "HCoV-229E": {
+      "M2": {
+        "pool": 472,
+        "pos": 1,
+        "hits": 0,
+        "expected": 0.211864406779661,
+        "lift": 0.0,
+        "mrr": 0.009708737864077669,
+        "trustworthy": false
+      },
+      "M4": {
+        "pool": 2688,
+        "pos": 1,
+        "hits": 0,
+        "expected": 0.03720238095238095,
+        "lift": 0.0,
+        "mrr": 0.005405405405405406,
+        "trustworthy": false
+      },
+      "M6": {
+        "pool": 87,
+        "pos": 0,
+        "hits": 0,
+        "expected": 0.0,
+        "lift": 0.0,
+        "mrr": 0.0,
+        "trustworthy": false
+      },
+      "COMBINED": {
+        "pool": 2775,
+        "pos": 1,
+        "hits": 0,
+        "expected": 0.036036036036036036,
+        "lift": 0.0,
+        "mrr": 0.005235602094240838,
+        "trustworthy": false
+      },
+      "degree": {
+        "pool": 4633,
+        "pos": 21,
+        "hits": 0,
+        "expected": 0.453270019425858,
+        "lift": 0.0,
+        "mrr": 0.006535947712418301,
+        "trustworthy": false
+      }
+    },
+    "MERS-CoV": {
+      "M1": {
+        "pool": 97,
+        "pos": 1,
+        "hits": 1,
+        "expected": 1.0309278350515463,
+        "lift": 0.9700000000000001,
+        "mrr": 0.05555555555555555,
+        "trustworthy": true
+      },
+      "M2": {
+        "pool": 340,
+        "pos": 3,
+        "hits": 1,
+        "expected": 0.8823529411764706,
+        "lift": 1.1333333333333333,
+        "mrr": 0.029411764705882353,
+        "trustworthy": false
+      },
+      "M4": {
+        "pool": 2682,
+        "pos": 5,
+        "hits": 3,
+        "expected": 0.18642803877703207,
+        "lift": 16.092,
+        "mrr": 0.07692307692307693,
+        "trustworthy": false
+      },
+      "M6": {
+        "pool": 79,
+        "pos": 0,
+        "hits": 0,
+        "expected": 0.0,
+        "lift": 0.0,
+        "mrr": 0.0,
+        "trustworthy": false
+      },
+      "M7": {
+        "pool": 29,
+        "pos": 8,
+        "hits": 8,
+        "expected": 27.586206896551722,
+        "lift": 0.29000000000000004,
+        "mrr": 0.5,
+        "trustworthy": true
+      },
+      "COMBINED": {
+        "pool": 2876,
+        "pos": 14,
+        "hits": 4,
+        "expected": 0.48678720445062584,
+        "lift": 8.217142857142857,
+        "mrr": 0.2,
+        "trustworthy": false
+      },
+      "degree": {
+        "pool": 4633,
+        "pos": 28,
+        "hits": 3,
+        "expected": 0.604360025901144,
+        "lift": 4.963928571428571,
+        "mrr": 0.038461538461538464,
+        "trustworthy": false
+      }
+    },
+    "SARS-CoV": {
+      "M1": {
+        "pool": 465,
+        "pos": 2,
+        "hits": 0,
+        "expected": 0.43010752688172044,
+        "lift": 0.0,
+        "mrr": 0.00819672131147541,
+        "trustworthy": false
+      },
+      "M7": {
+        "pool": 52,
+        "pos": 9,
+        "hits": 9,
+        "expected": 17.307692307692307,
+        "lift": 0.52,
+        "mrr": 0.25,
+        "trustworthy": true
+      },
+      "COMBINED": {
+        "pool": 517,
+        "pos": 11,
+        "hits": 1,
+        "expected": 2.127659574468085,
+        "lift": 0.47000000000000003,
+        "mrr": 0.023809523809523808,
+        "trustworthy": true
+      },
+      "degree": {
+        "pool": 4633,
+        "pos": 32,
+        "hits": 3,
+        "expected": 0.6906971724584503,
+        "lift": 4.343437499999999,
+        "mrr": 0.03125,
+        "trustworthy": false
+      }
+    },
+    "HCoV-NL63": {
+      "M1": {
+        "pool": 6,
+        "pos": 0,
+        "hits": 0,
+        "expected": 0.0,
+        "lift": 0.0,
+        "mrr": 0.0,
+        "trustworthy": false
+      },
+      "M2": {
+        "pool": 39,
+        "pos": 0,
+        "hits": 0,
+        "expected": 0.0,
+        "lift": 0.0,
+        "mrr": 0.0,
+        "trustworthy": false
+      },
+      "M4": {
+        "pool": 2380,
+        "pos": 0,
+        "hits": 0,
+        "expected": 0.0,
+        "lift": 0.0,
+        "mrr": 0.0,
+        "trustworthy": false
+      },
+      "M6": {
+        "pool": 9,
+        "pos": 0,
+        "hits": 0,
+        "expected": 0.0,
+        "lift": 0.0,
+        "mrr": 0.0,
+        "trustworthy": false
+      },
+      "M7": {
+        "pool": 6,
+        "pos": 0,
+        "hits": 0,
+        "expected": 0.0,
+        "lift": 0.0,
+        "mrr": 0.0,
+        "trustworthy": false
+      },
+      "COMBINED": {
+        "pool": 2401,
+        "pos": 0,
+        "hits": 0,
+        "expected": 0.0,
+        "lift": 0.0,
+        "mrr": 0.0,
+        "trustworthy": false
+      },
+      "degree": {
+        "pool": 4633,
+        "pos": 2,
+        "hits": 0,
+        "expected": 0.043168573278653144,
+        "lift": 0.0,
+        "mrr": 0.007407407407407408,
+        "trustworthy": false
+      }
+    }
+  }
+}

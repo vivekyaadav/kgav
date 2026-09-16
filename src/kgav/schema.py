@@ -22,6 +22,22 @@ import yaml
 CURIE_RE = re.compile(r"^([A-Za-z][A-Za-z0-9_.]*):(\S+)$")
 ANY = "any"
 
+# A metapath hop prefixed with this is traversed object-to-subject.
+REVERSE = "<"
+
+
+def parse_hop(token: str) -> tuple[str, bool]:
+    """A metapath hop token -> (predicate, traversed_in_reverse).
+
+    "<PARTICIPATES_IN" means walk the predicate backwards, Pathway to Protein.
+    Direction is stated in the metapath rather than inferred from whether a
+    node happens to have outgoing edges -- that inference is what silently
+    truncated every symmetric predicate. See the metapaths block in the schema.
+    """
+    if token.startswith(REVERSE):
+        return token[len(REVERSE):], True
+    return token, False
+
 
 @dataclass(frozen=True)
 class Violation:
@@ -45,6 +61,10 @@ class EdgeClass:
     held_out: bool = False
     is_model_output: bool = False
     identity_qualifiers: list = field(default_factory=list)
+    # None means UNDECLARED, which is different from False. A traversal may
+    # not guess, so validate_metapaths rejects any metapath hop over a
+    # predicate that left this unset.
+    symmetric: bool | None = None
 
     @property
     def key(self) -> tuple:
@@ -96,6 +116,7 @@ class Schema:
                 held_out=bool(e.get("held_out", False)),
                 is_model_output=bool(e.get("is_model_output", False)),
                 identity_qualifiers=list(e.get("identity_qualifiers") or []),
+                symmetric=e.get("symmetric"),
             )
             for e in doc["edge_classes"]
         ]
@@ -118,6 +139,58 @@ class Schema:
             if ec.identity_qualifiers:
                 return ec.identity_qualifiers
         return []
+
+    def symmetry(self) -> dict[str, bool]:
+        """predicate -> whether the relation holds in both directions.
+
+        Predicates that do not declare it are ABSENT from this mapping, not
+        defaulted. A traversal that meets an absent predicate must fail loudly
+        rather than fall back to guessing from local topology.
+        """
+        return {ec.predicate: bool(ec.symmetric)
+                for ec in self.edge_classes if ec.symmetric is not None}
+
+    def is_symmetric(self, predicate: str) -> bool | None:
+        return self.symmetry().get(predicate)
+
+    def validate_metapaths(self) -> list[Violation]:
+        """Every hop must name a declared predicate with a declared symmetry.
+
+        This is the check that stops H1 regressing. Without it a new metapath
+        over an undeclared predicate would silently resume the old behaviour
+        of inferring direction from whether a node had outgoing edges.
+        """
+        out: list[Violation] = []
+        sym = self.symmetry()
+        for name, mp in self.metapaths.items():
+            path = list(mp.get("path") or [])
+            if len(path) < 3 or len(path) % 2 == 0:
+                out.append(Violation(
+                    "METAPATH_MALFORMED",
+                    f"path must alternate class, predicate, class; got {len(path)} entries",
+                    name))
+                continue
+            for i in range(1, len(path) - 1, 2):
+                predicate, reverse = parse_hop(path[i])
+                if predicate not in self._by_predicate:
+                    out.append(Violation(
+                        "METAPATH_UNKNOWN_PREDICATE",
+                        f"hop {i // 2 + 1} traverses {predicate!r}, which is not a "
+                        f"declared predicate", name))
+                    continue
+                if predicate not in sym:
+                    out.append(Violation(
+                        "METAPATH_UNDECLARED_SYMMETRY",
+                        f"hop {i // 2 + 1} traverses {predicate!r}, which does not "
+                        f"declare `symmetric`; traversal direction would have to be "
+                        f"guessed from local topology", name))
+                elif reverse and sym[predicate]:
+                    out.append(Violation(
+                        "METAPATH_REDUNDANT_REVERSE",
+                        f"hop {i // 2 + 1} marks {predicate!r} reverse, but it is "
+                        f"symmetric and is already traversed both ways; the marker "
+                        f"signals a misunderstanding of the relation", name))
+        return out
 
     def held_out_predicates(self) -> set[str]:
         """Predicates that must be stripped from the TRAINING graph."""

@@ -24,21 +24,20 @@ from kgav.baselines import (
     mrr,
     rank,
 )
+from kgav.labels import build_labels
 from kgav.schema import load_schema
 
 MIN_TRUSTWORTHY_EXPECTATION = 1.0
 
 
 def positives(release: Path) -> dict[str, set[str]]:
-    out: dict[str, set[str]] = {}
-    for line in (release / "edges.jsonl").read_text().splitlines():
-        if not line.strip():
-            continue
-        e = json.loads(line)
-        if (e["predicate"] == "HAS_ANTIVIRAL_ACTIVITY_AGAINST"
-                and (e.get("qualifiers") or {}).get("relation") == "="):
-            out.setdefault(e["object"], set()).add(e["subject"])
-    return out
+    """Measured-ACTIVE compounds per virus, via labels.classify.
+
+    Selecting on relation == "=" alone put 578 compounds measured above 10 uM
+    into the positive set: they were assayed and found inactive, and a lift
+    computed against them measures nothing.
+    """
+    return build_labels(release).positives
 
 
 def row(name: str, scores: dict[str, float], pos: set[str], k: int = 100) -> dict:
@@ -60,7 +59,8 @@ def main() -> int:
     args = ap.parse_args()
 
     s = load_schema()
-    g = Graph.load(args.release, skip_predicates=s.held_out_predicates())
+    g = Graph.load(args.release, skip_predicates=s.held_out_predicates(),
+                   symmetry=s.symmetry())
     pos = positives(args.release)
     labels = {n: d["properties"]["label"] for n, d in g.nodes.items()
               if d["class"] == "OrganismTaxon"}

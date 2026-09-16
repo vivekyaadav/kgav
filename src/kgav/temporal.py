@@ -36,6 +36,12 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from kgav.labels import (
+    DEFAULT_ACTIVE_BELOW_NM,
+    DEFAULT_INACTIVE_ABOVE_NM,
+    classify,
+)
+
 PLACEHOLDER_DATE = "1970-01-01"
 COMPUTED_SOURCES = {"infores:kgav-computed"}
 
@@ -55,25 +61,47 @@ def edge_year(edge: dict) -> int | None:
 class Split:
     cutoff: int
     train_edges: list[dict] = field(default_factory=list)
+    # POSITIVES. Named *_labels for continuity with the callers that predate
+    # the negative sets.
     test_labels: dict[str, set[str]] = field(default_factory=dict)
     train_labels: dict[str, set[str]] = field(default_factory=dict)
+    # MEASURED negatives: compounds assayed against the virus and found
+    # inactive, per labels.classify. Previously these were dropped as
+    # "label_censored" -- 4,685 measurements discarded -- which left the
+    # temporal evaluation with no negatives of its own.
+    test_negatives: dict[str, set[str]] = field(default_factory=dict)
+    train_negatives: dict[str, set[str]] = field(default_factory=dict)
     stats: Counter = field(default_factory=Counter)
     violations: list[str] = field(default_factory=list)
 
 
 def build_split(release: Path, cutoff: int, held_out: set[str],
-                undated_policy: str = "include") -> Split:
+                undated_policy: str = "include",
+                inactive_above_nm: float = DEFAULT_INACTIVE_ABOVE_NM,
+                active_below_nm: float = DEFAULT_ACTIVE_BELOW_NM) -> Split:
     """Partition a release at `cutoff`.
 
     undated_policy:
       include   keep undated non-computed edges in the training graph
       exclude   drop them (conservative: an unknown date may be post-cutoff)
       computed_only  keep only undated edges from a computed source
+
+    LABEL POLARITY COMES FROM labels.classify, not from the relation alone.
+    This module used to keep every exact-relation label as a positive and
+    discard every censored one. Both halves were wrong on the same data: 578
+    of 2,826 exact labels sit above 10 uM and are measurements of INACTIVITY,
+    while 4,685 censored rows are the best negatives the project has. A
+    positive set containing measured-inactive compounds makes every AUC below
+    it uninterpretable.
     """
     if undated_policy not in {"include", "exclude", "computed_only"}:
         raise ValueError(f"unknown undated_policy {undated_policy!r}")
 
     s = Split(cutoff=cutoff)
+    # virus -> compounds, kept per side so the ambiguity rule can be applied
+    # within each of them before the sets are handed out.
+    pos: dict[str, dict[str, set[str]]] = {"train": {}, "test": {}}
+    neg: dict[str, dict[str, set[str]]] = {"train": {}, "test": {}}
     for line in (Path(release) / "edges.jsonl").read_text().splitlines():
         if not line.strip():
             continue
@@ -83,17 +111,20 @@ def build_split(release: Path, cutoff: int, held_out: set[str],
         is_label = pred in held_out
 
         if is_label:
-            # Only exact relations are usable labels: "EC50 > 10000 nM" is a
-            # measurement of INACTIVITY and would invert the target.
-            if (e.get("qualifiers") or {}).get("relation") not in (None, "="):
-                s.stats["label_censored"] += 1
+            # "EC50 > 10000 nM" is a measurement of INACTIVITY: a negative,
+            # not a discard. "EC50 = 50000 nM" is one too, despite its exact
+            # relation. classify() is the single place that judgement lives.
+            verdict = classify(e, inactive_above_nm, active_below_nm)
+            if verdict is None:
+                s.stats["label_undecidable"] += 1
                 continue
             if year is None:
                 s.stats["label_undated"] += 1
                 continue
-            bucket = s.train_labels if year <= cutoff else s.test_labels
+            side = "train" if year <= cutoff else "test"
+            bucket = pos[side] if verdict == "active" else neg[side]
             bucket.setdefault(e["object"], set()).add(e["subject"])
-            s.stats["label_train" if year <= cutoff else "label_test"] += 1
+            s.stats[f"label_{side}_{'active' if verdict == 'active' else 'inactive'}"] += 1
             continue
 
         if year is None:
@@ -113,6 +144,23 @@ def build_split(release: Path, cutoff: int, held_out: set[str],
             s.stats["edge_train"] += 1
         else:
             s.stats["edge_dropped_future"] += 1
+
+    # labels.py's rule: a compound measured both active and inactive against
+    # the same virus is a real disagreement -- different cell lines, strains,
+    # labs -- and forcing it to one side manufactures a label the data does
+    # not support. Applied WITHIN each side, because each is its own label set
+    # used for its own question; disagreement ACROSS the cutoff is a different
+    # thing and the L5 audit already reports it.
+    for side, positives, negatives in (("train", s.train_labels, s.train_negatives),
+                                       ("test", s.test_labels, s.test_negatives)):
+        for virus in set(pos[side]) | set(neg[side]):
+            a = pos[side].get(virus, set())
+            i = neg[side].get(virus, set())
+            both = a & i
+            if both:
+                s.stats[f"{side}_ambiguous_dropped"] += len(both)
+            positives[virus] = a - both
+            negatives[virus] = i - both
     return s
 
 
@@ -146,12 +194,16 @@ def audit(split: Split, release: Path, held_out: set[str]) -> list[str]:
                             f"for {virus} have no pre-{split.cutoff} evidence")
 
     # Test labels must not also be train labels for the same virus: a compound
-    # measured both before and after the cutoff is already known.
-    for virus, drugs in split.test_labels.items():
-        overlap = drugs & split.train_labels.get(virus, set())
-        if overlap:
-            problems.append(f"L5 label overlap: {len(overlap):,} compounds for "
-                            f"{virus} appear in BOTH train and test labels")
+    # measured both before and after the cutoff is already known. Checked for
+    # negatives too -- a compound already known inactive is no more a
+    # prospective test case than one already known active.
+    for kind, test, train in (("positive", split.test_labels, split.train_labels),
+                              ("negative", split.test_negatives, split.train_negatives)):
+        for virus, drugs in test.items():
+            overlap = drugs & train.get(virus, set())
+            if overlap:
+                problems.append(f"L5 label overlap: {len(overlap):,} {kind} compounds "
+                                f"for {virus} appear in BOTH train and test labels")
     return problems
 
 
@@ -169,7 +221,14 @@ def write_split(split: Split, release: Path, out: Path) -> None:
                 nodes.append(n)
     (out / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
     (out / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in split.train_edges))
+    # Negatives are emitted alongside the positives. A consumer that reads
+    # only "test" gets the same positive set as before; one that wants a
+    # hard-negative evaluation no longer has to rebuild the labels itself and
+    # risk using a different rule from the one the split was built with.
     (out / "TEST_LABELS.json").write_text(json.dumps(
         {"cutoff": split.cutoff,
          "test": {v: sorted(d) for v, d in split.test_labels.items()},
-         "train": {v: sorted(d) for v, d in split.train_labels.items()}}, indent=2))
+         "train": {v: sorted(d) for v, d in split.train_labels.items()},
+         "test_negatives": {v: sorted(d) for v, d in split.test_negatives.items()},
+         "train_negatives": {v: sorted(d) for v, d in split.train_negatives.items()}},
+        indent=2))

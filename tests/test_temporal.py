@@ -97,11 +97,21 @@ def test_labels_are_partitioned_by_year(release, held):
     assert s.test_labels[V] == {NEW}
 
 
-def test_censored_labels_are_excluded(release, held):
+def test_censored_labels_are_never_positives(release, held):
     """'EC50 > 9999 nM' is a measurement of INACTIVITY; using it as a positive
-    would invert the target."""
+    would invert the target.
+
+    It is no longer DISCARDED either. Dropping every censored row threw away
+    4,685 measurements -- the best negatives the project has -- and left the
+    temporal split with no negatives of its own. Whether such a row becomes a
+    negative or stays undecidable is labels.classify's judgement: this one is
+    bounded below 10 uM, so it decides nothing.
+    """
     s = build_split(release, 2021, held)
-    assert s.stats["label_censored"] == 1
+    censored = "INCHIKEY:CENSORED"
+    assert all(censored not in d for d in s.test_labels.values())
+    assert all(censored not in d for d in s.train_labels.values())
+    assert s.stats["label_undecidable"] == 1
 
 
 def test_held_out_predicates_never_enter_the_training_graph(release, held):
@@ -181,3 +191,68 @@ def test_written_graph_keeps_only_reachable_nodes(release, held, tmp_path):
     labels = json.loads((out / "TEST_LABELS.json").read_text())
     assert labels["cutoff"] == 2021
     assert labels["test"][V] == [NEW]
+
+
+# -------------------------------------------- label polarity via classify (M2)
+def _activity(subject, obj, value, relation="=", date="2023-01-01"):
+    return {"subject": subject, "predicate": "HAS_ANTIVIRAL_ACTIVITY_AGAINST",
+            "object": obj, "qualifiers": {"ec50_nm": value, "relation": relation,
+                                          "assay_type": "cell_based_antiviral"},
+            "primary_knowledge_source": "s", "evidence_tier": 1,
+            "first_asserted_date": date}
+
+
+def _release(tmp_path, edges):
+    (tmp_path / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in edges))
+    (tmp_path / "nodes.jsonl").write_text("")
+    return tmp_path
+
+
+def test_an_exact_measurement_above_the_threshold_is_a_negative(tmp_path):
+    """578 labels in v0.1 read "= 50000 nM" and were counted as POSITIVES
+    because the relation was exact. They are measurements of inactivity."""
+    r = _release(tmp_path, [_activity("INCHIKEY:A", V, 50_000.0)])
+    s = build_split(r, 2021, {"HAS_ANTIVIRAL_ACTIVITY_AGAINST"})
+    assert s.test_labels.get(V, set()) == set()
+    assert s.test_negatives[V] == {"INCHIKEY:A"}
+
+
+def test_a_censored_measurement_is_kept_as_a_negative(tmp_path):
+    """4,685 censored rows were discarded as "label_censored". A compound
+    assayed and found inactive is the best negative this project has."""
+    r = _release(tmp_path, [_activity("INCHIKEY:B", V, 20_000.0, relation=">")])
+    s = build_split(r, 2021, {"HAS_ANTIVIRAL_ACTIVITY_AGAINST"})
+    assert s.test_negatives[V] == {"INCHIKEY:B"}
+    assert not s.stats["label_undecidable"]
+
+
+def test_a_weak_lower_bound_stays_undecidable(tmp_path):
+    """"> 100 nM" does not prove inactivity: the bound sits below the point
+    where a hit would stop being pursued."""
+    r = _release(tmp_path, [_activity("INCHIKEY:C", V, 100.0, relation=">")])
+    s = build_split(r, 2021, {"HAS_ANTIVIRAL_ACTIVITY_AGAINST"})
+    assert s.stats["label_undecidable"] == 1
+    assert not s.test_labels.get(V) and not s.test_negatives.get(V)
+
+
+def test_a_compound_measured_both_ways_is_dropped_from_both_sides(tmp_path):
+    """labels.py's rule, applied within each side of the split."""
+    r = _release(tmp_path, [_activity("INCHIKEY:D", V, 50.0),
+                            _activity("INCHIKEY:D", V, 50_000.0)])
+    s = build_split(r, 2021, {"HAS_ANTIVIRAL_ACTIVITY_AGAINST"})
+    assert "INCHIKEY:D" not in s.test_labels.get(V, set())
+    assert "INCHIKEY:D" not in s.test_negatives.get(V, set())
+    assert s.stats["test_ambiguous_dropped"] == 1
+
+
+def test_negatives_are_written_to_test_labels_json(tmp_path):
+    (tmp_path / "rel").mkdir()
+    r = _release(tmp_path / "rel", [_activity("INCHIKEY:A", V, 50_000.0),
+                                    _activity("INCHIKEY:E", V, 5.0)])
+    s = build_split(r, 2021, {"HAS_ANTIVIRAL_ACTIVITY_AGAINST"})
+    out = tmp_path / "split"
+    write_split(s, r, out)
+    payload = json.loads((out / "TEST_LABELS.json").read_text())
+    assert payload["test"][V] == ["INCHIKEY:E"]
+    assert payload["test_negatives"][V] == ["INCHIKEY:A"]
+    assert "train_negatives" in payload

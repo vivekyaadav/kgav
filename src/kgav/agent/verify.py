@@ -26,6 +26,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from kgav.agent.guards import CAVEAT_LABELS
+
 EDGE_ID_RE = re.compile(r"\[([A-Za-z]?E\d+(?:\s*,\s*[A-Za-z]?E\d+)*)\]")
 NUMBER_RE = re.compile(r"\d+(?:[.,]\d+)*")
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
@@ -34,11 +36,12 @@ SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
 HEDGE_STARTS = (
     "this", "these", "however", "note", "in summary", "overall", "the graph",
     "no ", "there is no", "i cannot", "it is not", "caution", "warning",
+    "the cell line",
     # Restating a required caveat is not an uncited claim: the caveat is
-    # supplied by the brief, not asserted by the model.
-    "selective", "cytotoxic", "selectivity unknown", "cell context",
-    "cell line", "host-directed route", "the cell line",
-)
+    # supplied by the brief, not asserted by the model. Derived from the
+    # registry rather than listed again here, so adding a caveat cannot leave
+    # its restatement being reported as an uncited claim.
+) + tuple(label.lower() for label in CAVEAT_LABELS.values())
 
 
 @dataclass
@@ -80,6 +83,32 @@ def _sentences(text: str) -> list[str]:
     t = re.sub(r"^\s*[-*•]\s+", "", t, flags=re.MULTILINE)      # bullets
     t = t.replace("**", "").replace("__", "")           # emphasis
     return [s.strip() for s in SENTENCE_RE.split(t) if s.strip()]
+
+
+def _caveat_marker(warning) -> str:
+    """What must appear in an answer for this caveat to count as surviving.
+
+    A guards.Caveat carries an explicit label, so the answer must keep the
+    LABEL and may paraphrase everything after it however it likes. That is the
+    whole point: enforcement is tied to the caveat's identity, not its prose,
+    so rewriting the wording cannot silently change what is required.
+
+    A plain string -- one not built by guards.caveat(), or one that has been
+    through JSON and lost its attributes -- falls back to the older
+    prose-derived key. Enforcing something imperfect beats enforcing nothing,
+    and for a labelled caveat the fallback recovers the same label anyway,
+    since the label is the text before the first colon.
+    """
+    label = getattr(warning, "label", None)
+    if label:
+        return label.lower()
+    head = warning.split(":")[0].strip().lower()
+    return head if head and len(head) < 40 else warning[:40].lower()
+
+
+def _caveat_name(warning) -> str:
+    """How a dropped caveat is named in the report."""
+    return getattr(warning, "key", None) or str(warning)[:70]
 
 
 def _numbers(text: str) -> set[str]:
@@ -133,36 +162,39 @@ def verify(answer: str, facts: list[str], citable_edge_ids: list[str],
     #    individual edges, and demanding citations where none exist is what
     #    drove the model to invent them. The invented-citation check above
     #    still applies: with an empty allowed-list, ANY citation is invented.
+    #
+    #    ONLY THIS CHECK IS SKIPPED. An earlier version RETURNED here, which
+    #    silently disabled the warning and number checks below for every
+    #    triage and profile query -- the two shapes that never carry edge ids.
+    #    A fabricated potency and a dropped cell-context caveat both passed,
+    #    reported as "verified: every claim is cited and grounded". Having no
+    #    citable edges means citations cannot be checked; it says nothing
+    #    about whether the numbers are real or the caveats survived.
     uncited: list[str] = []
-    if not citable_edge_ids:
-        return Verification(
-            passed=not any(f.severity == "fail" for f in findings),
-            findings=findings, cited=sorted(set(cited)))
-    for s in _sentences(answer):
-        if EDGE_ID_RE.search(s):
-            continue
-        low = s.lower()
-        if any(low.startswith(h) for h in HEDGE_STARTS):
-            continue
-        if len(s.split()) < 6:
-            continue
-        uncited.append(s)
-    if uncited:
-        findings.append(Finding(
-            "warn", "uncited_claim",
-            f"{len(uncited)} sentence(s) make a claim without a citation"))
+    if citable_edge_ids:
+        for s in _sentences(answer):
+            if EDGE_ID_RE.search(s):
+                continue
+            low = s.lower()
+            if any(low.startswith(h) for h in HEDGE_STARTS):
+                continue
+            if len(s.split()) < 6:
+                continue
+            uncited.append(s)
+        if uncited:
+            findings.append(Finding(
+                "warn", "uncited_claim",
+                f"{len(uncited)} sentence(s) make a claim without a citation"))
 
     # 3. Mandatory warnings must survive into the answer. This is the check
     #    that stops a cell-context caveat being dropped for brevity.
-    " ".join(facts).lower()
     ans_low = (answer or "").lower()
     for w in required_warnings:
-        head = w.split(":")[0].strip().lower()
-        key = head if head and len(head) < 40 else w[:40].lower()
-        if key and key not in ans_low:
+        marker = _caveat_marker(w)
+        if marker and marker not in ans_low:
             findings.append(Finding(
                 "fail", "warning_dropped",
-                f"required warning not present in the answer: {w[:70]}"))
+                f"required warning not present in the answer: {_caveat_name(w)}"))
 
     # 4. Every number in the answer must appear in the facts. A transposed
     #    digit in a potency value is harder to notice than a wrong sentence.
