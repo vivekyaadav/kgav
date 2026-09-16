@@ -47,11 +47,11 @@
       "M5": {
         "n_pos": 816,
         "n_neg": 4874,
-        "auc": 0.4196516932583456,
+        "auc": 0.4230696895089591,
         "evaluable": true,
         "imputed": true,
-        "coverage_pos": 0.02696078431372549,
-        "coverage_neg": 0.1887566680344686
+        "coverage_pos": 0.024509803921568627,
+        "coverage_neg": 0.17870332375871975
       },
       "M6": {
         "n_pos": 816,
@@ -74,7 +74,7 @@
       "COMBINED": {
         "n_pos": 816,
         "n_neg": 4874,
-        "auc": 0.6825540382340872,
+        "auc": 0.6826334914351461,
         "evaluable": true,
         "imputed": true,
         "coverage_pos": 0.8075980392156863,
@@ -251,10 +251,10 @@
       "M5": {
         "n_pos": 54,
         "n_neg": 70,
-        "auc": 0.5092592592592593,
+        "auc": 0.5,
         "evaluable": true,
         "imputed": true,
-        "coverage_pos": 0.018518518518518517,
+        "coverage_pos": 0.0,
         "coverage_neg": 0.0
       },
       "M6": {
@@ -325,10 +325,10 @@
       "M5": {
         "n_pos": 53,
         "n_neg": 89,
-        "auc": 0.5377358490566038,
+        "auc": 0.5283018867924528,
         "evaluable": true,
         "imputed": true,
-        "coverage_pos": 0.07547169811320754,
+        "coverage_pos": 0.05660377358490566,
         "coverage_neg": 0.0
       },
       "M6": {
@@ -529,18 +529,5 @@
         "coverage_neg": 0.1875
       }
     }
-  },
-  "provenance": {
-    "release": {
-      "id": "v0.1",
-      "nodes_sha": "4d0921b79348b0d6",
-      "edges_sha": "fd5dea4567a03330"
-    },
-    "code": {
-      "commit": "17190bcf49b39c31a519cc13fc5ba17fb27d4b7b",
-      "dirty": true
-    },
-    "schema_version": "0.9.0",
-    "generated_utc": "2026-09-16T23:28:05+00:00"
   }
 }
