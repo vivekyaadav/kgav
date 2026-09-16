@@ -1,0 +1,89 @@
+"""Gate for results provenance.
+
+The failure this closes: metapath_comparison.json was generated the day
+before the selectivity layer added 1,568 activity edges, and was still read
+as a baseline afterwards. A positive count that had fallen 1,011 -> 889 read
+as a rise from 736, because nothing in the file said which graph it described.
+"""
+import json
+
+from kgav.provenance import (
+    PROVENANCE_KEY,
+    check_dir,
+    check_file,
+    release_fingerprint,
+    write_results,
+)
+
+
+def _release(tmp_path, edges="a\n", nodes="n\n"):
+    d = tmp_path / "rel"
+    d.mkdir(exist_ok=True)
+    (d / "nodes.jsonl").write_text(nodes)
+    (d / "edges.jsonl").write_text(edges)
+    return d
+
+
+def test_a_results_file_records_the_release_it_came_from(tmp_path):
+    rel = _release(tmp_path)
+    out = tmp_path / "r" / "x.json"
+    write_results(out, {"auc": 0.826}, rel, "0.9.0")
+    doc = json.loads(out.read_text())
+    assert doc["auc"] == 0.826
+    prov = doc[PROVENANCE_KEY]
+    assert prov["release"] == release_fingerprint(rel)
+    assert prov["schema_version"] == "0.9.0"
+    assert "generated_utc" in prov and "code" in prov
+
+
+def test_a_matching_release_passes(tmp_path):
+    rel = _release(tmp_path)
+    out = tmp_path / "r" / "x.json"
+    write_results(out, {"auc": 0.826}, rel)
+    assert check_file(out, rel)[0] == "ok"
+
+
+def test_a_release_rebuilt_in_place_is_caught(tmp_path):
+    """THE ACTUAL BUG. The directory keeps its name; the graph is different.
+    Fingerprinting content rather than the name is what catches it."""
+    rel = _release(tmp_path)
+    out = tmp_path / "r" / "x.json"
+    write_results(out, {"auc": 0.826}, rel)
+    (rel / "edges.jsonl").write_text("a\nb\n")      # selectivity layer lands
+    status, msg = check_file(out, rel)
+    assert status == "stale"
+    assert "edges" in msg
+
+
+def test_a_file_with_no_provenance_is_reported_not_assumed_fine(tmp_path):
+    rel = _release(tmp_path)
+    p = tmp_path / "old.json"
+    p.write_text(json.dumps({"auc": 0.826}))
+    status, msg = check_file(p, rel)
+    assert status == "unstamped"
+    assert "cannot tell which release" in msg
+
+
+def test_check_dir_reports_every_file(tmp_path):
+    rel = _release(tmp_path)
+    d = tmp_path / "res"
+    d.mkdir()
+    write_results(d / "good.json", {}, rel)
+    (d / "bare.json").write_text("{}")
+    rows = {name: status for name, status, _ in check_dir(d, rel)}
+    assert rows == {"good.json": "ok", "bare.json": "unstamped"}
+
+
+def test_nodes_and_edges_are_both_fingerprinted(tmp_path):
+    rel = _release(tmp_path)
+    out = tmp_path / "r" / "x.json"
+    write_results(out, {}, rel)
+    (rel / "nodes.jsonl").write_text("n\nn2\n")     # edges untouched
+    assert check_file(out, rel)[0] == "stale"
+
+
+def test_an_unreadable_file_is_stale_not_silently_skipped(tmp_path):
+    rel = _release(tmp_path)
+    p = tmp_path / "broken.json"
+    p.write_text("{not json")
+    assert check_file(p, rel)[0] == "stale"

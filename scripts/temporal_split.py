@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
@@ -18,6 +17,7 @@ from kgav.baselines import (
     mrr,
     rank,
 )
+from kgav.provenance import write_results
 from kgav.schema import load_schema
 from kgav.temporal import audit, build_split, write_split
 
@@ -105,10 +105,10 @@ def main() -> int:
         results[label] = per
 
     args.results.mkdir(parents=True, exist_ok=True)
-    (args.results / f"temporal_{args.cutoff}_{args.undated}.json").write_text(
-        json.dumps({"cutoff": args.cutoff, "undated_policy": args.undated,
-                    "stats": dict(split.stats), "audits": problems,
-                    "results": results}, indent=2))
+    write_results(args.results / f"temporal_{args.cutoff}_{args.undated}.json",
+                  {"cutoff": args.cutoff, "undated_policy": args.undated,
+                   "stats": dict(split.stats), "audits": problems,
+                   "results": results}, args.release, s.version)
     print(f"\nwrote {args.results}")
     return 0
 

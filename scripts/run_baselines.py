@@ -7,7 +7,6 @@ whether known artifacts do not.
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
@@ -24,6 +23,7 @@ from kgav.baselines import (
     rank,
 )
 from kgav.labels import build_labels
+from kgav.provenance import write_results
 from kgav.schema import load_schema
 
 # Compounds whose behaviour tells us whether the graph works.
@@ -161,8 +161,8 @@ def main() -> int:
         "top": {n: [{"drug": d, "score": s} for d, s in r[:200]]
                 for n, r in ranked_all.items()},
     }
-    (args.out / f"baselines_{args.virus.replace(':', '_')}.json").write_text(
-        json.dumps(payload, indent=2))
+    write_results(args.out / f"baselines_{args.virus.replace(':', '_')}.json",
+                  payload, args.release, schema.version)
     print(f"\nwrote {args.out}")
     return 0
 

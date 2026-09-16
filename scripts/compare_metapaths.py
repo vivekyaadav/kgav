@@ -9,7 +9,6 @@ fewer than one expected hit can be recognised as noise rather than signal.
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
@@ -25,6 +24,7 @@ from kgav.baselines import (
     rank,
 )
 from kgav.labels import build_labels
+from kgav.provenance import write_results
 from kgav.schema import load_schema
 
 MIN_TRUSTWORTHY_EXPECTATION = 1.0
@@ -120,7 +120,8 @@ def main() -> int:
               f"{cell(m7,'pool','>8,'):>8} {cell(m7,'lift','>8.2f'):>8}  {verdict}")
 
     args.out.mkdir(parents=True, exist_ok=True)
-    (args.out / "metapath_comparison.json").write_text(json.dumps(results, indent=2))
+    write_results(args.out / "metapath_comparison.json", results, args.release,
+                  s.version)
     print(f"\nwrote {args.out / 'metapath_comparison.json'}")
     return 0
 
