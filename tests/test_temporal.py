@@ -256,3 +256,29 @@ def test_negatives_are_written_to_test_labels_json(tmp_path):
     assert payload["test"][V] == ["INCHIKEY:E"]
     assert payload["test_negatives"][V] == ["INCHIKEY:A"]
     assert "train_negatives" in payload
+
+
+def test_split_label_sets_are_ordered_deterministically(tmp_path, held):
+    """Same defect as labels.build_labels: the per-virus order came from set
+    iteration, and it reaches the audit list and TEST_LABELS.json. Two runs
+    over one release must produce the same file, or the provenance stamps
+    cannot tell drift from interpreter noise."""
+    viruses = ["NCBITaxon:2697049", "NCBITaxon:694009", "NCBITaxon:11137",
+               "NCBITaxon:31631", "NCBITaxon:277944", "NCBITaxon:1335626"]
+    nodes, edges = [], []
+    for v in viruses:
+        nodes.append({"id": v, "class": "OrganismTaxon",
+                      "properties": {"label": v, "family": "Coronaviridae",
+                                     "baltimore_class": "IV", "is_enveloped": True}})
+        for drug, rel, date in ((OLD, "=", "2019-01-01"), (NEW, "=", "2023-01-01"),
+                                ("INCHIKEY:NEG", ">", "2023-01-01")):
+            e = _label(drug, date, rel)
+            e["object"] = v
+            if rel == ">":
+                e["qualifiers"]["ec50_nm"] = 50_000.0
+            edges.append(e)
+    (tmp_path / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in edges))
+    s = build_split(tmp_path, cutoff=2021, held_out=held)
+    for side in (s.test_labels, s.train_labels, s.test_negatives, s.train_negatives):
+        assert list(side) == sorted(side)
