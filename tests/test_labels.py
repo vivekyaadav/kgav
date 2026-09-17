@@ -116,3 +116,20 @@ def test_ties_count_as_half():
 def test_empty_class_is_not_evaluable():
     m = evaluate_against_negatives({"a": 1.0}, {"a"}, set())
     assert m["evaluable"] is False and m["auc"] is None
+
+
+def test_label_sets_are_ordered_deterministically(tmp_path):
+    """Virus order came from iterating a SET of ids, and str hashing is
+    randomised per interpreter -- so two runs over one release wrote results
+    files that differed textually while every number in them was identical.
+    That is indistinguishable from real drift to anything reading the file,
+    and it would read as spurious staleness against the provenance stamps."""
+    viruses = ["NCBITaxon:2697049", "NCBITaxon:694009", "NCBITaxon:11137",
+               "NCBITaxon:31631", "NCBITaxon:277944", "NCBITaxon:1335626"]
+    edges = []
+    for v in viruses:
+        for e in (_act("A", 200.0), _act("N", 50_000.0, ">")):
+            edges.append({**e, "object": v})
+    lab = build_labels(_release(tmp_path, edges))
+    assert list(lab.positives) == sorted(lab.positives)
+    assert list(lab.negatives) == sorted(lab.negatives)

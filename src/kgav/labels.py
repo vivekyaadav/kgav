@@ -115,7 +115,13 @@ def build_labels(release: Path, year_from: int | None = None,
         bucket.setdefault(e["object"], set()).add(e["subject"])
         out.stats[verdict] += 1
 
-    for virus in set(active) | set(inactive):
+    # SORTED, because a set of strings iterates in a different order in every
+    # process (str hashing is randomised per interpreter). That order reaches
+    # the results files through the label dicts, so two runs over the SAME
+    # release produced files that differed textually while every number in
+    # them was identical -- which is precisely the signal the provenance
+    # stamps exist to make trustworthy.
+    for virus in sorted(set(active) | set(inactive)):
         a = active.get(virus, set())
         i = inactive.get(virus, set())
         both = a & i

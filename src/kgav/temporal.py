@@ -153,7 +153,10 @@ def build_split(release: Path, cutoff: int, held_out: set[str],
     # thing and the L5 audit already reports it.
     for side, positives, negatives in (("train", s.train_labels, s.train_negatives),
                                        ("test", s.test_labels, s.test_negatives)):
-        for virus in set(pos[side]) | set(neg[side]):
+        # sorted for the same reason as labels.build_labels: this order
+        # reaches the audit list and TEST_LABELS.json, so leaving it to set
+        # iteration made two runs over one release differ textually.
+        for virus in sorted(set(pos[side]) | set(neg[side])):
             a = pos[side].get(virus, set())
             i = neg[side].get(virus, set())
             both = a & i
