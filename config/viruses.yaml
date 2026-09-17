@@ -6,22 +6,60 @@
 # label matching is banned — see normalize_bio.MondoResolver.
 #
 # mondo: null means "not yet curated"; the ingest emits no CAUSES edge and
-# reports it. Use scripts/find_mondo.py to list candidate terms, then pin one.
+# reports it.
+#
+# ---------------------------------------------------------------------------
+# chain_source AND THE SPECIES/STRAIN TRAP
+#
+# THE BUG CLASS THIS FIELD EXISTS TO PREVENT. Swiss-Prot frequently curates a
+# virus under a STRAIN or ISOLATE taxon while the species taxon carries only a
+# TrEMBL proteome with no Chain features. Query the species and you get zero
+# mature peptides -- no error, no missing-data signal, just a direct-acting
+# channel with nothing to point at. It cost this project the MERS Mpro and
+# RdRp once already (species 1335626 is TrEMBL-only; the curation is under
+# isolate 1263720), and HKU1 the same way (290028 -> 443239).
+#
+# It is NOT a coronavirus quirk. Measured against UniProt on 2026-09-17, SEVEN
+# of the nine surveyed flaviviruses are curated under a strain taxon and only
+# Zika and West Nile at the species level. A `taxonomy_id:` search would paper
+# over this by silently walking down the lineage and picking something; that
+# is exactly the silent fallback this register forbids.
+#
+# So every entry declares chain_source explicitly:
+#
+#   chain_source.taxon      where the coordinate-bearing PRO_ chains ACTUALLY
+#                           live. Equal to `taxon` when the species is curated.
+#   chain_source.accession  the reviewed polyprotein those chains hang off.
+#   chain_source.chains     how many PRO_ chains carry start/end coordinates,
+#                           so a silent drop to zero is a diff, not a mystery.
+#   chain_source.verified   the date that was measured, not assumed.
+#
+# RULE, enforced by kgav.virus_register.validate and by validate_release.py:
+# if chain_source.taxon differs from taxon, that taxon MUST also appear in
+# isolate_taxa. There is no implicit descendant lookup anywhere in this
+# pipeline, and adding one would recreate the bug.
+# ---------------------------------------------------------------------------
 
 viruses:
   - taxon: "2697049"
+    chain_source: {accession: P0DTD1, taxon: "2697049", chains: 16,
+                   verified: "2026-09-17"}   # species is curated; no isolate needed
     name: SARS-CoV-2
     proteome_id: UP000464024
     mondo: "MONDO:0100096"
     mondo_source: "DOID:0080600 xref, verified 2026-09"
 
   - taxon: "694009"
+    chain_source: {accession: P0C6X7, taxon: "694009", chains: 15,
+                   verified: "2026-09-17"}   # species is curated; no isolate needed
     name: SARS-CoV
     proteome_id: UP000000354
     mondo: "MONDO:0005091"
     mondo_source: "severe acute respiratory syndrome; sole exact match, verified 2026-09"
 
   - taxon: "1335626"
+    chain_source: {accession: K9N7C7, taxon: "1263720", chains: 15,
+                   verified: "2026-09-17"}   # STRAIN: species proteome is TrEMBL-only, zero Chain features
     name: MERS-CoV
     # VirHostNet and Swiss-Prot both file this under an isolate taxon;
     # the species query returns zero rows.
@@ -39,6 +77,8 @@ viruses:
     mondo_source: "Middle East respiratory syndrome; verified 2026-09"
 
   - taxon: "11137"
+    chain_source: {accession: P0C6X1, taxon: "11137", chains: 15,
+                   verified: "2026-09-17"}   # species is curated; no isolate needed
     name: HCoV-229E
     proteome_id: UP000006716
     # No specific MONDO term exists. The only candidate is the generic
@@ -52,6 +92,8 @@ viruses:
     mondo_source: null
 
   - taxon: "277944"
+    chain_source: {accession: P0C6X5, taxon: "277944", chains: 15,
+                   verified: "2026-09-17"}   # species is curated; no isolate needed
     name: HCoV-NL63
     proteome_id: UP000008573
     # No specific MONDO term exists. The only candidate is the generic
@@ -65,6 +107,8 @@ viruses:
     mondo_source: null
 
   - taxon: "31631"
+    chain_source: {accession: P0C6X6, taxon: "31631", chains: 15,
+                   verified: "2026-09-17"}   # species is curated; no isolate needed
     name: HCoV-OC43
     proteome_id: UP000007552
     # No specific MONDO term exists. The only candidate is the generic
@@ -78,6 +122,8 @@ viruses:
     mondo_source: null
 
   - taxon: "290028"
+    chain_source: {accession: P0C6X2, taxon: "443239", chains: 15,
+                   verified: "2026-09-17"}   # STRAIN: species query returns no curated polyprotein
     name: HCoV-HKU1
     # VirHostNet and Swiss-Prot both file this under an isolate taxon;
     # the species query returns zero rows.
@@ -90,6 +136,171 @@ viruses:
     # and a prediction "for the common cold" could not be attributed back to
     # the virus it came from. Left null: nothing in M1-M6 routes through
     # Disease, so no signal is lost.
+    mondo: null
+    mondo_source: null
+
+
+# ---------------------------------------------------------------------------
+# SURVEYED, NOT BUILT. Measured 2026-09-17; no ingest reads this list yet.
+# ingest_spine.py reads `viruses:` only, so nothing here changes the v1 build.
+# An entry graduates by being moved into `viruses:` above.
+#
+# WHY THIS SECTION IS HERE RATHER THAN IN A NOTE. Seven of these nine are
+# curated under a strain taxon, and the species taxon returns a TrEMBL
+# proteome with ONE protein and no Chain features. That is the MERS trap at
+# seven times the scale. Recording the strain taxa now, validated by the same
+# rule as the coronaviruses, is what stops the next build rediscovering it.
+#
+# Every chain_source below was verified against UniProt on the date shown:
+# reviewed entry, PRO_ chain ids present, start/end coordinates present.
+# ---------------------------------------------------------------------------
+surveyed:
+  - taxon: "11053"
+    name: DENV-1
+    family: Flaviviridae
+    full_name: "Dengue virus type 1"
+    proteome_id: UP000095813
+    # Species 11053 has no curated polyprotein: its reference proteome is
+    # TrEMBL-only with a single protein and zero Chain features. The 13-16
+    # mature peptides are curated under strain 408685 (Brazil/97-11/1997).
+    # Without this mapping every chain-level target is silently absent.
+    isolate_taxa: ["408685"]
+    chain_source: {accession: P27909, taxon: "408685", chains: 14,
+                   verified: "2026-09-17"}
+    # No MONDO term pinned. Label matching is banned (normalize_bio.
+    # MondoResolver), and no xref has been curated for this taxon yet.
+    mondo: null
+    mondo_source: null
+
+  - taxon: "11060"
+    name: DENV-2
+    family: Flaviviridae
+    full_name: "Dengue virus type 2"
+    proteome_id: UP000095876
+    # Species 11060 has no curated polyprotein: its reference proteome is
+    # TrEMBL-only with a single protein and zero Chain features. The 13-16
+    # mature peptides are curated under strain 31634 (Thailand/16681/1984; the accession ingest_folds.py already hardcodes).
+    # Without this mapping every chain-level target is silently absent.
+    isolate_taxa: ["31634"]
+    chain_source: {accession: P29990, taxon: "31634", chains: 13,
+                   verified: "2026-09-17"}
+    # No MONDO term pinned. Label matching is banned (normalize_bio.
+    # MondoResolver), and no xref has been curated for this taxon yet.
+    mondo: null
+    mondo_source: null
+
+  - taxon: "11069"
+    name: DENV-3
+    family: Flaviviridae
+    full_name: "Dengue virus type 3"
+    proteome_id: UP000095814
+    # Species 11069 has no curated polyprotein: its reference proteome is
+    # TrEMBL-only with a single protein and zero Chain features. The 13-16
+    # mature peptides are curated under strain 408870 (Philippines/H87/1956).
+    # Without this mapping every chain-level target is silently absent.
+    isolate_taxa: ["408870"]
+    chain_source: {accession: P27915, taxon: "408870", chains: 13,
+                   verified: "2026-09-17"}
+    # No MONDO term pinned. Label matching is banned (normalize_bio.
+    # MondoResolver), and no xref has been curated for this taxon yet.
+    mondo: null
+    mondo_source: null
+
+  - taxon: "11070"
+    name: DENV-4
+    family: Flaviviridae
+    full_name: "Dengue virus type 4"
+    proteome_id: UP000096325
+    # Species 11070 has no curated polyprotein: its reference proteome is
+    # TrEMBL-only with a single protein and zero Chain features. The 13-16
+    # mature peptides are curated under strain 408689 (Thailand/0476/1997).
+    # Without this mapping every chain-level target is silently absent.
+    isolate_taxa: ["408689"]
+    chain_source: {accession: Q2YHF2, taxon: "408689", chains: 13,
+                   verified: "2026-09-17"}
+    # No MONDO term pinned. Label matching is banned (normalize_bio.
+    # MondoResolver), and no xref has been curated for this taxon yet.
+    mondo: null
+    mondo_source: null
+
+  - taxon: "64320"
+    name: Zika
+    family: Flaviviridae
+    full_name: "Zika virus"
+    proteome_id: UP000054557
+    # Curated AT THE SPECIES TAXON -- one of only two here. No isolate
+    # mapping needed, and none is declared, so the validator can tell the
+    # difference between "not needed" and "forgotten".
+    chain_source: {accession: Q32ZE1, taxon: "64320", chains: 13,
+                   verified: "2026-09-17"}
+    # No MONDO term pinned. Label matching is banned (normalize_bio.
+    # MondoResolver), and no xref has been curated for this taxon yet.
+    mondo: null
+    mondo_source: null
+
+  - taxon: "11082"
+    name: West Nile
+    family: Flaviviridae
+    full_name: "West Nile virus"
+    proteome_id: UP000008600
+    # Curated AT THE SPECIES TAXON -- one of only two here. No isolate
+    # mapping needed, and none is declared, so the validator can tell the
+    # difference between "not needed" and "forgotten".
+    chain_source: {accession: P06935, taxon: "11082", chains: 13,
+                   verified: "2026-09-17"}
+    # No MONDO term pinned. Label matching is banned (normalize_bio.
+    # MondoResolver), and no xref has been curated for this taxon yet.
+    mondo: null
+    mondo_source: null
+
+  - taxon: "11072"
+    name: JEV
+    family: Flaviviridae
+    full_name: "Japanese encephalitis virus"
+    proteome_id: UP000095892
+    # Species 11072 has no curated polyprotein: its reference proteome is
+    # TrEMBL-only with a single protein and zero Chain features. The 13-16
+    # mature peptides are curated under strain 11073 (SA-14; the accession ingest_folds.py already hardcodes).
+    # Without this mapping every chain-level target is silently absent.
+    isolate_taxa: ["11073"]
+    chain_source: {accession: P27395, taxon: "11073", chains: 13,
+                   verified: "2026-09-17"}
+    # No MONDO term pinned. Label matching is banned (normalize_bio.
+    # MondoResolver), and no xref has been curated for this taxon yet.
+    mondo: null
+    mondo_source: null
+
+  - taxon: "11089"
+    name: Yellow fever
+    family: Flaviviridae
+    full_name: "Yellow fever virus"
+    proteome_id: UP000097551
+    # Species 11089 has no curated polyprotein: its reference proteome is
+    # TrEMBL-only with a single protein and zero Chain features. The 13-16
+    # mature peptides are curated under strain 11090 (17D vaccine; the accession ingest_folds.py already hardcodes).
+    # Without this mapping every chain-level target is silently absent.
+    isolate_taxa: ["11090"]
+    chain_source: {accession: P03314, taxon: "11090", chains: 13,
+                   verified: "2026-09-17"}
+    # No MONDO term pinned. Label matching is banned (normalize_bio.
+    # MondoResolver), and no xref has been curated for this taxon yet.
+    mondo: null
+    mondo_source: null
+
+  - taxon: "11084"
+    name: TBEV
+    family: Flaviviridae
+    full_name: "Tick-borne encephalitis virus"
+    proteome_id: UP000096153
+    # Species 11084 has no curated polyprotein: its reference proteome is
+    # TrEMBL-only with a single protein and zero Chain features. The 13-16
+    # mature peptides are curated under strain 70733 (Hypr).
+    # Without this mapping every chain-level target is silently absent.
+    isolate_taxa: ["70733"]
+    chain_source: {accession: Q01299, taxon: "70733", chains: 13,
+                   verified: "2026-09-17"}
+    # No MONDO term pinned. Label matching is banned (normalize_bio.
+    # MondoResolver), and no xref has been curated for this taxon yet.
     mondo: null
     mondo_source: null
 
