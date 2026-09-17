@@ -103,12 +103,16 @@ def test_row_without_a_relation_flag_is_dropped(tmap):
     assert stats["missing_relation_flag"] == 1 and stats["edges"] == 0
 
 
-def test_edges_are_marked_verified_and_quantified(tmap):
+def test_edges_carry_the_evidence_not_a_quantified_flag(tmap):
+    """This layer used to write unquantified=false to mean "a selectivity
+    index exists" -- a third definition of the field, which then lost the
+    merge to chembl's true. It states the measurements and nothing else; the
+    flag is derived from them at assembly."""
     em = Emit()
     ingest_selectivity(em, [_row(KEY_A, 100.0, 5000.0)], tmap, "infores:chembl")
     q = em.edges[0]["qualifiers"]
     assert q["selectivity_verified"] is True
-    assert q["unquantified"] is False
+    assert "unquantified" not in q
     assert q["cc50_nm"] == 5000.0
 
 

@@ -53,7 +53,12 @@ def main() -> int:
     print(f"assembling {len(layers)} layers: {', '.join(layers)}")
     if identity:
         print(f"  identity-defining qualifiers: {identity}")
-    a = assemble(layers, identity)
+    derived = {ec.predicate: schema_early.derived_absence_qualifiers(ec.predicate)
+               for ec in schema_early.edge_classes}
+    derived = {p: d for p, d in derived.items() if d}
+    if derived:
+        print(f"  derived at assembly (never ingested): {derived}")
+    a = assemble(layers, identity, schema_early.derive_qualifiers)
 
     print(f"\n{len(a.nodes):,} nodes, {len(a.edges):,} edges")
     for c, n in a.by_class().most_common():

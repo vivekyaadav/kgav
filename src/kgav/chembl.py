@@ -13,7 +13,11 @@ WHAT THE DATA ACTUALLY SUPPORTS, established before writing any of this:
   every compound, and the graph cannot distinguish a genuine antiviral from
   something that merely kills the cell. This matters most for the 2,865
   organism-level EC50s, which are cell-based assays where cytotoxicity is
-  exactly the confounder. Every activity edge carries unquantified=true.
+  exactly the confounder. (This layer used to record that as
+  unquantified=true on every edge it wrote. It no longer states the field at
+  all: the selectivity layer supplies CC50 for 1,568 of these pairs from
+  same-document evidence, so the claim was false by the time the graph was
+  assembled. The field is derived after merging -- see the schema.)
 
   MOST VALUES ARE CENSORED. Only 6,600 of 17,366 IC50 records have
   standard_relation '='. The rest are '>' or '<'. "IC50 > 10000 nM" is a
@@ -175,10 +179,13 @@ def ingest_activities(em, rows: list[dict], viral_targets: dict[str, dict[str, s
 
         date = f"{int(r['year'])}-01-01" if r.get("year") else "1970-01-01"
         pmids = [f"PMID:{r['pubmed_id']}"] if r.get("pubmed_id") else None
-        quals = {qual_field: nm, "relation": relation,
-                 # CC50 is absent from ChEMBL's coronavirus data (2 records in
-                 # 21,900), so no activity here has a selectivity index.
-                 "unquantified": True}
+        # `unquantified` is NOT set here. This layer once wrote true on every
+        # edge, reasoning that CC50 is absent from ChEMBL's coronavirus
+        # activities (2 records in 21,900) so no selectivity index is
+        # computable. The reasoning was about THIS layer; the field is about
+        # the assembled edge, and the selectivity layer later supplied the
+        # CC50 that made the claim false. Derived at assembly instead.
+        quals = {qual_field: nm, "relation": relation}
 
         if r["target_type"] == "ORGANISM":
             # Ki and Kd are binding constants against a purified enzyme; they

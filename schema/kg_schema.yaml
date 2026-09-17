@@ -1,4 +1,4 @@
-schema_version: "0.9.0"
+schema_version: "0.10.0"
 scope: "Coronaviridae v1 — SARS-CoV-2, SARS-CoV, MERS-CoV, HCoV-229E, HCoV-OC43, HCoV-NL63, HCoV-HKU1"
 
 # ---------------------------------------------------------------------------
@@ -257,7 +257,25 @@ edge_classes:
       # druggable sites on one protein. A macrodomain binder says nothing about
       # protease inhibition, so the site is recorded rather than collapsed.
       domain:             {type: string}
-      unquantified:       {type: bool, doc: "true when activity asserted with no EC50/CC50"}
+      # DERIVED AT ASSEMBLY, NEVER INGESTED. False when any listed qualifier
+      # carries a value, true when none does.
+      #
+      # THREE DEFINITIONS OF THIS FIELD ONCE COEXISTED. This doc said "no
+      # EC50/CC50"; chembl.py wrote true on every edge it emitted, citing the
+      # absence of CC50 records; selectivity.py wrote false to mean "a
+      # selectivity index exists". Assembly merges qualifiers by layer
+      # precedence, and chembl precedes selectivity, so its true overwrote
+      # selectivity's false on 1,264 edges that carried a selectivity index.
+      # Measured on v0.1: 12,756 edges claimed unquantified=true and NOT ONE
+      # of them lacked a measured value.
+      #
+      # No ingest may state it, because whether a value exists is a property
+      # of the MERGED evidence: the layer that has the EC50 and the layer that
+      # has the CC50 are different layers, and neither can see the other.
+      unquantified:
+        type: bool
+        derived_from_absence_of: [ec50_nm, cc50_nm, ic50_nm, ki_nm, kd_nm]
+        doc: "true when activity is asserted with no measured value; derived at assembly"
     required_qualifiers: [assay_type]
 
   - predicate: MEMBER_OF_CLASS
@@ -426,7 +444,13 @@ edge_classes:
       ic50_nm:           {type: float, min: 0}
       relation:          {type: string, enum: activity_relation}
       assay_type:        {type: string, enum: assay_type}
-      unquantified:      {type: bool}
+      # Derived at assembly from the absence of every measured value; see the
+      # long note on INHIBITS.unquantified for the three definitions this
+      # replaces and the 1,264 self-contradicting edges they produced.
+      unquantified:
+        type: bool
+        derived_from_absence_of: [ec50_nm, cc50_nm, ic50_nm]
+        doc: "true when activity is asserted with no measured value; derived at assembly"
       # True only when CC50 and EC50 come from the SAME document, so the
       # selectivity index reflects one experimental context. Cytotoxicity in
       # ChEMBL is filed against the cell line rather than the virus, which is
