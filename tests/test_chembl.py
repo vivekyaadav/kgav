@@ -175,12 +175,19 @@ def test_censored_values_keep_their_relation(built):
     assert censored[0]["qualifiers"]["ic50_nm"] == 10000.0
 
 
-def test_every_activity_edge_is_flagged_unquantified(built):
-    """ChEMBL has 2 CC50 records across 21,900 coronavirus activities, so no
-    selectivity index is computable for any of them."""
+def test_this_layer_does_not_state_unquantified(built):
+    """It used to write unquantified=true on every edge, because CC50 is
+    absent from ChEMBL's coronavirus activities (2 records in 21,900).
+
+    That is a fact about THIS LAYER, not about the assembled edge. The
+    selectivity layer supplies same-document CC50 for 1,568 pairs, so the
+    claim was false for 1,264 of them once the graph was assembled -- and it
+    won the merge, because chembl precedes selectivity. The field is derived
+    after merging now, and no ingest may assert it.
+    """
     em, _, _ = built
     for e in em.edges:
-        assert e["qualifiers"]["unquantified"] is True
+        assert "unquantified" not in e["qualifiers"]
         assert "selectivity_index" not in e["qualifiers"]
 
 

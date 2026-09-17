@@ -34,6 +34,22 @@ signal, just edges that never joined. Schema validation cannot see this: a
 graph missing half its edges is structurally perfect. The rule now is that any
 identifier the graph does not keep as a node must still RESOLVE, via SAME_AS.
 
+**A layer must not assert a property only the merged graph can know.** This is
+not the drift class above, where a stale file described a graph that had moved
+on; every layer here was internally correct and current. `unquantified` meant
+"this activity has no measured value". ChEMBL's coronavirus data holds 2 CC50
+records in 21,900, so the chembl layer wrote true on every edge — a true
+statement about that layer. The selectivity layer then supplied same-document
+CC50 for 1,568 of those pairs, and assembly resolves qualifier conflicts by
+layer precedence, which put chembl first. The layer HOLDING THE EVIDENCE lost
+the merge: 12,756 edges claimed no measured value existed, not one of them
+actually lacked one, and 1,264 carried a selectivity index alongside the claim
+that none was computable. Nothing was stale, nothing disagreed with its
+source, and no count looked wrong — the detector above cannot see this one.
+The rule now is that such a property is DERIVED after merging, declared in the
+schema as `derived_from_absence_of`, and a stated value that contradicts its
+own edge is a validation error.
+
 **Cross-entity count comparison is the primary detector.** MERS showing
 mature=2 against siblings at 18-23. 229E and NL63 missing nsp5 while having
 nsp12. Seventeen CRISPR screens tripping a sentinel at once. Every real bug in

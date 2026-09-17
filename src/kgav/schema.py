@@ -25,6 +25,10 @@ ANY = "any"
 # A metapath hop prefixed with this is traversed object-to-subject.
 REVERSE = "<"
 
+# Qualifier-spec key declaring that a bool is DERIVED from the absence of
+# other qualifiers, rather than ingested. One definition, in the schema.
+DERIVED_FROM_ABSENCE = "derived_from_absence_of"
+
 
 def parse_hop(token: str) -> tuple[str, bool]:
     """A metapath hop token -> (predicate, traversed_in_reverse).
@@ -152,6 +156,49 @@ class Schema:
 
     def is_symmetric(self, predicate: str) -> bool | None:
         return self.symmetry().get(predicate)
+
+    def derived_absence_qualifiers(self, predicate: str) -> dict[str, tuple[str, ...]]:
+        """qualifier -> the qualifiers whose ABSENCE makes it true.
+
+        A derived qualifier is a statement about the rest of the edge, so it
+        is computed from the edge and never ingested. `unquantified` was the
+        opposite of that: three modules each asserted it from their own local
+        view, and the assembler's precedence picked a winner. See the schema
+        note on INHIBITS.unquantified.
+
+        A source qualifier that is not declared on the same edge class raises.
+        Silently ignoring it would make the derivation read a field that can
+        never be populated, so the qualifier would be true for every edge and
+        look like data.
+        """
+        out: dict[str, tuple[str, ...]] = {}
+        for ec in self._by_predicate.get(predicate, []):
+            for qname, spec in ec.qualifiers.items():
+                if not isinstance(spec, Mapping):
+                    continue
+                sources = spec.get(DERIVED_FROM_ABSENCE)
+                if not sources:
+                    continue
+                undeclared = [s for s in sources if s not in ec.qualifiers]
+                if undeclared:
+                    raise ValueError(
+                        f"{predicate}.{qname} derives from {undeclared}, which "
+                        f"{'is' if len(undeclared) == 1 else 'are'} not declared "
+                        f"on {predicate}")
+                out[qname] = tuple(sources)
+        return out
+
+    def derive_qualifiers(self, predicate: str, quals: Mapping[str, Any]) -> dict:
+        """`quals` with every derived qualifier recomputed from the evidence.
+
+        Called by the assembler AFTER merging, because the layer holding the
+        EC50 and the layer holding the CC50 are different layers and neither
+        can see the other. Returns a new dict; the input is not mutated.
+        """
+        out = dict(quals)
+        for qname, sources in self.derived_absence_qualifiers(predicate).items():
+            out[qname] = not any(out.get(s) is not None for s in sources)
+        return out
 
     def validate_metapaths(self) -> list[Violation]:
         """Every hop must name a declared predicate with a declared symmetry.
@@ -328,6 +375,23 @@ class Schema:
             for qname in ec.required_qualifiers:
                 if quals.get(qname) is None:
                     out.append(Violation("MISSING_QUALIFIER", f"{pred} requires {qname}", ref))
+
+            # A derived qualifier may be absent -- a single layer cannot
+            # compute one -- but it may never DISAGREE with the evidence on
+            # its own edge. 12,756 edges claimed unquantified=true while
+            # carrying a measured value, 1,264 of them alongside a
+            # selectivity index, and nothing rejected them.
+            for qname, sources in self.derived_absence_qualifiers(pred).items():
+                if quals.get(qname) is None:
+                    continue
+                expected = not any(quals.get(s) is not None for s in sources)
+                if bool(quals[qname]) is not expected:
+                    present = [s for s in sources if quals.get(s) is not None]
+                    out.append(Violation(
+                        "DERIVED_QUALIFIER",
+                        f"{qname}={quals[qname]!r} contradicts the edge: "
+                        f"{'carries ' + ', '.join(present) if present else 'carries no measured value'}"
+                        f", so it must be {expected}", ref))
 
         # provenance — absolute
         for pname in self.required_provenance:

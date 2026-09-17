@@ -65,7 +65,7 @@ def release(tmp_path):
     ]
     edges = [
         _e(D1, "INHIBITS", "UniProtKB:NSP5",
-           {"assay_type": "biochemical", "ic50_nm": 25.0, "unquantified": True}),
+           {"assay_type": "biochemical", "ic50_nm": 25.0}),
         _e("UniProtKB:NSP5", "ENCODED_BY", "KGAV:GENE_rep"),
         _e("KGAV:GENE_rep", "BELONGS_TO", V),
         _e(D2, "TARGETS", "UniProtKB:ACE2",
@@ -81,7 +81,7 @@ def release(tmp_path):
         # ground truth, held out of traversal
         _e(D1, "HAS_ANTIVIRAL_ACTIVITY_AGAINST", V,
            {"assay_type": "cell_based_antiviral", "ec50_nm": 100.0,
-            "relation": "=", "unquantified": True}),
+            "relation": "="}),
     ]
     (tmp_path / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
     (tmp_path / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in edges))

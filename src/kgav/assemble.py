@@ -28,8 +28,14 @@ from __future__ import annotations
 
 import json
 from collections import Counter, defaultdict
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
+
+# (predicate, qualifiers) -> qualifiers with every schema-derived qualifier
+# recomputed. Schema.derive_qualifiers satisfies it; passed as a callable so
+# this module keeps knowing nothing about the schema file.
+DeriveFn = Callable[[str, Mapping[str, Any]], dict]
 
 # Later layers do not overwrite earlier ones on conflict. The spine is
 # hand-curated and authoritative for viral entities; the host layer is derived
@@ -69,7 +75,7 @@ def _earliest(a: str | None, b: str | None) -> str | None:
     return min(dates) if dates else None
 
 
-def merge_edges(a: dict, b: dict) -> dict:
+def merge_edges(a: dict, b: dict, derive: DeriveFn | None = None) -> dict:
     """One fact, two witnesses.
 
     support_count records HOW MANY independent assertions back the fact. A
@@ -90,15 +96,27 @@ def merge_edges(a: dict, b: dict) -> dict:
     out["evidence_tier"] = min(a.get("evidence_tier", 4), b.get("evidence_tier", 4))
     out["first_asserted_date"] = _earliest(a.get("first_asserted_date"),
                                            b.get("first_asserted_date"))
+    # PRECEDENCE DECIDES CONFLICTS, BUT IT CANNOT DECIDE A DERIVED FIELD.
+    # `a` wins here, which is right for a measured value: the earlier layer is
+    # the more authoritative source. It was catastrophic for `unquantified`,
+    # where chembl's "no CC50 exists" beat the selectivity layer's CC50 on
+    # 1,264 edges -- the losing layer was the one holding the evidence. Any
+    # qualifier the schema declares as derived is recomputed from the merged
+    # qualifiers, so no layer's local view can survive the merge.
     merged_quals = dict(b.get("qualifiers") or {})
     merged_quals.update(a.get("qualifiers") or {})
-    out["qualifiers"] = merged_quals
+    out["qualifiers"] = derive(a["predicate"], merged_quals) if derive else merged_quals
     return out
 
 
 class Assembly:
-    def __init__(self, identity: dict[str, list[str]] | None = None) -> None:
+    def __init__(self, identity: dict[str, list[str]] | None = None,
+                 derive: DeriveFn | None = None) -> None:
         self.identity = identity or {}
+        # Without a derive function the assembled graph carries whatever the
+        # layers wrote. That is why the driver always passes one: a derived
+        # qualifier stated by a layer is a claim no layer can substantiate.
+        self.derive = derive
         self.nodes: dict[str, dict] = {}
         self.node_layer: dict[str, str] = {}
         self.edges: dict[tuple, dict] = {}
@@ -128,9 +146,15 @@ class Assembly:
             local["edges"] += 1
             k = edge_key(e, self.identity)
             if k in self.edges:
-                self.edges[k] = merge_edges(self.edges[k], e)
+                self.edges[k] = merge_edges(self.edges[k], e, self.derive)
                 self.stats["edge_merged"] += 1
             else:
+                if self.derive:
+                    # Unmerged edges get it too: 304 of the selectivity
+                    # layer's 1,568 edges had no chembl edge to merge with,
+                    # and they are no more entitled to state the field.
+                    e["qualifiers"] = self.derive(e["predicate"],
+                                                  e.get("qualifiers") or {})
                 self.edges[k] = e
         return local
 
@@ -207,9 +231,10 @@ class Assembly:
 
 
 def assemble(layers: dict[str, Path],
-             identity: dict[str, list[str]] | None = None) -> Assembly:
+             identity: dict[str, list[str]] | None = None,
+             derive: DeriveFn | None = None) -> Assembly:
     """Layers are added in LAYER_PRECEDENCE order regardless of dict order."""
-    a = Assembly(identity)
+    a = Assembly(identity, derive)
     for name in LAYER_PRECEDENCE:
         if name in layers:
             a.add_layer(name, layers[name])

@@ -13,8 +13,7 @@ V = "NCBITaxon:2697049"
 def _act(drug, value, relation="=", date="2020-06-01"):
     return {"subject": drug, "predicate": "HAS_ANTIVIRAL_ACTIVITY_AGAINST",
             "object": V, "qualifiers": {"assay_type": "cell_based_antiviral",
-                                        "ec50_nm": value, "relation": relation,
-                                        "unquantified": True},
+                                        "ec50_nm": value, "relation": relation},
             "primary_knowledge_source": "s", "evidence_tier": 1,
             "first_asserted_date": date}
 

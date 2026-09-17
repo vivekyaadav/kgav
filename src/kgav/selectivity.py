@@ -272,9 +272,13 @@ def ingest_selectivity(em, rows: list[dict], taxon_map: dict[str, str],
                        "assay_type": "cell_based_antiviral",
                        **({"cell_line": cl} if (cl := extract_cell_line(
                            r.get("assay_text"))) else {}),
-                       # unquantified is now FALSE for these: a selectivity
-                       # index exists, which is the whole point of the layer.
-                       "unquantified": False},
+                       # `unquantified` is NOT set here either. Writing false
+                       # to mean "a selectivity index exists" was a third
+                       # definition of the field, and it lost the merge to
+                       # chembl's true on the 1,264 pairs that had both. The
+                       # cc50_nm and ec50_nm above are the evidence; the flag
+                       # is derived from them at assembly.
+                       },
                 pmids=[f"PMID:{r['pubmed_id']}"] if r.get("pubmed_id") else None)
         stats["edges"] += 1
     return stats

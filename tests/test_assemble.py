@@ -71,14 +71,18 @@ def layers(tmp_path):
                                            "is_approved": True, "salt_collapsed": False,
                                            "stereo_collapsed": False}}],
                           [_edge(DRUG, "INHIBITS", NSP5, "infores:chembl", "2021-03-04",
-                                 q={"assay_type": "biochemical", "ic50_nm": 25.0,
-                                    "unquantified": True})])
+                                 # No `unquantified` here: this edge carries an
+                                 # IC50, and the layer that wrote it cannot see
+                                 # whether another layer holds a CC50.
+                                 q={"assay_type": "biochemical", "ic50_nm": 25.0})])
     return out
 
 
 @pytest.fixture
 def built(layers):
-    return assemble(layers)
+    # The derive function is what the driver always passes; assembling without
+    # it here would let a fixture drift from production.
+    return assemble(layers, None, load_schema().derive_qualifiers)
 
 
 # ------------------------------------------------------------ node conflicts
@@ -251,3 +255,87 @@ def test_identity_qualifiers_do_not_affect_other_predicates(built):
 def test_support_count_defaults_to_one(built):
     e = built.edges[(DRUG, "INHIBITS", NSP5)]
     assert e.get("support_count", 1) == 1
+
+
+# ------------------------------------------------- derived qualifiers (H2)
+# `unquantified` was asserted by two layers from their own local view and
+# resolved by layer precedence. chembl wrote true ("ChEMBL has almost no CC50
+# records"), selectivity wrote false ("a selectivity index exists"), chembl
+# precedes selectivity, so the layer WITHOUT the evidence won: 1,264 edges in
+# v0.1 claimed unquantified=true while carrying a selectivity index, and not
+# one of the 12,756 edges claiming it actually lacked a measured value.
+ACTIVITY = "HAS_ANTIVIRAL_ACTIVITY_AGAINST"
+VIRUS = "NCBITaxon:2697049"
+
+
+def _derive():
+    return load_schema().derive_qualifiers
+
+
+def _activity_layers(tmp_path, chembl_quals, selectivity_quals):
+    def write(name, edges):
+        d = tmp_path / f"v0.1-{name}"
+        d.mkdir(parents=True)
+        (d / "nodes.jsonl").write_text("")
+        (d / "edges.jsonl").write_text("\n".join(json.dumps(x) for x in edges))
+        return d
+    return {
+        "chembl": write("chembl", [_edge(DRUG, ACTIVITY, VIRUS, "infores:chembl",
+                                         "2020-01-01", q=chembl_quals)]),
+        "selectivity": write("selectivity", [_edge(DRUG, ACTIVITY, VIRUS,
+                                                   "infores:chembl", "2021-01-01",
+                                                   q=selectivity_quals)]),
+    }
+
+
+def test_the_layer_holding_the_evidence_no_longer_loses_the_merge(tmp_path):
+    """The exact 2026-09-13 collision: chembl's "no CC50 exists" outranked the
+    selectivity layer's measured CC50, on the same (drug, virus) pair."""
+    layers = _activity_layers(
+        tmp_path,
+        {"assay_type": "cell_based_antiviral", "ec50_nm": 100.0, "relation": "=",
+         "unquantified": True},
+        {"assay_type": "cell_based_antiviral", "ec50_nm": 100.0, "cc50_nm": 5000.0,
+         "selectivity_index": 50.0, "relation": "=", "unquantified": False})
+    a = assemble(layers, None, _derive())
+    q = a.edges[(DRUG, ACTIVITY, VIRUS)]["qualifiers"]
+    assert q["unquantified"] is False, "precedence overrode the measured CC50"
+    assert q["selectivity_index"] == 50.0
+    assert q["cc50_nm"] == 5000.0
+
+
+def test_an_unmerged_edge_is_derived_too(tmp_path):
+    """304 of the selectivity layer's 1,568 edges had no chembl edge to merge
+    with. An edge that never merges is no more entitled to state the field."""
+    d = tmp_path / "v0.1-selectivity"
+    d.mkdir(parents=True)
+    (d / "nodes.jsonl").write_text("")
+    (d / "edges.jsonl").write_text(json.dumps(
+        _edge(DRUG, ACTIVITY, VIRUS, "infores:chembl", "2021-01-01",
+              q={"assay_type": "cell_based_antiviral", "ec50_nm": 100.0,
+                 "cc50_nm": 5000.0, "unquantified": True})))
+    a = assemble({"selectivity": d}, None, _derive())
+    assert a.edges[(DRUG, ACTIVITY, VIRUS)]["qualifiers"]["unquantified"] is False
+
+
+def test_an_edge_with_no_measured_value_is_unquantified(tmp_path):
+    """The field is not uniformly false: it is a real property of the edge,
+    and an activity asserted with no number still gets it."""
+    d = tmp_path / "v0.1-chembl"
+    d.mkdir(parents=True)
+    (d / "nodes.jsonl").write_text("")
+    (d / "edges.jsonl").write_text(json.dumps(
+        _edge(DRUG, ACTIVITY, VIRUS, "infores:chembl", "2020-01-01",
+              q={"assay_type": "cell_based_antiviral", "relation": "="})))
+    a = assemble({"chembl": d}, None, _derive())
+    assert a.edges[(DRUG, ACTIVITY, VIRUS)]["qualifiers"]["unquantified"] is True
+
+
+def test_merge_without_a_derive_function_leaves_qualifiers_alone(tmp_path):
+    """merge_edges is used directly elsewhere; the derivation is opt-in there
+    and the driver is what always supplies it."""
+    a = merge_edges({"subject": DRUG, "predicate": ACTIVITY, "object": VIRUS,
+                     "qualifiers": {"ec50_nm": 100.0, "unquantified": True}},
+                    {"subject": DRUG, "predicate": ACTIVITY, "object": VIRUS,
+                     "qualifiers": {"cc50_nm": 5000.0}})
+    assert a["qualifiers"]["unquantified"] is True

@@ -22,7 +22,7 @@ def _e(s, p, o, date, q=None, src="s", tier=1):
 def _label(drug, date, relation="="):
     return _e(drug, "HAS_ANTIVIRAL_ACTIVITY_AGAINST", V, date,
               {"assay_type": "cell_based_antiviral", "ec50_nm": 100.0,
-               "relation": relation, "unquantified": True})
+               "relation": relation})
 
 
 @pytest.fixture
@@ -54,9 +54,9 @@ def release(tmp_path):
              drug(OLD), drug(NEW)]
     edges = [
         _e(OLD, "INHIBITS", "UniProtKB:NSP5", "2020-01-01",
-           {"assay_type": "biochemical", "ic50_nm": 25.0, "unquantified": True}),
+           {"assay_type": "biochemical", "ic50_nm": 25.0}),
         _e(NEW, "INHIBITS", "UniProtKB:NSP5", "2023-01-01",
-           {"assay_type": "biochemical", "ic50_nm": 10.0, "unquantified": True}),
+           {"assay_type": "biochemical", "ic50_nm": 10.0}),
         _e("UniProtKB:NSP5", "ENCODED_BY", "KGAV:G", "2020-01-01"),
         _e("KGAV:G", "BELONGS_TO", V, "2020-01-01"),
         _e(OLD, "CHEMICALLY_SIMILAR_TO", NEW, "1970-01-01",

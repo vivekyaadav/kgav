@@ -13,12 +13,12 @@
     "undated_kept_computed": 1583
   },
   "audits": [
-    "ceiling: 22/50 test compounds for NCBITaxon:1335626 have no pre-2021 evidence",
-    "ceiling: 3/5 test compounds for NCBITaxon:277944 have no pre-2021 evidence",
-    "ceiling: 11/43 test compounds for NCBITaxon:694009 have no pre-2021 evidence",
     "ceiling: 57/78 test compounds for NCBITaxon:11137 have no pre-2021 evidence",
+    "ceiling: 22/50 test compounds for NCBITaxon:1335626 have no pre-2021 evidence",
+    "ceiling: 981/1,205 test compounds for NCBITaxon:2697049 have no pre-2021 evidence",
+    "ceiling: 3/5 test compounds for NCBITaxon:277944 have no pre-2021 evidence",
     "ceiling: 116/148 test compounds for NCBITaxon:31631 have no pre-2021 evidence",
-    "ceiling: 981/1,205 test compounds for NCBITaxon:2697049 have no pre-2021 evidence"
+    "ceiling: 11/43 test compounds for NCBITaxon:694009 have no pre-2021 evidence"
   ],
   "results": {
     "SARS-CoV-2": {
@@ -353,13 +353,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "4d0921b79348b0d6",
-      "edges_sha": "fd5dea4567a03330"
+      "edges_sha": "da2a8c4ce1390b42"
     },
     "code": {
-      "commit": "17190bcf49b39c31a519cc13fc5ba17fb27d4b7b",
+      "commit": "a953832f126942498e8d947d4438d800717b6593",
       "dirty": true
     },
-    "schema_version": "0.9.0",
-    "generated_utc": "2026-09-16T23:26:14+00:00"
+    "schema_version": "0.10.0",
+    "generated_utc": "2026-09-17T10:50:20+00:00"
   }
 }

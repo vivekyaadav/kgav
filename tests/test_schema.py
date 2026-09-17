@@ -237,3 +237,61 @@ def test_the_symmetric_predicates_are_the_ones_we_expect():
     sym = {p for p, is_sym in load_schema().symmetry().items() if is_sym}
     assert sym == {"PHYSICALLY_INTERACTS_WITH", "CHEMICALLY_SIMILAR_TO",
                    "FOLD_SIMILAR_TO", "COMBINED_WITH", "SAME_AS"}
+
+
+# -------------------------------------------------- derived qualifiers (H2)
+def test_a_derived_qualifier_that_contradicts_its_edge_is_rejected(schema, world):
+    """The historical value: unquantified=true on an edge carrying an EC50.
+    12,756 edges in v0.1 said this and nothing rejected them."""
+    e = _edge(_mol()["id"], "HAS_ANTIVIRAL_ACTIVITY_AGAINST", "NCBITaxon:2697049",
+              {"assay_type": "cell_based_antiviral", "ec50_nm": 100.0,
+               "unquantified": True})
+    codes = {v.code for v in schema.validate_edge(e, _index(world["nodes"]))}
+    assert "DERIVED_QUALIFIER" in codes
+
+
+def test_a_derived_qualifier_consistent_with_its_edge_is_accepted(schema, world):
+    for quals in ({"assay_type": "cell_based_antiviral", "ec50_nm": 100.0,
+                   "unquantified": False},
+                  {"assay_type": "cell_based_antiviral", "unquantified": True}):
+        e = _edge(_mol()["id"], "HAS_ANTIVIRAL_ACTIVITY_AGAINST",
+                  "NCBITaxon:2697049", quals)
+        assert schema.validate_edge(e, _index(world["nodes"])) == []
+
+
+def test_a_derived_qualifier_may_be_absent(schema, world):
+    """An ingest cannot compute one -- whether a measured value exists is a
+    property of the merged evidence -- so absence is valid and silence is how
+    every layer now behaves."""
+    e = _edge(_mol()["id"], "HAS_ANTIVIRAL_ACTIVITY_AGAINST", "NCBITaxon:2697049",
+              {"assay_type": "cell_based_antiviral", "ec50_nm": 100.0})
+    assert schema.validate_edge(e, _index(world["nodes"])) == []
+
+
+def test_the_cc50_only_case_is_quantified(schema):
+    """The selectivity layer's evidence alone must make it false. chembl's
+    "no CC50 exists" beat exactly this on 1,264 edges."""
+    assert schema.derive_qualifiers(
+        "HAS_ANTIVIRAL_ACTIVITY_AGAINST", {"cc50_nm": 5000.0})["unquantified"] is False
+
+
+def test_deriving_from_an_undeclared_qualifier_raises(schema):
+    """A source field that cannot be populated would make the qualifier true
+    for every edge and look like data, so it fails loudly instead."""
+    for ec in schema.edge_classes:
+        if ec.predicate == "HAS_ANTIVIRAL_ACTIVITY_AGAINST":
+            ec.qualifiers["unquantified"]["derived_from_absence_of"] = ["nope_nm"]
+    with pytest.raises(ValueError, match="nope_nm"):
+        schema.derived_absence_qualifiers("HAS_ANTIVIRAL_ACTIVITY_AGAINST")
+
+
+def test_the_derived_qualifiers_are_the_ones_we_expect():
+    s = load_schema()
+    derived = {ec.predicate: s.derived_absence_qualifiers(ec.predicate)
+               for ec in s.edge_classes}
+    assert {p: d for p, d in derived.items() if d} == {
+        "INHIBITS": {"unquantified": ("ec50_nm", "cc50_nm", "ic50_nm",
+                                      "ki_nm", "kd_nm")},
+        "HAS_ANTIVIRAL_ACTIVITY_AGAINST": {"unquantified": ("ec50_nm", "cc50_nm",
+                                                            "ic50_nm")},
+    }
