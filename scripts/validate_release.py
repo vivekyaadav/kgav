@@ -16,6 +16,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.schema import load_schema
+from kgav.virus_register import load as load_register
+from kgav.virus_register import validate as validate_register
 
 
 def _read(base: Path, stem: str) -> list[dict]:
@@ -49,13 +51,25 @@ def main() -> int:
     # than the release: a metapath over a predicate with no declared symmetry
     # cannot be walked without guessing its direction, and that guess is what
     # H1 removed. Checking it here means it cannot regress unnoticed.
+    # The virus register is validated here too. Its rule -- a virus whose
+    # chains live under a descendant taxon must DECLARE that taxon -- guards
+    # the same failure as the metapath check above: something that resolves
+    # silently by convention rather than by declaration.
+    register = validate_register(load_register())
+    if register:
+        print(f"\nVIRUS REGISTER — {len(register)} violation(s)")
+        for rv in register:
+            print(f"  {rv}")
+
     violations = schema.validate_metapaths() + schema.validate_batch(nodes, edges)
 
-    if not violations:
+    if not violations and not register:
         print("\nPASS — no violations")
         print(f"held-out predicates (strip from training graph): {sorted(schema.held_out_predicates())}")
         return 0
 
+    if register and not violations:
+        return 1
     counts = Counter(v.code for v in violations)
     print(f"\nFAIL — {len(violations):,} violations across {len(counts)} codes\n")
     for code, n in counts.most_common():

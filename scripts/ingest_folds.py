@@ -50,6 +50,35 @@ SCORE_ELIGIBLE_ROLES = {"protease", "polymerase"}
 # Chain patterns are MOST SPECIFIC FIRST. "NS3" is a substring of
 # "Serine protease/helicase NS3"; "nsp1" is a substring of "nsp10". Sixth
 # instance of this hazard in the project.
+#
+# ---------------------------------------------------------------------------
+# THE FLAVIVIRUS ACCESSIONS BELOW ARE STRAIN-TAXON ACCESSIONS, AND THE
+# virus_taxon FIELD BESIDE THEM IS THE SPECIES. That reassignment is
+# deliberate -- cross-viral metapaths must resolve against one taxon per virus
+# -- but it was undocumented, which is how this class of bug survives.
+# Measured against UniProt 2026-09-17:
+#
+#   P29990  Dengue 2   filed under 31634  (strain Thailand/16681/1984)
+#                      declared here as   NCBITaxon:11060  (species)
+#   P27395  JEV        filed under 11073  (strain SA-14)
+#                      declared here as   NCBITaxon:11072  (species)
+#   P03314  Yellow fev filed under 11090  (strain 17D vaccine)
+#                      declared here as   NCBITaxon:11089  (species)
+#   P26664  HCV        filed under 11104  (genotype 1a isolate 1)
+#                      declared here as   NCBITaxon:11103  (species)
+#
+# Q32ZE1 (Zika, 64320) and P06935 (West Nile, 11082) are the only two curated
+# AT the species taxon, so they need no reassignment.
+#
+# Querying the species taxon for any of the four above returns no curated
+# polyprotein and therefore no chains -- the MERS trap, which cost this
+# project Mpro and RdRp once already. Every strain taxon here is now also
+# registered in config/viruses.yaml under `surveyed:`, with chain_source
+# naming the accession and the taxon it really lives under, and
+# kgav.virus_register.validate enforces that the pairing is declared rather
+# than discovered. When this list moves into the config mechanism, that
+# register is the source to read; until then the two must agree.
+# ---------------------------------------------------------------------------
 SPECS: list[ChainSpec] = [
     # ---------------------------------------------------- Coronaviridae
     ChainSpec("SARS-CoV-2 3CLpro", "P0DTD1",
