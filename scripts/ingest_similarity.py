@@ -52,16 +52,45 @@ def main() -> int:
 
     # Reference set = compounds that already have target annotations, since M6
     # exists to borrow those. Query set = compounds that have none.
+    #
+    # MEASURED_INACTIVE_AGAINST COUNTS AS AN ANNOTATION. A compound assayed
+    # against a viral protein and found not to inhibit it is not a cold-start
+    # compound -- it has been measured, and the measurement was negative.
+    #
+    # It was excluded here until schema 0.11.0 made no difference, because
+    # those rows were emitted as INHIBITS and landed in `annotated` anyway.
+    # ce133f1 corrected the predicate and, without anyone tracing it, moved
+    # 1,625 pairs into the QUERY set. M7 walks
+    # similar -> INHIBITS -> protein -> gene -> virus, so those compounds
+    # acquired similarity edges that let M7 propose activity against the exact
+    # protein the graph records them as measured inactive against -- a
+    # contradiction sourced from a measurement, which nothing checks.
+    #
+    # THIS IS THE COARSE FIX, deliberately. It removes a compound from every
+    # cold-start route because it was measured inactive against ONE protein,
+    # so a compound inactive on nsp5 also loses its host-directed M6 route.
+    # The precise fix is a per-(compound, target) exclusion at traversal, which
+    # the metapath language has no way to express -- there are no negative
+    # constraints. Erring toward not contradicting a measurement.
+    ANNOTATING = ("TARGETS", "INHIBITS", "MEASURED_INACTIVE_AGAINST")
     annotated: set[str] = set()
+    measured_inactive: set[str] = set()
     for line in (args.release / "edges.jsonl").read_text().splitlines():
         if not line.strip():
             continue
         e = json.loads(line)
-        if e["predicate"] in ("TARGETS", "INHIBITS"):
+        if e["predicate"] in ANNOTATING:
             annotated.add(e["subject"])
+            if e["predicate"] == "MEASURED_INACTIVE_AGAINST":
+                measured_inactive.add(e["subject"])
     query = set(smiles) - annotated
     print(f"  {len(annotated):,} have target annotations (reference set)")
     print(f"  {len(query):,} have none (query set -- unreachable without M6)")
+    if measured_inactive:
+        print(f"  {len(measured_inactive):,} of the reference set are there "
+              f"ONLY via a measured-inactive\n  result; they are excluded from "
+              f"the query set so M7 cannot propose activity\n  against a "
+              f"protein they were measured not to inhibit")
 
     q_fps, q_stats = fingerprints({i: smiles.get(i, "") for i in query})
     r_fps, r_stats = fingerprints({i: smiles.get(i, "") for i in annotated})
