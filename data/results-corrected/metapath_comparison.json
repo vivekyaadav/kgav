@@ -1,11 +1,11 @@
 {
   "SARS-CoV-2": {
     "M1": {
-      "pool": 4742,
-      "pos": 889,
-      "hits": 35,
-      "expected": 18.74736398144243,
-      "lift": 1.8669291338582676,
+      "pool": 3575,
+      "pos": 855,
+      "hits": 36,
+      "expected": 23.916083916083917,
+      "lift": 1.5052631578947369,
       "mrr": 1.0,
       "trustworthy": true
     },
@@ -55,20 +55,20 @@
       "trustworthy": true
     },
     "M7": {
-      "pool": 348,
-      "pos": 144,
-      "hits": 52,
-      "expected": 41.37931034482759,
-      "lift": 1.2566666666666666,
-      "mrr": 0.16666666666666666,
+      "pool": 301,
+      "pos": 129,
+      "hits": 54,
+      "expected": 42.857142857142854,
+      "lift": 1.26,
+      "mrr": 0.2,
       "trustworthy": true
     },
     "COMBINED": {
-      "pool": 8237,
-      "pos": 1172,
-      "hits": 23,
-      "expected": 14.228481243171057,
-      "lift": 1.616476109215017,
+      "pool": 7037,
+      "pos": 1126,
+      "hits": 25,
+      "expected": 16.001136848088674,
+      "lift": 1.5623889875666075,
       "mrr": 1.0,
       "trustworthy": true
     },
@@ -149,11 +149,11 @@
   },
   "SARS-CoV": {
     "M1": {
-      "pool": 506,
-      "pos": 41,
-      "hits": 16,
-      "expected": 8.102766798418973,
-      "lift": 1.9746341463414634,
+      "pool": 256,
+      "pos": 35,
+      "hits": 28,
+      "expected": 13.671875,
+      "lift": 2.048,
       "mrr": 1.0,
       "trustworthy": true
     },
@@ -167,20 +167,20 @@
       "trustworthy": true
     },
     "M7": {
-      "pool": 114,
+      "pool": 100,
       "pos": 19,
-      "hits": 16,
-      "expected": 16.666666666666668,
-      "lift": 0.96,
-      "mrr": 0.25,
+      "hits": 19,
+      "expected": 19.0,
+      "lift": 1.0,
+      "mrr": 0.2,
       "trustworthy": true
     },
     "COMBINED": {
-      "pool": 1182,
-      "pos": 70,
-      "hits": 20,
-      "expected": 5.922165820642978,
-      "lift": 3.3771428571428572,
+      "pool": 924,
+      "pos": 65,
+      "hits": 18,
+      "expected": 7.034632034632034,
+      "lift": 2.5587692307692307,
       "mrr": 1.0,
       "trustworthy": true
     },
@@ -196,12 +196,12 @@
   },
   "MERS-CoV": {
     "M1": {
-      "pool": 97,
-      "pos": 3,
-      "hits": 3,
-      "expected": 3.0927835051546393,
-      "lift": 0.97,
-      "mrr": 0.07142857142857142,
+      "pool": 24,
+      "pos": 2,
+      "hits": 2,
+      "expected": 8.333333333333334,
+      "lift": 0.24,
+      "mrr": 0.14285714285714285,
       "trustworthy": true
     },
     "M2": {
@@ -250,20 +250,20 @@
       "trustworthy": true
     },
     "M7": {
-      "pool": 29,
+      "pool": 14,
       "pos": 8,
       "hits": 8,
-      "expected": 27.586206896551722,
-      "lift": 0.29000000000000004,
+      "expected": 57.142857142857146,
+      "lift": 0.13999999999999999,
       "mrr": 0.5,
       "trustworthy": true
     },
     "COMBINED": {
-      "pool": 3169,
-      "pos": 29,
+      "pool": 3092,
+      "pos": 28,
       "hits": 8,
-      "expected": 0.9151151782896813,
-      "lift": 8.742068965517241,
+      "expected": 0.9055627425614489,
+      "lift": 8.834285714285715,
       "mrr": 0.16666666666666666,
       "trustworthy": false
     },
@@ -279,11 +279,11 @@
   },
   "HCoV-229E": {
     "M1": {
-      "pool": 21,
+      "pool": 17,
       "pos": 7,
       "hits": 7,
-      "expected": 33.333333333333336,
-      "lift": 0.21,
+      "expected": 41.1764705882353,
+      "lift": 0.16999999999999998,
       "mrr": 1.0,
       "trustworthy": true
     },
@@ -342,11 +342,11 @@
       "trustworthy": true
     },
     "COMBINED": {
-      "pool": 3092,
+      "pool": 3088,
       "pos": 15,
       "hits": 2,
-      "expected": 0.4851228978007762,
-      "lift": 4.1226666666666665,
+      "expected": 0.48575129533678757,
+      "lift": 4.117333333333334,
       "mrr": 0.016666666666666666,
       "trustworthy": false
     },
@@ -356,20 +356,11 @@
       "hits": 3,
       "expected": 0.9437641369627954,
       "lift": 3.1787603305785126,
-      "mrr": 0.017543859649122806,
+      "mrr": 0.017241379310344827,
       "trustworthy": false
     }
   },
   "HCoV-NL63": {
-    "M1": {
-      "pool": 6,
-      "pos": 0,
-      "hits": 0,
-      "expected": 0.0,
-      "lift": 0.0,
-      "mrr": 0.0,
-      "trustworthy": false
-    },
     "M2": {
       "pool": 46,
       "pos": 0,
@@ -415,17 +406,8 @@
       "mrr": 0.0,
       "trustworthy": false
     },
-    "M7": {
-      "pool": 6,
-      "pos": 0,
-      "hits": 0,
-      "expected": 0.0,
-      "lift": 0.0,
-      "mrr": 0.0,
-      "trustworthy": false
-    },
     "COMBINED": {
-      "pool": 2665,
+      "pool": 2653,
       "pos": 0,
       "hits": 0,
       "expected": 0.0,
@@ -447,13 +429,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "4d0921b79348b0d6",
-      "edges_sha": "da2a8c4ce1390b42"
+      "edges_sha": "73ebb09d59aa58b3"
     },
     "code": {
-      "commit": "a953832f126942498e8d947d4438d800717b6593",
+      "commit": "82b27d26664a92b106f7178cbc945ef0f3776698",
       "dirty": true
     },
-    "schema_version": "0.10.0",
-    "generated_utc": "2026-09-17T10:50:43+00:00"
+    "schema_version": "0.11.0",
+    "generated_utc": "2026-09-17T12:25:27+00:00"
   }
 }

@@ -3,8 +3,13 @@
 Three edge types come out of this layer:
 
     SmallMolecule -INHIBITS->                     Protein (viral)
+    SmallMolecule -MEASURED_INACTIVE_AGAINST->    Protein (viral)
     SmallMolecule -TARGETS->                      Protein (host)
     SmallMolecule -HAS_ANTIVIRAL_ACTIVITY_AGAINST-> OrganismTaxon
+
+  A viral-protein row becomes INHIBITS or MEASURED_INACTIVE_AGAINST according
+  to labels.classify -- the function that also decides the labels, so the
+  features and the labels cannot disagree about what "acts on" means.
 
 WHAT THE DATA ACTUALLY SUPPORTS, established before writing any of this:
 
@@ -48,6 +53,8 @@ import re
 import sqlite3
 from collections import Counter
 from pathlib import Path
+
+from kgav.labels import classify
 
 # Description patterns -> (nsp family, domain). Order matters: the macrodomain
 # patterns must be tested before the generic nsp3/PLpro ones, since a
@@ -235,13 +242,32 @@ def ingest_activities(em, rows: list[dict], viral_targets: dict[str, dict[str, s
             quals["domain"] = domain
 
         quals["assay_type"] = "biochemical"
-        key = (drug, "INHIBITS", target_node, r["assay"], r["standard_type"])
+
+        # THE MEASUREMENT DECIDES THE PREDICATE. Every row used to become an
+        # INHIBITS edge regardless of what it measured, so 1,433 of 5,486
+        # pairs asserted inhibition with no active measurement behind them --
+        # 26% of the direct-acting channel that M1, M7 and M8 walk. classify()
+        # is the same function that decides labels, so "acts on" means one
+        # thing in the features and in the labels.
+        verdict = classify({"qualifiers": quals})
+        if verdict == "active":
+            predicate = "INHIBITS"
+        elif verdict == "inactive":
+            predicate = "MEASURED_INACTIVE_AGAINST"
+        else:
+            # Neither: a bound too weak to prove inactivity ("IC50 > 100 nM"
+            # sits below the concentration a hit would be pursued at). Counted
+            # rather than forced to a side, the same rule labels.py applies.
+            stats["undecidable_protein_measurement"] += 1
+            continue
+
+        key = (drug, predicate, target_node, r["assay"], r["standard_type"])
         if key in seen:
             stats["duplicate"] += 1
             continue
         seen.add(key)
-        em.edge(drug, "INHIBITS", target_node,
+        em.edge(drug, predicate, target_node,
                 source=source, date=date, tier=1, quals=quals, pmids=pmids)
-        stats["protein_edges"] += 1
+        stats["protein_edges" if predicate == "INHIBITS" else "measured_inactive_edges"] += 1
 
     return stats

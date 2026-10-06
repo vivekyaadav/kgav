@@ -33,7 +33,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 ACTIVITY_PREDICATE = "HAS_ANTIVIRAL_ACTIVITY_AGAINST"
-POTENCY_FIELDS = ("ec50_nm", "ic50_nm")
+# Binding constants belong here. Reading only EC50/IC50 meant classify()
+# returned None for all 667 Ki/Kd measurements in the chembl layer -- not
+# because anyone judged them undecidable, but because the function never
+# looked. 504 of them are sub-10uM binders, the strongest direct-acting
+# evidence in that layer, and routing edges by this verdict would have
+# deleted every one.
+#
+# LABEL-NEUTRAL, measured before changing it: no HAS_ANTIVIRAL_ACTIVITY_AGAINST
+# edge in either layer carries ki_nm or kd_nm, because chembl.py drops binding
+# constants on ORGANISM targets as mis-entered. So this widens what counts as
+# "acts on" at the PROTEIN level and moves no organism-level label.
+POTENCY_FIELDS = ("ec50_nm", "ic50_nm", "ki_nm", "kd_nm")
 DEFAULT_INACTIVE_ABOVE_NM = 10_000.0
 DEFAULT_ACTIVE_BELOW_NM = 10_000.0
 
