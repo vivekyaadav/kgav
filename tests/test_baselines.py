@@ -12,6 +12,7 @@ from kgav.baselines import (
     degree_ranking,
     dwpc_scores,
     hits_at_k,
+    label_publication_index,
     mrr,
     network_proximity,
     rank,
@@ -423,3 +424,96 @@ def test_a_pool_larger_than_k_is_judged_on_expectation():
     thin = lift_row(scores, {"D0", "D499"}, k=100)
     assert not thin["trustworthy"]       # expectation 0.4, still noise
     assert not thin["lift_is_pool_artifact"]
+
+
+# ------------------------------------------- publication-disjoint evaluation
+@pytest.fixture
+def coincident(tmp_path):
+    """Two drugs with identical topology; only the provenance differs.
+
+    D1's INHIBITS edge cites the same PMID as its own antiviral label -- one
+    paper reporting a target IC50 and a cell-based EC50 together, which is how
+    94.9% of v0.1's labelled compounds look. D2's cite different papers.
+
+    A publication-disjoint run must withhold D1's edge and keep D2's. If it
+    withholds both, or neither, the filter is not reading provenance.
+    """
+    nodes = [_drug(D1), _drug(D2), _prot("UniProtKB:VIRAL", True),
+             {"id": "NCBIGene:V", "class": "Gene",
+              "properties": {"symbol": "orf1ab", "taxon_id": V, "is_viral": True}},
+             {"id": V, "class": "OrganismTaxon",
+              "properties": {"label": "SARS-CoV-2", "family": "Coronaviridae",
+                             "baltimore_class": "IV", "is_enveloped": True}}]
+
+    def pub(e, pmids):
+        e["publications"] = pmids
+        return e
+
+    edges = [
+        # D1: edge and label from ONE paper -> leakage
+        pub(_e(D1, "INHIBITS", "UniProtKB:VIRAL"), ["PMID:111"]),
+        pub(_e(D1, "HAS_ANTIVIRAL_ACTIVITY_AGAINST", V), ["PMID:111"]),
+        # D2: edge and label from DIFFERENT papers -> sound evidence
+        pub(_e(D2, "INHIBITS", "UniProtKB:VIRAL"), ["PMID:222"]),
+        pub(_e(D2, "HAS_ANTIVIRAL_ACTIVITY_AGAINST", V), ["PMID:333"]),
+        _e("UniProtKB:VIRAL", "ENCODED_BY", "NCBIGene:V"),
+        _e("NCBIGene:V", "BELONGS_TO", V),
+    ]
+    (tmp_path / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in edges))
+    return tmp_path
+
+
+def test_label_publication_index_collects_only_label_edges(coincident, schema):
+    idx = label_publication_index(coincident, schema.held_out_predicates())
+    assert idx == {D1: {"PMID:111"}, D2: {"PMID:333"}}, idx
+    # the INHIBITS PMIDs must NOT appear: the index describes labels, and
+    # folding evidence into it would make every edge its own exclusion.
+    assert "PMID:222" not in idx[D2]
+
+
+def test_same_paper_evidence_is_withheld_and_other_papers_are_kept(coincident, schema):
+    held = schema.held_out_predicates()
+    idx = label_publication_index(coincident, held)
+    g = Graph.load(coincident, skip_predicates=held, symmetry=schema.symmetry(),
+                   drop_pubs_shared_with=idx)
+    assert g.neighbours("INHIBITS", D1) == []          # same PMID as its label
+    assert len(g.neighbours("INHIBITS", D2)) == 1      # different papers
+    assert g.stats["dropped_publication_coincident"] == 1
+    assert g.stats["dropped_INHIBITS"] == 1
+
+
+def test_without_the_flag_both_drugs_are_traversable(coincident, schema):
+    """The guard: this is the behaviour every published number was computed
+    with, so it must still be reachable."""
+    held = schema.held_out_predicates()
+    g = Graph.load(coincident, skip_predicates=held, symmetry=schema.symmetry())
+    assert len(g.neighbours("INHIBITS", D1)) == 1
+    assert len(g.neighbours("INHIBITS", D2)) == 1
+    assert g.stats["dropped_publication_coincident"] == 0
+
+
+def test_withheld_edge_still_counts_toward_degree(coincident, schema):
+    """Degree is a property of the graph. Dropping the edge from degree would
+    make the degree baseline easier to beat, which is the opposite of a
+    control -- same reasoning as held-out predicates."""
+    held = schema.held_out_predicates()
+    idx = label_publication_index(coincident, held)
+    g = Graph.load(coincident, skip_predicates=held, symmetry=schema.symmetry(),
+                   drop_pubs_shared_with=idx)
+    assert g.degree[D1] == g.degree[D2] == 2
+
+
+def test_m1_loses_the_leaky_drug_but_not_the_sound_one(coincident, schema):
+    """The whole point, at the metapath level: D1 scores only because its
+    evidence and its answer came from one paper."""
+    held = schema.held_out_predicates()
+    idx = label_publication_index(coincident, held)
+    m1 = schema.metapaths["M1"]
+    g_leak = Graph.load(coincident, skip_predicates=held, symmetry=schema.symmetry())
+    g_clean = Graph.load(coincident, skip_predicates=held, symmetry=schema.symmetry(),
+                         drop_pubs_shared_with=idx)
+    for d in (D1, D2):
+        assert walk_metapath(g_leak, d, m1["path"], m1.get("constraints"), set())
+    assert not walk_metapath(g_clean, D1, m1["path"], m1.get("constraints"), set())
+    assert walk_metapath(g_clean, D2, m1["path"], m1.get("constraints"), set())

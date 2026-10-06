@@ -18,6 +18,7 @@ from kgav.baselines import (
     combine,
     degree_ranking,
     dwpc_scores,
+    label_publication_index,
     metapath_reach,
 )
 from kgav.labels import build_labels, evaluate_against_negatives
@@ -109,6 +110,20 @@ def _filter_labels(labels, si: dict, args) -> None:
                       f"({dropped:,} excluded)")
 
 
+def _report_drops(g: Graph, tag: str) -> None:
+    """Name the predicates the publication-disjoint filter withheld.
+
+    Printed per graph rather than summed, because an AUC that moves while
+    nothing was dropped would mean the filter is not doing what it says.
+    """
+    n = g.stats["dropped_publication_coincident"]
+    print(f"  {tag}: {n:,} of {g.stats['edges_seen']:,} edges withheld as "
+          f"publication-coincident with their own label")
+    for k in sorted(k for k in g.stats if k.startswith("dropped_")
+                    and k != "dropped_publication_coincident"):
+        print(f"    {k.replace('dropped_', ''):<34} {g.stats[k]:>7,}")
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
@@ -126,6 +141,16 @@ def main() -> int:
                          "restricting to compounds with matched data from the "
                          "effect of the selectivity filter itself.")
     ap.add_argument("--si-threshold", type=float, default=10.0)
+    ap.add_argument("--publication-disjoint", action="store_true",
+                    help="WITHHOLD EVIDENCE THAT SHARES A PAPER WITH ITS OWN "
+                         "LABEL. 94.9% of compounds carrying both an INHIBITS "
+                         "edge and an antiviral-activity label cite the same "
+                         "PMID on both, because one paper reports the target "
+                         "IC50 and the cell-based EC50 together. Without this "
+                         "flag M1 traverses a measurement taken alongside the "
+                         "answer, and neither the compound split nor the "
+                         "temporal split separates them. Off by default so "
+                         "published numbers reproduce.")
     ap.add_argument("--selectivity-applies", default="positives",
                     choices=["positives", "both"],
                     help="WHICH SIDE THE SELECTIVITY FILTER TOUCHES. "
@@ -176,8 +201,17 @@ def main() -> int:
     print("\n" + "=" * 66)
     print("CROSS-SECTIONAL: full graph, all measured compounds")
     print("=" * 66)
+    pub_idx: dict[str, set[str]] | None = None
+    if args.publication_disjoint:
+        pub_idx = label_publication_index(args.release, held)
+        print(f"publication-disjoint: {len(pub_idx):,} compounds carry label "
+              f"publications; evidence citing the same paper is withheld")
+
     g_full = Graph.load(args.release, skip_predicates=held,
-                        symmetry=schema.symmetry())
+                        symmetry=schema.symmetry(),
+                        drop_pubs_shared_with=pub_idx)
+    if pub_idx:
+        _report_drops(g_full, "cross-sectional")
     cross, cross_reach = run(g_full, schema, all_labels, "cross-sectional")
 
     # Declared AFTER the cross-sectional run on purpose -- cross_reach is
@@ -204,8 +238,15 @@ def main() -> int:
                            args)
         print(f"post-{args.cutoff} labels: {test_labels.stats['active']:,} active, "
               f"{test_labels.stats['inactive']:,} inactive")
+        # Same index, built from the FULL release: a label is a label wherever
+        # it sits, and an edge in the pre-cutoff graph citing the paper that
+        # reported the post-cutoff label is leakage across the split, not
+        # evidence the split legitimately preserved.
         g_train = Graph.load(args.train, skip_predicates=held,
-                             symmetry=schema.symmetry())
+                             symmetry=schema.symmetry(),
+                             drop_pubs_shared_with=pub_idx)
+        if pub_idx:
+            _report_drops(g_train, f"pre-{args.cutoff} train")
         temporal, temporal_reach = run(g_train, schema, test_labels,
                                        f"post-{args.cutoff}")
     else:
