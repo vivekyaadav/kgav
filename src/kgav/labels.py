@@ -90,14 +90,39 @@ def classify(edge: dict, inactive_above_nm: float = DEFAULT_INACTIVE_ABOVE_NM,
     return None
 
 
+def edge_sources(edge: dict) -> set[str]:
+    """Knowledge sources behind one edge.
+
+    merge_edges joins them with "|" when two layers witness one fact, so a
+    merged edge reads "infores:string|infores:virhostnet". Membership has to
+    be tested per component or a merged edge matches no source at all.
+    """
+    raw = edge.get("primary_knowledge_source") or ""
+    return {s for s in raw.split("|") if s}
+
+
 def build_labels(release: Path, year_from: int | None = None,
                  year_to: int | None = None,
                  inactive_above_nm: float = DEFAULT_INACTIVE_ABOVE_NM,
-                 active_below_nm: float = DEFAULT_ACTIVE_BELOW_NM) -> Labels:
+                 active_below_nm: float = DEFAULT_ACTIVE_BELOW_NM,
+                 sources: set[str] | None = None) -> Labels:
     """Label sets from the activity edges, optionally restricted by year.
 
     year_from/year_to are inclusive and let the same function produce a
     temporal test set (2022-2025) or a cross-sectional one (no bounds).
+
+    `sources` restricts the labels to measurements from given knowledge
+    sources, which is how a SINGLE-SCREEN evaluation is built.
+
+    Why that matters more than it sounds. Pooling ChEMBL and panel labels
+    reintroduces the confound the panel was ingested to remove: ChEMBL actives
+    are antiviral research compounds carrying viral-target annotations, panel
+    inactives are library compounds carrying host-target annotations, and a
+    scorer can separate the two classes by recognising which collection a
+    compound came from. Restricted to one screen, both classes come off the
+    same plates under one protocol over one concentration range, so the
+    populations are matched BY CONSTRUCTION rather than by a filter --
+    which is what --selectivity-applies both was approximating.
     """
     out = Labels()
     active: dict[str, set[str]] = {}
@@ -108,6 +133,9 @@ def build_labels(release: Path, year_from: int | None = None,
             continue
         e = json.loads(line)
         if e["predicate"] != ACTIVITY_PREDICATE:
+            continue
+        if sources is not None and not (edge_sources(e) & sources):
+            out.stats["other_source"] += 1
             continue
         date = e.get("first_asserted_date") or ""
         year = int(date[:4]) if date[:4].isdigit() and not date.startswith("1970") else None
