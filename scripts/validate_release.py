@@ -61,7 +61,13 @@ def main() -> int:
         for rv in register:
             print(f"  {rv}")
 
-    violations = schema.validate_metapaths() + schema.validate_batch(nodes, edges)
+    # validate_labels joins the metapath and register checks above: all three
+    # reject something that would otherwise resolve silently by convention.
+    # A label declared on a predicate that does not terminate on a virus or a
+    # disease fills the label sets with the wrong node class, which is how
+    # MEASURED_INACTIVE_AGAINST put protein nodes into the temporal negatives.
+    violations = (schema.validate_metapaths() + schema.validate_labels()
+                  + schema.validate_batch(nodes, edges))
 
     if not violations and not register:
         print("\nPASS — no violations")

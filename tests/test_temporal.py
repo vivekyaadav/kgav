@@ -282,3 +282,98 @@ def test_split_label_sets_are_ordered_deterministically(tmp_path, held):
     s = build_split(tmp_path, cutoff=2021, held_out=held)
     for side in (s.test_labels, s.train_labels, s.test_negatives, s.train_negatives):
         assert list(side) == sorted(side)
+
+
+# --------------------------------------------------------------------------
+# held_out is about TRAVERSAL; evaluation_label is about LABELS. Reading one
+# as the other put viral protein nodes into the negative sets.
+# --------------------------------------------------------------------------
+NSP5 = "UniProtKB:NSP5"
+
+
+@pytest.fixture
+def labels_only():
+    return load_schema().evaluation_label_predicates()
+
+
+def _inactive_against_protein(drug, date):
+    """A MEASURED_INACTIVE_AGAINST edge: held out, and NOT a label.
+
+    Its object is a viral protein, so a split that treats every held-out
+    predicate as a label keys its negative sets on a protein.
+    """
+    return _e(drug, "MEASURED_INACTIVE_AGAINST", NSP5, date,
+              {"assay_type": "biochemical", "ic50_nm": 80000.0, "relation": "="})
+
+
+@pytest.fixture
+def release_with_protein_measurements(tmp_path, release):
+    extra = [_inactive_against_protein(NEW, "2023-01-01"),
+             _inactive_against_protein(OLD, "2019-01-01")]
+    path = tmp_path / "rel2"
+    path.mkdir()
+    (path / "nodes.jsonl").write_text((release / "nodes.jsonl").read_text())
+    (path / "edges.jsonl").write_text(
+        (release / "edges.jsonl").read_text().rstrip("\n") + "\n"
+        + "\n".join(json.dumps(e) for e in extra))
+    return path
+
+
+def test_label_sets_are_keyed_only_on_viruses(
+        release_with_protein_measurements, held, labels_only):
+    """Every key of every label set must be a virus, never a protein.
+
+    Before this, MEASURED_INACTIVE_AGAINST was bucketed by e["object"], so
+    'UniProtKB:NSP5' appeared alongside the taxa in train_negatives and
+    test_negatives. On the real release that moved the reported negative count
+    from 5,164 to 6,789 while positives did not move -- the signature of a
+    predicate that only ever classifies inactive.
+    """
+    s = build_split(release_with_protein_measurements, 2021, held,
+                    label_predicates=labels_only)
+    for name, sets in (("test_negatives", s.test_negatives),
+                       ("train_negatives", s.train_negatives),
+                       ("test_labels", s.test_labels),
+                       ("train_labels", s.train_labels)):
+        assert all(k.startswith("NCBITaxon:") for k in sets), \
+            f"{name} is keyed on something that is not a virus: {sorted(sets)}"
+
+
+def test_held_out_non_label_is_stripped_but_never_counted_as_a_label(
+        release_with_protein_measurements, held, labels_only):
+    """It must leave the training graph AND leave the label counts alone."""
+    s = build_split(release_with_protein_measurements, 2021, held,
+                    label_predicates=labels_only)
+    assert s.stats["held_out_not_a_label"] == 2
+    assert not [e for e in s.train_edges
+                if e["predicate"] == "MEASURED_INACTIVE_AGAINST"]
+
+    baseline = build_split(release_with_protein_measurements, 2021, held,
+                           label_predicates={"HAS_ANTIVIRAL_ACTIVITY_AGAINST"})
+    for key in ("label_test_active", "label_test_inactive",
+                "label_train_active", "label_train_inactive"):
+        assert s.stats[key] == baseline.stats[key]
+
+
+def test_a_label_that_is_not_held_out_is_refused(release, labels_only):
+    """A label left traversable predicts itself. Caught before the training
+    graph is built, not by an audit that runs after it."""
+    with pytest.raises(ValueError, match="not in held_out"):
+        build_split(release, 2021, held_out=set(),
+                    label_predicates=labels_only)
+
+
+def test_schema_rejects_a_label_on_the_wrong_object_class():
+    """The flag cannot be put somewhere that reintroduces the bug."""
+    from kgav.schema import Schema
+    doc = dict(load_schema().raw)
+    doc["edge_classes"] = [
+        dict(ec, evaluation_label=True) if ec["predicate"] == "INHIBITS" else ec
+        for ec in doc["edge_classes"]]
+    codes = {v.code for v in Schema(doc).validate_labels()}
+    assert "LABEL_BAD_OBJECT" in codes
+    assert "LABEL_NOT_HELD_OUT" in codes
+
+
+def test_the_shipped_schema_declares_consistent_labels():
+    assert load_schema().validate_labels() == []

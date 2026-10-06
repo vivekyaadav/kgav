@@ -186,20 +186,39 @@ class Orchestrator:
         else:
             results += [self.tools.profile(nid) for nid in resolved.values()]
 
-        facts, warns, ids = [], list(verdict.warnings), []
-        for r in results:
-            trace.append(f"tool={r.kind} ok={r.ok}")
-            facts.extend(r.verbalised)
-            warns.extend(r.warnings)
-            ids.extend(r.edge_ids)
-            if not r.ok and r.note:
-                facts.append(f"(no result: {r.note})")
-
         # Bound the brief. An unbounded subgraph fills the context window and
         # the model starts summarising rather than reporting.
-        if len(facts) > MAX_BRIEF_EDGES:
-            facts = facts[:MAX_BRIEF_EDGES]
-            facts.append(f"(truncated to {MAX_BRIEF_EDGES} facts)")
+        #
+        # TRUNCATION TAKES THE IDS WITH THE FACTS. It used to cut `facts` and
+        # leave `citable_edge_ids` whole, so past the limit the model held
+        # identifiers for facts it had never seen -- and verify()'s
+        # invented-citation check passed them, because they WERE in the
+        # allowed list. The result was a claim with no retrieved evidence
+        # behind it, carrying a real identifier, reported as verified: the
+        # failure ab86858 set out to close, arriving by a different route.
+        #
+        # Whole results are kept or dropped rather than cutting mid-result,
+        # because a tool's facts and its edge ids correspond as a set and not
+        # line by line: a route header and a warning line are facts with no id
+        # of their own, so no index into one list addresses the other.
+        facts, warns, ids = [], list(verdict.warnings), []
+        dropped = 0
+        for r in results:
+            trace.append(f"tool={r.kind} ok={r.ok}")
+            warns.extend(r.warnings)          # warnings are never truncated
+            lines = list(r.verbalised)
+            if not r.ok and r.note:
+                lines.append(f"(no result: {r.note})")
+            if facts and len(facts) + len(lines) > MAX_BRIEF_EDGES:
+                dropped += 1
+                continue
+            facts.extend(lines)
+            ids.extend(r.edge_ids)
+        if dropped:
+            facts.append(f"({dropped} further result(s) omitted to bound the "
+                         f"brief at {MAX_BRIEF_EDGES} facts; their evidence is "
+                         f"not cited below)")
+            trace.append(f"truncated_results={dropped}")
 
         return Brief(question=question, intent=intent.value, allowed=True,
                      facts=facts,

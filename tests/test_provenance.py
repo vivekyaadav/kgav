@@ -87,3 +87,22 @@ def test_an_unreadable_file_is_stale_not_silently_skipped(tmp_path):
     p = tmp_path / "broken.json"
     p.write_text("{not json")
     assert check_file(p, rel)[0] == "stale"
+
+
+def test_a_missing_release_is_not_reported_as_current(tmp_path):
+    """Two Nones compared equal, so a typo'd release path reported every
+    results file as current -- a false "current" from the tool that exists to
+    catch false "currents"."""
+    from kgav.provenance import check_file, write_results
+
+    release = tmp_path / "rel"
+    release.mkdir()
+    (release / "nodes.jsonl").write_text('{"id":"A","class":"Gene"}')
+    (release / "edges.jsonl").write_text("")
+    out = tmp_path / "r.json"
+    write_results(out, {"n": 1}, release, "0.12.0")
+    assert check_file(out, release)[0] == "ok"
+
+    status, msg = check_file(out, tmp_path / "does-not-exist")
+    assert status == "stale"
+    assert "cannot verify" in msg

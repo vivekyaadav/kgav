@@ -37,6 +37,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from kgav.labels import (
+    ACTIVITY_PREDICATE,
     DEFAULT_ACTIVE_BELOW_NM,
     DEFAULT_INACTIVE_ABOVE_NM,
     classify,
@@ -78,8 +79,28 @@ class Split:
 def build_split(release: Path, cutoff: int, held_out: set[str],
                 undated_policy: str = "include",
                 inactive_above_nm: float = DEFAULT_INACTIVE_ABOVE_NM,
-                active_below_nm: float = DEFAULT_ACTIVE_BELOW_NM) -> Split:
+                active_below_nm: float = DEFAULT_ACTIVE_BELOW_NM,
+                label_predicates: set[str] | None = None) -> Split:
     """Partition a release at `cutoff`.
+
+    `held_out` is what to STRIP from the training graph. `label_predicates` is
+    what to turn into labels, and the two are different sets -- pass
+    Schema.evaluation_label_predicates() for the second. Both are stripped;
+    only the second is bucketed into positives and negatives.
+
+    WHY THEY ARE SEPARATE. Every held-out predicate was also a label until
+    schema 0.11.0 added MEASURED_INACTIVE_AGAINST, which must not be traversed
+    and terminates on a viral PROTEIN. Treating held_out as "this is a label"
+    bucketed those edges by e["object"], so protein nodes appeared as keys in
+    train_negatives and test_negatives: the reported negatives rose 5,164 ->
+    6,789 while positives did not move, TEST_LABELS.json gained protein-keyed
+    sets, and audit()'s L5 check compared compounds across a protein key and
+    would abort the run as a leaking split. Per-virus AUC and lift were
+    unaffected, because the driver looks results up by taxon.
+
+    Defaulting label_predicates to held_out would have kept that bug for every
+    caller that had not been updated, so it defaults to the ONE predicate that
+    was always a label here, and callers pass the schema's set.
 
     undated_policy:
       include   keep undated non-computed edges in the training graph
@@ -96,6 +117,16 @@ def build_split(release: Path, cutoff: int, held_out: set[str],
     """
     if undated_policy not in {"include", "exclude", "computed_only"}:
         raise ValueError(f"unknown undated_policy {undated_policy!r}")
+    labels = set(label_predicates) if label_predicates is not None \
+        else {ACTIVITY_PREDICATE}
+    stray = labels - set(held_out)
+    if stray:
+        # A label left in the training graph is traversable evidence for the
+        # thing it labels. Caught here rather than by the audit, because by
+        # audit time the training graph is already built.
+        raise ValueError(
+            f"label predicate(s) {sorted(stray)} are not in held_out, so they "
+            f"would stay in the training graph and predict themselves")
 
     s = Split(cutoff=cutoff)
     # virus -> compounds, kept per side so the ambiguity rule can be applied
@@ -108,9 +139,14 @@ def build_split(release: Path, cutoff: int, held_out: set[str],
         e = json.loads(line)
         pred = e["predicate"]
         year = edge_year(e)
-        is_label = pred in held_out
+        # STRIPPING AND LABELLING ARE DIFFERENT QUESTIONS. A held-out edge
+        # that is not a label is dropped from the training graph here and
+        # becomes neither a positive nor a negative.
+        if pred in held_out and pred not in labels:
+            s.stats["held_out_not_a_label"] += 1
+            continue
 
-        if is_label:
+        if pred in labels:
             # "EC50 > 10000 nM" is a measurement of INACTIVITY: a negative,
             # not a discard. "EC50 = 50000 nM" is one too, despite its exact
             # relation. classify() is the single place that judgement lives.

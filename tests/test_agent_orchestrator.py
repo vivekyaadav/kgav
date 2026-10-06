@@ -175,3 +175,67 @@ def test_trace_records_each_stage(orch):
     out = orch.answer("why might nirmatrelvir work against SARS-CoV-2?")
     joined = " ".join(out["trace"])
     assert "intent=" in joined and "resolved=" in joined and "allowed=" in joined
+
+
+def test_dropping_the_cell_context_caveat_fails_verification(orch):
+    """End to end: the caveat must survive from retrieval to the verdict.
+
+    The gap this closes sat exactly here. test_agent_tools asserted the
+    warning text reaches the printed route; test_agent_verify asserted
+    verify() enforces a caveat handed to it directly. Neither asked whether
+    explain() puts the caveat anywhere verify() reads, and it did not -- so a
+    model that dropped the SIGMAR1 warning passed, for the one caveat this
+    project exists to attach.
+    """
+    from kgav.agent.verify import verify_response
+
+    out = orch.answer("why might chloroquine work against SARS-CoV-2?")
+    assert any("CELL CONTEXT" in w for w in out["warnings"]), \
+        "the caveat never reached the brief, so nothing downstream can require it"
+
+    dropped = "Chloroquine engages SIGMAR1 [E0]. SELECTIVITY UNKNOWN: no paired data."
+    v = verify_response(out, answer=dropped)
+    assert not v.passed
+    assert any(f.code == "warning_dropped" for f in v.failures)
+
+
+def test_truncation_drops_edge_ids_with_their_facts(orch):
+    """A citable id whose fact was cut is a licence to invent.
+
+    verify()'s invented-citation check tests membership of
+    citable_edge_ids, so an id left behind by truncation passes it -- the
+    model can attach a real identifier to a claim with no retrieved evidence
+    and the answer reports as verified.
+    """
+    from kgav.agent import orchestrator as orch_mod
+
+    original = orch_mod.MAX_BRIEF_EDGES
+    orch_mod.MAX_BRIEF_EDGES = 1
+    try:
+        # One result per compound, so there is a second result to drop. The
+        # first is always kept whole: cutting inside a result would separate
+        # facts from their ids again, and an empty brief is worse than a long
+        # one.
+        brief = orch.build_brief(
+            "why might nirmatrelvir and chloroquine work against SARS-CoV-2?")
+    finally:
+        orch_mod.MAX_BRIEF_EDGES = original
+
+    assert "omitted" in " ".join(brief.facts)
+    # Every surviving id must appear in a surviving fact.
+    joined = " ".join(brief.facts)
+    assert all(eid in joined for eid in brief.citable_edge_ids)
+
+
+def test_truncation_never_drops_a_warning(orch):
+    """Facts are bounded; caveats are not. A caveat cut for space is the
+    failure mode guards.py exists to prevent."""
+    from kgav.agent import orchestrator as orch_mod
+
+    original = orch_mod.MAX_BRIEF_EDGES
+    orch_mod.MAX_BRIEF_EDGES = 1
+    try:
+        brief = orch.build_brief("why might chloroquine work against SARS-CoV-2?")
+    finally:
+        orch_mod.MAX_BRIEF_EDGES = original
+    assert any("CELL CONTEXT" in w for w in brief.warnings)

@@ -50,11 +50,18 @@ def main() -> int:
     held = s.held_out_predicates()
     print(f"cutoff {args.cutoff} | undated policy: {args.undated}")
 
-    split = build_split(args.release, args.cutoff, held, args.undated)
+    # held = what to strip from the training graph; labels = what to partition
+    # into positives and negatives. Not the same set since schema 0.11.0.
+    split = build_split(args.release, args.cutoff, held, args.undated,
+                        label_predicates=s.evaluation_label_predicates())
     print(f"\ntraining graph: {len(split.train_edges):,} edges")
     for key in ("edge_train", "edge_dropped_future", "undated_kept",
                 "undated_kept_computed", "undated_dropped",
-                "label_train", "label_test", "label_undated", "label_censored"):
+                "held_out_not_a_label",
+                "label_train_active", "label_train_inactive",
+                "label_test_active", "label_test_inactive",
+                "label_undecidable", "label_undated",
+                "train_ambiguous_dropped", "test_ambiguous_dropped"):
         if split.stats[key]:
             print(f"  {key:<24} {split.stats[key]:>8,}")
 
