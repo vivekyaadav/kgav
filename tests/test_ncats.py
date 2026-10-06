@@ -466,3 +466,41 @@ def test_the_layer_cannot_self_validate_and_that_is_by_design(ingested):
     assert alone, "the layer validated in isolation -- is it emitting the taxon?"
     assert all(v.code == "DANGLING" for v in alone), \
         sorted({v.code for v in alone})
+
+
+# -------------------------------------------------------------- idempotency
+def test_running_the_ingest_twice_emits_the_same_nodes():
+    """THE BUG THIS GUARDS. Node ownership was decided against the ASSEMBLED
+    graph, which this layer contributes to. The second run saw its own 5,254
+    new compounds already present, declined to emit them, and the only nodes
+    its edges had stopped existing -- 5,254 DANGLING edges and the graph back
+    to 66,007 nodes. Ownership is decided against PEER layers now, which do
+    not change when this script runs.
+
+    Simulated here by feeding run 2 the peer set PLUS run 1's own output, the
+    way reading the assembled graph did.
+    """
+    rows = [_row(smiles="CCO", sid="S1", ac50="1.0", curve="1.1", eff="80"),
+            _row(smiles="CCC", sid="S2", curve="4")]
+    peers = {FakeId("CCC").curie}            # CCC is in a peer layer, CCO is not
+
+    first = Emit()
+    s1 = ingest_cpe(first, rows, COLS, norm, existing_compounds=peers)
+    assert set(first.nodes) == {FakeId("CCO").curie}
+    assert s1["new_compound_node"] == 1
+
+    # run 2 with the SAME peer set -- the correct behaviour
+    second = Emit()
+    s2 = ingest_cpe(second, rows, COLS, norm, existing_compounds=peers)
+    assert set(second.nodes) == set(first.nodes)
+    assert s2["new_compound_node"] == s1["new_compound_node"]
+
+    # run 2 with run 1's output folded in -- what reading the assembled graph
+    # did, and what must never happen again
+    polluted = Emit()
+    s3 = ingest_cpe(polluted, rows, COLS, norm,
+                    existing_compounds=peers | set(first.nodes))
+    assert set(polluted.nodes) == set(), "self-pollution still drops the nodes"
+    assert s3["new_compound_node"] == 0
+    # the edges still exist and now point at nothing this layer provides
+    assert len(polluted.edges) == 2
