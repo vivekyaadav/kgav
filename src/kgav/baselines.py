@@ -32,6 +32,34 @@ from kgav.schema import parse_hop
 DEFAULT_W = 0.4
 
 
+def label_publication_index(release: Path, label_predicates: set[str]
+                            ) -> dict[str, set[str]]:
+    """subject -> the publications its LABEL edges cite.
+
+    Feeds Graph.load(drop_pubs_shared_with=...). Measured on v0.1: of 1,070
+    compounds carrying both an INHIBITS edge and a
+    HAS_ANTIVIRAL_ACTIVITY_AGAINST label where both sides cite a publication,
+    1,015 -- 94.9% -- share at least one PMID.
+
+    That is not bad data. A paper reporting an Mpro IC50 almost always reports
+    a cell-based EC50 in the same table, and ChEMBL files them as two
+    activities. But it means M1 traverses a measurement taken alongside the
+    label it is scored against, so its AUC is partly retrieval. Neither the
+    compound-level split nor the temporal split removes it: both facts hang
+    off one compound and carry one date.
+    """
+    idx: dict[str, set[str]] = defaultdict(set)
+    for line in (Path(release) / "edges.jsonl").read_text().splitlines():
+        if not line.strip():
+            continue
+        e = json.loads(line)
+        if e["predicate"] in label_predicates:
+            pubs = {p for p in (e.get("publications") or []) if p}
+            if pubs:
+                idx[e["subject"]] |= pubs
+    return dict(idx)
+
+
 class Graph:
     """Adjacency built for metapath walking.
 
@@ -53,6 +81,9 @@ class Graph:
         # here has no declared symmetry and MUST NOT be traversed: see
         # neighbours().
         self.symmetry: dict[str, bool] = dict(symmetry or {})
+        # load-time accounting: edges seen, skipped as held-out, dropped as
+        # publication-coincident with a label. Empty unless load() filled it.
+        self.stats: Counter = Counter()
 
     def neighbours(self, predicate: str, node: str, reverse: bool = False
                    ) -> list[tuple[str, dict]]:
@@ -87,8 +118,24 @@ class Graph:
 
     @classmethod
     def load(cls, release: Path, skip_predicates: set[str] | None = None,
-             symmetry: dict[str, bool] | None = None) -> Graph:
+             symmetry: dict[str, bool] | None = None,
+             drop_pubs_shared_with: dict[str, set[str]] | None = None) -> Graph:
+        """Build the traversal graph.
+
+        drop_pubs_shared_with maps a node to the publications its LABEL edges
+        cite (see label_publication_index). An edge whose SUBJECT appears there
+        and which cites any of the same publications is withheld from
+        traversal: the measurement it records came out of the same paper as the
+        answer, so a path across it is retrieval rather than prediction.
+
+        Keyed on the subject deliberately. Compound A's label PMID appearing on
+        compound B's edge is not leakage for B -- B is scored against B's own
+        label -- so a global PMID blocklist would discard sound evidence. The
+        edge is also only dropped from TRAVERSAL; degree still counts it, for
+        the same reason held-out predicates do.
+        """
         skip = skip_predicates or set()
+        shared = drop_pubs_shared_with or {}
         g = cls(symmetry)
         for line in (Path(release) / "nodes.jsonl").read_text().splitlines():
             if line.strip():
@@ -104,10 +151,18 @@ class Graph:
             # make the degree baseline easier to beat than it really is.
             g.degree[e["subject"]] += 1
             g.degree[e["object"]] += 1
+            g.stats["edges_seen"] += 1
             if p in skip:
+                g.stats["skipped_held_out"] += 1
+                continue
+            label_pubs = shared.get(e["subject"])
+            if label_pubs and label_pubs & {q for q in (e.get("publications") or []) if q}:
+                g.stats["dropped_publication_coincident"] += 1
+                g.stats[f"dropped_{p}"] += 1
                 continue
             g.out[(p, e["subject"])].append((e["object"], e))
             g.inv[(p, e["object"])].append((e["subject"], e))
+            g.stats["traversable"] += 1
         return g
 
     def klass(self, nid: str) -> str | None:
