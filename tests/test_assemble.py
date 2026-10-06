@@ -7,6 +7,7 @@ import pytest
 from kgav.assemble import (
     LAYER_PRECEDENCE,
     assemble,
+    edge_key,
     connectivity_report,
     merge_edges,
     orphan_nodes,
@@ -116,7 +117,27 @@ def test_layer_order_is_deterministic(layers):
 
 def test_precedence_covers_every_layer():
     assert set(LAYER_PRECEDENCE) == {"spine", "host", "vhppi", "orcs", "chembl",
-                                     "selectivity", "hosttargets", "similarity"}
+                                     "selectivity", "hosttargets", "similarity",
+                                     "ncats"}
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "ingest_folds.py writes a layer LAYER_PRECEDENCE does not list, and "
+    "assemble_release.py builds its layer dict FROM that list -- so the folds "
+    "release is never assembled and M8 has no TargetClass nodes to walk. One "
+    "of the three independent reasons M8 is inert. Remove this xfail in the "
+    "commit that decides M8's path shape."))
+def test_every_ingest_script_has_a_precedence_entry():
+    """The hardcoded set above cannot catch a layer nobody listed.
+
+    assemble_release.py builds `layers` from LAYER_PRECEDENCE and filters by
+    existence, so an unlisted layer directory is not merely last -- it is
+    silently absent, and the metapaths that need it reach nothing while every
+    count still looks right.
+    """
+    scripts = {p.stem.removeprefix("ingest_").replace("_", "")
+               for p in (ROOT / "scripts").glob("ingest_*.py")}
+    assert scripts <= set(LAYER_PRECEDENCE), sorted(scripts - set(LAYER_PRECEDENCE))
 
 
 # -------------------------------------------------------------- edge merging
@@ -370,3 +391,53 @@ def test_merge_does_not_let_the_1970_placeholder_beat_a_real_date():
     # Genuinely undated on both sides stays undated rather than becoming None.
     neither = merge_edges(edge("1970-01-01", "s1"), edge("1970-01-01", "s2"))
     assert neither["first_asserted_date"] == "1970-01-01"
+
+
+# ------------------------------------------- two screens are two experiments
+def _av(subject, source, **quals):
+    q = {"assay_type": "cell_based_antiviral"}
+    q.update(quals)
+    return {"subject": subject, "predicate": "HAS_ANTIVIRAL_ACTIVITY_AGAINST",
+            "object": "NCBITaxon:2697049", "qualifiers": q,
+            "primary_knowledge_source": source, "evidence_tier": 1,
+            "first_asserted_date": "2020-08-18"}
+
+
+def test_source_identity_separates_two_screens_of_one_compound():
+    """A panel inactive and a chembl active are a disagreement, not two
+    witnesses. Collapsed into one edge, precedence silently keeps one."""
+    chembl = _av("INCHIKEY:A", "infores:chembl", ec50_nm=2_000.0, relation="=")
+    ncats = _av("INCHIKEY:A", "infores:ncats-opendata", ec50_nm=20_000.0,
+                relation=">")
+    src = {"HAS_ANTIVIRAL_ACTIVITY_AGAINST"}
+    assert edge_key(chembl, {}, src) != edge_key(ncats, {}, src)
+    # and without it the disagreement is erased
+    assert edge_key(chembl, {}) == edge_key(ncats, {})
+
+
+def test_source_identity_does_not_split_the_selectivity_merge():
+    """The selectivity layer supplies CC50 by sharing a key with the chemistry
+    layer. Both are infores:chembl, so that merge must survive -- keying on
+    cell_line instead would have broken 1,568 edges."""
+    activity = _av("INCHIKEY:B", "infores:chembl", ec50_nm=500.0, relation="=")
+    selectivity = _av("INCHIKEY:B", "infores:chembl", ec50_nm=500.0,
+                      relation="=", cc50_nm=15_000.0, selectivity_index=30.0,
+                      cell_line="vero")
+    src = {"HAS_ANTIVIRAL_ACTIVITY_AGAINST"}
+    assert edge_key(activity, {}, src) == edge_key(selectivity, {}, src)
+
+
+def test_source_identity_only_applies_to_declared_predicates():
+    a = {"subject": "INCHIKEY:C", "predicate": "TARGETS",
+         "object": "UniProtKB:X", "qualifiers": {},
+         "primary_knowledge_source": "infores:drugcentral",
+         "evidence_tier": 1, "first_asserted_date": "2020-01-01"}
+    b = dict(a, primary_knowledge_source="infores:chembl")
+    assert edge_key(a, {}, {"HAS_ANTIVIRAL_ACTIVITY_AGAINST"}) == \
+        edge_key(b, {}, {"HAS_ANTIVIRAL_ACTIVITY_AGAINST"})
+
+
+def test_the_schema_declares_it_for_the_activity_predicate():
+    s = load_schema()
+    assert "HAS_ANTIVIRAL_ACTIVITY_AGAINST" in s.source_identity_predicates()
+    assert "TARGETS" not in s.source_identity_predicates()

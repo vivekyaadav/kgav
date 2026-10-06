@@ -70,6 +70,15 @@ class EdgeClass:
     evaluation_label: bool = False
     is_model_output: bool = False
     identity_qualifiers: list = field(default_factory=list)
+    # When true, two edges from DIFFERENT knowledge sources are different
+    # facts even with identical subject, predicate, object and qualifiers.
+    # Needed for measurements: a Vero E6 panel reading and a ChEMBL-sourced
+    # EC50 are two experiments, and collapsing them lets layer precedence
+    # silently discard one. Qualifier-based identity cannot express this,
+    # because the selectivity layer DEPENDS on sharing the bare triple with
+    # the chemistry layer to supply its CC50 -- both are infores:chembl, so
+    # keying on the source keeps that merge and splits only the panel.
+    identity_includes_source: bool = False
     # None means UNDECLARED, which is different from False. A traversal may
     # not guess, so validate_metapaths rejects any metapath hop over a
     # predicate that left this unset.
@@ -126,6 +135,8 @@ class Schema:
                 evaluation_label=bool(e.get("evaluation_label", False)),
                 is_model_output=bool(e.get("is_model_output", False)),
                 identity_qualifiers=list(e.get("identity_qualifiers") or []),
+                identity_includes_source=bool(
+                    e.get("identity_includes_source", False)),
                 symmetric=e.get("symmetric"),
             )
             for e in doc["edge_classes"]
@@ -149,6 +160,11 @@ class Schema:
             if ec.identity_qualifiers:
                 return ec.identity_qualifiers
         return []
+
+    def source_identity_predicates(self) -> set[str]:
+        """Predicates whose facts are identified partly by their source."""
+        return {ec.predicate for ec in self.edge_classes
+                if ec.identity_includes_source}
 
     def symmetry(self) -> dict[str, bool]:
         """predicate -> whether the relation holds in both directions.
