@@ -85,6 +85,30 @@ def run(g: Graph, schema, labels, tag: str,
     return out, reach
 
 
+def _filter_labels(labels, si: dict, args) -> None:
+    """Apply the selectivity filter to the sides `--selectivity-applies` names.
+
+    One function for both sides, so the two cannot drift: the asymmetry was
+    not a decision recorded anywhere, it was the negatives simply never being
+    passed through the same loop.
+    """
+    sides = [("actives", labels.positives)]
+    if args.selectivity_applies == "both":
+        sides.append(("inactives", labels.negatives))
+    for what, group in sides:
+        for virus, members in list(group.items()):
+            if args.selectivity == "verified-only":
+                keep = {d for d in members if (d, virus) in si}
+            else:
+                keep = {d for d in members
+                        if si.get((d, virus), -1) >= args.si_threshold}
+            dropped = len(members) - len(keep)
+            group[virus] = keep
+            if dropped:
+                print(f"  {virus}: {len(members):,} -> {len(keep):,} {what} "
+                      f"({dropped:,} excluded)")
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
@@ -102,6 +126,15 @@ def main() -> int:
                          "restricting to compounds with matched data from the "
                          "effect of the selectivity filter itself.")
     ap.add_argument("--si-threshold", type=float, default=10.0)
+    ap.add_argument("--selectivity-applies", default="positives",
+                    choices=["positives", "both"],
+                    help="WHICH SIDE THE SELECTIVITY FILTER TOUCHES. "
+                         "'positives' (default) reproduces every published "
+                         "number: actives are restricted to compounds with a "
+                         "verified index while negatives are left whole. "
+                         "'both' is the symmetric control -- requiring the "
+                         "same paired cytotoxicity evidence of a compound "
+                         "before it may be a negative.")
     args = ap.parse_args()
 
     schema = load_schema()
@@ -112,18 +145,28 @@ def main() -> int:
     if args.selectivity != "all":
         from kgav.selectivity import selectivity_index_by_compound
         si = selectivity_index_by_compound(args.release)
-        print(f"selectivity filter '{args.selectivity}': "
+        print(f"selectivity filter '{args.selectivity}' applied to "
+              f"{args.selectivity_applies}: "
               f"{len(si):,} (compound, virus) pairs have a verified index")
-        for virus, pos in list(all_labels.positives.items()):
-            if args.selectivity == "verified-only":
-                keep = {d for d in pos if (d, virus) in si}
-            else:
-                keep = {d for d in pos if si.get((d, virus), -1) >= args.si_threshold}
-            dropped = len(pos) - len(keep)
-            all_labels.positives[virus] = keep
-            if dropped:
-                print(f"  {virus}: {len(pos):,} -> {len(keep):,} actives "
-                      f"({dropped:,} excluded)")
+        _filter_labels(all_labels, si, args)
+        if args.selectivity_applies == "positives":
+            # NOT A LIKE-FOR-LIKE COMPARISON, and the published AUC is computed
+            # this way. Requiring a verified index of a POSITIVE means requiring
+            # paired same-document CC50/EC50, which selects for
+            # well-characterised compounds -- the ones most likely to carry the
+            # nsp5/nsp12 target annotations M1 reads. Measured on v0.1: the
+            # positive set halves 1,726 -> 808 and M1's AUC rises 0.729 ->
+            # 0.823, while cov_pos jumps 51.5% -> 70.3% and cov_neg does not
+            # move from 5.3%. That coverage asymmetry is the signature of
+            # enrichment for REACHABILITY, not only for genuine activity.
+            #
+            # --selectivity-applies both is the control. If the AUC holds near
+            # 0.82 the effect is real; if it falls toward 0.73 it was annotation
+            # bias. Default stays 'positives' so published numbers reproduce.
+            print("  NOTE: negatives are NOT filtered. Actives must have paired "
+                  "cytotoxicity\n  data and inactives need not, so the two "
+                  "classes are drawn from differently\n  characterised "
+                  "populations. Run --selectivity-applies both for the control.")
     print(f"labels from the full release (inactive if censored above "
           f"{args.inactive_above_nm:,.0f} nM):")
     for key in ("active", "inactive", "undecidable", "ambiguous_dropped"):
@@ -137,8 +180,11 @@ def main() -> int:
                         symmetry=schema.symmetry())
     cross, cross_reach = run(g_full, schema, all_labels, "cross-sectional")
 
+    # Declared AFTER the cross-sectional run on purpose -- cross_reach is
+    # already set above and must not be re-initialised here, which is what
+    # batch 2a did: it reset cross_reach to {} one line after run() returned
+    # it, so the cross-sectional metapath reach never reached the results file.
     temporal: dict = {}
-    cross_reach: dict = {}
     temporal_reach: dict = {}
     if args.train.exists():
         print("\n" + "=" * 66)
@@ -151,14 +197,11 @@ def main() -> int:
         # different positive set from the one it is being compared against.
         if args.selectivity != "all":
             from kgav.selectivity import selectivity_index_by_compound
-            si_t = selectivity_index_by_compound(args.release)
-            for virus, pos in list(test_labels.positives.items()):
-                if args.selectivity == "verified-only":
-                    keep = {d for d in pos if (d, virus) in si_t}
-                else:
-                    keep = {d for d in pos
-                            if si_t.get((d, virus), -1) >= args.si_threshold}
-                test_labels.positives[virus] = keep
+            # Through the SAME helper as the cross-sectional side. This was a
+            # second hand-written copy of the loop, which is how the two sides
+            # came to differ without anyone deciding they should.
+            _filter_labels(test_labels, selectivity_index_by_compound(args.release),
+                           args)
         print(f"post-{args.cutoff} labels: {test_labels.stats['active']:,} active, "
               f"{test_labels.stats['inactive']:,} inactive")
         g_train = Graph.load(args.train, skip_predicates=held,
@@ -172,6 +215,7 @@ def main() -> int:
     write_results(args.results / "hard_negatives.json",
                   {"inactive_above_nm": args.inactive_above_nm,
                    "selectivity_filter": args.selectivity,
+                   "selectivity_applies": args.selectivity_applies,
                    "label_stats": dict(all_labels.stats),
                    "cross_sectional": cross, "temporal": temporal,
                    "metapath_reach": {"cross_sectional": cross_reach,
