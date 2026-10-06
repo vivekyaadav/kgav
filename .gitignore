@@ -34,3 +34,8 @@ web/node_modules/
 web/dist/
 web/.vite/
 web/client/public/data/
+
+# agent-tooling artifacts, not part of the app
+web/.manus-logs/
+web/client/public/__manus__/
+*.patch
