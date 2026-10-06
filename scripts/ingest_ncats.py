@@ -29,6 +29,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from kgav.assemble import LAYER_PRECEDENCE
 from kgav.emit import Emit
 from kgav.ncats import (
     CANONICAL_ASSAY,
@@ -60,6 +61,10 @@ MIN_PLAUSIBLE_JOIN_RATE = 0.05
 
 BASE = "https://opendata.ncats.nih.gov/public/odp/assay"
 
+# This layer's own name in LAYER_PRECEDENCE, excluded from the peer
+# set so ownership never depends on whether this script already ran.
+SELF_LAYER = "ncats"
+
 
 def _mapping_report(name: str, path: Path, cols: dict, rows: list[dict]) -> None:
     print(f"\n{name}: {path}  ({len(rows):,} rows)")
@@ -86,7 +91,13 @@ def main() -> int:
     ap.add_argument("--tox", type=Path, default=root / "data/raw/ncats/cpe_tox.csv",
                     help="host-tox counterscreen; without it no selectivity "
                          "index is computed and actives carry EC50 only")
-    ap.add_argument("--release", type=Path, default=root / "data/releases/v0.1")
+    ap.add_argument("--peers", type=Path, default=root / "data/releases",
+                    help="directory holding the per-layer releases. Node "
+                         "ownership is decided against the OTHER layers, "
+                         "never against the assembled graph: this layer "
+                         "contributes to that graph, so reading it back makes "
+                         "the decision depend on whether this script has "
+                         "already run.")
     ap.add_argument("--out", type=Path, default=root / "data/releases/v0.1-ncats")
     ap.add_argument("--date", default=DEFAULT_DATE)
     ap.add_argument("--ac50-units", default=None, choices=["M", "uM", "nM", "logM"])
@@ -173,28 +184,40 @@ def main() -> int:
         print(f"\nrdkit is required to normalize structures: {e}")
         return 1
 
-    # Full node dicts, not just ids: this layer deliberately does not re-emit
-    # a node it does not own (see ingest_cpe on is_approved), so its own nodes
-    # cover neither the 2,178 compounds that joined nor the OrganismTaxon the
-    # spine owns. Validating the layer in isolation therefore reports a
-    # DANGLING violation for every edge -- a true statement about an incomplete
-    # node set, not about the data. ingest_chembl.py validates against
-    # index.nodes + em.nodes for the same reason.
+    # NODE OWNERSHIP IS DECIDED AGAINST THE PEER LAYERS, NOT THE ASSEMBLED
+    # GRAPH. Reading the assembled graph was circular and self-destructive:
+    # this layer contributes its new compounds to it, so a second run saw
+    # those compounds "already present", declined to emit them, and the only
+    # nodes its 5,254 edges had stopped existing. The assembler reported 5,254
+    # DANGLING edges and the graph fell back to 66,007 nodes. Running an
+    # ingest twice must be a no-op, and against peers it is.
+    #
+    # Full node dicts, not just ids, because this layer deliberately does not
+    # re-emit a node it does not own (see ingest_cpe on is_approved) and so
+    # cannot validate alone -- the OrganismTaxon belongs to the spine.
+    # ingest_chembl.py validates against index.nodes + em.nodes for the same
+    # reason.
+    peer_dirs = [args.peers / f"v0.1-{name}" for name in LAYER_PRECEDENCE
+                 if name != SELF_LAYER]
+    peer_dirs = [d for d in peer_dirs if (d / "nodes.jsonl").exists()]
     existing: set[str] = set()
     release_nodes: list[dict] = []
-    if (args.release / "nodes.jsonl").exists():
-        for line in (args.release / "nodes.jsonl").read_text().splitlines():
+    for d in peer_dirs:
+        for line in (d / "nodes.jsonl").read_text().splitlines():
             if line.strip():
                 n = json.loads(line)
                 release_nodes.append(n)
                 if n["class"] == "SmallMolecule":
                     existing.add(n["id"])
-        print(f"\n{len(existing):,} compounds already in {args.release.name} "
-              f"({len(release_nodes):,} nodes total)")
+    if peer_dirs:
+        print(f"\n{len(existing):,} compounds across {len(peer_dirs)} peer "
+              f"layers ({len(release_nodes):,} nodes): "
+              f"{', '.join(d.name.replace('v0.1-', '') for d in peer_dirs)}")
     else:
-        print(f"\n  ! {args.release} not found -- every compound treated as new, "
-              f"so this\n    layer will assert is_approved on compounds another "
-              f"layer knows better.")
+        print(f"\n  ! no peer layers found under {args.peers} -- every compound "
+              f"treated as\n    new, so this layer will assert is_approved on "
+              f"compounds another layer\n    knows better. Build the other "
+              f"layers first.")
 
     em = Emit()
     print("normalizing and ingesting (rdkit, this takes a minute)")
@@ -223,7 +246,7 @@ def main() -> int:
 
     labelled = {e["subject"] for e in em.edges}
     jr = join_report(labelled, existing)
-    print(f"\njoin against {args.release.name} ({len(existing):,} compounds)")
+    print(f"\njoin against {len(peer_dirs)} peer layers ({len(existing):,} compounds)")
     print(f"  compounds labelled {jr['emitted']:>7,}")
     print(f"  already in graph   {jr['already_in_graph']:>7,}   {jr['join_rate']:.1%}")
     print(f"  new compounds      {jr['new_compounds']:>7,}")
@@ -249,10 +272,10 @@ def main() -> int:
         for v in violations[:8]:
             print(f"  {v}")
         if not release_nodes:
-            print(f"\n  {args.release} was not read, so the node set is this "
-                  f"layer's own nodes\n  only -- which omits every compound "
-                  f"that joined and the OrganismTaxon.\n  DANGLING here means "
-                  f"the validation scope is wrong, not the edges.")
+            print(f"\n  No peer layer was read, so the node set is this "
+                  f"layer's own nodes\n  only -- which omits the OrganismTaxon "
+                  f"the spine owns. DANGLING here\n  means the validation "
+                  f"scope is wrong, not the edges.")
         return 1
     print("\nschema: PASS")
 
