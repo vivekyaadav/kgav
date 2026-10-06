@@ -28,3 +28,8 @@ htmlcov/
 .env
 *.key
 credentials.json
+
+# web UI
+web/node_modules/
+web/dist/
+web/.vite/

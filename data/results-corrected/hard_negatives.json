@@ -11,11 +11,11 @@
       "M1": {
         "n_pos": 816,
         "n_neg": 4874,
-        "auc": 0.8257514613354574,
+        "auc": 0.8230646356819298,
         "evaluable": true,
         "imputed": true,
-        "coverage_pos": 0.7046568627450981,
-        "coverage_neg": 0.05067706196142799
+        "coverage_pos": 0.6875,
+        "coverage_neg": 0.039803036520311856
       },
       "M2": {
         "n_pos": 816,
@@ -65,25 +65,25 @@
       "M7": {
         "n_pos": 816,
         "n_neg": 4874,
-        "auc": 0.5260583870396743,
+        "auc": 0.5240318275443128,
         "evaluable": true,
         "imputed": true,
-        "coverage_pos": 0.0821078431372549,
-        "coverage_neg": 0.03057037340993024
+        "coverage_pos": 0.07475490196078431,
+        "coverage_neg": 0.02728764874846122
       },
       "COMBINED": {
         "n_pos": 816,
         "n_neg": 4874,
-        "auc": 0.6825540382340872,
+        "auc": 0.6813651317112811,
         "evaluable": true,
         "imputed": true,
-        "coverage_pos": 0.8075980392156863,
-        "coverage_neg": 0.359048009848174
+        "coverage_pos": 0.7843137254901961,
+        "coverage_neg": 0.3471481329503488
       },
       "degree": {
         "n_pos": 816,
         "n_neg": 4874,
-        "auc": 0.6644894980971461,
+        "auc": 0.665080745572747,
         "evaluable": true,
         "imputed": true,
         "coverage_pos": 1.0,
@@ -94,11 +94,11 @@
       "M1": {
         "n_pos": 65,
         "n_neg": 87,
-        "auc": 0.583289124668435,
+        "auc": 0.6352785145888594,
         "evaluable": true,
         "imputed": true,
-        "coverage_pos": 0.36923076923076925,
-        "coverage_neg": 0.20689655172413793
+        "coverage_pos": 0.3384615384615385,
+        "coverage_neg": 0.06896551724137931
       },
       "M3": {
         "n_pos": 65,
@@ -112,25 +112,25 @@
       "M7": {
         "n_pos": 65,
         "n_neg": 87,
-        "auc": 0.46312997347480106,
+        "auc": 0.46905393457117595,
         "evaluable": true,
         "imputed": true,
         "coverage_pos": 0.06153846153846154,
-        "coverage_neg": 0.13793103448275862
+        "coverage_neg": 0.12643678160919541
       },
       "COMBINED": {
         "n_pos": 65,
         "n_neg": 87,
-        "auc": 0.5413793103448276,
+        "auc": 0.6008841732979664,
         "evaluable": true,
         "imputed": true,
-        "coverage_pos": 0.46153846153846156,
-        "coverage_neg": 0.367816091954023
+        "coverage_pos": 0.4307692307692308,
+        "coverage_neg": 0.2413793103448276
       },
       "degree": {
         "n_pos": 65,
         "n_neg": 87,
-        "auc": 0.6776304155614501,
+        "auc": 0.676657824933687,
         "evaluable": true,
         "imputed": true,
         "coverage_pos": 1.0,
@@ -141,10 +141,10 @@
       "M1": {
         "n_pos": 56,
         "n_neg": 41,
-        "auc": 0.5267857142857143,
+        "auc": 0.5178571428571429,
         "evaluable": true,
         "imputed": true,
-        "coverage_pos": 0.05357142857142857,
+        "coverage_pos": 0.03571428571428571,
         "coverage_neg": 0.0
       },
       "M2": {
@@ -204,10 +204,10 @@
       "COMBINED": {
         "n_pos": 56,
         "n_neg": 41,
-        "auc": 0.5065331010452961,
+        "auc": 0.49869337979094075,
         "evaluable": true,
         "imputed": true,
-        "coverage_pos": 0.14285714285714285,
+        "coverage_pos": 0.125,
         "coverage_neg": 0.12195121951219512
       },
       "degree": {
@@ -278,7 +278,7 @@
       "degree": {
         "n_pos": 54,
         "n_neg": 70,
-        "auc": 0.7992063492063493,
+        "auc": 0.8011904761904762,
         "evaluable": true,
         "imputed": true,
         "coverage_pos": 1.0,
@@ -410,7 +410,7 @@
       "M7": {
         "n_pos": 618,
         "n_neg": 508,
-        "auc": 0.501589455444283,
+        "auc": 0.5015878628035573,
         "evaluable": true,
         "imputed": true,
         "coverage_pos": 0.012944983818770227,
@@ -428,7 +428,7 @@
       "degree": {
         "n_pos": 618,
         "n_neg": 508,
-        "auc": 0.43673712509237317,
+        "auc": 0.4368486099431746,
         "evaluable": true,
         "imputed": true,
         "coverage_pos": 0.1650485436893204,
@@ -534,13 +534,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "4d0921b79348b0d6",
-      "edges_sha": "da2a8c4ce1390b42"
+      "edges_sha": "73ebb09d59aa58b3"
     },
     "code": {
-      "commit": "a953832f126942498e8d947d4438d800717b6593",
+      "commit": "82b27d26664a92b106f7178cbc945ef0f3776698",
       "dirty": true
     },
-    "schema_version": "0.10.0",
-    "generated_utc": "2026-09-17T10:52:36+00:00"
+    "schema_version": "0.11.0",
+    "generated_utc": "2026-09-17T12:27:22+00:00"
   }
 }

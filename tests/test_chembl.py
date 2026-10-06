@@ -144,8 +144,12 @@ def built(fake_db, spine):
 
 
 def test_activities_route_to_the_right_edge_type(built):
+    """The third viral-protein row is "IC50 > 10000 nM" -- a compound measured
+    NOT to inhibit. It used to be counted as an INHIBITS edge like the other
+    two; the polarity of the measurement now decides the predicate."""
     _em, stats, _ = built
-    assert stats["protein_edges"] == 3
+    assert stats["protein_edges"] == 2
+    assert stats["measured_inactive_edges"] == 1
     assert stats["organism_edges"] == 1
 
 
@@ -224,3 +228,69 @@ def test_real_chembl_scale():
     protein_rows = [r for r in rows if r["target_type"] != "ORGANISM"]
     rate = resolved / max(len(protein_rows), 1)
     assert rate > 0.6, f"only {rate:.0%} of protein activities resolve to an nsp"
+
+
+# ------------------------------------------------- polarity decides predicate
+def _prow(stype, value, relation, units="nM"):
+    """One viral-protein measurement row, as query_activities returns it."""
+    return {"compound": "CHEMBL9", "smiles": "CC", "max_phase": 4, "drug_name": "x",
+            "inchikey": "AAAAAAAAAAAAAA-BBBBBBBBBB-C", "target": "CHEMBL4523582",
+            "target_name": "Replicase polyprotein 1ab", "target_type": "SINGLE PROTEIN",
+            "tax_id": 2697049, "accession": "P0DTD1", "standard_type": stype,
+            "standard_value": value, "standard_units": units,
+            "standard_relation": relation, "description": "Inhibition of SARS-CoV-2 3CLpro",
+            "assay_type": "B", "assay": f"A-{stype}-{value}-{relation}",
+            "year": 2021, "pubmed_id": 1}
+
+
+def _one(row, spine):
+    index = AliasIndex.from_releases(spine)
+    targets = build_viral_target_index(index, {"2697049": "2697049"})
+    em = Emit()
+    stats = ingest_activities(em, [row], targets, {"2697049": "2697049"}, "infores:chembl")
+    return em, stats
+
+
+def test_a_measured_non_inhibition_is_not_an_INHIBITS_edge(spine):
+    """1,433 of 5,486 pairs had NO active measurement and still asserted
+    inhibition, so 26% of the channel M1, M7 and M8 walk was evidence that the
+    compound does not inhibit."""
+    em, stats = _one(_prow("IC50", 50_000.0, "="), spine)
+    assert [e["predicate"] for e in em.edges] == ["MEASURED_INACTIVE_AGAINST"]
+    assert stats["measured_inactive_edges"] == 1 and stats["protein_edges"] == 0
+    assert em.edges[0]["qualifiers"]["ic50_nm"] == 50_000.0, "the measurement is kept"
+
+
+def test_a_censored_bound_above_the_threshold_is_inactive(spine):
+    """"IC50 > 10000 nM" is a compound assayed and found inactive."""
+    em, _ = _one(_prow("IC50", 10_000.0, ">"), spine)
+    assert [e["predicate"] for e in em.edges] == ["MEASURED_INACTIVE_AGAINST"]
+
+
+def test_a_weak_lower_bound_decides_nothing_and_is_counted(spine):
+    """"IC50 > 100 nM" may sit below the assay's top concentration. It proves
+    neither side, so it becomes no edge rather than a guessed one."""
+    em, stats = _one(_prow("IC50", 100.0, ">"), spine)
+    assert em.edges == []
+    assert stats["undecidable_protein_measurement"] == 1
+
+
+def test_a_binding_constant_is_read_rather_than_discarded(spine):
+    """classify() read only EC50/IC50, so all 667 Ki/Kd measurements returned
+    None. Routing on that verdict would have deleted them -- 504 are sub-10uM
+    binders, the strongest direct-acting evidence in the layer."""
+    em, stats = _one(_prow("Ki", 5.0, "="), spine)
+    assert [e["predicate"] for e in em.edges] == ["INHIBITS"]
+    assert stats["protein_edges"] == 1
+    em2, _ = _one(_prow("Kd", 80_000.0, "="), spine)
+    assert [e["predicate"] for e in em2.edges] == ["MEASURED_INACTIVE_AGAINST"]
+
+
+def test_binding_constants_never_reach_the_organism_labels(built):
+    """Widening classify() is label-neutral only because Ki/Kd on an ORGANISM
+    target are dropped as mis-entered. If that ever changes, the labels move."""
+    em, _, _ = built
+    for e in em.edges:
+        if e["predicate"] == "HAS_ANTIVIRAL_ACTIVITY_AGAINST":
+            q = e["qualifiers"]
+            assert q.get("ki_nm") is None and q.get("kd_nm") is None

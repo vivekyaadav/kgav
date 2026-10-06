@@ -292,6 +292,21 @@ def test_the_derived_qualifiers_are_the_ones_we_expect():
     assert {p: d for p, d in derived.items() if d} == {
         "INHIBITS": {"unquantified": ("ec50_nm", "cc50_nm", "ic50_nm",
                                       "ki_nm", "kd_nm")},
+        "MEASURED_INACTIVE_AGAINST": {"unquantified": ("ec50_nm", "cc50_nm", "ic50_nm",
+                                                       "ki_nm", "kd_nm")},
         "HAS_ANTIVIRAL_ACTIVITY_AGAINST": {"unquantified": ("ec50_nm", "cc50_nm",
                                                             "ic50_nm")},
     }
+
+
+def test_measured_inactivity_is_declared_and_never_traversed():
+    """The predicate exists so a measured non-inhibition stays in the graph as
+    evidence. It must not become a path: 26% of the old INHIBITS edges were
+    this, and M1/M7/M8 walked them as evidence of inhibition."""
+    s = load_schema()
+    assert "MEASURED_INACTIVE_AGAINST" in {ec.predicate for ec in s.edge_classes}
+    assert "MEASURED_INACTIVE_AGAINST" in s.held_out_predicates()
+    hops = {h.lstrip("<") for mp in s.metapaths.values()
+            for h in (mp["path"] if isinstance(mp, dict) else mp) if h.isupper()}
+    assert "MEASURED_INACTIVE_AGAINST" not in hops
+    assert "INHIBITS" in hops, "the active side is still the direct-acting channel"

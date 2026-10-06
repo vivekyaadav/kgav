@@ -1,4 +1,4 @@
-schema_version: "0.10.0"
+schema_version: "0.11.0"
 scope: "Coronaviridae v1 — SARS-CoV-2, SARS-CoV, MERS-CoV, HCoV-229E, HCoV-OC43, HCoV-NL63, HCoV-HKU1"
 
 # ---------------------------------------------------------------------------
@@ -233,6 +233,43 @@ node_classes:
 # happens to reach a node, so it is declared once, here.
 # ---------------------------------------------------------------------------
 edge_classes:
+
+  # A compound MEASURED NOT TO INHIBIT a viral protein. Same ChEMBL rows as
+  # INHIBITS, opposite verdict, and until 0.11.0 they were emitted AS INHIBITS:
+  # 1,433 of 5,486 pairs (26%) had no active measurement at all, so the
+  # direct-acting channel asserted inhibition about compounds measured not to
+  # inhibit, and M1, M7 and M8 traversed them as evidence.
+  #
+  # DECLARED RATHER THAN DROPPED. This project's hard-negative result (88074a6)
+  # rests on separating MEASURED INACTIVE from NEVER TESTED, and dropping these
+  # rows would delete that distinction exactly where M1/M7/M8 operate. The
+  # organism level already keeps censored measurements as edges and treats them
+  # as its best negatives; the same row must not be evidence there and nothing
+  # here. Held out, so the temporal split strips it from the training graph,
+  # and traversed by NO metapath -- the polarity of a measurement decides the
+  # predicate, and the predicate decides whether it is walked.
+  - predicate: MEASURED_INACTIVE_AGAINST
+    symmetric: false
+    subject: SmallMolecule
+    object: Protein
+    object_constraints: {is_viral: true}
+    held_out: true
+    qualifiers:
+      ec50_nm:            {type: float, min: 0}
+      ic50_nm:            {type: float, min: 0}
+      ki_nm:              {type: float, min: 0}
+      kd_nm:              {type: float, min: 0}
+      cc50_nm:            {type: float, min: 0}
+      cell_line:          {type: string, doc: "CVCL CURIE"}
+      assay_type:         {type: string, enum: assay_type}
+      relation:           {type: string, enum: activity_relation}
+      target_resolution:  {type: string, enum: target_resolution}
+      domain:             {type: string}
+      unquantified:
+        type: bool
+        derived_from_absence_of: [ec50_nm, cc50_nm, ic50_nm, ki_nm, kd_nm]
+        doc: "true when activity is asserted with no measured value; derived at assembly"
+    required_qualifiers: [assay_type]
 
   # ---- direct-acting channel -------------------------------------------
   - predicate: INHIBITS
