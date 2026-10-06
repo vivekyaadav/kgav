@@ -26,6 +26,7 @@ the ones that only appear once the layers sit together:
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from collections import Counter, defaultdict
 from collections.abc import Callable, Mapping
@@ -81,6 +82,36 @@ def edge_key(e: dict, identity: dict[str, list[str]] | None = None,
         return base
     eq = e.get("qualifiers") or {}
     return base + tuple(eq.get(q) for q in quals)
+
+
+# Width of the stable edge id. 64 bits over 371,117 edges puts the birthday
+# collision probability near 4e-9, and assembly checks for one anyway rather
+# than trusting the arithmetic.
+FACT_ID_HEX = 16
+
+
+def fact_id(key: tuple) -> str:
+    """A stable, content-derived id for one fact.
+
+    DERIVED FROM edge_key, WHICH IS THE POINT. The id therefore inherits
+    exactly the identity semantics the assembler already uses: two witnesses
+    to one fact get one id, a dependency and a restriction edge for the same
+    pair get two, and a panel measurement gets a different id from a ChEMBL
+    one because HAS_ANTIVIRAL_ACTIVITY_AGAINST is identified partly by source.
+
+    It replaces a LINE INDEX. agent/tools.py reads `edge_id` and falls back to
+    f"E{i}" -- the position of the edge in edges.jsonl -- and nothing has ever
+    written the field, so every citation the agent has ever emitted was a line
+    number. Those renumber whenever the release is rebuilt, which means a
+    citation in a saved answer silently comes to point at a different fact. An
+    agent that cites has to cite something that holds still.
+
+    Shaped "E" + hex so agent/verify.py's EDGE_ID_RE keeps matching, and so
+    old-style E<digits> ids still parse.
+    """
+    payload = "\x1f".join("" if k is None else str(k) for k in key)
+    return "E" + hashlib.blake2b(payload.encode("utf-8"),
+                                 digest_size=FACT_ID_HEX // 2).hexdigest()
 
 
 # The project's marker for "this fact has no assertion date", not a date in
@@ -157,6 +188,10 @@ class Assembly:
         self.edges: dict[tuple, dict] = {}
         self.stats: Counter = Counter()
         self.conflicts: list[str] = []
+        # id -> the key it was derived from, so a collision is DETECTED rather
+        # than assumed away. Two facts sharing an id would make the agent's
+        # citations ambiguous in a way no downstream check could see.
+        self.fact_ids: dict[str, tuple] = {}
 
     def add_layer(self, name: str, release_dir: Path) -> Counter:
         local: Counter = Counter()
@@ -180,6 +215,14 @@ class Assembly:
         for e in _read_jsonl(Path(release_dir) / "edges.jsonl"):
             local["edges"] += 1
             k = edge_key(e, self.identity, self.source_identity)
+            fid = fact_id(k)
+            seen_key = self.fact_ids.setdefault(fid, k)
+            if seen_key != k:
+                self.conflicts.append(
+                    f"fact id {fid} derived from two different keys: "
+                    f"{seen_key} and {k}")
+                self.stats["fact_id_collision"] += 1
+            e["edge_id"] = fid
             if k in self.edges:
                 self.edges[k] = merge_edges(self.edges[k], e, self.derive)
                 self.stats["edge_merged"] += 1
