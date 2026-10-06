@@ -14,32 +14,44 @@ measured causes are properties of the LABEL SET, not of the graph:
     cite the same PMID on both, because one paper reports the target IC50 and
     the cell-based EC50 together.
 
-A PANEL fixes both at once, and this one in particular:
+This panel fixes both. It reports what did NOT work -- 9,848 of 10,633 rows are
+curve class 4, tested and inactive -- drawn from approved and annotated
+libraries, which is the population holding the TARGETS edges. It is cell-based
+and generated independently of ChEMBL target annotation, so no binding edge
+cites its paper and --publication-disjoint withholds nothing when scoring
+against it.
 
-  * It reports the compounds that did NOT work. 8,810 screened, 56 confirmed
-    hits -- so the overwhelming majority of rows are measured inactives drawn
-    from the approved-and-investigational library, which is the population
-    holding the TARGETS edges.
-  * It is cell-based and generated independently of ChEMBL target annotation,
-    so no edge this layer's labels could leak through cites the same paper.
-    --publication-disjoint therefore withholds nothing when scoring against
-    these labels, which is the whole point of using them.
-  * EC50 and CC50 come from the same plate, so the selectivity index is
-    same-document by construction -- the strongest form this project accepts.
+TWO FILES, NOT ONE. The portal's root cpe.tsv pools three different assays
+(SARS-CoV-2 cytopathic effect 5,862 rows; SARS-CoV-2_CPE_SRI 4,722;
+DPI_SARS-CoV-2_General 49) and carries no cytotoxicity column. The canonical
+export is the pair under /public/odp/assay/:
 
-WHAT IT DOES NOT FIX. The screen ran in 2020, so with cutoff 2021 these labels
-are PRE-cutoff and do not enter the post-2021 test set. This layer serves the
-cross-sectional protocol, which the publication-disjoint result made the
-primary one anyway.
+    SARS-CoV-2_Cytopathic_Effect_(CPE).csv                  activity
+    SARS-CoV-2_Cytopathic_Effect_(Host_Tox_Counterscreen).csv  cytotoxicity
 
-IDENTITY IS THE RISK HERE, not parsing. The graph's compound keys came out of
+Same Vero E6 protocol without virus, same sample_ids, same concentrations. The
+pair is what makes the selectivity index same-plate rather than same-document.
+
+THE POLARITY IS THE DANGEROUS PART, and it is the BioGRID ORCS problem in a
+new costume. CPE is a GAIN-of-signal assay: a compound that protects cells
+raises the readout. A compound that kills them lowers it. Both produce a fitted
+AC50, and nothing in the AC50 says which happened -- the sign is carried by
+`efficacy`. The first row of the real CPE export is ac50 7.08 uM with efficacy
+-46.9: a cytotoxic compound that an AC50-only rule would file as an antiviral
+with EC50 7 uM. So activity requires a POSITIVE efficacy of at least
+MIN_EFFICACY_PCT, never a fitted value alone.
+
+A FITTED AC50 IS ALSO NOT A CALL. 785 of 10,633 rows carry an AC50 but only
+~190 sit in a real curve class; the other 586 are class 3, single-point
+activity, which NCATS treats as inconclusive. Class is read first, value
+second.
+
+IDENTITY IS THE OTHER RISK. The graph's compound keys came out of
 normalize_chemical(); a key taken from this file instead would differ on salt,
 stereo or tautomer and the new nodes would sit beside the existing ones without
 joining to a single TARGETS edge. Nothing would error and no count would look
 wrong -- the README calls a discarded identifier the dominant bug class, found
-four times, silent every time. So: structures go through the project's own
-normalizer, and the driver refuses to write a release whose join rate against
-the existing graph is implausible.
+four times, silent every time.
 """
 from __future__ import annotations
 
@@ -62,12 +74,31 @@ SARS_COV_2 = "NCBITaxon:2697049"
 # after both PPI layers. Overridable; never inferred.
 DEFAULT_DATE = "2020-08-18"
 
+# Only the canonical assay. cpe.tsv pools three, and SRI ran a different
+# protocol: merging them would average two concentration ranges into one
+# censoring point.
+CANONICAL_ASSAY = "sars-cov-2 cytopathic effect (cpe)"
+COUNTERSCREEN_ASSAY = "sars-cov-2 cytopathic effect (host tox counterscreen)"
+
+# NCATS qHTS curve classes (Inglese 2006). 1.x complete curve, 2.x incomplete
+# with one asymptote -- both are real concentration-response fits. 3 is
+# single-point activity at the top concentration only, 5 is a poor fit: both
+# inconclusive, and 586 + n rows here are class 3, so admitting them would
+# quadruple the active set with unreplicated single points. 4 is inactive, and
+# it is the class this layer is here for.
+CURVE_CLASS_FITTED = frozenset({"1.1", "1.2", "1.3", "1.4",
+                                "2.1", "2.2", "2.3", "2.4"})
+CURVE_CLASS_INACTIVE = frozenset({"4"})
+
+# Chen et al. selected hits at >55% efficacy. 50 is the round floor below that;
+# raise it with --min-efficacy-pct to reproduce the paper's hit list exactly.
+MIN_EFFICACY_PCT = 50.0
+
 # A compound is only callable INACTIVE if the assay reached a concentration at
 # or above the threshold the rest of the pipeline uses for inactivity. Tested
 # to 5 uM and found inactive says nothing about 10 uM, and labels.classify()
 # would silently return None for it; counting it as a negative anyway would
-# invent evidence. Such rows are reported as `below_threshold`, not dropped
-# quietly.
+# invent evidence.
 DEFAULT_INACTIVE_AT_NM = 10_000.0
 
 
@@ -79,19 +110,22 @@ class ColumnError(ValueError):
     """
 
 
-# field -> header spellings seen across NCATS ODP exports, lowercased and
-# stripped of punctuation by _key(). Extend rather than loosen the matcher.
+# field -> header spellings seen across NCATS ODP exports. The assay/ CSVs are
+# lowercase and the root TSV is uppercase, so _key() flattens both. Order
+# matters: sample_id is the stable NCGC identifier, sample_name is a label and
+# is sometimes the identifier repeated.
 COLUMN_CANDIDATES: dict[str, tuple[str, ...]] = {
     "smiles": ("smiles", "structure", "canonicalsmiles"),
-    "sample": ("ncgcsid", "sid", "samplename", "sample", "ncgcid", "name"),
-    "activity": ("activity", "activityclass", "outcome", "calledactivity"),
-    "ac50": ("ac50", "ac50m", "ac50um", "ec50", "ec50um", "ec50m",
-             "cpeac50", "efficacyac50"),
-    "lac50": ("lac50", "logac50", "logac50m"),
-    "efficacy": ("efficacy", "efficacypct", "efficacy%", "maxresponse"),
-    "curve": ("curveclass", "cclass", "curveclass2", "cc"),
-    "cc50": ("cc50", "cc50m", "cc50um", "cytotoxac50", "cytotoxicityac50",
-             "tox ac50", "toxac50"),
+    "sample": ("sampleid", "ncgcsid", "sid", "ncgcid", "samplename", "sample"),
+    "assay": ("assayname", "assay"),
+    "library": ("library",),
+    "ac50": ("ac50", "ac50um", "ac50m", "ac50nm"),
+    "lac50": ("logac50", "lac50"),
+    "efficacy": ("efficacy", "efficacypct"),
+    "curve": ("curveclass2", "curveclass", "cclass"),
+    "max_response": ("maxresponse",),
+    "r2": ("r2",),
+    "moa": ("primarymoa", "moa"),
 }
 
 
@@ -99,20 +133,27 @@ def _key(s: str) -> str:
     return "".join(c for c in s.strip().lower() if c.isalnum())
 
 
-def resolve_columns(header: list[str], required=("smiles",)) -> dict[str, str]:
+def resolve_columns(header: list[str],
+                    required: tuple[str, ...] = ("smiles", "curve", "efficacy"),
+                    ) -> dict:
     """Map our field names onto this file's actual header.
 
-    Returns only what it found. `required` must all be present or it raises:
-    without a structure column there is nothing to normalize, so a partial
-    match is not a degraded mode, it is a different file.
+    `smiles`, `curve` and `efficacy` are all required, not just the structure:
+    without the curve class there is no activity call, and without efficacy
+    there is no direction -- and a direction guessed in a gain-of-signal assay
+    files cytotoxic compounds as antivirals.
+
+    Also collects conc_cols, in file order, so the top concentration is read
+    from the row rather than assumed.
     """
     index = {_key(h): h for h in header}
-    found: dict[str, str] = {}
+    found: dict = {}
     for field, cands in COLUMN_CANDIDATES.items():
         for c in cands:
             if _key(c) in index:
                 found[field] = index[_key(c)]
                 break
+    found["conc_cols"] = [h for h in header if _key(h).startswith("conc")]
     missing = [f for f in required if f not in found]
     if missing:
         raise ColumnError(
@@ -125,26 +166,34 @@ def resolve_columns(header: list[str], required=("smiles",)) -> dict[str, str]:
     return found
 
 
-def read_rows(path: Path) -> tuple[list[dict], dict[str, str]]:
-    """Read the TSV and resolve its header. Returns (rows, column mapping)."""
-    with Path(path).open(newline="", encoding="utf-8-sig") as fh:
-        rdr = csv.DictReader(fh, delimiter="\t")
+def read_table(path: Path) -> tuple[list[dict], dict]:
+    """Read a .tsv or .csv export and resolve its header."""
+    p = Path(path)
+    delim = "\t" if p.suffix.lower() in (".tsv", ".tab") else ","
+    with p.open(newline="", encoding="utf-8-sig") as fh:
+        rdr = csv.DictReader(fh, delimiter=delim)
         if not rdr.fieldnames:
-            raise ColumnError(f"{path} has no header row")
+            raise ColumnError(f"{p} has no header row")
         cols = resolve_columns(list(rdr.fieldnames))
         return list(rdr), cols
 
 
-def to_nm(value: str | float | None, unit: str) -> float | None:
-    """Concentration to nanomolar. `unit` is one of M, uM, nM, logM.
-
-    logM is NCATS's LAC50: log10 of molar. -5.0 is 10 uM, i.e. 10,000 nM.
-    """
+def _f(value) -> float | None:
     if value is None or value == "":
         return None
     try:
-        v = float(value)
+        return float(value)
     except (TypeError, ValueError):
+        return None
+
+
+def to_nm(value, unit: str) -> float | None:
+    """Concentration to nanomolar. `unit` is one of M, uM, nM, logM.
+
+    logM is NCATS's log_ac50: log10 of molar. -5.0 is 10 uM, i.e. 10,000 nM.
+    """
+    v = _f(value)
+    if v is None:
         return None
     if unit == "nM":
         return v
@@ -158,100 +207,146 @@ def to_nm(value: str | float | None, unit: str) -> float | None:
 
 
 def unit_for(column_name: str, default: str = "uM") -> str:
-    """Infer the unit from the column's own name, since NCATS varies it.
-
-    Explicit beats inferred: the driver takes --ac50-units, and this only
-    supplies its default.
-    """
+    """Infer the unit from the column's own name, since NCATS varies it."""
     k = _key(column_name)
-    if k.startswith("lac50") or k.startswith("logac50"):
+    if k.startswith(("lac50", "logac50")):
         return "logM"
-    if k.endswith("m") and not k.endswith("um") and not k.endswith("nm"):
-        return "M"
     if k.endswith("nm"):
         return "nM"
     if k.endswith("um"):
         return "uM"
+    if k.endswith("m"):
+        return "M"
     return default
 
 
-# Values in an NCATS `activity`/outcome column meaning the compound was tested
-# and did nothing. Anything unrecognised is counted, never assumed either way.
-INACTIVE_WORDS = {"inactive", "inconclusive inactive", "not active", "inert"}
-ACTIVE_WORDS = {"active", "activeagonist", "activeantagonist", "activeinhibitor",
-                "inconclusive active", "activator", "inhibitor"}
+def top_concentration_nm(row: dict, cols: dict) -> float | None:
+    """The highest concentration this row was actually tested at.
+
+    Read from the row's own conc columns, which are in molar. The alternative
+    -- a single --max-conc flag -- writes one censoring point across libraries
+    that were screened over different ranges, and every negative then carries
+    a concentration it was never tested at. The real export tops out at 2.0E-5
+    (20 uM) on the 4-point primary and lower on some plates.
+    """
+    best: float | None = None
+    for c in cols.get("conc_cols", ()):
+        v = _f(row.get(c))
+        if v is None or v <= 0:
+            continue
+        nm = v * 1e9
+        if best is None or nm > best:
+            best = nm
+    return best
 
 
-def classify_row(row: dict, cols: dict[str, str], *, ac50_units: str,
-                 cc50_units: str, max_conc_nm: float,
+def curve_class(row: dict, cols: dict) -> tuple[str, int]:
+    """(magnitude, sign) of CURVE_CLASS2, e.g. '-2.4' -> ('2.4', -1).
+
+    The sign is returned but NOT used to decide direction. NCATS's convention
+    for it is not stated in the export, and efficacy carries the same
+    information as a measured quantity -- so the sign is reported for
+    provenance and efficacy decides. One inferred polarity convention per
+    project is already one too many.
+    """
+    raw = (row.get(cols["curve"]) or "").strip()
+    if not raw:
+        return "", 0
+    sign = -1 if raw.startswith("-") else 1
+    return raw.lstrip("+-"), sign
+
+
+def classify_row(row: dict, cols: dict, *, ac50_units: str,
+                 tox_row: dict | None = None, tox_cols: dict | None = None,
+                 tox_ac50_units: str = "uM",
+                 min_efficacy_pct: float = MIN_EFFICACY_PCT,
                  inactive_at_nm: float = DEFAULT_INACTIVE_AT_NM,
                  ) -> tuple[str | None, dict, str]:
     """One screen row -> (verdict, qualifiers, reason).
 
     verdict is "active", "inactive" or None. The qualifiers are written so that
-    labels.classify() reaches the SAME verdict from the emitted edge alone:
-    an active carries relation "=" with its fitted EC50, an inactive carries
-    relation ">" with the highest concentration tested. That symmetry is the
-    contract -- this function must not be the only place the call is recorded.
+    labels.classify() reaches the SAME verdict from the emitted edge alone: an
+    active carries relation "=" with its fitted EC50, an inactive carries
+    relation ">" with the top concentration tested. That symmetry is the
+    contract.
     """
-    ac50_col = cols.get("ac50") or cols.get("lac50")
-    ac50 = to_nm(row.get(ac50_col), ac50_units) if ac50_col else None
-    cc50 = to_nm(row.get(cols["cc50"]), cc50_units) if "cc50" in cols else None
-
     quals: dict = {"assay_type": "cell_based_antiviral", "cell_line": VERO_E6,
                    "virus_strain": "USA-WA1/2020"}
+    cls, sign = curve_class(row, cols)
+    eff = _f(row.get(cols["efficacy"]))
+    ac50 = to_nm(row.get(cols["ac50"]), ac50_units) if "ac50" in cols else None
+    top = top_concentration_nm(row, cols)
+    if cls:
+        quals["source_curve_class"] = f"{'-' if sign < 0 else ''}{cls}"
+    if eff is not None:
+        quals["source_efficacy_pct"] = eff
 
-    called = _key(row.get(cols["activity"], "")) if "activity" in cols else ""
-    inactive_called = called in {_key(w) for w in INACTIVE_WORDS}
-    active_called = called in {_key(w) for w in ACTIVE_WORDS}
+    # ---------------------------------------------------------------- inactive
+    if cls in CURVE_CLASS_INACTIVE:
+        if top is None:
+            return None, quals, "inactive_without_a_concentration"
+        if top < inactive_at_nm:
+            return None, quals, "below_threshold"
+        quals["ec50_nm"] = top
+        quals["relation"] = ">"
+        return "inactive", quals, "curve_class_4"
 
-    # An AC50 present and finite is the strongest statement the row makes, and
-    # it outranks a text outcome column: the outcome is a curve-class heuristic
-    # applied by the depositor, the AC50 is the fit.
-    if ac50 is not None and ac50 > 0:
-        quals["ec50_nm"] = ac50
+    # ------------------------------------------------------------ not a fit
+    if cls not in CURVE_CLASS_FITTED:
+        # Class 3 is single-point activity, class 5 a poor fit, blank is
+        # unscored. 586 class-3 rows carry an AC50; admitting them on the
+        # strength of that value alone would multiply the active set with
+        # unreplicated single points.
+        return None, quals, f"curve_class_{cls or 'blank'}_not_a_fit"
+
+    # ------------------------------------------- a real fit: which direction?
+    if eff is None:
+        return None, quals, "fitted_without_efficacy"
+    if eff < 0:
+        # THE TRAP. Gain-of-signal assay: a negative efficacy means the
+        # compound REDUCED viability. It has a clean AC50 and it is cytotoxic,
+        # not antiviral. Counted, never emitted.
+        return None, quals, "negative_efficacy_cytotoxic"
+    if eff < min_efficacy_pct:
+        return None, quals, "below_min_efficacy"
+    if ac50 is None or ac50 <= 0:
+        # Fit and direction agree but no usable potency. `unquantified` is
+        # DERIVED at assembly (see chembl.py), so emit without a value rather
+        # than invent one.
         quals["relation"] = "="
-        if cc50 is not None and cc50 > 0:
+        return "active", quals, "fitted_unquantified"
+
+    quals["ec50_nm"] = ac50
+    quals["relation"] = "="
+
+    # ------------------------------------------------- same-plate selectivity
+    if tox_row is not None and tox_cols is not None:
+        cc50 = to_nm(tox_row.get(tox_cols["ac50"]), tox_ac50_units) \
+            if "ac50" in tox_cols else None
+        tcls, _ = curve_class(tox_row, tox_cols)
+        if cc50 and cc50 > 0 and tcls in CURVE_CLASS_FITTED:
             quals["cc50_nm"] = cc50
             quals["selectivity_index"] = cc50 / ac50
             quals["selectivity_verified"] = True
             quals["selectivity_n_studies"] = 1
-        if "efficacy" in cols:
-            try:
-                quals["source_efficacy_pct"] = float(row[cols["efficacy"]])
-            except (TypeError, ValueError, KeyError):
-                pass
-        return "active", quals, "fitted_ac50"
-
-    if inactive_called:
-        # No fitted AC50 and the depositor called it inactive: the compound was
-        # tested to max_conc and did not act. Recorded as a CENSORED value at
-        # that concentration, which is exactly what was observed, and is the
-        # form labels.classify() already understands.
-        if max_conc_nm < inactive_at_nm:
-            return None, quals, "below_threshold"
-        quals["ec50_nm"] = max_conc_nm
-        quals["relation"] = ">"
-        if cc50 is not None and cc50 > 0:
-            quals["cc50_nm"] = cc50
-        return "inactive", quals, "called_inactive"
-
-    if active_called:
-        # Called active but no usable AC50. Asserting activity with no value is
-        # what `unquantified` is for, and that field is DERIVED at assembly
-        # (see chembl.py) -- so emit the edge without a value and let assembly
-        # set it. Do not invent a potency.
-        quals["relation"] = "="
-        return "active", quals, "called_active_unquantified"
-
-    return None, quals, "no_call"
+        elif tcls in CURVE_CLASS_INACTIVE:
+            # Not cytotoxic up to the top concentration. A real and useful
+            # result, but CC50 is censored, so no finite index is computed --
+            # writing top_conc/ec50 would understate a compound that is
+            # cleaner than the assay can measure.
+            quals["cytotoxicity_not_detected"] = True
+    return "active", quals, "fitted_active"
 
 
-def ingest_cpe(em, rows: list[dict], cols: dict[str, str], normalizer, *,
+def ingest_cpe(em, rows: list[dict], cols: dict, normalizer, *,
+               tox_by_sample: dict[str, dict] | None = None,
+               tox_cols: dict | None = None,
                existing_compounds: frozenset[str] | set[str] = frozenset(),
                taxon: str = SARS_COV_2, source: str = SOURCE,
                date: str = DEFAULT_DATE, ac50_units: str = "uM",
-               cc50_units: str = "uM", max_conc_nm: float = 46_000.0,
+               tox_ac50_units: str = "uM",
+               assay_filter: str | None = CANONICAL_ASSAY,
+               min_efficacy_pct: float = MIN_EFFICACY_PCT,
                inactive_at_nm: float = DEFAULT_INACTIVE_AT_NM) -> Counter:
     """Emit one antiviral-activity edge per usable row.
 
@@ -265,16 +360,21 @@ def ingest_cpe(em, rows: list[dict], cols: dict[str, str], normalizer, *,
     layer that asserts it anyway is the H2 bug again -- a true statement about
     one layer that becomes false after the merge, resolved by layer precedence
     rather than by evidence. So a compound the graph already holds gets NO node
-    from here, only its label edge: the layer that knows keeps the property.
-    Genuinely new compounds get is_approved False, which is a floor rather than
-    a claim -- no metapath or filter reads the field, so an understated value
-    costs nothing while an overstated one would be a false assertion.
+    from here, only its label edge. New compounds get is_approved False, a
+    floor rather than a claim: no metapath or filter reads the field.
     """
     stats: Counter = Counter()
-    seen: set[str] = set()
+    seen: dict[str, str] = {}
+    tox_by_sample = tox_by_sample or {}
 
     for row in rows:
         stats["rows"] += 1
+        if assay_filter is not None and "assay" in cols:
+            if _key(row.get(cols["assay"], "")) != _key(assay_filter):
+                stats["other_assay"] += 1
+                continue
+        stats["in_assay"] += 1
+
         struct = (row.get(cols["smiles"]) or "").strip()
         if not struct:
             stats["no_structure"] += 1
@@ -285,9 +385,15 @@ def ingest_cpe(em, rows: list[dict], cols: dict[str, str], normalizer, *,
             stats["unnormalizable"] += 1
             continue
 
+        sample = (row.get(cols["sample"]) or "").strip() if "sample" in cols else ""
+        tox_row = tox_by_sample.get(sample) if sample else None
+        if tox_row is not None:
+            stats["paired_with_counterscreen"] += 1
+
         verdict, quals, reason = classify_row(
-            row, cols, ac50_units=ac50_units, cc50_units=cc50_units,
-            max_conc_nm=max_conc_nm, inactive_at_nm=inactive_at_nm)
+            row, cols, ac50_units=ac50_units, tox_row=tox_row,
+            tox_cols=tox_cols, tox_ac50_units=tox_ac50_units,
+            min_efficacy_pct=min_efficacy_pct, inactive_at_nm=inactive_at_nm)
         stats[f"reason_{reason}"] += 1
         if verdict is None:
             continue
@@ -295,10 +401,20 @@ def ingest_cpe(em, rows: list[dict], cols: dict[str, str], normalizer, *,
         drug = cid.curie
         if drug in seen:
             # One structure, two plate records. Keeping both would double its
-            # DWPC weight and let one compound vote twice in the AUC.
-            stats["duplicate_structure"] += 1
+            # DWPC weight and let one compound vote twice in the AUC. An
+            # active beats an inactive: a compound that worked on any plate is
+            # not evidence of inactivity.
+            if seen[drug] == "inactive" and verdict == "active":
+                for i, e in enumerate(em.edges):
+                    if e["subject"] == drug and e["predicate"] == ANTIVIRAL_PREDICATE:
+                        em.edges[i] = dict(e, qualifiers=quals)
+                        break
+                seen[drug] = "active"
+                stats["upgraded_inactive_to_active"] += 1
+            else:
+                stats["duplicate_structure"] += 1
             continue
-        seen.add(drug)
+        seen[drug] = verdict
 
         if drug in existing_compounds:
             stats["joined_existing_compound"] += 1
@@ -316,8 +432,24 @@ def ingest_cpe(em, rows: list[dict], cols: dict[str, str], normalizer, *,
         stats[verdict] += 1
         if quals.get("selectivity_verified"):
             stats["with_same_plate_si"] += 1
+        if quals.get("cytotoxicity_not_detected"):
+            stats["no_cytotoxicity_detected"] += 1
 
     return stats
+
+
+def index_counterscreen(rows: list[dict], cols: dict,
+                        assay_filter: str | None = COUNTERSCREEN_ASSAY) -> dict:
+    """sample_id -> counterscreen row, for the same-plate CC50."""
+    out: dict[str, dict] = {}
+    for r in rows:
+        if assay_filter is not None and "assay" in cols:
+            if _key(r.get(cols["assay"], "")) != _key(assay_filter):
+                continue
+        sid = (r.get(cols["sample"]) or "").strip() if "sample" in cols else ""
+        if sid:
+            out.setdefault(sid, r)
+    return out
 
 
 def join_report(labelled: set[str], existing: set[str]) -> dict:

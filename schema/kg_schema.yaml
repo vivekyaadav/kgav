@@ -520,6 +520,25 @@ edge_classes:
       # studies disagree rather than quoting the least flattering value alone.
       selectivity_index_max: {type: float, min: 0}
       selectivity_n_studies: {type: int, min: 1}
+      # Panel provenance. A qHTS screen's call rests on the shape of the
+      # concentration-response curve, not on the fitted value alone, so the
+      # two inputs to the call travel with the edge: an EC50 whose curve was
+      # class 3 (single point) or whose efficacy was 12% is a different claim
+      # from one fitted at class 1.1 and 80%, and nothing downstream can tell
+      # them apart from ec50_nm.
+      #
+      # source_efficacy_pct is deliberately UNBOUNDED BELOW. CPE is a
+      # gain-of-signal assay, so a negative efficacy is a real and important
+      # measurement -- the compound reduced viability instead of protecting
+      # it. A `min: 0` here would reject precisely the rows that must be
+      # distinguished from antivirals.
+      source_curve_class: {type: string, doc: "NCATS qHTS curve class 2, sign included"}
+      source_efficacy_pct: {type: float, doc: "signed; negative means loss of signal"}
+      # Not the same as a large selectivity index: the counterscreen was
+      # fitted as inactive, so CC50 is CENSORED above the top concentration
+      # and no finite ratio exists. Recording top_conc/ec50 instead would
+      # understate a compound that is cleaner than the assay can measure.
+      cytotoxicity_not_detected: {type: bool}
     required_qualifiers: [assay_type]
 
   - predicate: COMBINED_WITH
