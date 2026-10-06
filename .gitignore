@@ -39,3 +39,4 @@ web/client/public/data/
 web/.manus-logs/
 web/client/public/__manus__/
 *.patch
+*.patch
