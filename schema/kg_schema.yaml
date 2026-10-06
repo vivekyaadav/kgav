@@ -540,6 +540,20 @@ edge_classes:
       # understate a compound that is cleaner than the assay can measure.
       cytotoxicity_not_detected: {type: bool}
     required_qualifiers: [assay_type]
+    # TWO SCREENS ARE TWO EXPERIMENTS. Without this, an NCATS panel inactive
+    # and a ChEMBL-sourced active for the same compound collapse into one edge
+    # and LAYER_PRECEDENCE picks the qualifiers, so one real measurement is
+    # discarded before labels.build_labels can see that the two disagree and
+    # drop the compound as ambiguous. The safeguard in build_labels already
+    # exists; this is what makes it reachable.
+    #
+    # NOT expressible as identity_qualifiers. The obvious candidate is
+    # cell_line, but the selectivity layer DEPENDS on sharing the bare triple
+    # with the chemistry layer in order to supply its CC50, and it sets
+    # cell_line on 1,568 of those edges -- keying on it would split exactly
+    # the merge that layer is built around. Both are infores:chembl, so
+    # keying on the SOURCE keeps that merge and separates only the panel.
+    identity_includes_source: true
 
   - predicate: COMBINED_WITH
     symmetric: true

@@ -58,7 +58,8 @@ def main() -> int:
     derived = {p: d for p, d in derived.items() if d}
     if derived:
         print(f"  derived at assembly (never ingested): {derived}")
-    a = assemble(layers, identity, schema_early.derive_qualifiers)
+    a = assemble(layers, identity, schema_early.derive_qualifiers,
+                 schema_early.source_identity_predicates())
 
     print(f"\n{len(a.nodes):,} nodes, {len(a.edges):,} edges")
     for c, n in a.by_class().most_common():

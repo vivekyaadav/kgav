@@ -41,8 +41,12 @@ DeriveFn = Callable[[str, Mapping[str, Any]], dict]
 # hand-curated and authoritative for viral entities; the host layer is derived
 # from reference proteomes; chembl mints compounds and knows least about
 # anything it did not create.
+# Earlier wins a qualifier conflict (see the H2 note in the README). "ncats"
+# sits last because its position is immaterial: HAS_ANTIVIRAL_ACTIVITY_AGAINST
+# declares identity_includes_source, so a panel measurement never shares a key
+# with a chembl one and never competes for its qualifiers.
 LAYER_PRECEDENCE = ["spine", "host", "vhppi", "orcs", "chembl", "selectivity",
-                    "hosttargets", "similarity"]
+                    "hosttargets", "similarity", "ncats"]
 
 
 def _read_jsonl(path: Path) -> list[dict]:
@@ -51,7 +55,8 @@ def _read_jsonl(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
-def edge_key(e: dict, identity: dict[str, list[str]] | None = None) -> tuple:
+def edge_key(e: dict, identity: dict[str, list[str]] | None = None,
+             source_identity: set[str] | None = None) -> tuple:
     """Identity of a fact.
 
     (subject, predicate, object) alone is WRONG for predicates with a
@@ -61,6 +66,14 @@ def edge_key(e: dict, identity: dict[str, list[str]] | None = None) -> tuple:
     whichever source was read first decide the direction.
     """
     base = (e["subject"], e["predicate"], e["object"])
+    if source_identity and e["predicate"] in source_identity:
+        # A SECOND EXPERIMENT, NOT A SECOND WITNESS. Without this, a panel
+        # inactive and a chembl active for one compound collapse into a single
+        # edge and precedence picks the qualifiers -- so one real measurement
+        # is gone before labels.build_labels can see the two disagree and drop
+        # the compound as ambiguous. The safeguard exists; this is what makes
+        # it reachable.
+        base = base + (e.get("primary_knowledge_source"),)
     if not identity:
         return base
     quals = identity.get(e["predicate"]) or []
@@ -131,8 +144,10 @@ def merge_edges(a: dict, b: dict, derive: DeriveFn | None = None) -> dict:
 
 class Assembly:
     def __init__(self, identity: dict[str, list[str]] | None = None,
-                 derive: DeriveFn | None = None) -> None:
+                 derive: DeriveFn | None = None,
+                 source_identity: set[str] | None = None) -> None:
         self.identity = identity or {}
+        self.source_identity = source_identity or set()
         # Without a derive function the assembled graph carries whatever the
         # layers wrote. That is why the driver always passes one: a derived
         # qualifier stated by a layer is a claim no layer can substantiate.
@@ -164,7 +179,7 @@ class Assembly:
 
         for e in _read_jsonl(Path(release_dir) / "edges.jsonl"):
             local["edges"] += 1
-            k = edge_key(e, self.identity)
+            k = edge_key(e, self.identity, self.source_identity)
             if k in self.edges:
                 self.edges[k] = merge_edges(self.edges[k], e, self.derive)
                 self.stats["edge_merged"] += 1
@@ -252,9 +267,10 @@ class Assembly:
 
 def assemble(layers: dict[str, Path],
              identity: dict[str, list[str]] | None = None,
-             derive: DeriveFn | None = None) -> Assembly:
+             derive: DeriveFn | None = None,
+             source_identity: set[str] | None = None) -> Assembly:
     """Layers are added in LAYER_PRECEDENCE order regardless of dict order."""
-    a = Assembly(identity, derive)
+    a = Assembly(identity, derive, source_identity)
     for name in LAYER_PRECEDENCE:
         if name in layers:
             a.add_layer(name, layers[name])
