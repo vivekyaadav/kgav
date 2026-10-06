@@ -629,6 +629,11 @@ edge_provenance:
     - evidence_tier
     - first_asserted_date
   optional:
+    # Stable, content-derived identity for one fact, written at assembly from
+    # edge_key (see assemble.fact_id). The agent cites these; before it
+    # existed every citation was the edge's LINE NUMBER in edges.jsonl, which
+    # renumbers on every rebuild.
+    - edge_id
     - support_count
     - aggregator_source
     - publications

@@ -28,7 +28,11 @@ from dataclasses import dataclass, field
 
 from kgav.agent.guards import CAVEAT_LABELS
 
-EDGE_ID_RE = re.compile(r"\[([A-Za-z]?E\d+(?:\s*,\s*[A-Za-z]?E\d+)*)\]")
+# Hex, not just digits: edge ids are now blake2b digests of the fact key
+# (assemble.fact_id). [0-9a-f]+ still matches the old E<digits> line-index
+# form, so a saved answer from before the change still parses.
+EDGE_ID_RE = re.compile(
+    r"\[([A-Za-z]?E[0-9a-f]+(?:\s*,\s*[A-Za-z]?E[0-9a-f]+)*)\]")
 NUMBER_RE = re.compile(r"\d+(?:[.,]\d+)*")
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
 

@@ -1,5 +1,7 @@
 """Day 8 gate: cross-layer problems are caught, not merged away."""
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -8,6 +10,7 @@ from kgav.assemble import (
     LAYER_PRECEDENCE,
     assemble,
     edge_key,
+    fact_id,
     connectivity_report,
     merge_edges,
     orphan_nodes,
@@ -441,3 +444,62 @@ def test_the_schema_declares_it_for_the_activity_predicate():
     s = load_schema()
     assert "HAS_ANTIVIRAL_ACTIVITY_AGAINST" in s.source_identity_predicates()
     assert "TARGETS" not in s.source_identity_predicates()
+
+
+# ------------------------------------------------- stable fact ids (agent)
+def test_fact_id_is_stable_across_processes():
+    """A citation in a saved answer must still point at the same fact after a
+    rebuild. Python's str hash is randomised per interpreter, so the id has to
+    come from a content digest, not hash()."""
+    k = ("INCHIKEY:A", "INHIBITS", "UniProtKB:P0DTC1")
+    assert fact_id(k) == fact_id(k)
+    assert fact_id(k) == "E" + fact_id(k)[1:]        # shape
+    out = subprocess.run(
+        [sys.executable, "-c",
+         "import sys; sys.path.insert(0, 'src');"
+         "from kgav.assemble import fact_id;"
+         "print(fact_id(('INCHIKEY:A', 'INHIBITS', 'UniProtKB:P0DTC1')))"],
+        cwd=ROOT, capture_output=True, text=True, check=True)
+    assert out.stdout.strip() == fact_id(k), "id differs between processes"
+
+
+def test_fact_id_matches_the_agents_citation_regex():
+    """agent/verify.py rejects a citation it cannot parse, so an id it does not
+    match would make every answer fail verification."""
+    from kgav.agent.verify import EDGE_ID_RE
+    fid = fact_id(("INCHIKEY:A", "TARGETS", "UniProtKB:Q9UHD2"))
+    assert EDGE_ID_RE.findall(f"nirmatrelvir inhibits nsp5 [{fid}].") == [fid]
+    # and the old line-index form still parses, so saved answers keep working
+    assert EDGE_ID_RE.findall("something [E4812].") == ["E4812"]
+
+
+def test_two_witnesses_to_one_fact_share_an_id(built):
+    """The merged STRING/VirHostNet edge is ONE fact. Two ids would let the
+    agent cite the same thing twice as if it were corroboration."""
+    e = built.edges[(ACE2, "PHYSICALLY_INTERACTS_WITH", NSP5)]
+    assert e["edge_id"] == fact_id((ACE2, "PHYSICALLY_INTERACTS_WITH", NSP5))
+    assert built.stats["edge_merged"] == 1
+
+
+def test_different_facts_get_different_ids():
+    a = fact_id(("INCHIKEY:A", "INHIBITS", "UniProtKB:X"))
+    b = fact_id(("INCHIKEY:A", "TARGETS", "UniProtKB:X"))
+    c = fact_id(("INCHIKEY:B", "INHIBITS", "UniProtKB:X"))
+    # and identity components reach the id, because it is derived from the key
+    d = fact_id(("INCHIKEY:A", "INHIBITS", "UniProtKB:X", "infores:chembl"))
+    assert len({a, b, c, d}) == 4
+
+
+def test_every_assembled_edge_carries_an_id(built):
+    assert all(e.get("edge_id") for e in built.edges.values())
+    assert built.stats["fact_id_collision"] == 0
+
+
+def test_a_collision_is_reported_not_ignored(monkeypatch, layers):
+    """Two facts sharing an id would make the agent's citations ambiguous in a
+    way no downstream check could see, so assembly says so."""
+    import kgav.assemble as A
+    monkeypatch.setattr(A, "fact_id", lambda key: "Edeadbeef")
+    a = A.assemble(layers)
+    assert a.stats["fact_id_collision"] > 0
+    assert any("derived from two different keys" in c for c in a.conflicts)

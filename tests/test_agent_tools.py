@@ -2,9 +2,11 @@
 absence reported as absence rather than as a negative finding.
 """
 import json
+from pathlib import Path
 
 import pytest
 
+from kgav.assemble import fact_id
 from kgav.agent.tools import GraphTools
 
 V = "NCBITaxon:2697049"
@@ -69,6 +71,12 @@ def graph(tmp_path):
     (tmp_path / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
     (tmp_path / "edges.jsonl").write_text("\n".join(json.dumps(x) for x in edges))
     return GraphTools(tmp_path)
+
+
+@pytest.fixture
+def graph_dir(graph, tmp_path):
+    """The directory the `graph` fixture wrote, for tests that rebuild it."""
+    return tmp_path
 
 
 # ------------------------------------------------------------------ resolve
@@ -238,3 +246,53 @@ def test_triage_reports_compounds_it_could_not_rank():
     r = g.triage([real_id, "INCHIKEY:DOESNOTEXIST"], "NCBITaxon:2697049")
     assert len(r.data) == 1
     assert any("not in this graph" in w for w in r.warnings)
+
+
+# -------------------------------------------- citations that hold still
+def _edges_of(release: Path) -> list[dict]:
+    return [json.loads(l) for l in
+            (release / "edges.jsonl").read_text().splitlines() if l.strip()]
+
+
+def _reordered(src: Path, dst: Path, edges: list[dict]) -> GraphTools:
+    """Same nodes, same facts, a different line order in edges.jsonl."""
+    dst.mkdir(parents=True, exist_ok=True)
+    (dst / "nodes.jsonl").write_text((src / "nodes.jsonl").read_text())
+    (dst / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in edges))
+    return GraphTools(dst)
+
+
+def test_without_an_edge_id_a_citation_is_a_line_number(tmp_path, graph_dir):
+    """THE BUG THIS FIXES. tools.py falls back to f"E{i}", the edge's position
+    in edges.jsonl. Reorder the file -- which reassembly does whenever a layer
+    changes -- and the same fact answers to a different id, so a citation in a
+    saved answer silently comes to point at something else.
+    """
+    raw = _edges_of(graph_dir)
+    for e in raw:
+        e.pop("edge_id", None)
+    a = _reordered(graph_dir, tmp_path / "a", raw)
+    b = _reordered(graph_dir, tmp_path / "b", list(reversed(raw)))
+    ia, ib = a.explain(DRUG, V).edge_ids, b.explain(DRUG, V).edge_ids
+    assert ia and ib
+    assert ia != ib, "line-index ids agreed by luck; the test proves nothing"
+
+
+def test_with_an_edge_id_the_citation_survives_a_reorder(tmp_path, graph_dir):
+    """Same facts, same ids, whatever order the file is in."""
+    raw = _edges_of(graph_dir)
+    for e in raw:
+        e["edge_id"] = fact_id((e["subject"], e["predicate"], e["object"]))
+    c = _reordered(graph_dir, tmp_path / "c", raw)
+    d = _reordered(graph_dir, tmp_path / "d", list(reversed(raw)))
+    ic, idd = c.explain(DRUG, V).edge_ids, d.explain(DRUG, V).edge_ids
+    assert ic and set(ic) == set(idd)
+    assert all(x.startswith("E") for x in ic)
+
+
+def test_the_agents_ids_pass_its_own_verifier(graph):
+    """An id the verifier cannot parse makes every answer fail as an invented
+    citation, so the two have to agree on the shape."""
+    from kgav.agent.verify import EDGE_ID_RE
+    for eid in graph.explain(DRUG, V).edge_ids:
+        assert EDGE_ID_RE.findall(f"claim [{eid}].") == [eid], eid
