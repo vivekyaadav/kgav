@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from kgav.labels import build_labels, classify, evaluate_against_negatives
+from kgav.labels import edge_sources, build_labels, classify, evaluate_against_negatives
 
 V = "NCBITaxon:2697049"
 
@@ -132,3 +132,66 @@ def test_label_sets_are_ordered_deterministically(tmp_path):
     lab = build_labels(_release(tmp_path, edges))
     assert list(lab.positives) == sorted(lab.positives)
     assert list(lab.negatives) == sorted(lab.negatives)
+
+
+# ------------------------------------------------- single-screen evaluation
+def _av(subject, source, date="2020-08-18", **quals):
+    q = {"assay_type": "cell_based_antiviral"}
+    q.update(quals)
+    return {"subject": subject, "predicate": "HAS_ANTIVIRAL_ACTIVITY_AGAINST",
+            "object": "NCBITaxon:2697049", "qualifiers": q,
+            "primary_knowledge_source": source, "evidence_tier": 1,
+            "first_asserted_date": date}
+
+
+@pytest.fixture
+def mixed_sources(tmp_path):
+    """One compound per source per class, plus a merged edge."""
+    edges = [
+        _av("INCHIKEY:CA", "infores:chembl", ec50_nm=100.0, relation="="),
+        _av("INCHIKEY:CI", "infores:chembl", ec50_nm=50_000.0, relation=">"),
+        _av("INCHIKEY:NA", "infores:ncats-opendata", ec50_nm=900.0, relation="="),
+        _av("INCHIKEY:NI", "infores:ncats-opendata", ec50_nm=20_000.0, relation=">"),
+        # a merged edge: membership must be tested per component
+        _av("INCHIKEY:MM", "infores:chembl|infores:ncats-opendata",
+            ec50_nm=200.0, relation="="),
+    ]
+    (tmp_path / "edges.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in edges))
+    return tmp_path
+
+
+def test_edge_sources_splits_a_merged_source_string():
+    assert edge_sources(_av("X", "infores:a|infores:b")) == {"infores:a", "infores:b"}
+    assert edge_sources(_av("X", "infores:a")) == {"infores:a"}
+    assert edge_sources({"primary_knowledge_source": ""}) == set()
+
+
+def test_unrestricted_labels_pool_every_source(mixed_sources):
+    lab = build_labels(mixed_sources)
+    v = "NCBITaxon:2697049"
+    assert lab.positives[v] == {"INCHIKEY:CA", "INCHIKEY:NA", "INCHIKEY:MM"}
+    assert lab.negatives[v] == {"INCHIKEY:CI", "INCHIKEY:NI"}
+
+
+def test_restricting_to_one_screen_keeps_only_that_screen(mixed_sources):
+    """The point: both classes then come off the same plates, so a scorer
+    cannot separate them by recognising which collection they came from."""
+    lab = build_labels(mixed_sources, sources={"infores:ncats-opendata"})
+    v = "NCBITaxon:2697049"
+    assert lab.positives[v] == {"INCHIKEY:NA", "INCHIKEY:MM"}   # MM is merged
+    assert lab.negatives[v] == {"INCHIKEY:NI"}
+    assert lab.stats["other_source"] == 2
+
+
+def test_a_merged_edge_matches_either_component(mixed_sources):
+    for src in ("infores:chembl", "infores:ncats-opendata"):
+        lab = build_labels(mixed_sources, sources={src})
+        assert "INCHIKEY:MM" in lab.positives["NCBITaxon:2697049"], src
+
+
+def test_an_unknown_source_yields_no_labels_rather_than_all(mixed_sources):
+    """A typo must empty the evaluation, not silently fall back to pooling."""
+    lab = build_labels(mixed_sources, sources={"infores:typo"})
+    assert not lab.positives and not lab.negatives
+    assert lab.stats["other_source"] == 5

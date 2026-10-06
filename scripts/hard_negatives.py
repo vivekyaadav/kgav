@@ -141,6 +141,18 @@ def main() -> int:
                          "restricting to compounds with matched data from the "
                          "effect of the selectivity filter itself.")
     ap.add_argument("--si-threshold", type=float, default=10.0)
+    ap.add_argument("--label-source", default=None,
+                    help="RESTRICT THE LABELS TO ONE SCREEN, e.g. "
+                         "infores:ncats-opendata (comma-separate for several). "
+                         "Pooling ChEMBL and panel labels reintroduces the "
+                         "confound the panel removes: ChEMBL actives are "
+                         "antiviral research compounds carrying viral-target "
+                         "annotations and panel inactives are library "
+                         "compounds carrying host-target ones, so a scorer can "
+                         "separate the classes by recognising which collection "
+                         "a compound came from. One screen means both classes "
+                         "come off the same plates under one protocol -- "
+                         "matched by construction, not by a filter.")
     ap.add_argument("--publication-disjoint", action="store_true",
                     help="WITHHOLD EVIDENCE THAT SHARES A PAPER WITH ITS OWN "
                          "LABEL. 94.9% of compounds carrying both an INHIBITS "
@@ -165,7 +177,17 @@ def main() -> int:
     schema = load_schema()
     held = schema.held_out_predicates()
 
-    all_labels = build_labels(args.release, inactive_above_nm=args.inactive_above_nm)
+    label_sources = ({s.strip() for s in args.label_source.split(",") if s.strip()}
+                     if args.label_source else None)
+    if label_sources:
+        print(f"labels restricted to {sorted(label_sources)}")
+    all_labels = build_labels(args.release, inactive_above_nm=args.inactive_above_nm,
+                              sources=label_sources)
+    if label_sources and not any(all_labels.positives.values()):
+        print(f"\nNO POSITIVES from {sorted(label_sources)}. Check the source "
+              f"string against\n  the release: a typo here yields an empty "
+              f"evaluation, not an error.")
+        return 1
 
     if args.selectivity != "all":
         from kgav.selectivity import selectivity_index_by_compound
@@ -194,7 +216,8 @@ def main() -> int:
                   "populations. Run --selectivity-applies both for the control.")
     print(f"labels from the full release (inactive if censored above "
           f"{args.inactive_above_nm:,.0f} nM):")
-    for key in ("active", "inactive", "undecidable", "ambiguous_dropped"):
+    for key in ("active", "inactive", "undecidable", "ambiguous_dropped",
+                "other_source"):
         if all_labels.stats[key]:
             print(f"  {key:<20} {all_labels.stats[key]:>7,}")
 
@@ -225,7 +248,8 @@ def main() -> int:
         print(f"TEMPORAL: pre-{args.cutoff} graph, post-{args.cutoff} measurements")
         print("=" * 66)
         test_labels = build_labels(args.release, year_from=args.cutoff + 1,
-                                   inactive_above_nm=args.inactive_above_nm)
+                                   inactive_above_nm=args.inactive_above_nm,
+                                   sources=label_sources)
         # The selectivity filter must apply here too. Filtering only the
         # cross-sectional labels would report a temporal number computed on a
         # different positive set from the one it is being compared against.
