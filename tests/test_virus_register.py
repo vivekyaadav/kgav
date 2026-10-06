@@ -7,10 +7,13 @@ nothing about which strain it chose. That is how MERS lost Mpro and RdRp
 (species 1335626 is TrEMBL-only; curation is under 1263720).
 """
 import copy
+from pathlib import Path
 
 import pytest
 
 from kgav.virus_register import declared_taxa, load, validate
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture(scope="module")
@@ -122,3 +125,74 @@ def test_declared_taxa_includes_chain_source_taxa(doc):
     m = declared_taxa(doc, "viruses")
     assert m["1263720"] == "1335626"   # MERS isolate -> species
     assert m["443239"] == "290028"     # HKU1 isolate -> species
+
+
+# --------------------------------------------------------------------------
+# Two sources of truth for "where do this virus's chains live". They drift.
+# --------------------------------------------------------------------------
+def _fold_specs():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "ifolds", ROOT / "scripts" / "ingest_folds.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m.SPECS
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "KNOWN GAP, not yet curated. HCV (11103) and the five picornaviruses are "
+    "in ingest_folds.SPECS and absent from the register. Closing it needs a "
+    "chain_source verified against UniProt on a real date, which is a curation "
+    "decision. strict=True so this turns into a FAILURE the moment the entries "
+    "land, prompting removal of this marker rather than letting the check go "
+    "quietly green."))
+def test_every_fold_spec_taxon_is_declared_in_the_register():
+    """ingest_folds.py states that it is, and for HCV that is false.
+
+    Its header reads: "Every strain taxon here is now also registered in
+    config/viruses.yaml under `surveyed:`, with chain_source naming the
+    accession and the taxon it really lives under, and
+    kgav.virus_register.validate enforces that the pairing is declared rather
+    than discovered."
+
+    HCV is not in the register. Its SPECS comment records the reassignment --
+    P26664 filed under 11104 (genotype 1a isolate 1), declared as 11103
+    (species) -- which is precisely the MERS trap the register exists to make
+    checkable, and validate() cannot check an entry that does not exist. HCV is
+    also the virus the module's own docstring says phase 4 depends on.
+
+    The picornaviruses are undeclared too. They may well be species-curated,
+    but nothing states it, so nobody can tell "verified as not needed" from
+    "never looked" -- the distinction the Zika and West Nile entries are
+    explicitly written to preserve.
+    """
+    doc = load(ROOT / "config" / "viruses.yaml")
+    declared = {str(v["taxon"]) for v in (doc.get("viruses") or [])} | \
+               {str(v["taxon"]) for v in (doc.get("surveyed") or [])}
+    missing = sorted({
+        (s.virus_taxon.split(":")[1], s.label)
+        for s in _fold_specs() if s.virus_taxon.split(":")[1] not in declared})
+    assert not missing, (
+        "fold SPECS name taxa the register does not declare, so the "
+        "species/strain pairing for them is unchecked:\n  "
+        + "\n  ".join(f"{t}  {lab}" for t, lab in missing))
+
+
+def test_every_fold_spec_accession_matches_the_registers_chain_source():
+    """The accession and the taxon must come from the same declaration.
+
+    A spec pointing at an accession the register does not name for that virus
+    means the two were edited independently, which is how the pairing silently
+    stops being the one that was verified.
+    """
+    doc = load(ROOT / "config" / "viruses.yaml")
+    by_taxon = {str(v["taxon"]): (v.get("chain_source") or {}).get("accession")
+                for v in (doc.get("viruses") or []) + (doc.get("surveyed") or [])}
+    mismatched = []
+    for s in _fold_specs():
+        t = s.virus_taxon.split(":")[1]
+        if t in by_taxon and by_taxon[t] and s.accession != by_taxon[t]:
+            mismatched.append(f"{s.label}: spec {s.accession}, "
+                              f"register {by_taxon[t]}")
+    assert not mismatched, "\n  ".join(["spec/register accession mismatch:"]
+                                       + mismatched)
