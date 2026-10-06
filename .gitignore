@@ -38,5 +38,9 @@ web/client/public/data/
 # agent-tooling artifacts, not part of the app
 web/.manus-logs/
 web/client/public/__manus__/
-*.patch
-*.patch
+# Review patches dropped in the worktree ROOT only. Must NOT be a bare
+# *.patch glob: web/patches/ holds pnpm dependency patches, which are
+# build inputs. Those are tracked, so a bare glob does not remove them
+# -- it silently drops the NEXT one `pnpm patch-commit` writes, and the
+# build then differs between machines with nothing in git status to say so.
+/*.patch
