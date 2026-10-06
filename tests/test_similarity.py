@@ -2,6 +2,7 @@
 threshold cannot drift below what the schema declares.
 """
 import json
+from pathlib import Path
 
 import pytest
 
@@ -15,6 +16,8 @@ from kgav.similarity import (
     similarity_distribution,
     similarity_edges,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 ASPIRIN = "CC(=O)Oc1ccccc1C(=O)O"
 ASPIRIN_ME = "CC(=O)Oc1ccccc1C(=O)OC"
@@ -130,3 +133,57 @@ def test_build_is_bipartite_query_to_reference(q, r, expect_edge):
     subjects = {e["subject"] for e in em.edges}
     assert ("q" in subjects) is expect_edge
     assert "r" not in subjects
+
+
+# --------------------------------------------------------------------------
+# A compound measured NOT to inhibit a protein is not a cold-start compound.
+# --------------------------------------------------------------------------
+def test_measured_inactive_compounds_are_not_treated_as_unannotated(tmp_path):
+    """ce133f1 moved 1,625 pairs off INHIBITS and into the query set.
+
+    M7 walks similar -> INHIBITS -> protein -> gene -> virus, so a compound in
+    the query set acquires similarity edges that let M7 propose activity
+    against the exact protein the graph records it as measured inactive
+    against. Before ce133f1 those rows were (wrongly) INHIBITS, so they landed
+    in `annotated` and the question never arose.
+
+    This asserts the reference/query split the driver computes, by running the
+    same predicate rule against a fixture release.
+    """
+    import json
+
+    edges = [
+        {"subject": "INCHIKEY:HASTARGET", "predicate": "TARGETS",
+         "object": "UniProtKB:H1"},
+        {"subject": "INCHIKEY:INHIBITOR", "predicate": "INHIBITS",
+         "object": "UniProtKB:V1"},
+        {"subject": "INCHIKEY:MEASUREDBAD", "predicate": "MEASURED_INACTIVE_AGAINST",
+         "object": "UniProtKB:V1"},
+        {"subject": "INCHIKEY:ORPHAN", "predicate": "HAS_ANTIVIRAL_ACTIVITY_AGAINST",
+         "object": "NCBITaxon:2697049"},
+    ]
+    rel = tmp_path / "rel"
+    rel.mkdir()
+    (rel / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in edges))
+
+    ANNOTATING = ("TARGETS", "INHIBITS", "MEASURED_INACTIVE_AGAINST")
+    annotated = {json.loads(line)["subject"]
+                 for line in (rel / "edges.jsonl").read_text().splitlines()
+                 if line.strip() and json.loads(line)["predicate"] in ANNOTATING}
+    all_compounds = {"INCHIKEY:HASTARGET", "INCHIKEY:INHIBITOR",
+                     "INCHIKEY:MEASUREDBAD", "INCHIKEY:ORPHAN"}
+
+    assert "INCHIKEY:MEASUREDBAD" in annotated
+    assert all_compounds - annotated == {"INCHIKEY:ORPHAN"}
+
+
+def test_the_driver_counts_measured_inactive_as_annotating():
+    """The rule lives in the driver, so assert the driver states it.
+
+    A list of predicate names is exactly the kind of thing that goes stale
+    when a predicate is added -- which is how this arose in the first place.
+    """
+    src = (ROOT / "scripts" / "ingest_similarity.py").read_text()
+    assert '"MEASURED_INACTIVE_AGAINST"' in src, \
+        "a new predicate was added to the schema and this list was not updated"
+    assert "ANNOTATING" in src
