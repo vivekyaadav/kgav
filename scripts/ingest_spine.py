@@ -174,12 +174,29 @@ def ingest_virus(em: Emit, cfg: dict, defaults: dict, prov: dict, proteome_dir: 
     taxon_curie = f"NCBITaxon:{tax}"
     stats = Counter()
 
+    # THE ENTRY'S OWN FIELDS WIN OVER THE DEFAULTS.
+    #
+    # `defaults` in config/viruses.yaml is family: Coronaviridae, and this read
+    # `defaults["family"]` unconditionally. The register's surveyed: block
+    # already carries nine flaviviruses, each declaring family: Flaviviridae,
+    # and its stated promotion path is "an entry graduates by being moved into
+    # viruses: above". Move one up and it would have been emitted as a
+    # CORONAVIRUS -- the one field that matters for cross-family reasoning,
+    # wrong, on the virus the whole v2 expansion is for.
+    #
+    # It would have validated cleanly: family is required on OrganismTaxon and
+    # would have been present, just false. Nothing downstream re-derives it.
+    #
+    # The other three defaults happen to be right for Flaviviridae too
+    # (+ssRNA, enveloped), which is exactly why this would not have announced
+    # itself: one wrong field among three correct ones.
     em.node(taxon_curie, "OrganismTaxon",
             label=name,
-            family=defaults["family"],
-            baltimore_class=defaults["baltimore_class"],
-            genome_type=defaults.get("genome_type"),
-            is_enveloped=defaults["is_enveloped"])
+            family=cfg.get("family") or defaults["family"],
+            baltimore_class=cfg.get("baltimore_class") or defaults["baltimore_class"],
+            genome_type=cfg.get("genome_type") or defaults.get("genome_type"),
+            is_enveloped=defaults["is_enveloped"] if cfg.get("is_enveloped") is None
+                         else cfg["is_enveloped"])
 
     pfile = proteome_dir / f"{cfg['proteome_id']}.json.gz"
     if not pfile.exists():

@@ -189,3 +189,49 @@ def test_every_virus_exposes_the_core_nsps(tmp_path):
     for tid, name in labels.items():
         missing = core - by_taxon.get(tid, set())
         assert not missing, f"{name} missing {sorted(missing)}"
+
+
+# --------------------------------------------------------------------------
+# The register's promotion path: "an entry graduates by being moved into
+# viruses: above". It must not graduate into the wrong family.
+# --------------------------------------------------------------------------
+def test_a_graduated_flavivirus_keeps_its_own_family(tmp_path):
+    """defaults.family is Coronaviridae, and this read it unconditionally.
+
+    config/viruses.yaml already surveys nine flaviviruses, each declaring
+    family: Flaviviridae, and the documented way to build one is to move its
+    entry into `viruses:`. Doing that would have emitted a Dengue taxon as
+    family=Coronaviridae -- the single field cross-family reasoning depends on,
+    wrong, on the viruses the v2 expansion exists for. It validates cleanly:
+    family is required and would have been present, just false.
+    """
+    from ingest_spine import Emit, ingest_virus
+
+    defaults = {"family": "Coronaviridae", "baltimore_class": "IV",
+                "genome_type": "ssRNA(+)", "is_enveloped": True}
+    prov = {"proteome_source": "infores:uniprot", "disease_source": "infores:mondo",
+            "evidence_tier": 1}
+
+    em = Emit()
+    ingest_virus(em, {"taxon": "11060", "name": "DENV-2", "family": "Flaviviridae",
+                      "proteome_id": "UP000095876"},
+                 defaults, prov, tmp_path)          # no proteome file: taxon only
+    props = em.nodes["NCBITaxon:11060"]["properties"]
+    assert props["family"] == "Flaviviridae"
+    # The defaults that are genuinely shared still apply.
+    assert props["baltimore_class"] == "IV"
+    assert props["is_enveloped"] is True
+
+
+def test_a_coronavirus_without_its_own_family_still_takes_the_default(tmp_path):
+    """The override must not become 'every entry must restate everything'."""
+    from ingest_spine import Emit, ingest_virus
+
+    defaults = {"family": "Coronaviridae", "baltimore_class": "IV",
+                "genome_type": "ssRNA(+)", "is_enveloped": True}
+    prov = {"proteome_source": "infores:uniprot", "disease_source": "infores:mondo",
+            "evidence_tier": 1}
+    em = Emit()
+    ingest_virus(em, {"taxon": "2697049", "name": "SARS-CoV-2",
+                      "proteome_id": "UP000464024"}, defaults, prov, tmp_path)
+    assert em.nodes["NCBITaxon:2697049"]["properties"]["family"] == "Coronaviridae"
