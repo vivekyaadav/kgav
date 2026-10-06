@@ -310,3 +310,34 @@ def test_measured_inactivity_is_declared_and_never_traversed():
             for h in (mp["path"] if isinstance(mp, dict) else mp) if h.isupper()}
     assert "MEASURED_INACTIVE_AGAINST" not in hops
     assert "INHIBITS" in hops, "the active side is still the direct-acting channel"
+
+
+def test_symmetric_self_loop_is_rejected(world):
+    """"X is similar to X" is not a fact, and it validates perfectly.
+
+    ingest_folds wrote 36 FOLD_SIMILAR_TO self-loops -- a shared class node to
+    itself -- because a class shared by two chains is ONE node. Every one
+    passed validation: declared triple, legal qualifiers, full provenance. And
+    every one was discarded by walk_metapath as already-visited, so M8 produced
+    zero paths from the day it was declared and nothing said so.
+    """
+    schema = load_schema()
+    nodes = list(world["nodes"]) + [
+        {"id": "INTERPRO:IPR009003", "class": "TargetClass",
+         "properties": {"label": "Peptidase S1", "source": "interpro",
+                        "catalytic_type": "cysteine"}}]
+    e = {"subject": "INTERPRO:IPR009003", "predicate": "FOLD_SIMILAR_TO",
+         "object": "INTERPRO:IPR009003",
+         "qualifiers": {"catalytic_type_match": True, "method": "interpro_shared"},
+         "primary_knowledge_source": "infores:interpro", "evidence_tier": 3,
+         "first_asserted_date": "1970-01-01"}
+    codes = {v.code for v in schema.validate_edge(e, _index(nodes))}
+    assert "SYMMETRIC_SELF_LOOP" in codes
+
+
+def test_a_directed_self_reference_is_still_allowed(world):
+    """Scoped to symmetric predicates: a homodimer is a real assertion."""
+    schema = load_schema()
+    sym = {ec.predicate for ec in schema.edge_classes if ec.symmetric}
+    assert "PHYSICALLY_INTERACTS_WITH" in sym
+    assert "ENCODED_BY" not in sym

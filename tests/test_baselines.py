@@ -303,3 +303,84 @@ def test_real_graph_has_traversable_host_paths():
     g = Graph.load(REAL, skip_predicates=s.held_out_predicates())
     targets = sum(len(v) for (p, _n), v in g.out.items() if p == "TARGETS")
     assert targets > 5_000, f"only {targets} TARGETS edges -- M2-M6 need these"
+
+
+# --------------------------------------------------------------------------
+# A declared metapath that reaches nothing must be a REPORTED VALUE, not a
+# missing key. M8 has produced zero paths since schema 0.8.0 declared it.
+# --------------------------------------------------------------------------
+def test_metapath_reach_reports_a_metapath_that_reaches_nothing(tmp_path):
+    """The check that would have caught M8 on the day it was added.
+
+    compare_metapaths printed "no paths" and then omitted the metapath from
+    its results file; hard_negatives skipped it silently in both. So a
+    metapath contributing nothing looked exactly like one that was never
+    declared.
+    """
+    from kgav.baselines import Graph, dwpc_scores, metapath_reach
+
+    nodes = [
+        {"id": "NCBITaxon:1", "class": "OrganismTaxon",
+         "properties": {"label": "V", "family": "Coronaviridae",
+                        "baltimore_class": "IV", "is_enveloped": True}},
+        {"id": "UniProtKB:P1", "class": "Protein",
+         "properties": {"taxon_id": "NCBITaxon:1", "is_viral": True,
+                        "sequence_hash": "h", "reviewed": True,
+                        "protein_family": "nsp5"}},
+        {"id": "KGAV:G", "class": "Gene",
+         "properties": {"symbol": "rep", "taxon_id": "NCBITaxon:1",
+                        "is_viral": True}},
+        {"id": "INCHIKEY:D", "class": "SmallMolecule",
+         "properties": {"smiles": "C", "inchikey_skel": "D", "is_approved": True,
+                        "salt_collapsed": False, "stereo_collapsed": False}},
+    ]
+
+    def e(s, p, o, q=None):
+        return {"subject": s, "predicate": p, "object": o, "qualifiers": q or {},
+                "primary_knowledge_source": "s", "evidence_tier": 1,
+                "first_asserted_date": "2020-01-01"}
+
+    # M1 is walkable; LIVE_ONLY has a predicate with no edges in this graph.
+    edges = [e("INCHIKEY:D", "INHIBITS", "UniProtKB:P1", {"assay_type": "biochemical"}),
+             e("UniProtKB:P1", "ENCODED_BY", "KGAV:G"),
+             e("KGAV:G", "BELONGS_TO", "NCBITaxon:1")]
+    rel = tmp_path / "rel"
+    rel.mkdir()
+    (rel / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
+    (rel / "edges.jsonl").write_text("\n".join(json.dumps(x) for x in edges))
+
+    metapaths = {
+        "M1": {"path": ["SmallMolecule", "INHIBITS", "Protein", "ENCODED_BY",
+                        "Gene", "BELONGS_TO", "OrganismTaxon"]},
+        "MDEAD": {"path": ["SmallMolecule", "INHIBITS", "Protein",
+                           "MEMBER_OF_CLASS", "TargetClass", "FOLD_SIMILAR_TO",
+                           "TargetClass", "<MEMBER_OF_CLASS", "Protein",
+                           "ENCODED_BY", "Gene", "BELONGS_TO", "OrganismTaxon"]},
+    }
+    symmetry = {"INHIBITS": False, "ENCODED_BY": False, "BELONGS_TO": False,
+                "MEMBER_OF_CLASS": False, "FOLD_SIMILAR_TO": True}
+    g = Graph.load(rel, symmetry=symmetry)
+    dwpc = dwpc_scores(g, metapaths, {})
+    reach = metapath_reach(g, metapaths, dwpc)
+
+    # Every declared metapath appears, including the dead one.
+    assert set(reach) == {"M1", "MDEAD"}
+    assert reach["M1"]["drugs_reached"] == 1
+    assert reach["MDEAD"]["drugs_reached"] == 0
+    # And it says WHY, so nobody has to reconstruct it.
+    assert set(reach["MDEAD"]["missing_predicates"]) == {
+        "MEMBER_OF_CLASS", "FOLD_SIMILAR_TO"}
+    assert reach["M1"]["missing_predicates"] == []
+
+
+def test_metapath_reach_distinguishes_missing_edges_from_broken_traversal():
+    """A self-loop is the M8 case: the predicate EXISTS, so the break is in the
+    edges, not in an absent layer. The diagnosis must not claim otherwise."""
+    from kgav.baselines import Graph, metapath_reach
+
+    g = Graph(symmetry={"FOLD_SIMILAR_TO": True})
+    g.out[("FOLD_SIMILAR_TO", "INTERPRO:X")] = [("INTERPRO:X", {})]
+    mp = {"M": {"path": ["TargetClass", "FOLD_SIMILAR_TO", "TargetClass"]}}
+    reach = metapath_reach(g, mp, {"M": {}})
+    assert reach["M"]["drugs_reached"] == 0
+    assert reach["M"]["missing_predicates"] == []

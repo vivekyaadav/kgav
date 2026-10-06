@@ -225,6 +225,45 @@ def dwpc_scores(g: Graph, metapaths: dict, limits: dict,
     return results
 
 
+def metapath_reach(g: Graph, metapaths: dict,
+                   dwpc: dict[str, dict[str, dict[str, float]]]) -> dict[str, dict]:
+    """Per metapath: whether it reached anything, and why it could not.
+
+    EVERY DECLARED METAPATH IS REPORTED, INCLUDING THE ONES THAT REACH NOTHING.
+    That is the whole point. M8 was declared in schema 0.8.0, described there as
+    "THE ROUTE v2 EXISTS FOR", and has produced zero paths on every run since:
+    its TargetClass nodes and MEMBER_OF_CLASS edges are not in the assembled
+    release at all, and the FOLD_SIMILAR_TO edges the fold ingest writes are
+    self-loops that walk_metapath discards as already-visited.
+
+    None of that was recorded anywhere. compare_metapaths printed "no paths" to
+    stdout and then omitted the metapath from its results file; hard_negatives
+    skipped it with `if not sc: continue` and printed nothing. A metapath that
+    silently contributes nothing is indistinguishable from one that was never
+    declared, so the absence has to be a reported value rather than a missing
+    key.
+
+    `missing_predicates` is the diagnosis: a hop whose predicate has no edges in
+    this graph explains the zero without anyone having to reconstruct it. The
+    project's own stated integrity check is comparing counts across entities
+    that should be similar, and this is that check applied to metapaths.
+    """
+    present = {k[0] for k in g.out} | {k[0] for k in g.inv}
+    out: dict[str, dict] = {}
+    for name, mp in sorted(metapaths.items()):
+        path = list(mp.get("path") or [])
+        hops = [parse_hop(path[i])[0] for i in range(1, len(path) - 1, 2)]
+        drugs = dwpc.get(name) or {}
+        viruses = {v for by in drugs.values() for v in by}
+        out[name] = {
+            "drugs_reached": len(drugs),
+            "viruses_reached": sorted(viruses),
+            "predicates": hops,
+            "missing_predicates": [p for p in hops if p not in present],
+        }
+    return out
+
+
 def combine(dwpc: dict[str, dict[str, dict[str, float]]], virus: str,
             normalize: bool = True) -> dict[str, float]:
     """Combine DWPC across metapaths for one virus.

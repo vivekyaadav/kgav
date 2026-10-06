@@ -442,6 +442,24 @@ class Schema:
                         f"{'carries ' + ', '.join(present) if present else 'carries no measured value'}"
                         f", so it must be {expected}", ref))
 
+        # A SYMMETRIC EDGE FROM A NODE TO ITSELF ASSERTS NOTHING, and it
+        # validates perfectly: the triple is declared, the qualifiers are
+        # legal, the provenance is present. ingest_folds wrote 36 of them --
+        # FOLD_SIMILAR_TO from a shared class node to itself -- and M8 produced
+        # zero paths for every run since, because walk_metapath discards a
+        # neighbour already in `visited`. Nothing rejected them and nothing
+        # reported the consequence.
+        #
+        # Scoped to symmetric predicates. A directed self-reference can be
+        # meaningful (a protein interacting with itself is a homodimer); "X is
+        # similar to X" is not.
+        if subj is not None and subj == obj and ec is not None and ec.symmetric:
+            out.append(Violation(
+                "SYMMETRIC_SELF_LOOP",
+                f"{pred} from a node to itself asserts nothing: a symmetric "
+                f"relation between one node and itself is not a fact, and a "
+                f"metapath hop over it is discarded as already-visited", ref))
+
         # provenance — absolute
         for pname in self.required_provenance:
             if edge.get(pname) in (None, "", []):
