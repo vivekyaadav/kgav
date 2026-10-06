@@ -251,19 +251,36 @@ def main() -> int:
     em = Emit()
     from kgav.folds import emit_classes
     stats = emit_classes(em, usable, "infores:interpro")
-    for a, b, g in results:
-        if not g.allowed:
-            continue
-        # Classes are compared, so the edge is emitted between the shared
-        # class nodes rather than between proteins.
-        for acc in g.shared:
-            cid = f"INTERPRO:{acc}" if acc.startswith("IPR") else f"KGAV:{acc}"
-            em.edge(cid, "FOLD_SIMILAR_TO", cid,
-                    source="infores:interpro", date="1970-01-01", tier=3,
-                    quals={"catalytic_type_match": g.catalytic_type_match,
-                           "shared_superfamilies": g.shared,
-                           "method": "interpro_shared"})
-            break
+    # NO FOLD_SIMILAR_TO EDGES ARE EMITTED, AND THAT IS DELIBERATE UNTIL THE
+    # PATH SHAPE IS SETTLED.
+    #
+    # This loop used to write `em.edge(cid, "FOLD_SIMILAR_TO", cid, ...)` --
+    # subject and object the SAME node, because a shared class is one node, not
+    # two. M8 requires two DISTINCT TargetClass nodes joined by that predicate,
+    # and walk_metapath discards a neighbour already in `visited`, so every
+    # self-loop was skipped and M8 produced zero paths on every run since 0.8.0.
+    #
+    # The self-loop is not a typo to swap for a pair of ids. It is the data
+    # model disagreeing with the metapath: when two chains SHARE a class, the
+    # structure that connects them is MEMBER_OF_CLASS in both directions
+    # through that one node, and no similarity edge is needed or meaningful.
+    # M8's declared path asks for a hop between two classes that this ingest
+    # has no principled pair to supply. Inventing one -- every class of A
+    # crossed with every class of B -- would mint thousands of similarity
+    # assertions nobody measured, which is the failure this project exists to
+    # avoid. See the note in the schema on M8.
+    #
+    # The gate itself is correct and is reported above; what is unresolved is
+    # how to write its verdict into the graph. Until that is decided the layer
+    # emits classes and membership only, and metapath_reach reports M8 as
+    # reaching nothing rather than letting it look scored.
+    if any(g.allowed for _a, _b, g in results):
+        n_allowed = sum(1 for _a, _b, g in results if g.allowed)
+        print(f"\n  NOTE: {n_allowed} allowed transfers are NOT written as "
+              f"FOLD_SIMILAR_TO edges.\n  M8 therefore has no similarity hop to "
+              f"walk and will report zero reach. See the\n  comment at this "
+              f"line before changing it -- the previous version emitted\n  "
+              f"self-loops, which validate cleanly and are silently unwalkable.")
 
     print(f"\n{len(em.nodes):,} TargetClass nodes | {len(em.edges):,} edges")
     for k, v in stats.most_common():

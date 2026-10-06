@@ -20,6 +20,7 @@ from kgav.baselines import (
     degree_ranking,
     dwpc_scores,
     hits_at_k,
+    metapath_reach,
     mrr,
     rank,
 )
@@ -119,9 +120,24 @@ def main() -> int:
         print(f"    {label:<14} {cell(m6,'pool','>8,'):>8} {cell(m6,'lift','>8.2f'):>8} "
               f"{cell(m7,'pool','>8,'):>8} {cell(m7,'lift','>8.2f'):>8}  {verdict}")
 
+    # A metapath that reaches nothing was previously printed to stdout and
+    # then omitted from this file, so the record could not distinguish "scored
+    # badly" from "never ran". M8 has been in that state since it was declared.
+    reach = metapath_reach(g, s.metapaths, dwpc)
+    dead = {k: v for k, v in reach.items() if not v["drugs_reached"]}
+    if dead:
+        print("\n=== metapaths that reached NO drug at all")
+        for name, r in dead.items():
+            why = (f"no edges for {', '.join(r['missing_predicates'])}"
+                   if r["missing_predicates"] else
+                   "every hop's predicate is present, so the break is in the "
+                   "edges themselves (orientation, endpoints or constraints)")
+            print(f"    {name:<10} {why}")
+
     args.out.mkdir(parents=True, exist_ok=True)
-    write_results(args.out / "metapath_comparison.json", results, args.release,
-                  s.version)
+    write_results(args.out / "metapath_comparison.json",
+                  {"per_virus": results, "metapath_reach": reach},
+                  args.release, s.version)
     print(f"\nwrote {args.out / 'metapath_comparison.json'}")
     return 0
 

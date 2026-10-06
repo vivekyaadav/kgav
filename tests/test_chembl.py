@@ -294,3 +294,82 @@ def test_binding_constants_never_reach_the_organism_labels(built):
         if e["predicate"] == "HAS_ANTIVIRAL_ACTIVITY_AGAINST":
             q = e["qualifiers"]
             assert q.get("ki_nm") is None and q.get("kd_nm") is None
+
+
+# --------------------------------------------------------------------------
+# Row accounting: every input row must be an emitted edge or a counted drop.
+# --------------------------------------------------------------------------
+def _row(**kw):
+    base = {"compound": "CHEMBL1", "smiles": "C", "inchikey": "K" * 27,
+            "max_phase": 4, "drug_name": "d", "target": "CHEMBL_T",
+            "target_name": "Replicase polyprotein 1ab", "target_type": "PROTEIN",
+            "tax_id": 2697049, "accession": "P0DTD1", "standard_type": "IC50",
+            "standard_value": 50.0, "standard_units": "nM",
+            "standard_relation": "=", "description": "Inhibition of 3CLpro",
+            "assay_type": "B", "assay": "CHEMBL_A1", "year": 2021,
+            "pubmed_id": 1}
+    base.update(kw)
+    return base
+
+
+def test_every_row_is_emitted_or_counted_as_dropped():
+    """The invariant the driver asserts, at the level that decides it.
+
+    ce133f1 added measured_inactive_edges and undecidable_protein_measurement
+    and the driver printed neither, so INHIBITS fell 26% with nothing on screen
+    saying where the rest went. Comparing counts across things that should
+    agree is this project's stated primary integrity check.
+    """
+    rows = [
+        _row(assay="A1"),                                   # -> INHIBITS
+        _row(assay="A2", standard_value=80000.0),           # -> MEASURED_INACTIVE
+        _row(assay="A3", standard_relation=">",
+             standard_value=100.0),                         # -> undecidable, dropped
+        _row(assay="A4", inchikey=None),                    # -> no_inchikey
+        _row(assay="A5", tax_id=9999),                      # -> unmapped_taxon
+        _row(assay="A6", standard_units="ug.mL-1"),         # -> unconvertible_units
+        _row(assay="A7", target_name="cereblon/Replicase"), # -> multicomponent
+        _row(assay="A8", target_type="ORGANISM",
+             standard_type="Ki"),                           # -> binding on organism
+        _row(assay="A9", target_type="ORGANISM",
+             standard_type="EC50"),                         # -> organism edge
+        _row(assay="A1"),                                   # -> duplicate
+    ]
+    em = Emit()
+    s = ingest_activities(em, rows, {"2697049": {"nsp5": "UniProtKB:NSP5"}},
+                          {"2697049": "2697049"}, "infores:chembl")
+
+    emitted = ("protein_edges", "measured_inactive_edges", "organism_edges")
+    dropped = ("no_inchikey", "unmapped_taxon", "unconvertible_units",
+               "no_target_node", "duplicate", "multicomponent_target",
+               "binding_constant_on_organism", "undecidable_protein_measurement")
+    assert sum(s[k] for k in emitted) + sum(s[k] for k in dropped) == s["rows"]
+
+    # And each branch is genuinely reachable, so the invariant is not holding
+    # because the fixture only exercises one path.
+    assert s["protein_edges"] == 1
+    assert s["measured_inactive_edges"] == 1
+    assert s["undecidable_protein_measurement"] == 1
+    assert s["organism_edges"] == 1
+    assert s["binding_constant_on_organism"] == 1
+    assert s["multicomponent_target"] == 1
+    assert s["duplicate"] == 1
+
+
+def test_the_driver_lists_every_counter_the_module_sets():
+    """A new counter added to chembl.py must be added to the driver's lists.
+
+    This is the test that would have failed on ce133f1 rather than four months
+    later: it compares the counters the module can set against the ones the
+    driver accounts for.
+    """
+    import re
+    src = (ROOT / "src/kgav/chembl.py").read_text()
+    drv = (ROOT / "scripts/ingest_chembl.py").read_text()
+    set_by_module = set(re.findall(r'stats\["([a-z_]+)"\]', src))
+    # Counted but reported in their own sections rather than the two lists.
+    reported_elsewhere = {"rows", "censored", "unresolved"}
+    accounted = set(re.findall(r'"([a-z_]+)",?\s*$', drv, re.M)) | \
+                set(re.findall(r'"([a-z_]+)"', drv))
+    missing = set_by_module - accounted - reported_elsewhere
+    assert not missing, f"chembl.py sets counters the driver never reports: {sorted(missing)}"

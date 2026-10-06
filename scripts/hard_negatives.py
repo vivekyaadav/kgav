@@ -13,7 +13,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from kgav.baselines import Graph, combine, degree_ranking, dwpc_scores
+from kgav.baselines import (
+    Graph,
+    combine,
+    degree_ranking,
+    dwpc_scores,
+    metapath_reach,
+)
 from kgav.labels import build_labels, evaluate_against_negatives
 from kgav.provenance import write_results
 from kgav.schema import load_schema
@@ -21,10 +27,30 @@ from kgav.schema import load_schema
 MIN_CLASS_SIZE = 10
 
 
-def run(g: Graph, schema, labels, tag: str, k_min: int = MIN_CLASS_SIZE) -> dict:
+def run(g: Graph, schema, labels, tag: str,
+        k_min: int = MIN_CLASS_SIZE) -> tuple[dict, dict]:
+    """(per-virus results, per-metapath reach).
+
+    Reach is returned alongside rather than mixed into the virus-keyed dict,
+    because a consumer iterating the results should see viruses and nothing
+    else.
+    """
     dwpc = dwpc_scores(g, schema.metapaths, schema.retrieval_limits)
     deg = degree_ranking(g)
     out: dict[str, dict] = {}
+
+    # Reported before the per-virus tables, because a metapath absent from
+    # every table below is otherwise indistinguishable from one that was never
+    # declared. `if not sc: continue` hid M8 here with no stdout line at all.
+    reach = metapath_reach(g, schema.metapaths, dwpc)
+    dead = [n for n, r in reach.items() if not r["drugs_reached"]]
+    if dead:
+        print(f"\n[{tag}] metapaths reaching NO drug: {', '.join(dead)}")
+        for name in dead:
+            miss = reach[name]["missing_predicates"]
+            if miss:
+                print(f"    {name}: no edges for {', '.join(miss)}")
+
 
     viruses = sorted(labels.positives, key=lambda v: -len(labels.positives[v]))
     for virus in viruses:
@@ -56,7 +82,7 @@ def run(g: Graph, schema, labels, tag: str, k_min: int = MIN_CLASS_SIZE) -> dict
             print(f"    {name:<10} {m['n_pos']:>5} {m['n_neg']:>6} {m['auc']:>7.3f} "
                   f"{m['coverage_pos']:>7.1%} {m['coverage_neg']:>7.1%}")
         out[label] = per
-    return out
+    return out, reach
 
 
 def main() -> int:
@@ -109,9 +135,11 @@ def main() -> int:
     print("=" * 66)
     g_full = Graph.load(args.release, skip_predicates=held,
                         symmetry=schema.symmetry())
-    cross = run(g_full, schema, all_labels, "cross-sectional")
+    cross, cross_reach = run(g_full, schema, all_labels, "cross-sectional")
 
     temporal: dict = {}
+    cross_reach: dict = {}
+    temporal_reach: dict = {}
     if args.train.exists():
         print("\n" + "=" * 66)
         print(f"TEMPORAL: pre-{args.cutoff} graph, post-{args.cutoff} measurements")
@@ -135,7 +163,8 @@ def main() -> int:
               f"{test_labels.stats['inactive']:,} inactive")
         g_train = Graph.load(args.train, skip_predicates=held,
                              symmetry=schema.symmetry())
-        temporal = run(g_train, schema, test_labels, f"post-{args.cutoff}")
+        temporal, temporal_reach = run(g_train, schema, test_labels,
+                                       f"post-{args.cutoff}")
     else:
         print(f"\n{args.train} not found -- run temporal_split.py first")
 
@@ -144,7 +173,9 @@ def main() -> int:
                   {"inactive_above_nm": args.inactive_above_nm,
                    "selectivity_filter": args.selectivity,
                    "label_stats": dict(all_labels.stats),
-                   "cross_sectional": cross, "temporal": temporal},
+                   "cross_sectional": cross, "temporal": temporal,
+                   "metapath_reach": {"cross_sectional": cross_reach,
+                                      "temporal": temporal_reach}},
                   args.release, schema.version)
     print(f"\nwrote {args.results / 'hard_negatives.json'}")
     print("\nAUC 0.5 is chance. Unlike Hits@k this is prevalence-independent, so "
