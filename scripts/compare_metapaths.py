@@ -20,6 +20,7 @@ from kgav.baselines import (
     degree_ranking,
     dwpc_scores,
     hits_at_k,
+    lift_row,
     metapath_reach,
     mrr,
     rank,
@@ -27,9 +28,6 @@ from kgav.baselines import (
 from kgav.labels import build_labels
 from kgav.provenance import write_results
 from kgav.schema import load_schema
-
-MIN_TRUSTWORTHY_EXPECTATION = 1.0
-
 
 def positives(release: Path) -> dict[str, set[str]]:
     """Measured-ACTIVE compounds per virus, via labels.classify.
@@ -42,13 +40,8 @@ def positives(release: Path) -> dict[str, set[str]]:
 
 
 def row(name: str, scores: dict[str, float], pos: set[str], k: int = 100) -> dict:
-    r = rank(scores)
-    p = len(pos & set(scores))
-    exp = k * p / len(r) if r else 0.0
-    h = hits_at_k(r, pos, k)
-    return {"pool": len(r), "pos": p, "hits": h, "expected": exp,
-            "lift": (h / exp) if exp else 0.0, "mrr": mrr(r, pos),
-            "trustworthy": exp >= MIN_TRUSTWORTHY_EXPECTATION}
+    """Thin wrapper; the metric lives in baselines so it can be tested."""
+    return lift_row(scores, pos, k)
 
 
 def main() -> int:
@@ -69,7 +62,8 @@ def main() -> int:
     print(f"schema v{s.version} | {len(g.drugs()):,} drugs | "
           f"metapaths {', '.join(sorted(s.metapaths))}")
     print(f"lift is Hits@{args.k} over random expectation for that pool; "
-          f"(!) marks expectation < {MIN_TRUSTWORTHY_EXPECTATION} where lift is noise\n")
+          f"(!) marks a lift that is noise: expectation < 1, or a pool no "
+          f"larger than k, where lift is exactly pool/k\n")
 
     dwpc = dwpc_scores(g, s.metapaths, s.retrieval_limits)
     deg = degree_ranking(g)

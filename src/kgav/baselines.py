@@ -259,7 +259,11 @@ def metapath_reach(g: Graph, metapaths: dict,
             "drugs_reached": len(drugs),
             "viruses_reached": sorted(viruses),
             "predicates": hops,
-            "missing_predicates": [p for p in hops if p not in present],
+            # Deduped, order preserved. M8 traverses MEMBER_OF_CLASS twice --
+            # forward then reverse -- so the raw list printed it twice and read
+            # as two separate problems.
+            "missing_predicates": list(dict.fromkeys(
+                p for p in hops if p not in present)),
         }
     return out
 
@@ -323,6 +327,39 @@ def combine(dwpc: dict[str, dict[str, dict[str, float]]], virus: str,
             pct = i / n
             best[drug] = max(best[drug], pct)
     return dict(best)
+
+
+MIN_TRUSTWORTHY_EXPECTATION = 1.0
+
+
+def lift_row(scores: dict[str, float], pos: set[str], k: int = 100) -> dict:
+    """Hits@k against the pool's own random expectation.
+
+    WHEN THE POOL IS NO LARGER THAN k, LIFT CARRIES NO INFORMATION. ranked[:k]
+    is then the whole pool, so hits == every positive in it, and
+
+        lift = p / (k * p / pool) = pool / k
+
+    exactly -- a function of the pool size and nothing else. Measured on v0.1:
+    MERS M1 pool 24 lift 0.24, HCoV-229E M1 pool 17 lift 0.17, MERS M7 pool 14
+    lift 0.14, HCoV-229E M7 pool 7 lift 0.07, SARS-CoV M7 pool 100 lift 1.00.
+    Every one is pool/k to two decimals, and none was flagged, because the
+    guard tested only expectation >= 1 and these expectations run to 57.
+
+    Those values then fed the M6-vs-M7 verdict, so "MERS-CoV: M6 0.88 vs M7
+    0.14, M6 better" compared a real lift against a pool-size artifact.
+    """
+    r = rank(scores)
+    pool = len(r)
+    p = len(pos & set(scores))
+    exp = k * p / pool if pool else 0.0
+    h = hits_at_k(r, pos, k)
+    return {"pool": pool, "pos": p, "hits": h, "expected": exp,
+            "lift": (h / exp) if exp else 0.0, "mrr": mrr(r, pos),
+            # BOTH conditions. Expectation >= 1 says the hit count is not a
+            # coin flip; pool > k says the ranking was actually exercised.
+            "trustworthy": exp >= MIN_TRUSTWORTHY_EXPECTATION and pool > k,
+            "lift_is_pool_artifact": pool <= k}
 
 
 def degree_ranking(g: Graph) -> dict[str, float]:
