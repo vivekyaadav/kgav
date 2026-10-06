@@ -384,3 +384,42 @@ def test_metapath_reach_distinguishes_missing_edges_from_broken_traversal():
     reach = metapath_reach(g, mp, {"M": {}})
     assert reach["M"]["drugs_reached"] == 0
     assert reach["M"]["missing_predicates"] == []
+
+
+# --------------------------------------------------------------------------
+# Lift is uninformative when the pool is no larger than k.
+# --------------------------------------------------------------------------
+def test_lift_on_a_pool_no_larger_than_k_is_exactly_pool_over_k():
+    """Not an approximation -- an identity, and it was reported as a result.
+
+    ranked[:k] is the whole pool, so hits == every positive in it and
+    lift = p / (k*p/pool) = pool/k, independent of the ordering. On v0.1:
+    MERS M1 pool 24 -> 0.24, HCoV-229E M1 pool 17 -> 0.17, MERS M7 pool 14 ->
+    0.14, HCoV-229E M7 pool 7 -> 0.07. None was flagged, because the guard
+    tested only expectation >= 1 and those expectations run to 57.
+    """
+    from kgav.baselines import lift_row
+
+    for pool_size, n_pos in [(24, 2), (17, 7), (14, 8), (7, 1), (100, 19)]:
+        scores = {f"D{i}": float(pool_size - i) for i in range(pool_size)}
+        pos = {f"D{i}" for i in range(n_pos)}
+        m = lift_row(scores, pos, k=100)
+        assert m["lift"] == pytest.approx(pool_size / 100, abs=1e-9), \
+            f"pool {pool_size}: lift should be the pool-size identity"
+        assert m["lift_is_pool_artifact"]
+        assert not m["trustworthy"], \
+            f"pool {pool_size} <= k must never be reported as trustworthy"
+
+
+def test_a_pool_larger_than_k_is_judged_on_expectation():
+    """The guard must not become 'distrust everything'."""
+    from kgav.baselines import lift_row
+
+    scores = {f"D{i}": float(500 - i) for i in range(500)}
+    strong = lift_row(scores, {f"D{i}" for i in range(50)}, k=100)
+    assert strong["trustworthy"] and not strong["lift_is_pool_artifact"]
+    assert strong["lift"] > 1.0          # ranking was genuinely exercised
+
+    thin = lift_row(scores, {"D0", "D499"}, k=100)
+    assert not thin["trustworthy"]       # expectation 0.4, still noise
+    assert not thin["lift_is_pool_artifact"]
