@@ -173,14 +173,24 @@ def main() -> int:
         print(f"\nrdkit is required to normalize structures: {e}")
         return 1
 
+    # Full node dicts, not just ids: this layer deliberately does not re-emit
+    # a node it does not own (see ingest_cpe on is_approved), so its own nodes
+    # cover neither the 2,178 compounds that joined nor the OrganismTaxon the
+    # spine owns. Validating the layer in isolation therefore reports a
+    # DANGLING violation for every edge -- a true statement about an incomplete
+    # node set, not about the data. ingest_chembl.py validates against
+    # index.nodes + em.nodes for the same reason.
     existing: set[str] = set()
+    release_nodes: list[dict] = []
     if (args.release / "nodes.jsonl").exists():
         for line in (args.release / "nodes.jsonl").read_text().splitlines():
             if line.strip():
                 n = json.loads(line)
+                release_nodes.append(n)
                 if n["class"] == "SmallMolecule":
                     existing.add(n["id"])
-        print(f"\n{len(existing):,} compounds already in {args.release.name}")
+        print(f"\n{len(existing):,} compounds already in {args.release.name} "
+              f"({len(release_nodes):,} nodes total)")
     else:
         print(f"\n  ! {args.release} not found -- every compound treated as new, "
               f"so this\n    layer will assert is_approved on compounds another "
@@ -232,11 +242,17 @@ def main() -> int:
               f"release before overriding.")
         return 1
 
-    violations = load_schema().validate_batch(list(em.nodes.values()), em.edges)
+    violations = load_schema().validate_batch(
+        release_nodes + list(em.nodes.values()), em.edges)
     if violations:
         print(f"\nSCHEMA FAIL — {len(violations)} violations")
         for v in violations[:8]:
             print(f"  {v}")
+        if not release_nodes:
+            print(f"\n  {args.release} was not read, so the node set is this "
+                  f"layer's own nodes\n  only -- which omits every compound "
+                  f"that joined and the OrganismTaxon.\n  DANGLING here means "
+                  f"the validation scope is wrong, not the edges.")
         return 1
     print("\nschema: PASS")
 

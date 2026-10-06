@@ -449,3 +449,20 @@ def test_panel_labels_leak_nothing_through_the_publication_filter(tmp_path):
     idx = label_publication_index(tmp_path, {ANTIVIRAL_PREDICATE})
     assert list(idx.values()) == [{CPE_PUBLICATION}]
     assert "PMID:99999" not in next(iter(idx.values()))
+
+
+def test_the_layer_cannot_self_validate_and_that_is_by_design(ingested):
+    """Its own node set omits every compound that joined and the OrganismTaxon
+    the spine owns, because it deliberately does not re-emit nodes it does not
+    own. Validating it alone reports DANGLING for every edge -- a true
+    statement about an incomplete node set, not about the edges. The driver
+    must validate against release_nodes + em.nodes, as ingest_chembl.py does.
+
+    If this test ever passes, the layer has started asserting nodes it has no
+    authority over, which is the H2 bug.
+    """
+    em, _ = ingested
+    alone = load_schema().validate_batch(list(em.nodes.values()), em.edges)
+    assert alone, "the layer validated in isolation -- is it emitting the taxon?"
+    assert all(v.code == "DANGLING" for v in alone), \
+        sorted({v.code for v in alone})
