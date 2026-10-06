@@ -201,17 +201,25 @@ def main() -> int:
                  if name != SELF_LAYER]
     peer_dirs = [d for d in peer_dirs if (d / "nodes.jsonl").exists()]
     existing: set[str] = set()
-    release_nodes: list[dict] = []
+    # DEDUPED BY ID. Peer layers overlap on purpose -- a compound appears in
+    # chembl, selectivity and hosttargets alike, and the assembler merges them
+    # into one node. Concatenating the layer files hands validate_batch the
+    # same id several times and it correctly reports DUPLICATE_NODE: 67,360
+    # peer rows against 66,007 assembled nodes, so 1,353 violations that say
+    # nothing about this layer. First writer wins, exactly as the assembler's
+    # own precedence does.
+    by_id: dict[str, dict] = {}
     for d in peer_dirs:
         for line in (d / "nodes.jsonl").read_text().splitlines():
             if line.strip():
                 n = json.loads(line)
-                release_nodes.append(n)
+                by_id.setdefault(n["id"], n)
                 if n["class"] == "SmallMolecule":
                     existing.add(n["id"])
+    release_nodes = list(by_id.values())
     if peer_dirs:
         print(f"\n{len(existing):,} compounds across {len(peer_dirs)} peer "
-              f"layers ({len(release_nodes):,} nodes): "
+              f"layers ({len(release_nodes):,} distinct nodes): "
               f"{', '.join(d.name.replace('v0.1-', '') for d in peer_dirs)}")
     else:
         print(f"\n  ! no peer layers found under {args.peers} -- every compound "

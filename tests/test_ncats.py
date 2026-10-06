@@ -504,3 +504,28 @@ def test_running_the_ingest_twice_emits_the_same_nodes():
     assert s3["new_compound_node"] == 0
     # the edges still exist and now point at nothing this layer provides
     assert len(polluted.edges) == 2
+
+
+def test_peer_layers_overlap_so_the_node_set_must_be_deduped(tmp_path):
+    """Peer layers share nodes by design -- a compound sits in chembl,
+    selectivity and hosttargets alike and the assembler merges them. Handing
+    validate_batch the concatenated layer files reports DUPLICATE_NODE for
+    every shared id: 67,360 peer rows against 66,007 assembled nodes, 1,353
+    violations that say nothing about this layer.
+    """
+    shared = {"id": "INCHIKEY:SHARED", "class": "SmallMolecule",
+              "properties": {"smiles": "C", "inchikey_skel": "SHAREDXXXXXXXX",
+                             "is_approved": True, "salt_collapsed": False,
+                             "stereo_collapsed": False}}
+    rows = [json.dumps(shared), json.dumps(shared)]      # two layers, one node
+
+    # concatenated: the validator objects, correctly
+    dup = load_schema().validate_batch([json.loads(r) for r in rows], [])
+    assert any(v.code == "DUPLICATE_NODE" for v in dup)
+
+    # deduped first-writer-wins, as the driver now does: clean
+    by_id = {}
+    for r in rows:
+        n = json.loads(r)
+        by_id.setdefault(n["id"], n)
+    assert load_schema().validate_batch(list(by_id.values()), []) == []
