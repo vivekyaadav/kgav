@@ -42,10 +42,22 @@ def main() -> int:
     ap.add_argument("--version", default="v0.1")
     args = ap.parse_args()
 
-    layers = {name: args.releases / f"v0.1-{name}" for name in LAYER_PRECEDENCE}
-    layers = {k: v for k, v in layers.items() if v.exists()}
+    declared = {name: args.releases / f"v0.1-{name}" for name in LAYER_PRECEDENCE}
+    layers = {k: v for k, v in declared.items() if v.exists()}
     if not layers:
         raise SystemExit(f"no v0.1-* release directories in {args.releases}")
+
+    # A LISTED LAYER WITH NO DIRECTORY IS THE QUIETEST FAILURE HERE. The graph
+    # assembles, the schema passes, every count looks reasonable, and the
+    # metapaths that needed that layer reach nothing -- which is how the folds
+    # layer went missing long enough for M8 to look like a modelling problem.
+    # Said out loud now, because a skipped layer is almost always an ingest
+    # that failed earlier in the same session.
+    for name, path in declared.items():
+        if name not in layers:
+            print(f"  ! {name}: {path} not found — SKIPPED. Any metapath "
+                  f"needing it will\n    reach nothing, and nothing further "
+                  f"will say so.")
 
     schema_early = load_schema()
     identity = {ec.predicate: ec.identity_qualifiers
@@ -53,6 +65,12 @@ def main() -> int:
     print(f"assembling {len(layers)} layers: {', '.join(layers)}")
     if identity:
         print(f"  identity-defining qualifiers: {identity}")
+    # Printed because a guard nobody can see is a guard nobody can trust. If
+    # this line is absent, two screens of one compound are silently merging
+    # and LAYER_PRECEDENCE is deciding which measurement survives.
+    src_ident = schema_early.source_identity_predicates()
+    if src_ident:
+        print(f"  identified partly by source: {sorted(src_ident)}")
     derived = {ec.predicate: schema_early.derived_absence_qualifiers(ec.predicate)
                for ec in schema_early.edge_classes}
     derived = {p: d for p, d in derived.items() if d}
