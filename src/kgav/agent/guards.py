@@ -287,9 +287,15 @@ def selectivity_note(selectivity_index: float | None,
     # index have exactly one paired measurement, so quoting a bare value
     # implies a consensus that does not exist.
     if n_studies > 1 and si_max is not None and si_max > selectivity_index:
+        # "the lowest is quoted" was false: the ingest quotes the MEDIAN of
+        # the exact measurements, which is less conservative. Taking the worst
+        # was the earlier rule and it reported nirmatrelvir at SI 1.8 and
+        # remdesivir at 0.9 by selecting an outlier; the median replaced it.
+        # The sentence describing the number must describe the number.
         basis = (f" Across {n_studies} studies the index ranges "
-                 f"{selectivity_index:.1f} to {si_max:.1f}; the lowest is quoted, "
-                 f"and cell line and protocol differ between them.")
+                 f"{selectivity_index:.1f} to {si_max:.1f}; the median of the "
+                 f"exact measurements is quoted, and cell line and protocol "
+                 f"differ between them.")
     else:
         basis = (" This rests on a SINGLE paired measurement, so it indicates "
                  "rather than establishes the compound's selectivity.")

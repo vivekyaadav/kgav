@@ -70,9 +70,29 @@ def edge_key(e: dict, identity: dict[str, list[str]] | None = None) -> tuple:
     return base + tuple(eq.get(q) for q in quals)
 
 
+# The project's marker for "this fact has no assertion date", not a date in
+# 1970. temporal.edge_year and labels.build_labels both already read it that
+# way; _earliest did not.
+PLACEHOLDER_DATE_PREFIX = "1970"
+
+
 def _earliest(a: str | None, b: str | None) -> str | None:
+    """Earliest REAL date, falling back to the placeholder only if that is all
+    there is.
+
+    A plain min() over ISO strings makes "1970-01-01" win every comparison,
+    so merging a dated edge with an undated witness turned a dated fact into
+    an undated one. temporal.edge_year then returns None for it, and under the
+    default undated_policy="include" it is kept in EVERY training graph
+    regardless of its real date -- a temporal leak created by the merge, in
+    the module whose docstring says the earliest date is kept precisely so the
+    split can use when a fact was first established.
+    """
     dates = [d for d in (a, b) if d]
-    return min(dates) if dates else None
+    if not dates:
+        return None
+    real = [d for d in dates if not d.startswith(PLACEHOLDER_DATE_PREFIX)]
+    return min(real) if real else min(dates)
 
 
 def merge_edges(a: dict, b: dict, derive: DeriveFn | None = None) -> dict:

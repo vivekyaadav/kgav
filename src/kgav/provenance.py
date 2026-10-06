@@ -121,6 +121,16 @@ def check_file(path: Path, release: Path) -> tuple[str, str]:
                              "produced these numbers")
     recorded = (doc[PROVENANCE_KEY] or {}).get("release") or {}
     current = release_fingerprint(release)
+    # A MISSING RELEASE IS NOT A MATCH. _sha256 returns None for a file that
+    # does not exist, and two Nones compared equal -- so checking against a
+    # typo'd or deleted release path reported every file as current. That is a
+    # false "current" reading from the one tool whose job is to catch false
+    # "current" readings, which is worse than no check at all.
+    absent = [k for k in ("nodes_sha", "edges_sha") if current.get(k) is None]
+    if absent:
+        return "stale", (f"cannot verify: {release} has no "
+                         f"{', '.join(k.replace('_sha', '.jsonl') for k in absent)}, "
+                         f"so there is nothing to compare the stamp against")
     diffs = [k for k in ("nodes_sha", "edges_sha")
              if recorded.get(k) != current.get(k)]
     if diffs:

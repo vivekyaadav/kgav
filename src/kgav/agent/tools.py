@@ -276,8 +276,22 @@ class GraphTools:
             # them at the compound level produced a cell-context caveat naming
             # SIGMAR1 printed against a route through Spike glycoprotein --
             # a mismatch that discredits every other warning on the page.
-            for w in guards.path_warnings(nodes, route):
+            #
+            # THE SAME WARNINGS GO INTO `warns`, not only into the printed
+            # route. They used to go only here, so cell_context and
+            # host_directed_route never reached ToolResult.warnings, never
+            # reached the brief's required_warnings, and verify()'s
+            # warning-survival check never required them: the model could drop
+            # the SIGMAR1 caveat entirely and the answer still passed. That is
+            # the one caveat this project exists to attach -- chloroquine's
+            # route is real, well-replicated, and led the field astray in 2020.
+            # Both halves were tested and the join between them was not:
+            # test_agent_tools asserts the text lands in the right route block,
+            # test_agent_verify hands verify() a hand-built caveat directly.
+            route_warnings = guards.path_warnings(nodes, route)
+            for w in route_warnings:
                 lines.append(f"  ! {w}")
+            warns.extend(route_warnings)
 
         warns.append(self._selectivity_for(compound, virus))
         return ToolResult(True, "explain",

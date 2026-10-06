@@ -339,3 +339,34 @@ def test_merge_without_a_derive_function_leaves_qualifiers_alone(tmp_path):
                     {"subject": DRUG, "predicate": ACTIVITY, "object": VIRUS,
                      "qualifiers": {"cc50_nm": 5000.0}})
     assert a["qualifiers"]["unquantified"] is True
+
+
+def test_merge_does_not_let_the_1970_placeholder_beat_a_real_date():
+    """1970-01-01 means "undated", not "very old".
+
+    A plain min() over ISO strings made the placeholder win every comparison,
+    so merging a dated edge with an undated witness produced an UNDATED fact.
+    temporal.edge_year then returns None for it and the default
+    undated_policy="include" keeps it in every training graph whatever its
+    real date -- a temporal leak manufactured by the merge.
+    """
+    from kgav.assemble import merge_edges
+
+    def edge(date, src):
+        return {"subject": "A", "predicate": "TARGETS", "object": "B",
+                "qualifiers": {}, "primary_knowledge_source": src,
+                "evidence_tier": 1, "first_asserted_date": date}
+
+    dated_first = merge_edges(edge("2021-05-01", "s1"), edge("1970-01-01", "s2"))
+    assert dated_first["first_asserted_date"] == "2021-05-01"
+
+    undated_first = merge_edges(edge("1970-01-01", "s1"), edge("2021-05-01", "s2"))
+    assert undated_first["first_asserted_date"] == "2021-05-01"
+
+    # Two real dates still take the earlier one.
+    both = merge_edges(edge("2021-05-01", "s1"), edge("2019-02-02", "s2"))
+    assert both["first_asserted_date"] == "2019-02-02"
+
+    # Genuinely undated on both sides stays undated rather than becoming None.
+    neither = merge_edges(edge("1970-01-01", "s1"), edge("1970-01-01", "s2"))
+    assert neither["first_asserted_date"] == "1970-01-01"

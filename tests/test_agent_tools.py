@@ -126,7 +126,29 @@ def test_path_warnings_attach_to_their_own_route(graph):
     joined = " ".join(r.verbalised)
     assert "CELL CONTEXT" in joined and "SIGMAR1" in joined
     assert "below chance" in joined
-    # compound-level warnings carry selectivity only
+
+
+def test_path_warnings_are_also_required_warnings(graph):
+    """Printing a caveat is not enforcing it.
+
+    This assertion used to read `all("CELL CONTEXT" not in w for w in
+    r.warnings)` -- it locked in the defect. path_warnings went only into
+    `verbalised`, so cell_context and host_directed_route never reached
+    ToolResult.warnings, never reached the brief, and verify()'s
+    warning-survival check never required them. A model that dropped the
+    SIGMAR1 caveat still passed verification.
+
+    Sitting with its route and being required are both true of the same
+    caveat: the test above checks the first, this one the second.
+    """
+    r = graph.explain(CYTO, V)
+    assert any("CELL CONTEXT" in w and "SIGMAR1" in w for w in r.warnings)
+    assert any("HOST-DIRECTED ROUTE" in w for w in r.warnings)
+
+
+def test_direct_acting_route_requires_no_cell_context_warning(graph):
+    """The converse, so the fix above cannot become 'warn on everything'."""
+    r = graph.explain(DRUG, V)
     assert all("CELL CONTEXT" not in w for w in r.warnings)
 
 

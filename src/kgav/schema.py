@@ -63,6 +63,11 @@ class EdgeClass:
     qualifiers: dict = field(default_factory=dict)
     required_qualifiers: list = field(default_factory=list)
     held_out: bool = False
+    # A label is a measurement an evaluation partitions into positives and
+    # negatives. DISTINCT FROM held_out, which is about traversal: see the
+    # edge_classes header in kg_schema.yaml. Every held-out predicate was also
+    # a label until MEASURED_INACTIVE_AGAINST, which is held out and is not.
+    evaluation_label: bool = False
     is_model_output: bool = False
     identity_qualifiers: list = field(default_factory=list)
     # None means UNDECLARED, which is different from False. A traversal may
@@ -118,6 +123,7 @@ class Schema:
                 qualifiers=e.get("qualifiers") or {},
                 required_qualifiers=list(e.get("required_qualifiers") or []),
                 held_out=bool(e.get("held_out", False)),
+                evaluation_label=bool(e.get("evaluation_label", False)),
                 is_model_output=bool(e.get("is_model_output", False)),
                 identity_qualifiers=list(e.get("identity_qualifiers") or []),
                 symmetric=e.get("symmetric"),
@@ -242,6 +248,49 @@ class Schema:
     def held_out_predicates(self) -> set[str]:
         """Predicates that must be stripped from the TRAINING graph."""
         return {ec.predicate for ec in self.edge_classes if ec.held_out}
+
+    def evaluation_label_predicates(self) -> set[str]:
+        """Predicates whose edges ARE labels, keyed by their object.
+
+        Not the same set as held_out_predicates, and the difference is the
+        point. A split that partitions every held-out edge into positives and
+        negatives buckets MEASURED_INACTIVE_AGAINST by viral protein, putting
+        protein nodes where viruses belong. Every predicate here terminates on
+        an OrganismTaxon or a Disease; validate_labels() enforces that, so a
+        predicate cannot be declared a label and then key the label sets on
+        something that is not a label's subject.
+        """
+        return {ec.predicate for ec in self.edge_classes if ec.evaluation_label}
+
+    def validate_labels(self) -> list[Violation]:
+        """A label must terminate on a virus or a disease, and be held out.
+
+        The first rule stops the bug this flag exists for from reappearing by
+        a different route: a label keyed on a protein silently fills the label
+        sets with protein nodes. The second is a consistency check -- a label
+        left in the training graph is the leak the whole temporal protocol is
+        built to prevent, so declaring one without holding it out is an error
+        rather than a choice.
+        """
+        out: list[Violation] = []
+        for ec in self.edge_classes:
+            if not ec.evaluation_label:
+                continue
+            if ec.object not in ("OrganismTaxon", "Disease"):
+                out.append(Violation(
+                    "LABEL_BAD_OBJECT",
+                    f"{ec.predicate} is declared evaluation_label but terminates "
+                    f"on {ec.object}; a label is a measurement about a (compound, "
+                    f"virus) or (compound, disease) pair, and keying label sets "
+                    f"on anything else fills them with the wrong node class",
+                    ec.predicate))
+            if not ec.held_out:
+                out.append(Violation(
+                    "LABEL_NOT_HELD_OUT",
+                    f"{ec.predicate} is a label but is not held_out, so it stays "
+                    f"in the training graph and can be traversed to predict "
+                    f"itself", ec.predicate))
+        return out
 
     def model_output_predicates(self) -> set[str]:
         return {ec.predicate for ec in self.edge_classes if ec.is_model_output}
