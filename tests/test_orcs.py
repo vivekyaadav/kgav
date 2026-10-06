@@ -4,6 +4,8 @@ This is the one layer where an error produces a confidently WRONG
 recommendation rather than a missing one, so the tests are about refusal as
 much as about correctness.
 """
+from pathlib import Path
+
 import pytest
 
 from kgav.emit import Emit
@@ -20,6 +22,8 @@ from kgav.orcs import (
     virus_taxon,
 )
 from kgav.schema import load_schema
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _screen(sid="1", rationale="Increased resistance to virus", score_type="Z-score",
@@ -231,3 +235,53 @@ def test_output_validates_against_schema(ingested):
     ]
     violations = load_schema().validate_batch(nodes, em.edges)
     assert violations == [], [str(v) for v in violations[:6]]
+
+
+# --------------------------------------------------------------------------
+# The polarity override must be able to take effect.
+# --------------------------------------------------------------------------
+def test_an_overridden_screen_is_still_fetched():
+    """The override existed and could never apply.
+
+    ingest_orcs built `fetchable` from polarity_mode alone, so a screen whose
+    polarity comes from config/orcs_polarity_overrides.json was never fetched.
+    ingest_screens is handed `usable` rather than `fetchable`, so it then
+    applied the override -- incrementing override_applied -- and skipped the
+    screen on no_gene_data one line later. The counter reported success for a
+    screen contributing nothing.
+
+    The only screens an override exists for are exactly the unresolvable ones:
+    SCREEN_RATIONALE reporting both directions with an unsigned score, which
+    needs curation from the paper.
+    """
+    src = (ROOT / "scripts" / "ingest_orcs.py").read_text()
+    assert "overrides_early" in src, "fetchable is built before overrides load"
+    i_fetchable = src.index("fetchable = [")
+    i_overrides = src.index("overrides_early =")
+    assert i_overrides < i_fetchable, \
+        "overrides must be read BEFORE fetchable is built"
+    # Span by lines, not by the first "]" -- that one sits inside
+    # polarity_mode(s)[0] and ends the slice before the override clause.
+    seg = "\n".join(src[i_fetchable:].splitlines()[:4])
+    assert "overrides_early" in seg, \
+        f"fetchable must keep an unresolvable screen that has an override:\n{seg}"
+
+
+def test_override_turns_an_unresolvable_screen_into_a_screen_level_one():
+    """The module half, so the two cannot drift apart."""
+    screen = {"SCREEN_ID": 9001, "CONDITION_NAME": "SARS-CoV-2",
+              "SCREEN_RATIONALE": "Increased/Decreased resistance to virus",
+              "SCORE.1_TYPE": "MAGeCK pos score",   # unsigned -> unresolvable
+              "METHODOLOGY": "Knockout", "CELL_LINE": "Huh-7.5",
+              "AUTHOR": "Someone X (2021)", "SOURCE_ID": "12345"}
+    assert polarity_mode(screen)[0] == "unresolvable"
+
+    rows = [{"OFFICIAL_SYMBOL": "RAB7A", "IDENTIFIER_ID": "7879",
+             "HIT": "YES", "SCORE.1": "3.0"}]
+    em = Emit()
+    stats = ingest_screens(em, [screen], {"9001": rows},
+                           {"NCBIGene:7879": ["UniProtKB:P51149"]},
+                           "infores:biogrid-orcs", {"9001": "dependency"})
+    assert stats["override_applied"] == 1
+    assert stats["edges"] == 1, "an applied override must produce edges"
+    assert em.edges[0]["qualifiers"]["direction"] == "dependency"

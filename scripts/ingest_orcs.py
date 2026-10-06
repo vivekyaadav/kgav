@@ -89,7 +89,24 @@ def main() -> int:
 
     cache = args.orcs_dir / "screens"
     cache.mkdir(exist_ok=True)
-    fetchable = [s for s in usable if polarity_mode(s)[0] != "unresolvable"]
+    # AN OVERRIDDEN SCREEN MUST ALSO BE FETCHED.
+    #
+    # This read `polarity_mode(s)[0] != "unresolvable"` alone, so a screen whose
+    # polarity is supplied by config/orcs_polarity_overrides.json was never
+    # fetched -- and ingest_screens, which is handed `usable` rather than
+    # `fetchable`, then applied the override (incrementing override_applied)
+    # and immediately skipped the screen on no_gene_data. The override
+    # mechanism could not take effect for the only case it exists for: a screen
+    # whose SCREEN_RATIONALE reports both directions with an unsigned score,
+    # which needs manual curation from its paper.
+    #
+    # The counter made it worse than silent: it reported an override as
+    # APPLIED for a screen contributing nothing.
+    overrides_early = json.loads(args.overrides.read_text()) \
+        if args.overrides.exists() else {}
+    fetchable = [s for s in usable
+                 if polarity_mode(s)[0] != "unresolvable"
+                 or str(s["SCREEN_ID"]) in overrides_early]
     print(f"\nfetching gene results for {len(fetchable)} screens")
     gene_rows: dict[str, list[dict]] = {}
     for i, s in enumerate(fetchable, 1):
@@ -106,7 +123,10 @@ def main() -> int:
         [args.host / "edges.jsonl", args.spine / "edges.jsonl"])
     print(f"\n{len(gene_to_protein):,} genes map to host proteins")
 
-    overrides = json.loads(args.overrides.read_text()) if args.overrides.exists() else {}
+    overrides = overrides_early
+    if overrides:
+        print(f"\n{len(overrides)} polarity override(s) from "
+              f"{args.overrides.name}; those screens are fetched too")
     em = Emit()
     s = ingest_screens(em, usable, gene_rows, gene_to_protein,
                        "infores:biogrid-orcs", overrides)
