@@ -324,7 +324,7 @@ def metapath_reach(g: Graph, metapaths: dict,
 
 
 def combine(dwpc: dict[str, dict[str, dict[str, float]]], virus: str,
-            normalize: bool = True) -> dict[str, float]:
+            normalize: bool = True, calibration=None) -> dict[str, float]:
     """Combine DWPC across metapaths for one virus.
 
     RAW SUMMATION IS WRONG and was the first version of this function. The
@@ -361,26 +361,47 @@ def combine(dwpc: dict[str, dict[str, dict[str, float]]], virus: str,
     # is capped at 1.0. Measured: under sum-of-percentiles chloroquine ranked
     # 142 and nirmatrelvir 1,428, and ranks 6-25 were tied within 0.08.
     #
-    # Max means a drug is ranked by its BEST mechanistic route. M1's pool has a
-    # 15.5% positive rate and MRR 1.0, so one strong direct-acting path is
-    # better evidence than five diffuse host-directed ones.
+    # MAX IS BIASED UPWARD BY THE NUMBER OF CHANNELS, which is harmless while
+    # every channel carries signal and corrosive once some do not. The maximum
+    # of k independent uniform percentiles has expectation k/(k+1): over eight
+    # channels that is 0.89 for any drug present in all of them, so the
+    # ordering reverts to counting pools -- the very failure the switch from
+    # sum to max was made to fix -- and a drug at the top of a pure-noise pool
+    # scores 1.0 outright. Measured on the single-screen protocol, COMBINED
+    # lands at 0.516 while the best single channel reaches 0.523.
+    #
+    # `calibration` (kgav.calibration.Calibration) restricts the max to
+    # channels whose measured 95% interval EXCLUDES 0.5, and weights each by
+    # its margin over chance. With none qualifying it returns {} rather than a
+    # ranking: refusing to order candidates is a result, and an order built
+    # from eight chance-level channels is not one. Omit it and the uncalibrated
+    # behaviour above is unchanged, so every published number reproduces.
+    weights: dict[str, float] | None = None
+    if calibration is not None:
+        weights = calibration.weights()
+        if not weights:
+            return {}
+
     best: dict[str, float] = defaultdict(float)
-    for per_drug in dwpc.values():
+    for name, per_drug in dwpc.items():
+        if weights is not None and name not in weights:
+            continue
         pool = {drug: by[virus] for drug, by in per_drug.items() if virus in by}
         if not pool:
             continue
         # A single-occupant pool has no defined percentile spread, but the drug
         # IS the top of that pool -- dropping it would silently discard every
         # drug whose only route is a rare metapath.
+        w = weights[name] if weights is not None else 1.0
         if len(pool) == 1:
             drug = next(iter(pool))
-            best[drug] = max(best[drug], 1.0)
+            best[drug] = max(best[drug], 1.0 * w)
             continue
         ordered = sorted(pool.items(), key=lambda kv: kv[1])
         n = len(ordered) - 1
         for i, (drug, _v) in enumerate(ordered):
             pct = i / n
-            best[drug] = max(best[drug], pct)
+            best[drug] = max(best[drug], pct * w)
     return dict(best)
 
 

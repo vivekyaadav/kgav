@@ -28,6 +28,7 @@ manufacture a label the data does not support. It is dropped and counted.
 from __future__ import annotations
 
 import json
+import math
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -173,6 +174,25 @@ def build_labels(release: Path, year_from: int | None = None,
     return out
 
 
+def auc_interval(auc: float, n_pos: int, n_neg: int,
+                 z: float = 1.96) -> tuple[float, float]:
+    """95% interval for an AUC, Hanley & McNeil (1982).
+
+    Assumes exponential score distributions, which is conservative for the
+    small-n cases that matter here. Clamped to [0, 1] because the normal
+    approximation runs outside the range when n is tiny, and an AUC of 1.04
+    reported to a reader is worse than a wide interval.
+    """
+    if n_pos < 1 or n_neg < 1:
+        return (0.0, 1.0)
+    q1 = auc / (2.0 - auc)
+    q2 = 2.0 * auc * auc / (1.0 + auc)
+    var = (auc * (1 - auc) + (n_pos - 1) * (q1 - auc * auc)
+           + (n_neg - 1) * (q2 - auc * auc)) / (n_pos * n_neg)
+    se = math.sqrt(var) if var > 0 else 0.0
+    return (max(0.0, auc - z * se), min(1.0, auc + z * se))
+
+
 def evaluate_against_negatives(scores: dict[str, float], pos: set[str],
                                neg: set[str], impute_missing: bool = True) -> dict:
     """Rank only measured compounds and report AUC plus enrichment.
@@ -210,7 +230,15 @@ def evaluate_against_negatives(scores: dict[str, float], pos: set[str],
         equal = bisect.bisect_right(neg_sorted, p) - lower
         wins += lower + 0.5 * equal
     auc = wins / (n_p * n_n)
+    lo, hi = auc_interval(auc, n_p, n_n)
     return {"n_pos": n_p, "n_neg": n_n, "auc": auc, "evaluable": True,
+            # THE INTERVAL TRAVELS WITH THE NUMBER. A point AUC says nothing
+            # about whether the scorer discriminates: 0.523 on 89 positives
+            # spans [0.462, 0.584] and is indistinguishable from chance, while
+            # 0.523 on 10,000 would not be. Everything that later decides
+            # whether to trust a channel reads these two fields, so they
+            # cannot be left for a reader to compute.
+            "auc_ci_lo": lo, "auc_ci_hi": hi,
             "imputed": bool(impute_missing),
             # Coverage is now reported separately from n_pos/n_neg: it is what
             # fraction the scorer actually REACHED, and a high AUC on low
