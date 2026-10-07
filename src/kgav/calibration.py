@@ -1,0 +1,226 @@
+"""What each reasoning channel is measured to be worth.
+
+THE PROBLEM THIS SOLVES. baselines.combine ranks a drug by its BEST
+percentile across metapaths, which was right when the alternative was summing
+incomparable scales, and is wrong once some channels carry no signal. Max over
+k channels is biased upward by k: a drug sitting at the top of a pure-noise
+pool scores 1.0 and outranks one with a real route. Measured on the
+single-screen protocol, COMBINED scores 0.516 while the best single channel
+scores 0.523 -- pooling made the ranking worse, which is the arithmetic of max
+over eight channels whose intervals all span 0.5.
+
+WHAT A CHANNEL HAS TO EARN. Not a point AUC above 0.5 -- half of pure noise
+clears that -- but a 95% interval that EXCLUDES 0.5. On the current graph no
+channel clears it:
+
+    M1 0.513 [0.452, 0.574]    M5 0.516 [0.455, 0.577]
+    M2 0.492 [0.432, 0.552]    M6 0.502 [0.442, 0.562]
+    M3 0.523 [0.462, 0.584]    M7 0.499 [0.439, 0.559]
+    M4 0.507 [0.446, 0.568]    degree 0.582 [0.520, 0.644]
+
+So a calibrated combine over this release returns NOTHING, and that is the
+correct output. An agent whose channels are all at chance should say it cannot
+rank candidates, not emit a confident order derived from noise. The ranking
+being empty is a finding; a plausible-looking ranking built from these numbers
+would be the failure.
+
+WHY IT IS LOADED, NOT HARDCODED. A weight written into the source is a fitted
+parameter with no record of what fitted it. These come from a results file that
+carries its own protocol, label source, n, and whether the publication-disjoint
+control was applied -- so a channel's weight can always be traced to the run
+that earned it, and a weight measured under a confounded protocol can be
+refused. Four protocols produced four different AUCs for M1 tonight (0.823,
+0.726, 0.660, 0.499); a number with no protocol attached is not a measurement.
+"""
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from pathlib import Path
+
+# A channel must beat chance with its interval, not its point estimate.
+CHANCE = 0.5
+
+# Protocols whose numbers must never become weights, with the reason. Checked
+# by name so a results file produced under one is refused rather than silently
+# trusted -- the whole sequence in docs/evaluation.md is numbers that looked
+# usable until the next control ran.
+REFUSED_PROTOCOLS: dict[str, str] = {
+    "selectivity-positives-only":
+        "filters positives to compounds with verified selectivity data and "
+        "leaves negatives whole: a 17x coverage asymmetry, which is what "
+        "produced the 0.823 headline",
+}
+
+
+@dataclass
+class ChannelCalibration:
+    """One metapath's measured performance under one protocol."""
+    name: str
+    auc: float | None
+    ci_lo: float | None
+    ci_hi: float | None
+    n_pos: int
+    n_neg: int
+    coverage_pos: float = 0.0
+    coverage_neg: float = 0.0
+
+    @property
+    def discriminates(self) -> bool:
+        """Whether the interval clears chance.
+
+        Deliberately strict. A point AUC above 0.5 is what half of pure noise
+        does, and every channel on this release has a point estimate above or
+        near 0.5 while none has an interval that excludes it.
+        """
+        return (self.auc is not None and self.ci_lo is not None
+                and self.ci_lo > CHANCE)
+
+    @property
+    def weight(self) -> float:
+        """Discrimination above chance, or zero if it has not been shown.
+
+        auc - 0.5 rather than the AUC itself: a channel at 0.52 is not worth
+        96% of one at 0.54, it is worth a fifth as much, because the useful
+        quantity is the margin over chance.
+        """
+        return max(0.0, self.auc - CHANCE) if self.discriminates else 0.0
+
+    def describe(self) -> str:
+        """One line an agent can put in front of a reader."""
+        if self.auc is None:
+            return f"{self.name}: not evaluable ({self.n_pos}+/{self.n_neg}-)"
+        verdict = ("discriminates" if self.discriminates
+                   else "indistinguishable from chance")
+        return (f"{self.name}: AUC {self.auc:.3f} "
+                f"[{self.ci_lo:.3f}, {self.ci_hi:.3f}] on {self.n_pos:,} "
+                f"measured active / {self.n_neg:,} measured inactive — "
+                f"{verdict}")
+
+
+@dataclass
+class Calibration:
+    """Every channel's measured performance for one virus, with provenance."""
+    virus: str
+    protocol: str
+    channels: dict[str, ChannelCalibration] = field(default_factory=dict)
+    source_file: str = ""
+    refused_reason: str = ""
+
+    @property
+    def usable(self) -> bool:
+        return not self.refused_reason
+
+    def discriminating(self) -> list[str]:
+        if not self.usable:
+            return []
+        return [n for n, c in sorted(self.channels.items()) if c.discriminates]
+
+    def weights(self) -> dict[str, float]:
+        if not self.usable:
+            return {}
+        return {n: c.weight for n, c in self.channels.items() if c.weight > 0}
+
+    def can_rank(self) -> bool:
+        """Whether ANY channel has earned a place in a ranking."""
+        return bool(self.weights())
+
+    def why_not(self) -> str:
+        """The sentence an agent should say when it cannot rank. Plain, and
+        specific about what was measured rather than apologetic."""
+        if self.refused_reason:
+            return (f"calibration from {self.source_file} was refused: "
+                    f"{self.refused_reason}")
+        evaluated = [c for c in self.channels.values() if c.auc is not None]
+        if not evaluated:
+            return (f"no channel was evaluable for {self.virus} under "
+                    f"{self.protocol}")
+        best = max(evaluated, key=lambda c: c.auc)
+        return (f"no reasoning channel beats chance for {self.virus} under "
+                f"{self.protocol}: the strongest is {best.describe()}. "
+                f"Ranking candidates would order them by noise, so the graph "
+                f"can report evidence for a named compound but not a "
+                f"shortlist.")
+
+    def report(self) -> list[str]:
+        lines = [f"calibration: {self.protocol} / {self.virus}"
+                 + (f"  (from {self.source_file})" if self.source_file else "")]
+        if self.refused_reason:
+            lines.append(f"  REFUSED: {self.refused_reason}")
+            return lines
+        for _n, c in sorted(self.channels.items()):
+            lines.append(f"  {c.describe()}")
+        if self.can_rank():
+            w = self.weights()
+            lines.append("  ranking weights: " + ", ".join(
+                f"{k} {v:.3f}" for k, v in sorted(w.items())))
+        else:
+            lines.append(f"  {self.why_not()}")
+        return lines
+
+
+def _channel(name: str, row: dict) -> ChannelCalibration:
+    return ChannelCalibration(
+        name=name,
+        auc=row.get("auc"),
+        ci_lo=row.get("auc_ci_lo"),
+        ci_hi=row.get("auc_ci_hi"),
+        n_pos=int(row.get("n_pos") or 0),
+        n_neg=int(row.get("n_neg") or 0),
+        coverage_pos=float(row.get("coverage_pos") or 0.0),
+        coverage_neg=float(row.get("coverage_neg") or 0.0),
+    )
+
+
+def load(results: Path, virus: str, section: str = "cross-sectional",
+         protocol: str | None = None,
+         exclude: tuple[str, ...] = ("COMBINED", "degree")) -> Calibration:
+    """Read one virus's channel calibration out of a hard_negatives results file.
+
+    COMBINED and degree are excluded by default and for different reasons.
+    COMBINED is the thing being built, so weighting it by its own score would
+    be circular. degree is the NULL HYPOTHESIS -- it is what a ranking has to
+    beat, not a channel to rank with, and on the single-screen protocol it is
+    the only scorer whose interval clears chance, which is precisely why it
+    must not be smuggled in as a reasoning route.
+    """
+    doc = json.loads(Path(results).read_text())
+    body = doc.get("results", doc)
+    sec = body.get(section) or {}
+    rows = sec.get(virus) or {}
+    proto = protocol or doc.get("protocol") or _infer_protocol(doc, section)
+    cal = Calibration(virus=virus, protocol=proto,
+                      source_file=str(Path(results).name))
+    for key, reason in REFUSED_PROTOCOLS.items():
+        if key in proto:
+            cal.refused_reason = reason
+    for name, row in rows.items():
+        if name in exclude or not isinstance(row, dict):
+            continue
+        cal.channels[name] = _channel(name, row)
+    return cal
+
+
+def _infer_protocol(doc: dict, section: str) -> str:
+    """Name the protocol from whatever the results file recorded about itself.
+
+    A results file written before the flags existed records none of them, and
+    the right answer then is "unknown" rather than a guess: an unnamed protocol
+    is exactly the thing REFUSED_PROTOCOLS exists to catch.
+    """
+    args = doc.get("args") or doc.get("provenance", {}).get("args") or {}
+    if not args:
+        return f"{section}/unknown"
+    bits = [section]
+    if args.get("label_source"):
+        bits.append(str(args["label_source"]))
+    sel = args.get("selectivity")
+    applies = args.get("selectivity_applies")
+    if sel and sel != "all":
+        bits.append(f"{sel}-{applies or 'positives'}"
+                    if applies != "both" else f"{sel}-both")
+        if applies != "both":
+            bits.append("selectivity-positives-only")
+    if args.get("publication_disjoint"):
+        bits.append("publication-disjoint")
+    return "/".join(bits)
