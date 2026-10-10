@@ -110,6 +110,38 @@ def _caveat_marker(warning) -> str:
     return head if head and len(head) < 40 else warning[:40].lower()
 
 
+def caveat_labels(warnings: list) -> list[str]:
+    """The LABEL of each caveat, uppercased -- what an answer must keep.
+
+    Public because the synthesis stage names these back to the model on a
+    retry, and reaching across modules for _caveat_marker made that an
+    accident waiting to be renamed.
+    """
+    out = []
+    for w in warnings or []:
+        marker = _caveat_marker(w)
+        if marker:
+            out.append(marker.rstrip(": ").upper())
+    return out
+
+
+def dropped_warnings(answer: str, required: list) -> list:
+    """Required caveats whose label is missing from `answer`.
+
+    Extracted so the synthesis stage can ask the same question the verifier
+    will, and retry before an answer is thrown away. A 7B model drops a
+    caveat for brevity reliably enough that one withheld answer per
+    host-directed question was the normal outcome.
+    """
+    low = (answer or "").lower()
+    out = []
+    for w in required or []:
+        marker = _caveat_marker(w)
+        if marker and marker not in low:
+            out.append(w)
+    return out
+
+
 def _caveat_name(warning) -> str:
     """How a dropped caveat is named in the report."""
     return getattr(warning, "key", None) or str(warning)[:70]
@@ -192,13 +224,10 @@ def verify(answer: str, facts: list[str], citable_edge_ids: list[str],
 
     # 3. Mandatory warnings must survive into the answer. This is the check
     #    that stops a cell-context caveat being dropped for brevity.
-    ans_low = (answer or "").lower()
-    for w in required_warnings:
-        marker = _caveat_marker(w)
-        if marker and marker not in ans_low:
-            findings.append(Finding(
-                "fail", "warning_dropped",
-                f"required warning not present in the answer: {_caveat_name(w)}"))
+    for w in dropped_warnings(answer, required_warnings):
+        findings.append(Finding(
+            "fail", "warning_dropped",
+            f"required warning not present in the answer: {_caveat_name(w)}"))
 
     # 4. Every number in the answer must appear in the facts. A transposed
     #    digit in a potency value is harder to notice than a wrong sentence.
