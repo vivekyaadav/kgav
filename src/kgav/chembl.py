@@ -150,6 +150,89 @@ def query_activities(db: Path, taxa: list[str]) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+# WHAT WAS THE MEASUREMENT MADE ON. ChEMBL's assay_type code does not answer
+# this: measured on the 7,677 coronavirus protein-target rows, 444 B-coded
+# ("binding") rows describe a cellular readout, including "Inhibition of eGFP
+# fused SARS-CoV2 main protease transfected in HEK293T/17 cells ... by
+# fluorescence based flow cytometry". The description answers it.
+#
+# This matters because the predicate depends on it. A pseudovirus entry assay
+# against spike does not show a compound binds spike; it shows the compound
+# blocks spike-mediated entry. Chloroquine's "IC50 160 nM on Spike
+# glycoprotein" is exactly that -- "spike glycoprotein S in SARS-CoV-2
+# pseudovirus infected in human 293T/ACE2 cells assessed as inhibition of
+# viral infection" -- and it blocks endosomal acidification, not spike. The
+# same compound's real spike measurement, an ACE2-interaction ELISA, is
+# 7,000 nM. Filed on the protein, the surrogate wins the best-potency
+# selection by 44x and becomes the headline the agent reports.
+SURROGATE_PATTERNS = (
+    r"pseudo[- ]?typed", r"pseudovirus", r"pseudo[- ]?particle",
+    r"\breplicon\b", r"\bluciferase\b", r"\beGFP\b", r"\bGFP\b",
+    r"reporter", r"transfect",
+)
+LIVE_VIRUS_PATTERNS = (
+    r"cytopath", r"\bCPE\b", r"\binfect", r"viral load", r"virus yield",
+    r"\bvirus titer\b", r"\btiter\b",
+)
+PLAQUE_PATTERNS = (r"plaque",)
+# A cell line name alone makes a readout cellular. Kept separate from the
+# above because it says WHERE, not WHAT.
+CELL_LINE_PATTERNS = (
+    r"\bvero\b", r"calu-?3", r"\bhuh-?7", r"\bcaco-?2", r"\bhek ?293",
+    r"\b293t", r"\bA549\b", r"\bcells?\b",
+)
+# Protein-level, even when the material came from cells. A lysate's
+# description necessarily says "cell", so without these it reads as cellular.
+BIOCHEMICAL_PATTERNS = (
+    r"recombinant", r"purified", r"enzymatic", r"\bFRET\b", r"fluorogenic",
+    r"\bSPR\b", r"thermal shift", r"\bITC\b", r"cell[- ]free", r"lysate",
+    r"\bextract\b", r"\bin vitro\b", r"\bELISA\b",
+)
+
+_SURROGATE = re.compile("|".join(SURROGATE_PATTERNS), re.I)
+_LIVE = re.compile("|".join(LIVE_VIRUS_PATTERNS), re.I)
+_PLAQUE = re.compile("|".join(PLAQUE_PATTERNS), re.I)
+_CELL = re.compile("|".join(CELL_LINE_PATTERNS), re.I)
+_BIOCHEM = re.compile("|".join(BIOCHEMICAL_PATTERNS), re.I)
+
+
+def assay_readout(description: str, assay_type_code: str | None = None) -> tuple[str, str]:
+    """(where, assay_type) for one assay description.
+
+    `where` is "cells", "protein" or "unclear", and decides whether the row
+    describes the protein it is filed against. `assay_type` is one of the
+    schema's enum values -- which already contains reporter,
+    plaque_reduction and cell_based_antiviral. The vocabulary was there; the
+    ingest wrote "biochemical" on every protein row regardless.
+
+    "unclear" is returned when the text says both, as in a recombinant
+    protease assayed in a cell lysate. 537 rows read that way and they are
+    left on the protein: moving a measurement requires knowing it was
+    cellular, and these are the ones a human has to read.
+    """
+    d = description or ""
+    bio = bool(_BIOCHEM.search(d))
+    surrogate = bool(_SURROGATE.search(d))
+    live = bool(_LIVE.search(d))
+    cellular = surrogate or live or bool(_CELL.search(d))
+
+    if cellular and bio:
+        return "unclear", "other"
+    if cellular:
+        if _PLAQUE.search(d):
+            return "cells", "plaque_reduction"
+        if surrogate:
+            return "cells", "reporter"
+        return "cells", "cell_based_antiviral"
+    if bio:
+        return "protein", "biochemical"
+    # Nothing either way: 1,947 rows, all B-coded. Trust the code, which is
+    # the weaker signal but the only one left, and say "binding" rather than
+    # "biochemical" because that is what B means.
+    return ("protein", "binding" if (assay_type_code or "B").upper() == "B"
+            else "biochemical")
+
+
 def ingest_activities(em, rows: list[dict], viral_targets: dict[str, dict[str, str]],
                       taxon_map: dict[str, str], source: str) -> Counter:
     stats: Counter = Counter()
@@ -241,9 +324,44 @@ def ingest_activities(em, rows: list[dict], viral_targets: dict[str, dict[str, s
         if domain:
             quals["domain"] = domain
 
-        quals["assay_type"] = "biochemical"
+        # THE MEASUREMENT DECIDES THE PREDICATE, AND SO DOES WHAT IT WAS MADE
+        # ON. The rule below already stopped a non-active measurement becoming
+        # INHIBITS; this is the same rule one level deeper. 1,884 of 7,677
+        # protein-target rows (24.5%) describe a CELLULAR readout, so filing
+        # them on the protein asserts a direct interaction the assay never
+        # measured -- and M1, M7 and M8 walk those edges, which means the
+        # "direct-acting" channel was never purely direct-acting.
+        #
+        # A cellular row is emitted on the ORGANISM instead, which is where
+        # the measurement points: it is an antiviral activity measurement that
+        # happens to name a protein as the assay's nominal target. That makes
+        # it a held-out label rather than traversable evidence, which is
+        # correct -- a cell-based EC50 is exactly what this project evaluates
+        # against.
+        where, assay_type = assay_readout(r.get("description") or "",
+                                          r.get("assay_type"))
+        quals["assay_type"] = assay_type
+        stats[f"readout_{where}"] += 1
+        stats[f"assay_type_{assay_type}"] += 1
 
-        # THE MEASUREMENT DECIDES THE PREDICATE. Every row used to become an
+        if where == "cells":
+            # The nominal protein target is kept so the reattribution is
+            # auditable rather than silent: it is why this row exists at all.
+            org_quals = dict(quals)
+            org_quals["nominal_protein_target"] = target_node
+            org_key = (drug, "HAS_ANTIVIRAL_ACTIVITY_AGAINST",
+                       f"NCBITaxon:{tax}", r["assay"], r["standard_type"])
+            if org_key in seen:
+                stats["duplicate"] += 1
+                continue
+            seen.add(org_key)
+            em.edge(drug, "HAS_ANTIVIRAL_ACTIVITY_AGAINST", f"NCBITaxon:{tax}",
+                    source=source, date=date, tier=1, quals=org_quals,
+                    pmids=pmids)
+            stats["reattributed_to_organism"] += 1
+            continue
+
+        # Every row used to become an
         # INHIBITS edge regardless of what it measured, so 1,433 of 5,486
         # pairs asserted inhibition with no active measurement behind them --
         # 26% of the direct-acting channel that M1, M7 and M8 walk. classify()

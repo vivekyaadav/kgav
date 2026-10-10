@@ -539,6 +539,13 @@ edge_classes:
       # and no finite ratio exists. Recording top_conc/ec50 instead would
       # understate a compound that is cleaner than the assay can measure.
       cytotoxicity_not_detected: {type: bool}
+      # Set when a CELLULAR measurement was reattributed here from a viral
+      # protein it was filed against in the source. A pseudovirus entry assay
+      # names spike as its nominal target and measures spike-mediated entry,
+      # not spike binding -- so the edge belongs on the organism, and this
+      # records which protein the source named so the move is auditable
+      # rather than silent. 1,884 of 7,677 coronavirus protein-target rows.
+      nominal_protein_target: {type: string, doc: "CURIE the source filed this under"}
     required_qualifiers: [assay_type]
     # TWO SCREENS ARE TWO EXPERIMENTS. Without this, an NCATS panel inactive
     # and a ChEMBL-sourced active for the same compound collapse into one edge

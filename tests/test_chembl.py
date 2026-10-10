@@ -8,6 +8,7 @@ import pytest
 
 from kgav.aliases import AliasIndex
 from kgav.chembl import (
+    assay_readout,
     build_viral_target_index,
     ingest_activities,
     query_activities,
@@ -373,3 +374,128 @@ def test_the_driver_lists_every_counter_the_module_sets():
                 set(re.findall(r'"([a-z_]+)"', drv))
     missing = set_by_module - accounted - reported_elsewhere
     assert not missing, f"chembl.py sets counters the driver never reports: {sorted(missing)}"
+
+
+# ------------------- what the measurement was made ON, not just what it says
+@pytest.mark.parametrize("desc,code,where,atype", [
+    # The real chloroquine rows, verbatim from ChEMBL 37.
+    ("Inhibition of spike glycoprotein S in SARS-CoV-2 pseudovirus infected in "
+     "human 293T/ACE2 cells assessed as inhibition of viral infection",
+     "B", "cells", "reporter"),
+    ("Inhibition of SARS-CoV-2 spike glycoprotein/ His tagged human ACE2 "
+     "interaction incubated for 1 hr followed by substrate addition and "
+     "measured after 15 mins by ELISA", "B", "protein", "biochemical"),
+    # B-coded and cellular: the reason the code cannot be the discriminator.
+    ("Inhibition of eGFP fused SARS-CoV2 main protease transfected in "
+     "HEK293T/17 cells incubated for 72 hrs by fluorescence based flow "
+     "cytometry analysis", "B", "cells", "reporter"),
+    ("Inhibition of recombinant SARS-CoV-2 3CL protease using a fluorogenic "
+     "substrate", "B", "protein", "biochemical"),
+    ("Antiviral activity against SARS-CoV-2 in Vero E6 cells by plaque "
+     "reduction", "F", "cells", "plaque_reduction"),
+    ("Antiviral activity against SARS-CoV-2 in Vero E6 cells measured as "
+     "cytopathic effect", "F", "cells", "cell_based_antiviral"),
+    # A lysate is cell-derived and protein-level. Left for a human.
+    ("Inhibition of 3CLpro activity in Calu-3 cell lysate", "B",
+     "unclear", "other"),
+    # Nothing either way: the code is the only signal left.
+    ("IC50 against nsp5", "B", "protein", "binding"),
+    ("IC50 against nsp5", "F", "protein", "biochemical"),
+])
+def test_assay_readout_reads_the_description_not_the_code(desc, code, where, atype):
+    assert assay_readout(desc, code) == (where, atype)
+
+
+def test_the_assay_type_code_alone_would_get_it_wrong():
+    """444 B-coded rows describe a cellular readout. Mapping B -> binding and
+    F -> functional, as the obvious fix would, mislabels every one."""
+    cellular_but_coded_binding = (
+        "Inhibition of eGFP fused SARS-CoV2 main protease transfected in "
+        "HEK293T/17 cells by flow cytometry")
+    assert assay_readout(cellular_but_coded_binding, "B")[0] == "cells"
+
+
+def _viral_row(desc, value=160.0, stype="IC50", code="B", assay="CHEMBL_A1"):
+    return {"compound": "CHEMBL76", "smiles": "C", "inchikey": "K" * 27,
+            "max_phase": 4, "drug_name": "chloroquine", "target": "CHEMBL3927",
+            "target_name": "Spike glycoprotein", "target_type": "SINGLE PROTEIN",
+            "tax_id": "2697049", "accession": "P0DTC2",
+            "standard_type": stype, "standard_value": value,
+            "standard_units": "nM", "standard_relation": "=",
+            "description": desc, "assay_type": code, "assay": assay,
+            "year": 2021, "pubmed_id": "33560122"}
+
+
+PSEUDOVIRUS = ("Inhibition of spike glycoprotein S in SARS-CoV-2 pseudovirus "
+               "infected in human 293T/ACE2 cells assessed as inhibition of "
+               "viral infection")
+ELISA = ("Inhibition of SARS-CoV-2 spike glycoprotein/ His tagged human ACE2 "
+         "interaction measured by ELISA")
+
+
+def test_a_cellular_row_is_emitted_on_the_organism_not_the_protein():
+    """THE FIX. A pseudovirus entry assay does not show the compound binds
+    spike, it shows the compound blocks spike-mediated entry -- and
+    chloroquine blocks endosomal acidification."""
+    em = Emit()
+    s = ingest_activities(em, [_viral_row(PSEUDOVIRUS)],
+                          {"2697049": {}}, {"2697049": "2697049"},
+                          "infores:chembl")
+    assert s["reattributed_to_organism"] == 1
+    assert s["protein_edges"] == 0
+    e = em.edges[0]
+    assert e["predicate"] == "HAS_ANTIVIRAL_ACTIVITY_AGAINST"
+    assert e["object"] == "NCBITaxon:2697049"
+    assert e["qualifiers"]["assay_type"] == "reporter"
+
+
+def test_the_reattribution_records_which_protein_the_source_named():
+    """Auditable rather than silent: the nominal target is why the row
+    exists at all."""
+    em = Emit()
+    ingest_activities(em, [_viral_row(PSEUDOVIRUS)], {"2697049": {}},
+                      {"2697049": "2697049"}, "infores:chembl")
+    assert em.edges[0]["qualifiers"]["nominal_protein_target"] == "UniProtKB:P0DTC2"
+
+
+def test_a_real_binding_row_still_lands_on_the_protein():
+    """And it is the honest number: chloroquine's spike ELISA is 7,000 nM,
+    where the pseudovirus surrogate reads 160 nM and won the best-potency
+    selection by 44x."""
+    em = Emit()
+    s = ingest_activities(em, [_viral_row(ELISA, value=7000.0)],
+                          {"2697049": {}}, {"2697049": "2697049"},
+                          "infores:chembl")
+    assert s["reattributed_to_organism"] == 0
+    assert em.edges[0]["predicate"] == "INHIBITS"
+    assert em.edges[0]["object"] == "UniProtKB:P0DTC2"
+    assert em.edges[0]["qualifiers"]["ec50_nm" if False else "ic50_nm"] == 7000.0
+
+
+def test_an_unclear_row_is_left_on_the_protein():
+    """Moving a measurement requires knowing it was cellular. 537 rows say
+    both, and those are the ones a human has to read."""
+    em = Emit()
+    s = ingest_activities(em, [_viral_row("Inhibition of 3CLpro activity in "
+                                          "Calu-3 cell lysate")],
+                          {"2697049": {}}, {"2697049": "2697049"},
+                          "infores:chembl")
+    assert s["reattributed_to_organism"] == 0
+    assert em.edges[0]["predicate"] == "INHIBITS"
+    assert em.edges[0]["qualifiers"]["assay_type"] == "other"
+
+
+def test_no_protein_edge_still_claims_biochemical_unconditionally():
+    """Every protein row used to be written assay_type 'biochemical'
+    regardless of what it measured."""
+    em = Emit()
+    # DISTINCT assay ids: the dedup key is (drug, predicate, target, assay,
+    # standard_type), so three rows sharing one assay id collapse to one and
+    # the test silently checks a single edge.
+    rows = [_viral_row(PSEUDOVIRUS, assay="A1"),
+            _viral_row(ELISA, value=7000.0, assay="A2"),
+            _viral_row("IC50 against nsp5", value=50.0, assay="A3")]
+    ingest_activities(em, rows, {"2697049": {}}, {"2697049": "2697049"},
+                      "infores:chembl")
+    kinds = {e["qualifiers"]["assay_type"] for e in em.edges}
+    assert kinds == {"reporter", "biochemical", "binding"}

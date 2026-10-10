@@ -76,6 +76,19 @@ def main() -> int:
     for k in sorted(k for k in s if k.startswith("resolved_")):
         print(f"    {k.replace('resolved_',''):<10} {s[k]:>7,}")
     print(f"    {'unresolved':<10} {s['unresolved']:>7,}")
+    if s["reattributed_to_organism"]:
+        print(f"\n  {s['reattributed_to_organism']:,} rows filed against a viral "
+              f"protein described a CELLULAR readout and were emitted on the\n"
+              f"  organism instead (assay_type reporter / cell_based_antiviral / "
+              f"plaque_reduction).\n  A pseudovirus entry assay measures "
+              f"spike-mediated entry, not spike binding.")
+        print("\n  what each protein-target row was measured ON:")
+        for k in sorted(k for k in s if k.startswith("readout_")):
+            print(f"    {k.replace('readout_', ''):<12} {s[k]:>7,}")
+        print("\n  assay_type as written (was 'biochemical' on every row):")
+        for k in sorted(k for k in s if k.startswith("assay_type_")):
+            print(f"    {k.replace('assay_type_', ''):<22} {s[k]:>7,}")
+
     print("\n  dropped:")
     for k in DROPPED:
         if s[k]:
