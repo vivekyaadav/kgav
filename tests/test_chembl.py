@@ -589,3 +589,55 @@ def test_the_breakdown_counters_are_excluded_from_the_sum():
     assert s["readout_cells"] >= 1 and s["readout_protein"] >= 1
     emitted, dropped, _ = accounting(s)
     assert emitted + dropped == len(rows)
+
+
+def test_a_reattributed_edge_carries_only_organism_qualifiers():
+    """Copying the protein row's dict wholesale carried target_resolution and
+    domain onto an organism edge -- 2,110 UNDECLARED_QUALIFIER violations, so
+    the layer was never written. The schema is the check that caught it, and
+    it stays unwidened: nominal_protein_target is the auditable fact, and how
+    that accession was resolved belongs to a protein edge."""
+    em = Emit()
+    ingest_activities(em, [_viral_row(PSEUDOVIRUS)], {"2697049": {}},
+                      {"2697049": "2697049"}, "infores:chembl")
+    q = em.edges[0]["qualifiers"]
+    assert "target_resolution" not in q and "domain" not in q
+    assert q["nominal_protein_target"] == "UniProtKB:P0DTC2"
+    assert set(q) <= set(chembl_mod.ORGANISM_QUALIFIERS)
+
+
+def test_a_reattributed_edge_validates_against_the_schema():
+    """The end-to-end form of the check above."""
+    em = Emit()
+    ingest_activities(em, [_viral_row(PSEUDOVIRUS)], {"2697049": {}},
+                      {"2697049": "2697049"}, "infores:chembl")
+    nodes = list(em.nodes.values()) + [
+        {"id": "NCBITaxon:2697049", "class": "OrganismTaxon",
+         "properties": {"label": "SARS-CoV-2", "family": "Coronaviridae",
+                        "baltimore_class": "IV", "is_enveloped": True}}]
+    violations = load_schema().validate_batch(nodes, em.edges)
+    assert violations == [], [str(v) for v in violations[:5]]
+
+
+@pytest.mark.parametrize("stype", ["Ki", "Kd"])
+def test_a_binding_constant_described_as_cellular_is_dropped(stype):
+    """The ORGANISM branch already drops these: a Ki is a binding constant
+    against a purified enzyme and means nothing against a whole organism. A
+    row reporting one while describing a cellular readout contradicts itself
+    twice, and the reattribution path was bypassing that rule."""
+    em = Emit()
+    s = ingest_activities(em, [_viral_row(PSEUDOVIRUS, stype=stype)],
+                          {"2697049": {}}, {"2697049": "2697049"},
+                          "infores:chembl")
+    assert s["binding_constant_on_organism"] == 1
+    assert s["reattributed_to_organism"] == 0
+    assert em.edges == []
+
+
+def test_a_cellular_ic50_is_still_reattributed():
+    """The guard above must not swallow the normal case."""
+    em = Emit()
+    s = ingest_activities(em, [_viral_row(PSEUDOVIRUS, stype="IC50")],
+                          {"2697049": {}}, {"2697049": "2697049"},
+                          "infores:chembl")
+    assert s["reattributed_to_organism"] == 1
