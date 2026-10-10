@@ -103,11 +103,36 @@ VIRUS_PATTERNS = [
     (re.compile(r"nl63", re.IGNORECASE), "277944"),
     (re.compile(r"oc43", re.IGNORECASE), "31631"),
     (re.compile(r"hku1", re.IGNORECASE), "290028"),
+
+    # FLAVIVIRUSES. Added 2026-10-11 from the screens ORCS actually carries:
+    # of 1,952 human screens, 11 name a flavivirus and 7 pass
+    # is_virus_resistance_screen. Before this, virus_taxon returned None for
+    # every one of them, so the data was present and unreachable -- a
+    # patterns gap that read as a data gap.
+    #
+    # Only the four viruses that APPEAR are listed. DENV-1, DENV-3, DENV-4,
+    # JEV and TBEV have no screen in this ORCS release, and a pattern with
+    # nothing to match is a pattern nobody has tested. They go in when a
+    # screen for them does.
+    #
+    # ORDERING TRAP, the same one SARS-CoV/SARS-CoV-2 has: do NOT add a
+    # generic r"dengue" pattern. It would shadow every serotype that follows
+    # it and file all four under one taxon. Serotype is the distinction this
+    # project ingests, so each serotype is matched on its own digit.
+    #
+    # The screens name strains -- "Dengue virus 2 Thailand/16681/84" (31634,
+    # the strain the register pins for DENV-2's chains) and "Dengue virus 2
+    # Jamaica/1409/1983" (a different one) -- and both resolve to the SPECIES
+    # taxon, as every entry here does.
+    (re.compile(r"dengue virus (?:type |serotype )?2\b", re.IGNORECASE), "11060"),
+    (re.compile(r"\bzika\b", re.IGNORECASE), "64320"),
+    (re.compile(r"west nile", re.IGNORECASE), "11082"),
+    (re.compile(r"yellow fever", re.IGNORECASE), "11089"),
 ]
 
 
 def virus_taxon(screen: dict) -> str | None:
-    """Map a screen's condition text to one of the seven species taxa.
+    """Map a screen's condition text to a species taxon the register lists.
 
     SARS-CoV is matched only after SARS-CoV-2 has been ruled out: the substring
     'SARS-CoV' occurs inside 'SARS-CoV-2', and pattern order is the only thing
