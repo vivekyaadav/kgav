@@ -17,7 +17,7 @@ from kgav.baselines import (
     mrr,
     rank,
 )
-from kgav.provenance import write_results
+from kgav.provenance import write_refusal, write_results
 from kgav.schema import load_schema
 from kgav.temporal import audit, build_split, write_split
 
@@ -74,6 +74,20 @@ def main() -> int:
         print("  all clean")
     if fatal:
         print("\nrefusing to evaluate on a leaking split")
+        # RECORD THE REFUSAL WHERE THE RESULTS WOULD HAVE GONE. Returning
+        # without writing left the last successful run's numbers on disk, and
+        # those numbers came from a graph that no longer exists. check_results
+        # called them STALE and said "regenerate it" -- advice that cannot be
+        # followed, because this branch is why they cannot be regenerated.
+        args.results.mkdir(parents=True, exist_ok=True)
+        out = args.results / f"temporal_{args.cutoff}_{args.undated}.json"
+        write_refusal(out, {"cutoff": args.cutoff,
+                            "undated_policy": args.undated,
+                            "stats": dict(split.stats), "audits": problems},
+                      fatal, args.release, s.version)
+        print(f"recorded the refusal -> {out}")
+        print("  (the previous run's numbers are gone: they described an "
+              "older graph)")
         return 1
 
     write_split(split, args.release, args.out)

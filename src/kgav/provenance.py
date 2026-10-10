@@ -31,6 +31,19 @@ from typing import Any
 
 PROVENANCE_KEY = "provenance"
 
+# A RUN THAT REFUSED STILL HAS TO LEAVE A RECORD. temporal_split.py aborts on
+# a fatal leakage audit and returns 1 without writing, which left the PREVIOUS
+# run's numbers on disk -- computed from a graph three revisions old -- with
+# nothing in the file saying the protocol that produced them now refuses to
+# run. check_results.py then reported "STALE: regenerate it", and regenerating
+# was impossible: the script will not write until the leak is resolved. The
+# advice was wrong and the numbers were still readable as current work.
+#
+# So a refusal writes a stamped record carrying the audit failures and NO
+# results block. The dead numbers go, the reason stays, and the file is
+# checkable like any other.
+REFUSAL_KEY = "refused_by"
+
 
 def _sha256(path: Path) -> str | None:
     if not path.exists():
@@ -104,12 +117,29 @@ def write_results(path: Path, payload: dict, release: Path,
 
 
 # ------------------------------------------------------------------ checking
+def write_refusal(path: Path, payload: dict, reasons: list[str], release: Path,
+                  schema_version: str | None = None) -> None:
+    """Record that this protocol refused to run, in place of its results.
+
+    Same provenance stamp as a real result, so the refusal is attributable to
+    a graph. Any 'results' key in payload is dropped: a refusal that still
+    carried numbers would be read as numbers.
+    """
+    body = {k: v for k, v in payload.items() if k != "results"}
+    body[REFUSAL_KEY] = list(reasons)
+    write_results(path, body, release, schema_version)
+
+
 def check_file(path: Path, release: Path) -> tuple[str, str]:
     """(status, message) for one results file against a release.
 
-    status is 'ok', 'stale' or 'unstamped'. 'unstamped' is reported rather
-    than assumed fine: a file with no provenance is exactly the case that went
-    undetected, and its numbers cannot be attributed to any graph.
+    status is 'ok', 'stale', 'unstamped' or 'refused'. 'unstamped' is reported
+    rather than assumed fine: a file with no provenance is exactly the case
+    that went undetected, and its numbers cannot be attributed to any graph.
+
+    'refused' is checked AFTER staleness, so a refusal record from a graph
+    that has since moved still reads stale -- it describes a refusal that may
+    no longer happen.
     """
     path = Path(path)
     try:
@@ -139,8 +169,13 @@ def check_file(path: Path, release: Path) -> tuple[str, str]:
             f"[nodes {recorded.get('nodes_sha')}, edges {recorded.get('edges_sha')}] "
             f"but {current['id']} is now "
             f"[nodes {current['nodes_sha']}, edges {current['edges_sha']}]")
-    return "ok", (f"matches {current['id']} "
-                  f"(code {(doc[PROVENANCE_KEY].get('code') or {}).get('commit', '?')[:8]})")
+    code = (doc[PROVENANCE_KEY].get('code') or {}).get('commit', '?')[:8]
+    reasons = doc.get(REFUSAL_KEY)
+    if reasons:
+        return "refused", (f"this protocol REFUSED to run on {current['id']} "
+                           f"(code {code}); no results were produced:\n"
+                           + "\n".join(f"              - {r}" for r in reasons))
+    return "ok", f"matches {current['id']} (code {code})"
 
 
 def check_dir(results_dir: Path, release: Path) -> list[tuple[str, str, str]]:

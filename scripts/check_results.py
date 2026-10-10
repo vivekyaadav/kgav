@@ -24,7 +24,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.provenance import check_dir
 
-MARK = {"ok": "ok      ", "stale": "STALE   ", "unstamped": "unstamped"}
+MARK = {"ok": "ok      ", "stale": "STALE   ",
+        "unstamped": "unstamped", "refused": "REFUSED "}
 
 
 def main() -> int:
@@ -57,12 +58,21 @@ def main() -> int:
 
     stale = [r for r in rows if r[1] == "stale"]
     unstamped = [r for r in rows if r[1] == "unstamped"]
-    print(f"\n{len(rows) - len(stale) - len(unstamped)} current, "
-          f"{len(stale)} stale, {len(unstamped)} unstamped")
+    refused = [r for r in rows if r[1] == "refused"]
+    print(f"\n{len(rows) - len(stale) - len(unstamped) - len(refused)} current, "
+          f"{len(stale)} stale, {len(unstamped)} unstamped, "
+          f"{len(refused)} refused")
     if stale:
         print("\nA stale file describes a graph that no longer exists. Comparing "
               "against it\nattributes release drift to whatever change is under "
               "test. Regenerate it.")
+    if refused:
+        # NOT a failure. The file is current and honest: it records that the
+        # protocol declined to run on this graph, which is the audit working.
+        print("\nA refused protocol is not a stale file -- it is a current, "
+              "attributable record\nthat the protocol declined to run on this "
+              "graph. Resolve the audit failure\nor the protocol stays "
+              "refused; either way nothing here is mistakable for a result.")
     if unstamped and not args.strict:
         print("\nUnstamped files predate provenance recording. They cannot be "
               "verified either\nway; regenerate them to make them checkable. "
