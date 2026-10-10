@@ -613,16 +613,51 @@ def test_the_confound_warning_fires_when_degree_is_itself_significant():
         "degree outranks M1 4.5x here, which is the whole point"
 
 
-def test_no_warning_when_the_baseline_is_at_chance():
+def test_the_baseline_read_states_the_good_case_out_loud():
     """SARS-CoV-2 temporal: M1 lift 2.22 p=0.020 with degree at 0.93 p=0.63.
-    The control is working, so the channel's p means what it appears to mean.
-    This is the only row in the project where that is true.
+    Degree at chance is the condition every real result here depends on, and
+    it holds in exactly one place in the project. Printing it only as an
+    ABSENCE of warning left the reader to notice it, so it is now stated.
     """
     from kgav.baselines import confound_warning
 
     per = {"M1": _row(2.22, 0.0196), "M6": _row(1.40, 0.3693),
            "degree": _row(0.93, 0.6276)}
+    warn = confound_warning(per)
+    assert warn is not None and "BASELINE AT CHANCE" in warn
+    assert "M1's lift 2.22" in warn and "not explained by study volume" in warn
+    assert "CONFOUNDED" not in warn
+
+
+def test_a_baseline_at_chance_with_nothing_significant_says_nothing():
+    """SARS-CoV-2 cross-sectional: degree 0.45 p=0.99, best channel M4 1.99
+    p=0.14. Neither confounded nor a result, so there is nothing to report.
+    """
+    from kgav.baselines import confound_warning
+
+    per = {"M1": _row(0.86, 0.8141), "M4": _row(1.99, 0.1401),
+           "degree": _row(0.45, 0.9902)}
     assert confound_warning(per) is None
+
+
+def test_a_ratio_against_a_chance_baseline_is_marked_unreadable():
+    """M4 reads 4.44x a degree lift of 0.45 on SARS-CoV-2 cross-sectional,
+    which sounds decisive and is lift 1.99 at p=0.14 -- the ratio divides by
+    noise. My first threshold for this was `base >= 1.0`, which wrongly
+    flagged the clean temporal row where degree sits at 0.93: that is degree
+    at chance, the condition a real result needs, not a defect in it. The
+    test is whether the DENOMINATOR is a real effect.
+    """
+    from kgav.baselines import degree_relative
+
+    noisy = {"M4": _row(1.99, 0.1401), "degree": _row(0.45, 0.9902)}
+    degree_relative(noisy)
+    assert noisy["M4"]["vs_degree_readable"] is False
+    assert abs(noisy["M4"]["lift_vs_degree"] - 1.99 / 0.45) < 1e-12
+
+    real = {"M1": _row(2.10, 0.0001), "degree": _row(9.51, 0.0001)}
+    degree_relative(real)
+    assert real["M1"]["vs_degree_readable"] is True
 
 
 def test_the_warning_names_a_channel_that_does_beat_degree():
@@ -644,15 +679,52 @@ def test_degree_relative_annotates_every_row_against_the_baseline():
         "the baseline is not compared to itself"
 
 
-def test_a_missing_or_zero_baseline_annotates_rather_than_divides():
-    """HCoV-HKU1 has no measured activity, and a zero-lift degree row is
-    normal on the thin viruses. Neither may raise."""
+def test_a_zero_baseline_reports_the_win_instead_of_hiding_it():
+    """HCoV-229E temporal computed_only: degree lift 0.00 and M2 lift 4.65.
+    The ratio is undefined, and the first version of this sent it down the
+    no-baseline branch, so the one row where a channel beat degree outright
+    printed as "-" -- indistinguishable from the baseline row itself.
+
+    Carried by beats_degree and NOT by float("inf"), which json.dumps writes
+    as `Infinity` and would make every results file invalid JSON.
+    """
+    import json
+    import math
+
+    from kgav.baselines import degree_relative
+
+    per = {"M2": _row(4.65, 0.2151), "M4": _row(0.0, 1.0),
+           "degree": _row(0.0, 1.0)}
+    degree_relative(per)
+
+    assert per["M2"]["beats_degree"] is True
+    assert per["M2"]["lift_vs_degree"] is None
+    assert per["M4"]["beats_degree"] is False
+    assert per["degree"]["beats_degree"] is None, "the baseline row is distinct"
+
+    for m in per.values():
+        v = m["lift_vs_degree"]
+        assert v is None or math.isfinite(v)
+    json.loads(json.dumps(per))          # must stay valid JSON
+
+
+def test_no_baseline_row_at_all_raises_nothing():
+    """HCoV-HKU1 has no measured activity, so a table can arrive with no
+    degree row."""
     from kgav.baselines import confound_warning, degree_relative
 
-    for per in ({"M1": _row(2.0, 0.01)},
-                {"M1": _row(2.0, 0.01), "degree": _row(0.0, 1.0)},
-                {"M1": _row(2.0, 0.01), "degree": {"lift": 1.0,
-                                                   "p_value": None}}):
-        degree_relative(per)
-        assert per["M1"]["lift_vs_degree"] in (None, 2.0)
-        assert confound_warning(per) is None
+    per = {"M1": _row(2.0, 0.01)}
+    degree_relative(per)
+    assert per["M1"]["lift_vs_degree"] is None
+    assert per["M1"]["beats_degree"] is None
+    assert confound_warning(per) is None
+
+    # A baseline with no p-value cannot be judged at chance OR confounded,
+    # so neither verdict is given. This also pins a crash: the at-chance
+    # branch formats dp, and lift_pvalue returns None for a row with no
+    # positives or where k covers the pool, so this raised TypeError.
+    unstamped = {"M1": _row(2.0, 0.01), "degree": {"lift": 1.0,
+                                                   "p_value": None}}
+    degree_relative(unstamped)
+    assert unstamped["M1"]["vs_degree_readable"] is False
+    assert confound_warning(unstamped) is None
