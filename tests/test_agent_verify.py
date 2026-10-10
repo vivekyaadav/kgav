@@ -2,7 +2,10 @@
 asking a model to be honest.
 """
 
+import pytest
+
 from kgav.agent import guards
+from kgav.agent import verify as verify_mod
 from kgav.agent.verify import verify, verify_response
 
 FACTS = [
@@ -242,3 +245,78 @@ def test_report_is_readable():
     v = verify("Something [E999].", FACTS, IDS)
     assert "verification failed" in v.report()
     assert "invented_citation" in v.report()
+
+
+# ------------------- a sentence the brief supplied is not the model's claim
+CAVEAT = guards.caveat(
+    "cell_context",
+    "this path runs through SIGMAR1, whose contribution depends on the cell "
+    "type used. The endosomal and sigma-receptor routes are prominent in Vero "
+    "E6 cells and largely absent in TMPRSS2-expressing airway cells.")
+
+
+def _uncited(v):
+    return [f for f in v.findings if f.code == "uncited_claim"]
+
+
+def test_a_caveats_later_sentences_are_not_uncited_claims():
+    """The hedge-prefix check only ever exempted a caveat's FIRST sentence.
+    The cell-context caveat is three, so its continuations were reported as
+    uncited claims on text the brief supplied -- and forcing the caveats in
+    verbatim made that happen on every answer."""
+    answer = ("CELL CONTEXT: this path runs through SIGMAR1, whose "
+              "contribution depends on the cell type used. The endosomal and "
+              "sigma-receptor routes are prominent in Vero E6 cells and "
+              "largely absent in TMPRSS2-expressing airway cells.")
+    v = verify(answer, facts=["a fact [E1]"], citable_edge_ids=["E1"],
+               required_warnings=[CAVEAT])
+    assert _uncited(v) == [], v.report()
+
+
+def test_a_sentence_the_model_invented_is_still_reported():
+    """The exemption must not become a blanket pass."""
+    answer = ("CELL CONTEXT: this path runs through SIGMAR1, whose "
+              "contribution depends on the cell type used. Chloroquine is "
+              "also an established treatment for COVID-19 in hospital "
+              "settings worldwide.")
+    v = verify(answer, facts=["a fact [E1]"], citable_edge_ids=["E1"],
+               required_warnings=[CAVEAT])
+    assert len(_uncited(v)) == 1
+
+
+def test_a_short_sentence_is_not_exempted_by_accident():
+    """"it does not transfer." occurs inside almost any corpus; exempting it
+    would let a real uncited claim through."""
+    assert not verify_mod._is_supplied("it does not transfer.",
+                                       "a corpus where it does not transfer.")
+
+
+# ---------------------------------------------- truncation is a failure
+def test_a_truncated_answer_fails():
+    """num_predict cut the chloroquine answer at "measured in Vero E" --
+    mid-word, mid-caveat. Every other check passed: the caveat's label had
+    already appeared and each citation so far resolved."""
+    answer = ("CELL CONTEXT: this path runs through SIGMAR1 and the "
+              "selectivity index was measured in Vero E")
+    v = verify(answer, facts=["f [E1]"], citable_edge_ids=["E1"],
+               required_warnings=[CAVEAT])
+    codes = [f.code for f in v.findings]
+    assert "truncated_answer" in codes
+    assert not v.passed
+    assert any(f.severity == "fail" for f in v.findings
+               if f.code == "truncated_answer")
+
+
+@pytest.mark.parametrize("ending", [
+    "it is cited [E1].", "is that so [E1]?", "stop [E1]!",
+    'he said "yes" [E1]', "(see above) [E1]", "a list [E1]:",
+])
+def test_a_properly_closed_answer_is_not_called_truncated(ending):
+    v = verify(ending, facts=["f [E1]"], citable_edge_ids=["E1"])
+    assert "truncated_answer" not in [f.code for f in v.findings], ending
+
+
+def test_an_empty_answer_is_not_reported_as_truncated():
+    """Nothing to truncate. The refusal and no-model paths both arrive here."""
+    v = verify("", facts=[], citable_edge_ids=[])
+    assert "truncated_answer" not in [f.code for f in v.findings]

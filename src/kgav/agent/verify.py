@@ -89,6 +89,39 @@ def _sentences(text: str) -> list[str]:
     return [s.strip() for s in SENTENCE_RE.split(t) if s.strip()]
 
 
+def _normalise(text: str) -> str:
+    """Lowercase, markdown-free, citation-free, single-spaced."""
+    s = EDGE_ID_RE.sub(" ", text or "")
+    s = s.replace("**", "").replace("__", "").replace("*", "")
+    return " ".join(s.lower().split())
+
+
+def _supplied_corpus(facts: list, warnings: list) -> str:
+    """Everything the brief handed the model, normalised for containment."""
+    return _normalise(" ".join([str(x) for x in (facts or [])]
+                               + [str(x) for x in (warnings or [])]))
+
+
+def _is_supplied(sentence: str, corpus: str, min_words: int = 6) -> bool:
+    """Whether this sentence was COPIED from the brief rather than asserted.
+
+    Replaces prefix-matching a caveat's label, which only ever exempted a
+    caveat's FIRST sentence. Each caveat is several sentences long -- the
+    cell-context one is three -- so its continuations were reported as
+    uncited claims, on text the brief itself supplied. Forcing the caveats in
+    verbatim made that worse: every answer then carried the warning.
+
+    Containment rather than equality, because a model legitimately merges a
+    caveat sentence into surrounding prose. Short sentences are excluded from
+    the shortcut: "it does not transfer." appears inside almost any corpus by
+    accident, and exempting it would let a real uncited claim through.
+    """
+    norm = _normalise(sentence)
+    if len(norm.split()) < min_words:
+        return False
+    return norm in corpus
+
+
 def _caveat_marker(warning) -> str:
     """What must appear in an answer for this caveat to count as surviving.
 
@@ -208,6 +241,7 @@ def verify(answer: str, facts: list[str], citable_edge_ids: list[str],
     #    about whether the numbers are real or the caveats survived.
     uncited: list[str] = []
     if citable_edge_ids:
+        supplied = _supplied_corpus(facts, required_warnings)
         for s in _sentences(answer):
             if EDGE_ID_RE.search(s):
                 continue
@@ -215,6 +249,10 @@ def verify(answer: str, facts: list[str], citable_edge_ids: list[str],
             if any(low.startswith(h) for h in HEDGE_STARTS):
                 continue
             if len(s.split()) < 6:
+                continue
+            # Copied from the brief, so it is grounded by construction -- the
+            # model did not assert it, the retrieval did.
+            if _is_supplied(s, supplied):
                 continue
             uncited.append(s)
         if uncited:
@@ -228,6 +266,21 @@ def verify(answer: str, facts: list[str], citable_edge_ids: list[str],
         findings.append(Finding(
             "fail", "warning_dropped",
             f"required warning not present in the answer: {_caveat_name(w)}"))
+
+    # 3b. A TRUNCATED ANSWER IS NOT AN ANSWER. num_predict cut the chloroquine
+    #     answer at "measured in Vero E", mid-word and mid-caveat. The three
+    #     checks above cannot see it: the caveat's label had already appeared,
+    #     every citation so far resolved, and a half-written number passes a
+    #     containment test. So a cut-off answer could lose the second half of
+    #     a caveat, or report "160" from "1,600", and verify clean. Demanding
+    #     terminal punctuation is crude and catches exactly this.
+    stripped = (answer or "").rstrip()
+    if stripped and stripped[-1] not in ".!?\"')]:":
+        findings.append(Finding(
+            "fail", "truncated_answer",
+            f"the answer ends mid-sentence ({stripped[-40:]!r}), so content "
+            f"after the cut -- possibly the rest of a required caveat -- is "
+            f"missing"))
 
     # 4. Every number in the answer must appear in the facts. A transposed
     #    digit in a potency value is harder to notice than a wrong sentence.

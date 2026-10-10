@@ -50,7 +50,12 @@ class OllamaModel:
     model: str = DEFAULT_MODEL
     host: str = DEFAULT_HOST
     temperature: float = 0.0
-    num_predict: int = 700
+    # 700 truncated the chloroquine answer mid-word. Three routes plus three
+    # caveats reproduced verbatim is ~900 tokens, and the caveat retry makes
+    # answers LONGER by design -- so the limit that was adequate before the
+    # retry is not adequate after it. Verification now fails a truncated
+    # answer rather than trusting this number to be enough.
+    num_predict: int = 1600
     timeout: int = 180
 
     def __call__(self, prompt: str) -> str:
