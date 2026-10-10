@@ -23,6 +23,7 @@ from kgav.agent.llm import DEFAULT_MODEL, ModelUnavailable, OllamaModel
 from kgav.agent.orchestrator import Orchestrator
 from kgav.agent.tools import GraphTools
 from kgav.agent.verify import verify_response
+from kgav import calibration as kgav_calibration
 
 RULE = "─" * 74
 
@@ -79,6 +80,13 @@ def main() -> int:
     ap.add_argument("--json", action="store_true",
                     help="machine-readable output including the verification")
     ap.add_argument("--show-prompt", action="store_true")
+    ap.add_argument("--results", type=Path,
+                    default=root / "data/results/hard_negatives.json",
+                    help="evaluation run whose measured AUCs the caveats "
+                         "quote. Absent, a host-directed route is reported as "
+                         "uncalibrated rather than given a number.")
+    ap.add_argument("--virus-label", default="SARS-CoV-2",
+                    help="key the results file uses for the virus")
     args = ap.parse_args()
     question = " ".join(args.question)
 
@@ -86,7 +94,19 @@ def main() -> int:
         print(f"release not found at {args.release}", file=sys.stderr)
         return 2
 
-    orch = Orchestrator(GraphTools(args.release))
+    # The caveats quote measured AUCs, so the run that measured them is
+    # loaded here and named in the text. A missing or unreadable results file
+    # is not fatal: the route is then reported as uncalibrated, which is
+    # weaker than a number and true.
+    cal = None
+    if args.results.exists():
+        try:
+            cal = kgav_calibration.load(args.results, args.virus_label)
+        except (OSError, ValueError, KeyError) as exc:
+            print(f"note: could not read {args.results.name} ({exc}); "
+                  f"host-directed routes will be reported as uncalibrated",
+                  file=sys.stderr)
+    orch = Orchestrator(GraphTools(args.release, calibration=cal))
 
     model = None
     if not args.no_model:

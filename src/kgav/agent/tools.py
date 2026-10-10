@@ -57,7 +57,13 @@ class ToolResult:
 class GraphTools:
     """The graph, loaded once, exposed as a fixed set of callable tools."""
 
-    def __init__(self, release: Path, name_index: dict[str, str] | None = None):
+    def __init__(self, release: Path, name_index: dict[str, str] | None = None,
+                 calibration=None):
+        # Handed to guards.path_warnings so a host-directed route reports the
+        # AUC that was actually measured. None means the caveat says the route
+        # is uncalibrated, which is the honest fallback -- the figure used to
+        # be hardcoded and went stale.
+        self.calibration = calibration
         self.nodes: dict[str, dict] = {}
         self.edges: list[dict] = []
         self.out: dict[tuple[str, str], list[dict]] = defaultdict(list)
@@ -288,7 +294,8 @@ class GraphTools:
             # Both halves were tested and the join between them was not:
             # test_agent_tools asserts the text lands in the right route block,
             # test_agent_verify hands verify() a hand-built caveat directly.
-            route_warnings = guards.path_warnings(nodes, route)
+            route_warnings = guards.path_warnings(
+                nodes, route, calibration=self.calibration)
             for w in route_warnings:
                 lines.append(f"  ! {w}")
             warns.extend(route_warnings)

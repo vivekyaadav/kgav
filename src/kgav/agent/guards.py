@@ -15,7 +15,9 @@ WHAT THE MEASUREMENTS SAY
   from the graph built before it.
 
   Host-directed paths are BELOW chance against measured negatives (AUC
-  0.391-0.482) and get worse when cytotoxic compounds are removed.
+  below chance on an early run) are NOT hardcoded here: _channel_caveat
+  renders the figure from the calibration it is handed, and says the
+  route is uncalibrated when handed none.
 
   Nothing works on any virus other than SARS-CoV-2; on four of them a
   degree-only baseline outperforms every metapath.
@@ -201,12 +203,61 @@ def check(kind: QueryKind, virus: str | None = None) -> Verdict:
     return Verdict(allowed=True, warnings=warnings)
 
 
-def path_warnings(path_nodes: list[dict], metapath: str | None = None) -> list[str]:
+HOST_DIRECTED_CODES = frozenset({"M2", "M3", "M4", "M5", "M6"})
+
+
+def _channel_caveat(code: str, calibration) -> str:
+    """What this route is MEASURED to be worth, from the run that measured it.
+
+    A HARDCODED NUMBER IS THE BUG THIS REPLACES. This caveat used to read
+    "measured below chance (AUC 0.391-0.482 depending on route)", a figure
+    from a run nobody could identify, and by the time the single-screen
+    protocol was in place the real values were 0.492-0.523 -- at chance, not
+    below it. So the agent was stating a stale measurement in user-facing
+    text with nothing linking it to a run, which is precisely what
+    provenance.py and calibration.py exist to prevent, reappearing inside the
+    agent's own output.
+
+    With no calibration the route is reported as UNCALIBRATED rather than
+    given a number. Saying "its performance has not been measured on this
+    release" is weaker than a figure and true, and a figure that might be
+    stale is worse than no figure.
+    """
+    if calibration is None or not getattr(calibration, "usable", False):
+        return ("no measured performance is attached to this route in this "
+                "release, so its reliability is unknown. Read the path as a "
+                "mechanistic hypothesis to evaluate, not as evidence of "
+                "activity.")
+    ch = calibration.channels.get(code)
+    if ch is None or ch.auc is None:
+        return (f"{code} was not evaluable under {calibration.protocol}, so "
+                f"its reliability is unknown. Read the path as a mechanistic "
+                f"hypothesis to evaluate, not as evidence of activity.")
+    if ch.discriminates:
+        return (f"{code} separates measured actives from measured inactives "
+                f"at AUC {ch.auc:.3f} [{ch.ci_lo:.3f}, {ch.ci_hi:.3f}] under "
+                f"{calibration.protocol}. That is above chance, and still a "
+                f"mechanistic hypothesis rather than a measured activity for "
+                f"this compound.")
+    return (f"{code} scores AUC {ch.auc:.3f} [{ch.ci_lo:.3f}, {ch.ci_hi:.3f}] "
+            f"against {ch.n_neg:,} compounds measured INACTIVE under "
+            f"{calibration.protocol} — indistinguishable from chance. Read "
+            f"this path as a mechanistic hypothesis to evaluate, not as "
+            f"evidence of activity.")
+
+
+def path_warnings(path_nodes: list[dict], metapath: str | None = None,
+                  calibration=None) -> list[str]:
     """Warnings a retrieved path must carry into the answer.
 
     Attached at retrieval time rather than left to documentation, because the
     failure mode is that a plausible-looking host-directed path is presented
     without the caveat that makes it interpretable.
+
+    `calibration` is a kgav.calibration.Calibration. Supplying it replaces a
+    hardcoded AUC with the one actually measured, and naming the protocol
+    alongside it means a reader can tell which run the figure came from --
+    four protocols produced four different AUCs for M1.
     """
     out: list[str] = []
 
@@ -229,14 +280,9 @@ def path_warnings(path_nodes: list[dict], metapath: str | None = None) -> list[s
     # Route labels carry a description ("M2 host-directed"), so match the
     # identifier prefix rather than the whole string.
     code = (metapath or "").split()[0] if metapath else ""
-    if code in {"M2", "M3", "M4", "M5", "M6"}:
-        out.append(caveat(
-            "host_directed_route",
-            "measured below chance against known-inactive "
-            "compounds (AUC 0.391-0.482 depending on route), and worse once "
-            "cytotoxic compounds are excluded. Read this path as a mechanistic "
-            "hypothesis to evaluate, not as evidence of activity."
-        ))
+    if code in HOST_DIRECTED_CODES:
+        out.append(caveat("host_directed_route",
+                          _channel_caveat(code, calibration)))
     return out
 
 
