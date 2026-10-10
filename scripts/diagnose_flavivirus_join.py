@@ -46,7 +46,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import sqlite3
 import sys
 from collections import Counter, defaultdict
@@ -188,11 +187,22 @@ def _orcs_report(orcs_dir: Path, hints: tuple[str, ...]) -> dict:
 
 HUMAN_TAXON = "9606"
 
-# MITAB column 10/11 reads `taxid:9606(Homo sapiens)`. parse_row keeps only
-# the id, which is all the ingest needs; a REPORT needs the name, because
-# "227984: 66" is a number nobody can act on and "227984 (<name>): 66" is a
-# curation decision.
-TAXID_NAME_RE = re.compile(r"taxid:(-?\d+)\(([^)]*)\)")
+# WHY THIS SHOWS RAW BYTES INSTEAD OF A PARSED NAME. "227984: 66" is a number
+# nobody can act on, so the first version of this parsed an organism name with
+#
+#     re.compile(r"taxid:(-?\d+)\(([^)]*)\)")
+#
+# on the assumption that MITAB column 10/11 reads `taxid:9606(Homo sapiens)`.
+# It returned empty for every taxon in the real files. The verification was
+# the problem: I checked it against a fixture I had written myself, which
+# encoded the same assumption, so the test confirmed my belief about the
+# format rather than the format. A fixture whose author also wrote the
+# expectation cannot falsify that expectation.
+#
+# So this prints the taxid field exactly as it appears on the first row where
+# the taxon shows up, whatever shape that is. Slower to read and impossible
+# to be wrong about.
+TAXID_FIELD_A, TAXID_FIELD_B = 9, 10
 
 
 def _built_taxa(config: Path) -> set[str]:
@@ -231,7 +241,7 @@ def _vhppi_report(vhppi_dir: Path, taxa: set[str],
     rows = unparseable = 0
     per_tax: Counter = Counter()
     present: Counter = Counter()
-    names: dict[str, str] = {}
+    raw: dict[str, str] = {}
     for path in files:
         for line in path.read_text(errors="replace").splitlines():
             if not line.strip() or line.startswith("#"):
@@ -246,8 +256,13 @@ def _vhppi_report(vhppi_dir: Path, taxa: set[str],
                     per_tax[r[side]] += 1
                 elif r[side] and r[side] != HUMAN_TAXON:
                     present[r[side]] += 1
-            for tax, nm in TAXID_NAME_RE.findall(line):
-                names.setdefault(tax, nm)
+            cols = line.split("\t")
+            for idx in (TAXID_FIELD_A, TAXID_FIELD_B):
+                if idx >= len(cols):
+                    continue
+                side = "taxid_a" if idx == TAXID_FIELD_A else "taxid_b"
+                if r[side]:
+                    raw.setdefault(r[side], cols[idx].strip())
     # WHAT IS PRESENT, NOT ONLY WHAT IS MISSING. Reporting absence alone let
     # me conclude "M3 and M5 would have no viral-host bridge" from a set of
     # per-virus downloads that contain only coronaviruses. The absence is the
@@ -257,7 +272,7 @@ def _vhppi_report(vhppi_dir: Path, taxa: set[str],
     unmapped = {t_: n for t_, n in present.items() if t_ not in built}
     return {"status": "ok", "files": len(files), "rows": rows,
             "unparseable": unparseable, "per_tax": dict(per_tax),
-            "other_viral": present.most_common(12), "names": names,
+            "other_viral": present.most_common(12), "raw": raw,
             "unmapped": unmapped}
 
 
@@ -375,9 +390,9 @@ def main() -> int:
         else:
             print(f"\n    {'screen':<10}{'resist':>8}{'mapped':>9}  condition")
             for m in orcs["matched"][:40]:
-                print(f"    {str(m['id']):<10}"
+                print(f"    {m['id']!s:<10}"
                       f"{('yes' if m['virus_resistance'] else 'no'):>8}"
-                      f"{str(m['already_mapped'] or '-'):>9}  {m['condition']}")
+                      f"{m['already_mapped'] or '-'!s:>9}  {m['condition']}")
             if len(orcs["matched"]) > 40:
                 print(f"    ... {len(orcs['matched']) - 40} more")
             unmapped = [m for m in orcs["matched"] if not m["already_mapped"]]
@@ -405,8 +420,8 @@ def main() -> int:
                 print("    The viral taxa these files DO contain:")
                 for tax, n in vhn["other_viral"]:
                     mark = "" if tax not in vhn["unmapped"] else "  UNMAPPED"
-                    nm = vhn["names"].get(tax, "")[:40]
-                    print(f"      {tax:<10} {n:>8,}  {nm:<40}{mark}")
+                    field = vhn["raw"].get(tax) or "(field absent)"
+                    print(f"      {tax:<10} {n:>8,}  {field[:46]:<46}{mark}")
                 print("    These are per-virus downloads. The absence above "
                       "is this directory's\n    DOWNLOAD SCOPE, not "
                       "VirHostNet's coverage -- fetch the flavivirus files "
@@ -421,8 +436,10 @@ def main() -> int:
                       f"unmapped_viral_taxon and discards them. A host taxon "
                       f"(rat,\n    mouse) there is expected; a VIRAL strain "
                       f"of a virus you already build is\n    an isolate_taxa "
-                      f"entry missing from config/viruses.yaml. The names "
-                      f"above\n    are what decides which.")
+                      f"entry missing from config/viruses.yaml. The taxid "
+                      f"fields above are\n    printed verbatim; if they "
+                      f"carry no organism name, look the ids up before\n"
+                      f"    adding anything to the register.")
 
     print("\n" + "=" * 78)
     print("WHAT THIS DOES NOT DECIDE")
