@@ -219,3 +219,67 @@ def test_a_direct_acting_route_gets_no_host_directed_caveat():
     out = guards.path_warnings(HOST_PATH, "M1 direct-acting",
                                calibration=_Cal({"M1": _Ch(0.513, 0.452, 0.574)}))
     assert not any("HOST-DIRECTED ROUTE" in w for w in out)
+
+
+# ------------------------ no evaluation figure is written into the source
+STALE_FIGURES = ("0.826", "0.823", "0.729", "0.660", "0.391", "0.482")
+
+
+def _code_constants(path: Path) -> list[str]:
+    """Every literal the module can EXECUTE, docstrings excluded.
+
+    Parsed rather than grepped: the docstring explaining this bug necessarily
+    names the figures it is about, and a grep cannot tell prose from a value a
+    user will be shown.
+    """
+    import ast
+    tree = ast.parse(path.read_text())
+    docstrings = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
+                             ast.AsyncFunctionDef)):
+            body = getattr(node, "body", None) or []
+            if (body and isinstance(body[0], ast.Expr)
+                    and isinstance(body[0].value, ast.Constant)
+                    and isinstance(body[0].value.value, str)):
+                docstrings.add(id(body[0].value))
+    out = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and id(node) not in docstrings:
+            if isinstance(node.value, (str, int, float)):
+                out.append(str(node.value))
+    return out
+
+
+def test_no_hardcoded_evaluation_figure_remains_in_agent_text():
+    """0.826 was BOTH a dead constant in guards and a separate string literal
+    in tools' ranking caveat -- two copies with nothing keeping them equal,
+    and the figure has since fallen to 0.726, 0.660 and 0.499. A number a
+    reader is shown has to come from the run that measured it."""
+    import kgav.agent.tools as tools_mod
+    for mod in (guards, tools_mod):
+        for const in _code_constants(Path(mod.__file__)):
+            for stale in STALE_FIGURES:
+                assert stale not in const, (
+                    f"{stale} is an executable literal in {mod.__name__}: "
+                    f"{const[:90]!r}")
+
+
+def test_the_ranking_caveat_quotes_the_measured_direct_acting_figure():
+    cal = _Cal({"M1": _Ch(0.513, 0.452, 0.574)})
+    w = guards.direct_acting_caveat(cal)
+    assert "0.513" in w and "0.452" in w and "0.574" in w
+    assert "indistinguishable from chance" in w
+    assert "evidence available rather than a demonstrated ability to rank" in w
+
+
+def test_a_discriminating_direct_acting_route_is_stated_plainly():
+    w = guards.direct_acting_caveat(_Cal({"M1": _Ch(0.78, 0.74, 0.82,
+                                                    discriminates=True)}))
+    assert "0.780" in w and "separates measured actives" in w
+
+
+def test_without_a_calibration_the_ranking_claims_nothing():
+    w = guards.direct_acting_caveat(None)
+    assert "no measured performance is attached" in w
+    assert not any(c.isdigit() for c in w)

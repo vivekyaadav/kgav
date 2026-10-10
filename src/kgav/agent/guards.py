@@ -8,7 +8,8 @@ plausible-looking, and in one case actively harmful.
 WHAT THE MEASUREMENTS SAY
 
   Direct-acting paths separate SELECTIVE antivirals from measured-inactive
-  compounds at AUC 0.826, cross-sectionally, for SARS-CoV-2.
+  compounds cross-sectionally for SARS-CoV-2. The FIGURE is not written
+  here: it depends on the protocol, and four protocols gave four answers.
 
   The same paths have NO discrimination prospectively: AUC 0.500 under a
   temporal split, because 77% of compounds screened after the cutoff are absent
@@ -44,8 +45,13 @@ from typing import Self
 # Measured on release v0.1. Quoted by the refusal messages so a user is given
 # the reason rather than a bare no.
 TEMPORAL_AUC = 0.500
-CROSS_SECTIONAL_AUC = 0.826
 ABSENT_FRACTION = 0.77
+# CROSS_SECTIONAL_AUC = 0.826 WAS HERE, dead: defined, never read, while the
+# number users actually saw was a separate literal in tools.py's ranking
+# caveat. Two copies of one figure with nothing keeping them equal, and the
+# figure itself has since fallen to 0.726 (filter removed), 0.660 (filter made
+# symmetric) and 0.499 (same-paper evidence withheld). Direct-acting
+# performance is rendered by direct_acting_caveat() from a Calibration now.
 SUPPORTED_VIRUS = "NCBITaxon:2697049"
 SI_THRESHOLD = 10.0
 
@@ -244,6 +250,40 @@ def _channel_caveat(code: str, calibration) -> str:
             f"{calibration.protocol} — indistinguishable from chance. Read "
             f"this path as a mechanistic hypothesis to evaluate, not as "
             f"evidence of activity.")
+
+
+def direct_acting_caveat(calibration, code: str = "M1") -> str:
+    """How direct-acting evidence performed, from the run that measured it.
+
+    The ranking caveat used to state "Direct-acting paths separate selective
+    antivirals from measured inactives at AUC 0.826; host-directed paths score
+    below chance". Both halves are now wrong. 0.826 came from a protocol that
+    filtered positives to compounds with verified selectivity data and left
+    negatives whole -- a 17x coverage asymmetry -- and the same metapath reads
+    0.499 once evidence sharing a publication with its own label is withheld.
+    Host-directed routes are at chance, not below it.
+
+    A ranking is shown to a reader deciding what to test next, so the figure
+    attached to it has to be the measured one or absent.
+    """
+    if calibration is None or not getattr(calibration, "usable", False):
+        return ("no measured performance is attached to the direct-acting "
+                "route in this release, so this order reflects the evidence "
+                "available rather than a demonstrated ability to rank")
+    ch = calibration.channels.get(code)
+    if ch is None or ch.auc is None:
+        return (f"{code} was not evaluable under {calibration.protocol}, so "
+                f"this order reflects the evidence available rather than a "
+                f"demonstrated ability to rank")
+    if ch.discriminates:
+        return (f"direct-acting evidence ({code}) separates measured actives "
+                f"from measured inactives at AUC {ch.auc:.3f} "
+                f"[{ch.ci_lo:.3f}, {ch.ci_hi:.3f}] under "
+                f"{calibration.protocol}")
+    return (f"direct-acting evidence ({code}) scores AUC {ch.auc:.3f} "
+            f"[{ch.ci_lo:.3f}, {ch.ci_hi:.3f}] under {calibration.protocol} — "
+            f"indistinguishable from chance, so this order reflects the "
+            f"evidence available rather than a demonstrated ability to rank")
 
 
 def path_warnings(path_nodes: list[dict], metapath: str | None = None,
