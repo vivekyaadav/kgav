@@ -15,18 +15,26 @@ from kgav.baselines import combine
 from kgav.labels import auc_interval
 
 
-def _row(auc, lo, hi, n_pos=89, n_neg=7343, cov_pos=0.1, cov_neg=0.1):
+def _row(auc, lo, hi, n_pos=89, n_neg=7343, cov_pos=0.2, cov_neg=0.1):
     return {"auc": auc, "auc_ci_lo": lo, "auc_ci_hi": hi, "n_pos": n_pos,
             "n_neg": n_neg, "evaluable": True,
             "coverage_pos": cov_pos, "coverage_neg": cov_neg}
 
 
-# The real single-screen numbers, with their Hanley-McNeil intervals.
+# The real single-screen numbers WITH their real coverage, because the
+# coverage is what decides whether the AUC describes the channel at all.
+# cov_pos x 89 is the number of positives each one actually reaches:
+# M1 3, M2 5, M3 9, M4 15, M5 14, M6 1, M7 0. Only M4 and M5 clear
+# MIN_REACHED_POSITIVES, so only two of the seven were ever evaluated.
 MEASURED = {
-    "M1": _row(0.513, 0.452, 0.574), "M2": _row(0.492, 0.432, 0.552),
-    "M3": _row(0.523, 0.462, 0.584), "M4": _row(0.507, 0.446, 0.568),
-    "M5": _row(0.516, 0.455, 0.577), "M6": _row(0.502, 0.442, 0.562),
-    "M7": _row(0.499, 0.439, 0.559), "COMBINED": _row(0.516, 0.455, 0.577),
+    "M1": _row(0.513, 0.452, 0.574, cov_pos=0.034, cov_neg=0.007),
+    "M2": _row(0.492, 0.432, 0.552, cov_pos=0.056, cov_neg=0.073),
+    "M3": _row(0.523, 0.462, 0.584, cov_pos=0.101, cov_neg=0.054),
+    "M4": _row(0.507, 0.446, 0.568, cov_pos=0.169, cov_neg=0.161),
+    "M5": _row(0.516, 0.455, 0.577, cov_pos=0.157, cov_neg=0.127),
+    "M6": _row(0.502, 0.442, 0.562, cov_pos=0.011, cov_neg=0.006),
+    "M7": _row(0.499, 0.439, 0.559, cov_pos=0.000, cov_neg=0.001),
+    "COMBINED": _row(0.516, 0.455, 0.577, cov_pos=0.202, cov_neg=0.174),
     "degree": _row(0.582, 0.520, 0.644, cov_pos=1.0, cov_neg=1.0),
 }
 V = "NCBITaxon:2697049"
@@ -56,22 +64,24 @@ def _results(tmp_path, rows, flags=None, name="hard_negatives.json"):
 def test_the_interval_is_what_decides_not_the_point_estimate():
     """0.523 looks like signal and is not. Half of pure noise posts a point
     AUC above 0.5; the interval is the only thing that separates them."""
-    good = C.ChannelCalibration("X", 0.523, 0.462, 0.584, 89, 7343)
+    good = C.ChannelCalibration("X", 0.523, 0.462, 0.584, 89, 7343,
+                                coverage_pos=0.5)
     assert good.auc > C.CHANCE
     assert not good.discriminates
     assert good.weight == 0.0
 
 
 def test_a_channel_whose_interval_clears_chance_discriminates():
-    c = C.ChannelCalibration("degree", 0.582, 0.520, 0.644, 89, 7343)
+    c = C.ChannelCalibration("degree", 0.582, 0.520, 0.644, 89, 7343,
+                             coverage_pos=1.0, coverage_neg=1.0)
     assert c.discriminates
     assert c.weight == pytest.approx(0.082)
 
 
 def test_weight_is_the_margin_over_chance_not_the_auc():
     """A channel at 0.52 is worth a fifth of one at 0.60, not 87% of it."""
-    a = C.ChannelCalibration("a", 0.52, 0.51, 0.53, 500, 500)
-    b = C.ChannelCalibration("b", 0.60, 0.58, 0.62, 500, 500)
+    a = C.ChannelCalibration("a", 0.52, 0.51, 0.53, 500, 500, coverage_pos=0.5)
+    b = C.ChannelCalibration("b", 0.60, 0.58, 0.62, 500, 500, coverage_pos=0.5)
     assert b.weight / a.weight == pytest.approx(5.0)
 
 
@@ -114,7 +124,7 @@ def test_the_protocol_is_recorded_from_the_run_not_assumed(tmp_path):
 def test_the_confounded_protocol_is_refused_by_name(tmp_path):
     """The run that produced 0.823 filtered positives and left negatives
     whole. Its numbers must never become ranking weights."""
-    rows = dict(MEASURED, M1=_row(0.823, 0.805, 0.841, 816, 4874))
+    rows = dict(MEASURED, M1=_row(0.823, 0.805, 0.841, 816, 4874, cov_pos=0.688))
     cal = C.load(_results(tmp_path, rows, flags={
         "selectivity_filter": "selective-only",
         "selectivity_applies": "positives"}), LABEL)
@@ -132,13 +142,43 @@ def test_no_channel_on_this_release_earns_a_place(tmp_path):
     assert not cal.can_rank()
 
 
-def test_why_not_names_the_strongest_channel_and_its_interval(tmp_path):
+def test_why_not_names_the_strongest_EVALUABLE_channel(tmp_path):
+    """M3 has the highest AUC at 0.523 and reaches 9 of 89 positives, so it
+    was never evaluated. The strongest channel that WAS is M5."""
     cal = C.load(_results(tmp_path, MEASURED), LABEL)
     why = cal.why_not()
-    assert "M3" in why and "0.523" in why
+    assert "M5" in why and "0.516" in why
+    assert "M3" not in why.split("not evaluable at all")[0]
     assert "no reasoning channel beats chance" in why
-    # and it says what the graph CAN still do
     assert "report evidence for a named compound" in why
+
+
+def test_why_not_says_how_many_channels_were_never_evaluated(tmp_path):
+    cal = C.load(_results(tmp_path, MEASURED), LABEL)
+    why = cal.why_not()
+    assert "5 channel(s) were not evaluable" in why
+    for name in ("M1", "M2", "M3", "M6", "M7"):
+        assert name in why
+
+
+def test_the_coverage_floor_separates_untested_from_at_chance(tmp_path):
+    """THE POINT. Seven channels looked "indistinguishable from chance"; five
+    were never evaluated. M1 reads 0.513 while reaching 3 of 89 positives, so
+    that figure describes the imputed floor."""
+    cal = C.load(_results(tmp_path, MEASURED), LABEL)
+    assert cal.evaluable() == ["M4", "M5"]
+    assert cal.not_evaluable() == ["M1", "M2", "M3", "M6", "M7"]
+    m1 = cal.channels["M1"]
+    assert m1.n_reached_pos == 3 and not m1.evaluable
+    assert "NOT EVALUABLE" in m1.describe() and "3 of 89" in m1.describe()
+    assert "0.513" not in m1.describe()
+
+
+def test_a_channel_reaching_nothing_is_not_reported_as_chance(tmp_path):
+    cal = C.load(_results(tmp_path, MEASURED), LABEL)
+    m7 = cal.channels["M7"]
+    assert m7.n_reached_pos == 0 and not m7.evaluable
+    assert "0.499" not in m7.describe()
 
 
 def test_the_report_is_readable_and_states_every_channel(tmp_path):
@@ -174,7 +214,7 @@ def test_a_noise_channel_cannot_win_once_calibration_applies(tmp_path):
     """M7 is at 0.499. Under max-over-channels a drug at the top of its pool
     scores 1.0 and outranks a drug with a real route; dropping the channel is
     the fix, and this is the behaviour that was wrong."""
-    rows = dict(MEASURED, M1=_row(0.70, 0.65, 0.75))     # M1 earns its place
+    rows = dict(MEASURED, M1=_row(0.70, 0.65, 0.75, cov_pos=0.4))
     cal = C.load(_results(tmp_path, rows), LABEL)
     assert cal.discriminating() == ["M1"]
 
@@ -189,7 +229,9 @@ def test_a_noise_channel_cannot_win_once_calibration_applies(tmp_path):
 
 
 def test_weights_scale_the_percentile_so_a_weak_channel_counts_less(tmp_path):
-    rows = dict(MEASURED, M1=_row(0.70, 0.65, 0.75), M4=_row(0.55, 0.52, 0.58))
+    rows = dict(MEASURED,
+                M1=_row(0.70, 0.65, 0.75, cov_pos=0.4),
+                M4=_row(0.55, 0.52, 0.58, cov_pos=0.4))
     cal = C.load(_results(tmp_path, rows), LABEL)
     assert set(cal.discriminating()) == {"M1", "M4"}
     d = _dwpc({"M1": {"x": 1.0, "top_of_m1": 2.0},

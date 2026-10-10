@@ -137,9 +137,14 @@ def test_evidence_tiers_are_described():
 
 # --------------------------------- the host-directed caveat is measured
 class _Ch:
-    def __init__(self, auc, lo, hi, n_neg=7343, discriminates=False):
+    def __init__(self, auc, lo, hi, n_neg=7343, discriminates=False,
+                 n_pos=89, n_reached_pos=15, evaluable=True):
         self.auc, self.ci_lo, self.ci_hi, self.n_neg = auc, lo, hi, n_neg
         self.discriminates = discriminates
+        # Coverage decides whether the AUC describes the channel or the
+        # imputed floor, so a stub without it reads as never evaluated.
+        self.n_pos, self.n_reached_pos = n_pos, n_reached_pos
+        self.evaluable = evaluable
 
 
 class _Cal:
@@ -283,3 +288,23 @@ def test_without_a_calibration_the_ranking_claims_nothing():
     w = guards.direct_acting_caveat(None)
     assert "no measured performance is attached" in w
     assert not any(c.isdigit() for c in w)
+
+
+def test_an_unevaluated_channel_is_not_given_an_auc():
+    """M1 reads 0.513 while reaching 3 of 89 positives, so that figure
+    describes the imputed floor. Quoting it in a caveat is the hardcoded
+    figure's error in a new place."""
+    cal = _Cal({"M4": _Ch(0.513, 0.453, 0.574, n_reached_pos=3,
+                          evaluable=False)})
+    w = _host_caveat(cal)
+    assert "0.513" not in w
+    assert "NOT been evaluated" in w and "3 of 89" in w
+
+
+def test_the_ranking_caveat_also_refuses_an_unevaluated_figure():
+    w = guards.direct_acting_caveat(
+        _Cal({"M1": _Ch(0.513, 0.453, 0.574, n_reached_pos=3,
+                        evaluable=False)}))
+    assert "0.513" not in w
+    assert "NOT been evaluated" in w
+    assert "rather than a demonstrated ability to rank" in w
