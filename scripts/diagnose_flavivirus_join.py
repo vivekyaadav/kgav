@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sqlite3
 import sys
 from collections import Counter, defaultdict
@@ -187,8 +188,30 @@ def _orcs_report(orcs_dir: Path, hints: tuple[str, ...]) -> dict:
 
 HUMAN_TAXON = "9606"
 
+# MITAB column 10/11 reads `taxid:9606(Homo sapiens)`. parse_row keeps only
+# the id, which is all the ingest needs; a REPORT needs the name, because
+# "227984: 66" is a number nobody can act on and "227984 (<name>): 66" is a
+# curation decision.
+TAXID_NAME_RE = re.compile(r"taxid:(-?\d+)\(([^)]*)\)")
 
-def _vhppi_report(vhppi_dir: Path, taxa: set[str]) -> dict:
+
+def _built_taxa(config: Path) -> set[str]:
+    """Every taxon ingest_vhppi's taxon_map will accept: the built species
+    plus their declared isolates. Anything else becomes
+    `unmapped_viral_taxon` and is discarded."""
+    cfg = yaml.safe_load(config.read_text())
+    out: set[str] = set()
+    for e in cfg.get("viruses") or []:
+        out.add(str(e["taxon"]))
+        out |= {str(x) for x in (e.get("isolate_taxa") or [])}
+        cs = (e.get("chain_source") or {}).get("taxon")
+        if cs:
+            out.add(str(cs))
+    return out
+
+
+def _vhppi_report(vhppi_dir: Path, taxa: set[str],
+                  built: set[str]) -> dict:
     """VirHostNet coverage, parsed with the ingest's own parse_row.
 
     MY FIRST VERSION SCANNED BY EXTENSION and allowed
@@ -208,6 +231,7 @@ def _vhppi_report(vhppi_dir: Path, taxa: set[str]) -> dict:
     rows = unparseable = 0
     per_tax: Counter = Counter()
     present: Counter = Counter()
+    names: dict[str, str] = {}
     for path in files:
         for line in path.read_text(errors="replace").splitlines():
             if not line.strip() or line.startswith("#"):
@@ -222,15 +246,19 @@ def _vhppi_report(vhppi_dir: Path, taxa: set[str]) -> dict:
                     per_tax[r[side]] += 1
                 elif r[side] and r[side] != HUMAN_TAXON:
                     present[r[side]] += 1
+            for tax, nm in TAXID_NAME_RE.findall(line):
+                names.setdefault(tax, nm)
     # WHAT IS PRESENT, NOT ONLY WHAT IS MISSING. Reporting absence alone let
     # me conclude "M3 and M5 would have no viral-host bridge" from a set of
     # per-virus downloads that contain only coronaviruses. The absence is the
     # DOWNLOAD SCOPE, not VirHostNet's coverage, and the histogram of taxa
     # actually in the files makes that obvious instead of leaving it to be
     # inferred.
+    unmapped = {t_: n for t_, n in present.items() if t_ not in built}
     return {"status": "ok", "files": len(files), "rows": rows,
             "unparseable": unparseable, "per_tax": dict(per_tax),
-            "other_viral": present.most_common(12)}
+            "other_viral": present.most_common(12), "names": names,
+            "unmapped": unmapped}
 
 
 def main() -> int:
@@ -360,7 +388,8 @@ def main() -> int:
                       f"every flavivirus\n    screen however much data is "
                       f"there. A patterns gap, not a data gap.")
 
-    vhn = _vhppi_report(args.vhppi_dir, all_taxa)
+    vhn = _vhppi_report(args.vhppi_dir, all_taxa,
+                        _built_taxa(args.config))
     print(f"\n  VirHostNet: {vhn['status']}")
     if vhn.get("hint"):
         print(f"    ({vhn['hint']})")
@@ -375,12 +404,25 @@ def main() -> int:
             if vhn["other_viral"]:
                 print("    The viral taxa these files DO contain:")
                 for tax, n in vhn["other_viral"]:
-                    print(f"      {tax:<10} {n:>8,}")
+                    mark = "" if tax not in vhn["unmapped"] else "  UNMAPPED"
+                    nm = vhn["names"].get(tax, "")[:40]
+                    print(f"      {tax:<10} {n:>8,}  {nm:<40}{mark}")
                 print("    These are per-virus downloads. The absence above "
                       "is this directory's\n    DOWNLOAD SCOPE, not "
                       "VirHostNet's coverage -- fetch the flavivirus files "
                       "and\n    re-run before concluding M3 and M5 have no "
                       "route.")
+            if vhn["unmapped"]:
+                lost = sum(vhn["unmapped"].values())
+                print(f"\n    AND A FINDING ABOUT THE CURRENT BUILD: "
+                      f"{len(vhn['unmapped'])} taxon(s), {lost:,} rows, are "
+                      f"in\n    these files and NOT in the built register's "
+                      f"taxon_map, so ingest_vhppi\n    counts them as "
+                      f"unmapped_viral_taxon and discards them. A host taxon "
+                      f"(rat,\n    mouse) there is expected; a VIRAL strain "
+                      f"of a virus you already build is\n    an isolate_taxa "
+                      f"entry missing from config/viruses.yaml. The names "
+                      f"above\n    are what decides which.")
 
     print("\n" + "=" * 78)
     print("WHAT THIS DOES NOT DECIDE")
