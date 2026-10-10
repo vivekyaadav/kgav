@@ -220,8 +220,7 @@ def test_result_serialises_for_a_model(graph):
 REAL = __import__("pathlib").Path(__file__).resolve().parents[1] / "data/releases/v0.1"
 
 
-@pytest.mark.skipif(not (REAL / "nodes.jsonl").exists(), reason="release not built")
-def test_triage_ranks_the_named_controls_correctly():
+def test_triage_ranks_the_named_controls_correctly(real_tools):
     """The ranking has been wrong three ways, and each time the aggregate
     output looked reasonable while the controls were inverted:
 
@@ -245,8 +244,7 @@ def test_triage_ranks_the_named_controls_correctly():
     assert order.index("chloroquine") < order.index("hydroxychloroquine")
 
 
-@pytest.mark.skipif(not (REAL / "nodes.jsonl").exists(), reason="release not built")
-def test_triage_reports_compounds_it_could_not_rank():
+def test_triage_reports_compounds_it_could_not_rank(real_tools):
     """Silently returning three of four requested compounds is a failure the
     user cannot detect."""
     g = real_tools

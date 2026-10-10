@@ -1,4 +1,4 @@
-.PHONY: install test test-serial test-slowest lint gate release-validate check-results clean
+.PHONY: install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results clean
 
 install:
 	pip install -e ".[dev]"
@@ -8,7 +8,25 @@ install:
 # distribution can land test_agent_tools' two real-graph tests on two workers
 # and parse the release twice. By file, the three release-reading files parse
 # once each, in parallel.
-test:
+# F821 is undefined-name, F811 redefinition. They cost milliseconds and catch
+# the class of bug the conftest refactor introduced: two tests had their
+# BODIES rewritten to use a fixture while their SIGNATURES were not, so they
+# referenced an undefined name. A NameError only fires when the test actually
+# RUNS, so it was invisible on a machine where the release is absent and those
+# tests skip. `test` depends on this so the combination cannot pass again.
+#
+# Deliberately NOT the full ruff default set: that currently reports 29
+# findings, nearly all import ordering, and a backlog of style warnings in
+# front of a correctness gate is a gate nobody runs. `make lint` still runs
+# everything.
+lint-fast:
+	ruff check --select F821,F811 src tests scripts
+
+test: lint-fast
+	pytest -q -n auto --dist loadfile -m "not slow"
+
+# Everything, including the raw-source integration checks.
+test-all:
 	pytest -q -n auto --dist loadfile
 
 # Serial. Use when a failure needs a readable traceback, or to check that a
