@@ -5,6 +5,7 @@ import json
 
 import pytest
 
+from kgav.agent.verify import dropped_warnings
 from kgav.agent.orchestrator import Orchestrator
 from kgav.agent.tools import GraphTools
 
@@ -239,3 +240,93 @@ def test_truncation_never_drops_a_warning(orch):
     finally:
         orch_mod.MAX_BRIEF_EDGES = original
     assert any("CELL CONTEXT" in w for w in brief.warnings)
+
+
+# ------------------------------------------- one retry, for a dropped caveat
+class _Scripted:
+    """A model that returns prepared answers in order and records its prompts."""
+
+    def __init__(self, *answers):
+        self.answers, self.prompts = list(answers), []
+
+    def __call__(self, prompt):
+        self.prompts.append(prompt)
+        return self.answers[min(len(self.prompts) - 1, len(self.answers) - 1)]
+
+
+def _orch_with_caveat(tmp_path):
+    """An orchestrator whose brief carries a required caveat."""
+    from kgav.agent import guards
+    o = Orchestrator.__new__(Orchestrator)
+
+    class _Brief:
+        allowed, clarification, refusal = True, None, ""
+        intent, trace, facts = "explain", [], ["a fact [E1]"]
+        warnings = [guards.caveat("cell_context", "SIGMAR1 route is cell-type "
+                                                  "dependent.")]
+        citable_edge_ids = ["E1"]
+        question = "why?"
+
+        def to_prompt(self, must_include=None):
+            head = ""
+            if must_include:
+                head = ("REJECTED, omitted: "
+                        + ";".join(str(w)[:20] for w in must_include) + "\n")
+            return head + "PROMPT"
+
+    o.build_brief = lambda q: _Brief()
+    return o
+
+
+def test_a_dropped_caveat_triggers_exactly_one_retry(tmp_path):
+    """Withholding was right and made itself the normal outcome: a 7B model
+    drops a caveat for brevity on nearly every host-directed question."""
+    m = _Scripted("no caveat here", "CELL CONTEXT: SIGMAR1 is cell dependent [E1]")
+    out = _orch_with_caveat(tmp_path).answer("why?", m)
+    assert out["attempts"] == 2
+    assert len(m.prompts) == 2
+    assert "REJECTED" in m.prompts[1] and "REJECTED" not in m.prompts[0]
+    assert dropped_warnings(out["answer"], _orch_with_caveat(tmp_path)
+                            .build_brief("x").warnings) == []
+
+
+def test_a_compliant_first_answer_is_not_retried(tmp_path):
+    m = _Scripted("CELL CONTEXT: it depends on the cell type [E1]")
+    out = _orch_with_caveat(tmp_path).answer("why?", m)
+    assert out["attempts"] == 1 and len(m.prompts) == 1
+    assert "retry_prompt" not in out
+
+
+def test_the_retry_is_not_unlimited(tmp_path):
+    """Re-rolling until a check passes is how a verifier becomes a sampler."""
+    m = _Scripted("still no caveat", "still no caveat", "still no caveat")
+    out = _orch_with_caveat(tmp_path).answer("why?", m)
+    assert out["attempts"] == 2 and len(m.prompts) == 2
+    # and the answer is still non-compliant, so the verifier will withhold it
+    assert "cell context" not in out["answer"].lower()
+
+
+def test_max_attempts_one_disables_the_retry(tmp_path):
+    m = _Scripted("no caveat")
+    out = _orch_with_caveat(tmp_path).answer("why?", m, max_attempts=1)
+    assert out["attempts"] == 1 and len(m.prompts) == 1
+
+
+def test_what_was_dropped_is_recorded(tmp_path):
+    m = _Scripted("no caveat", "CELL CONTEXT: fine [E1]")
+    out = _orch_with_caveat(tmp_path).answer("why?", m)
+    assert out["dropped_on_first_attempt"]
+    assert "CELL CONTEXT" in out["dropped_on_first_attempt"][0]
+
+
+def test_the_retry_prompt_names_the_specific_label():
+    """The rules already say every warning must appear, and the model dropped
+    one anyway. Repeating that instruction is not a different instruction."""
+    from kgav.agent import guards
+    from kgav.agent.orchestrator import Brief
+    b = Brief(question="why?", intent="explain", allowed=True,
+              facts=["f [E1]"], citable_edge_ids=["E1"],
+              warnings=[guards.caveat("cell_context", "depends on cell type")])
+    first, again = b.to_prompt(), b.to_prompt(must_include=b.warnings)
+    assert "CELL CONTEXT" in again.split("RULES:")[0]      # at the top
+    assert "REJECTED" in again and "REJECTED" not in first

@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from kgav.agent import guards
+from kgav.agent.verify import caveat_labels, dropped_warnings
 from kgav.agent.tools import GraphTools, ToolResult
 
 MAX_BRIEF_EDGES = 100
@@ -51,8 +52,14 @@ class Brief:
     clarification: str = ""
     trace: list[str] = field(default_factory=list)
 
-    def to_prompt(self) -> str:
+    def to_prompt(self, must_include: list | None = None) -> str:
         """The brief as text for a language model.
+
+        `must_include` names caveats a previous attempt dropped. They are
+        quoted at the TOP of the prompt rather than appended, because the
+        rules below already say every warning must appear and a 7B model
+        dropped one anyway -- repeating the same instruction further down is
+        not a different instruction. Naming the specific label it omitted is.
 
         The instruction block is deliberately restrictive. The model's job is
         to narrate retrieved facts, not to add domain knowledge: anything it
@@ -62,7 +69,21 @@ class Brief:
         if not self.allowed:
             return self.refusal
 
-        parts = [
+        parts = []
+        if must_include:
+            labels = caveat_labels(must_include)
+            parts += [
+                "YOUR PREVIOUS ANSWER WAS REJECTED. It omitted "
+                + ("these required warnings: " if len(labels) > 1
+                   else "this required warning: ")
+                + "; ".join(labels) + ".",
+                "",
+                "Write the answer again and include each of them verbatim as "
+                "a labelled sentence. An answer missing any of these labels "
+                "is discarded, so a shorter answer is not a better one.",
+                "",
+            ]
+        parts += [
             "You are reporting findings from a curated knowledge graph.",
             "",
             "RULES:",
@@ -228,7 +249,8 @@ class Orchestrator:
                      trace=trace)
 
     # ------------------------------------------------------------ stage 5
-    def answer(self, question: str, model: Any = None) -> dict:
+    def answer(self, question: str, model: Any = None,
+               max_attempts: int = 2) -> dict:
         """Full pipeline. `model` is any callable taking a prompt.
 
         With no model supplied the brief is returned unsynthesised, which is
@@ -252,5 +274,26 @@ class Orchestrator:
             out["answer"] = None
             out["prompt"] = brief.to_prompt()
             return out
-        out["answer"] = model(brief.to_prompt())
+
+        # ONE RETRY, AND ONLY FOR A DROPPED CAVEAT. Printing the answer with
+        # the caveat bolted underneath is the behaviour kgav_ask's docstring
+        # rejects -- the fluent prose is what sticks and the caveat is read
+        # second, if at all. Withholding is right, but withholding on the
+        # first attempt made it the normal outcome for every host-directed
+        # question, so the model gets one chance with the omitted label named.
+        # Nothing else is retried: an invented citation or a fabricated number
+        # is not an oversight to nudge, and re-rolling until a check passes is
+        # how a verifier becomes a sampler.
+        prompt = brief.to_prompt()
+        out["prompt"] = prompt
+        text = model(prompt)
+        out["attempts"] = 1
+        missing = dropped_warnings(text, brief.warnings)
+        if missing and max_attempts > 1:
+            retry_prompt = brief.to_prompt(must_include=missing)
+            out["retry_prompt"] = retry_prompt
+            out["dropped_on_first_attempt"] = [str(w) for w in missing]
+            text = model(retry_prompt)
+            out["attempts"] = 2
+        out["answer"] = text
         return out
