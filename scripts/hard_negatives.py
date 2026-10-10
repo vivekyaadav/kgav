@@ -281,6 +281,16 @@ def main() -> int:
                   {"inactive_above_nm": args.inactive_above_nm,
                    "selectivity_filter": args.selectivity,
                    "selectivity_applies": args.selectivity_applies,
+                   # THE TWO CONTROLS THAT DECIDE WHAT THESE NUMBERS MEAN, and
+                   # neither was recorded until now. M1 reads 0.660 without
+                   # publication_disjoint and 0.499 with it, on one release
+                   # and one commit -- so the release fingerprint and the
+                   # commit that provenance.py stamps do NOT distinguish the
+                   # two runs. A file holding 0.660 was indistinguishable from
+                   # one holding 0.499 by anything except the number, which is
+                   # the exact failure that module exists to prevent.
+                   "publication_disjoint": bool(args.publication_disjoint),
+                   "label_source": sorted(label_sources) if label_sources else None,
                    "label_stats": dict(all_labels.stats),
                    "cross_sectional": cross, "temporal": temporal,
                    "metapath_reach": {"cross_sectional": cross_reach,

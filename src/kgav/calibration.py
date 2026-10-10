@@ -172,9 +172,21 @@ def _channel(name: str, row: dict) -> ChannelCalibration:
     )
 
 
-def load(results: Path, virus: str, section: str = "cross-sectional",
+SECTION_ALIASES = {"cross-sectional": "cross_sectional",
+                   "post-2021": "temporal", "temporal": "temporal"}
+
+
+def available_viruses(results: Path, section: str = "cross_sectional") -> list[str]:
+    """The keys a results file actually holds, for a lookup that missed."""
+    doc = json.loads(Path(results).read_text())
+    sec = doc.get(SECTION_ALIASES.get(section, section)) or {}
+    return sorted(k for k in sec if isinstance(sec[k], dict))
+
+
+def load(results: Path, virus: str, section: str = "cross_sectional",
          protocol: str | None = None,
-         exclude: tuple[str, ...] = ("COMBINED", "degree")) -> Calibration:
+         exclude: tuple[str, ...] = ("COMBINED", "degree"),
+         node_labels: dict[str, str] | None = None) -> Calibration:
     """Read one virus's channel calibration out of a hard_negatives results file.
 
     COMBINED and degree are excluded by default and for different reasons.
@@ -185,9 +197,27 @@ def load(results: Path, virus: str, section: str = "cross-sectional",
     must not be smuggled in as a reasoning route.
     """
     doc = json.loads(Path(results).read_text())
-    body = doc.get("results", doc)
-    sec = body.get(section) or {}
-    rows = sec.get(virus) or {}
+    sec = doc.get(SECTION_ALIASES.get(section, section)) or {}
+    # hard_negatives.run keys its output by the virus's DISPLAY LABEL, taken
+    # from node properties -- not by the taxon CURIE. Accept either, because a
+    # caller holding "NCBITaxon:2697049" is not wrong and a silent empty
+    # result is the worst possible answer to a key mismatch.
+    # hard_negatives.run keys its output by the virus's DISPLAY LABEL, taken
+    # from node properties -- not by the taxon CURIE. A CURIE cannot be
+    # translated by string surgery, because "NCBITaxon:2697049" and
+    # "SARS-CoV-2" share nothing: it needs the mapping, which only a caller
+    # holding the release has. So `node_labels` translates when supplied and
+    # the lookup simply misses when it is not -- and available_viruses() exists
+    # so the miss can be reported with what the file does hold, rather than as
+    # an empty calibration that reads like an empty evaluation.
+    wanted = (node_labels or {}).get(virus, virus)
+    rows = sec.get(wanted)
+    if rows is None:
+        for key, val in sec.items():
+            if isinstance(val, dict) and key.lower() == wanted.lower():
+                rows = val
+                break
+    rows = rows or {}
     proto = protocol or doc.get("protocol") or _infer_protocol(doc, section)
     cal = Calibration(virus=virus, protocol=proto,
                       source_file=str(Path(results).name))
@@ -201,26 +231,41 @@ def load(results: Path, virus: str, section: str = "cross-sectional",
     return cal
 
 
-def _infer_protocol(doc: dict, section: str) -> str:
-    """Name the protocol from whatever the results file recorded about itself.
+# The keys hard_negatives.py writes at the top level of its results file.
+# Read from there rather than an "args" block: the flags are recorded flat,
+# and guessing a nesting that does not exist is how the first version of this
+# loader returned an empty calibration without saying why.
+PROTOCOL_KEYS = ("selectivity_filter", "selectivity_applies",
+                 "publication_disjoint", "label_source")
 
-    A results file written before the flags existed records none of them, and
-    the right answer then is "unknown" rather than a guess: an unnamed protocol
-    is exactly the thing REFUSED_PROTOCOLS exists to catch.
+
+def _infer_protocol(doc: dict, section: str) -> str:
+    """Name the protocol from what the results file recorded about itself.
+
+    A file written before those keys existed records none of them, and the
+    right answer then is "unknown" rather than a guess: an unnamed protocol is
+    exactly what REFUSED_PROTOCOLS exists to catch, and a confounded run
+    silently promoted to "looks fine" is the failure mode.
     """
-    args = doc.get("args") or doc.get("provenance", {}).get("args") or {}
-    if not args:
+    if not any(k in doc for k in PROTOCOL_KEYS):
         return f"{section}/unknown"
     bits = [section]
-    if args.get("label_source"):
-        bits.append(str(args["label_source"]))
-    sel = args.get("selectivity")
-    applies = args.get("selectivity_applies")
+    src = doc.get("label_source")
+    if src:
+        bits.append(",".join(src) if isinstance(src, list) else str(src))
+    else:
+        bits.append("labels-pooled")
+    sel = doc.get("selectivity_filter")
+    applies = doc.get("selectivity_applies")
     if sel and sel != "all":
-        bits.append(f"{sel}-{applies or 'positives'}"
-                    if applies != "both" else f"{sel}-both")
+        bits.append(f"{sel}-{applies or 'positives'}")
         if applies != "both":
             bits.append("selectivity-positives-only")
-    if args.get("publication_disjoint"):
+    if doc.get("publication_disjoint"):
         bits.append("publication-disjoint")
+    else:
+        # Named explicitly. Without it M1 reads 0.660 instead of 0.499, and a
+        # protocol string that simply omits the control reads as though the
+        # control had passed.
+        bits.append("NO-publication-disjoint")
     return "/".join(bits)

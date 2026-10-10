@@ -19,7 +19,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav import calibration as C
 
-SARS_COV_2 = "NCBITaxon:2697049"
+# hard_negatives keys its results by DISPLAY LABEL, not CURIE. load()
+# accepts either; this default matches what the file holds.
+DEFAULT_VIRUS = "SARS-CoV-2"
 
 
 def main() -> int:
@@ -27,9 +29,11 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--results", type=Path,
                     default=root / "data/results/hard_negatives.json")
-    ap.add_argument("--virus", default=SARS_COV_2)
-    ap.add_argument("--section", default="cross-sectional",
-                    choices=["cross-sectional", "post-2021"])
+    ap.add_argument("--virus", default=DEFAULT_VIRUS,
+                    help="display label or taxon CURIE")
+    ap.add_argument("--section", default="cross_sectional",
+                    choices=["cross_sectional", "temporal",
+                             "cross-sectional", "post-2021"])
     args = ap.parse_args()
 
     if not args.results.exists():
@@ -41,8 +45,14 @@ def main() -> int:
 
     cal = C.load(args.results, args.virus, section=args.section)
     if not cal.channels and not cal.refused_reason:
-        print(f"no channels recorded for {args.virus} in "
+        # SAY WHAT IS THERE. The first version printed only that it found
+        # nothing, which is indistinguishable from an empty evaluation and
+        # sent the reader looking at the wrong thing.
+        have = C.available_viruses(args.results, args.section)
+        print(f"no channels recorded for {args.virus!r} in "
               f"{args.section} of {args.results.name}")
+        print(f"  that file holds: {', '.join(have) if have else '(nothing)'}")
+        print(f"  protocol it records: {cal.protocol}")
         return 1
 
     for line in cal.report():

@@ -32,11 +32,21 @@ MEASURED = {
 V = "NCBITaxon:2697049"
 
 
-def _results(tmp_path, rows, args=None, name="hard_negatives.json"):
-    doc = {"results": {"cross-sectional": {V: rows}},
-           "args": args if args is not None else {
-               "label_source": "infores:ncats-opendata",
-               "selectivity": "all", "publication_disjoint": True}}
+LABEL = "SARS-CoV-2"
+LABELS = {V: LABEL}
+
+
+def _results(tmp_path, rows, flags=None, name="hard_negatives.json"):
+    """The structure scripts/hard_negatives.py actually writes: flat sections
+    with underscores, keyed by DISPLAY LABEL, flags at the top level."""
+    doc = {"inactive_above_nm": 10000.0,
+           "selectivity_filter": "all", "selectivity_applies": "positives",
+           "publication_disjoint": True,
+           "label_source": ["infores:ncats-opendata"],
+           "cross_sectional": {LABEL: rows}, "temporal": {},
+           "provenance": {"release": {"id": "v0.1"}}}
+    if flags is not None:
+        doc.update(flags)
     p = tmp_path / name
     p.write_text(json.dumps(doc))
     return p
@@ -89,31 +99,25 @@ def test_a_larger_sample_narrows_the_interval():
 
 # --------------------------------------------------------------- loading
 def test_load_reads_channels_and_excludes_combined_and_degree(tmp_path):
-    cal = C.load(_results(tmp_path, MEASURED), V)
+    cal = C.load(_results(tmp_path, MEASURED), LABEL)
     assert set(cal.channels) == {"M1", "M2", "M3", "M4", "M5", "M6", "M7"}
     assert "COMBINED" not in cal.channels      # circular
     assert "degree" not in cal.channels        # the null hypothesis
 
 
 def test_the_protocol_is_recorded_from_the_run_not_assumed(tmp_path):
-    cal = C.load(_results(tmp_path, MEASURED), V)
+    cal = C.load(_results(tmp_path, MEASURED), LABEL)
     assert "infores:ncats-opendata" in cal.protocol
     assert "publication-disjoint" in cal.protocol
-
-
-def test_a_results_file_with_no_recorded_args_is_protocol_unknown(tmp_path):
-    """An unnamed protocol is what REFUSED_PROTOCOLS exists to catch, so it
-    must not be guessed into something that looks trustworthy."""
-    cal = C.load(_results(tmp_path, MEASURED, args={}), V)
-    assert cal.protocol.endswith("unknown")
 
 
 def test_the_confounded_protocol_is_refused_by_name(tmp_path):
     """The run that produced 0.823 filtered positives and left negatives
     whole. Its numbers must never become ranking weights."""
     rows = dict(MEASURED, M1=_row(0.823, 0.805, 0.841, 816, 4874))
-    cal = C.load(_results(tmp_path, rows, args={"selectivity": "selective-only",
-                                                "selectivity_applies": "positives"}), V)
+    cal = C.load(_results(tmp_path, rows, flags={
+        "selectivity_filter": "selective-only",
+        "selectivity_applies": "positives"}), LABEL)
     assert not cal.usable
     assert cal.weights() == {} and cal.discriminating() == []
     assert "17x coverage asymmetry" in cal.why_not()
@@ -123,13 +127,13 @@ def test_the_confounded_protocol_is_refused_by_name(tmp_path):
 def test_no_channel_on_this_release_earns_a_place(tmp_path):
     """THE RESULT. Every metapath interval spans 0.5, so a calibrated ranking
     has nothing to rank with."""
-    cal = C.load(_results(tmp_path, MEASURED), V)
+    cal = C.load(_results(tmp_path, MEASURED), LABEL)
     assert cal.discriminating() == []
     assert not cal.can_rank()
 
 
 def test_why_not_names_the_strongest_channel_and_its_interval(tmp_path):
-    cal = C.load(_results(tmp_path, MEASURED), V)
+    cal = C.load(_results(tmp_path, MEASURED), LABEL)
     why = cal.why_not()
     assert "M3" in why and "0.523" in why
     assert "no reasoning channel beats chance" in why
@@ -138,7 +142,7 @@ def test_why_not_names_the_strongest_channel_and_its_interval(tmp_path):
 
 
 def test_the_report_is_readable_and_states_every_channel(tmp_path):
-    lines = C.load(_results(tmp_path, MEASURED), V).report()
+    lines = C.load(_results(tmp_path, MEASURED), LABEL).report()
     joined = "\n".join(lines)
     for m in ("M1", "M2", "M3", "M4", "M5", "M6", "M7"):
         assert m in joined
@@ -160,7 +164,7 @@ def test_uncalibrated_combine_is_unchanged(tmp_path):
 
 def test_calibrated_combine_refuses_when_nothing_discriminates(tmp_path):
     """An order built from eight chance-level channels is not a result."""
-    cal = C.load(_results(tmp_path, MEASURED), V)
+    cal = C.load(_results(tmp_path, MEASURED), LABEL)
     d = _dwpc({"M1": {"a": 1.0, "b": 2.0}, "M7": {"a": 5.0, "c": 1.0}})
     assert combine(d, V, calibration=cal) == {}
     assert combine(d, V) != {}            # and the uncalibrated path still ranks
@@ -171,7 +175,7 @@ def test_a_noise_channel_cannot_win_once_calibration_applies(tmp_path):
     scores 1.0 and outranks a drug with a real route; dropping the channel is
     the fix, and this is the behaviour that was wrong."""
     rows = dict(MEASURED, M1=_row(0.70, 0.65, 0.75))     # M1 earns its place
-    cal = C.load(_results(tmp_path, rows), V)
+    cal = C.load(_results(tmp_path, rows), LABEL)
     assert cal.discriminating() == ["M1"]
 
     d = _dwpc({"M1": {"real": 2.0, "other": 1.0},
@@ -186,7 +190,7 @@ def test_a_noise_channel_cannot_win_once_calibration_applies(tmp_path):
 
 def test_weights_scale_the_percentile_so_a_weak_channel_counts_less(tmp_path):
     rows = dict(MEASURED, M1=_row(0.70, 0.65, 0.75), M4=_row(0.55, 0.52, 0.58))
-    cal = C.load(_results(tmp_path, rows), V)
+    cal = C.load(_results(tmp_path, rows), LABEL)
     assert set(cal.discriminating()) == {"M1", "M4"}
     d = _dwpc({"M1": {"x": 1.0, "top_of_m1": 2.0},
                "M4": {"x": 1.0, "top_of_m4": 2.0}})
@@ -195,3 +199,60 @@ def test_weights_scale_the_percentile_so_a_weak_channel_counts_less(tmp_path):
     assert out["top_of_m1"] > out["top_of_m4"]
     assert out["top_of_m1"] == pytest.approx(0.20)   # 0.70 - 0.5
     assert out["top_of_m4"] == pytest.approx(0.05)   # 0.55 - 0.5
+
+
+# ------------------------------------------- the real results-file shape
+def test_load_reads_the_shape_hard_negatives_actually_writes(tmp_path):
+    """The first loader guessed a {"results": {"cross-sectional": ...}} nesting
+    that does not exist and returned an empty calibration in silence."""
+    cal = C.load(_results(tmp_path, MEASURED), "SARS-CoV-2")
+    assert len(cal.channels) == 7
+
+
+def test_a_curie_needs_the_mapping_and_the_miss_is_explainable(tmp_path):
+    """run() keys by node label, and "NCBITaxon:2697049" shares nothing with
+    "SARS-CoV-2" -- no string surgery can bridge that. So the translation is
+    supplied by a caller holding the release, and without it the lookup misses
+    in a way available_viruses() can explain rather than an empty calibration
+    that reads like an empty evaluation."""
+    p = _results(tmp_path, MEASURED)
+    assert len(C.load(p, V, node_labels=LABELS).channels) == 7
+    missed = C.load(p, V)
+    assert missed.channels == {}
+    assert C.available_viruses(p) == [LABEL]   # how the caller reports it
+
+
+@pytest.mark.parametrize("section", ["cross_sectional", "cross-sectional"])
+def test_both_section_spellings_work(tmp_path, section):
+    cal = C.load(_results(tmp_path, MEASURED), "SARS-CoV-2", section=section)
+    assert len(cal.channels) == 7
+
+
+def test_available_viruses_lists_what_the_file_holds(tmp_path):
+    p = _results(tmp_path, MEASURED)
+    assert C.available_viruses(p) == ["SARS-CoV-2"]
+    assert C.available_viruses(p, "temporal") == []
+
+
+def test_the_two_decisive_controls_reach_the_protocol_string(tmp_path):
+    """publication_disjoint and label_source change M1 from 0.660 to 0.499.
+    A protocol string that cannot see them cannot distinguish the runs."""
+    with_ctl = C.load(_results(tmp_path, MEASURED), LABEL)
+    assert "publication-disjoint" in with_ctl.protocol
+    assert "infores:ncats-opendata" in with_ctl.protocol
+
+
+def test_a_missing_control_is_named_not_omitted(tmp_path):
+    """Omitting it reads as though the control had passed."""
+    cal = C.load(_results(tmp_path, MEASURED, flags={"publication_disjoint": False,
+                                              "label_source": None}),
+                 "SARS-CoV-2")
+    assert "NO-publication-disjoint" in cal.protocol
+    assert "labels-pooled" in cal.protocol
+
+
+def test_a_file_predating_the_flags_is_protocol_unknown(tmp_path):
+    doc = {"cross_sectional": {"SARS-CoV-2": MEASURED}}
+    p = tmp_path / "old.json"
+    p.write_text(json.dumps(doc))
+    assert C.load(p, "SARS-CoV-2").protocol.endswith("unknown")
