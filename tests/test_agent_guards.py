@@ -1,8 +1,11 @@
 """Gate for the agent's guardrails: the refusal is deterministic, and every
 caveat the evaluation established is attached where a user will see it.
 """
+from pathlib import Path
+
 import pytest
 
+from kgav.agent import guards
 from kgav.agent.guards import (
     CELL_CONTEXT_SENSITIVE,
     QueryKind,
@@ -87,8 +90,12 @@ def test_no_cell_context_warning_on_a_direct_acting_route():
 
 
 def test_host_directed_routes_carry_a_performance_warning():
+    """It must always be attached. WHAT it says comes from the calibration --
+    this test asserted the literal words "below chance", which was the
+    hardcoded figure, so it passed while the number went stale."""
     w = path_warnings([_prot("SOMEGENE")], "M4")
-    assert any("below chance" in x for x in w)
+    assert any("HOST-DIRECTED ROUTE" in x for x in w)
+    assert any("mechanistic hypothesis" in x for x in w)
 
 
 def test_endosomal_machinery_is_flagged():
@@ -126,3 +133,89 @@ def test_proximity_methods_are_flagged_as_not_binding():
 def test_evidence_tiers_are_described():
     assert "experimental" in evidence_note(1)
     assert "Text-mined" in evidence_note(4)
+
+
+# --------------------------------- the host-directed caveat is measured
+class _Ch:
+    def __init__(self, auc, lo, hi, n_neg=7343, discriminates=False):
+        self.auc, self.ci_lo, self.ci_hi, self.n_neg = auc, lo, hi, n_neg
+        self.discriminates = discriminates
+
+
+class _Cal:
+    def __init__(self, channels, protocol="single-screen/publication-disjoint",
+                 usable=True):
+        self.channels, self.protocol, self.usable = channels, protocol, usable
+
+
+HOST_PATH = [{"id": "INCHIKEY:X", "class": "SmallMolecule", "properties": {}},
+             {"id": "UniProtKB:Q99720", "class": "Protein",
+              "properties": {"gene_symbol": "SIGMAR1", "is_viral": False}},
+             {"id": "NCBITaxon:2697049", "class": "OrganismTaxon",
+              "properties": {"label": "SARS-CoV-2"}}]
+
+
+def _host_caveat(cal):
+    out = guards.path_warnings(HOST_PATH, "M4 pathway-mediated", calibration=cal)
+    hits = [w for w in out if "HOST-DIRECTED ROUTE" in w]
+    assert len(hits) == 1, out
+    return hits[0]
+
+
+@pytest.mark.parametrize("auc,lo,hi", [
+    (0.507, 0.447, 0.568), (0.391, 0.300, 0.482), (0.650, 0.600, 0.700),
+])
+def test_every_figure_in_the_caveat_comes_from_the_calibration(auc, lo, hi):
+    """The caveat used to read "AUC 0.391-0.482", from a run nobody could
+    identify; by the time the single-screen protocol existed the real values
+    were 0.492-0.523 -- at chance, not below it. Grepping the source for the
+    stale constant would also flag the comment explaining it, so this asserts
+    the behaviour: the emitted figures track whatever calibration is handed
+    in, and nothing else appears."""
+    w = _host_caveat(_Cal({"M4": _Ch(auc, lo, hi)}))
+    assert f"{auc:.3f}" in w and f"{lo:.3f}" in w and f"{hi:.3f}" in w
+    # no OTHER three-decimal figure leaked in from a constant
+    import re
+    assert set(re.findall(r"0\.\d{3}", w)) == {f"{auc:.3f}", f"{lo:.3f}", f"{hi:.3f}"}
+
+
+def test_the_caveat_quotes_the_measured_auc_and_names_the_protocol():
+    cal = _Cal({"M4": _Ch(0.507, 0.447, 0.568)})
+    w = _host_caveat(cal)
+    assert "0.507" in w and "0.447" in w and "0.568" in w
+    assert "7,343" in w                      # what it was measured against
+    assert "single-screen/publication-disjoint" in w
+    assert "indistinguishable from chance" in w
+
+
+def test_without_a_calibration_the_route_is_uncalibrated_not_numbered():
+    """A figure that might be stale is worse than no figure."""
+    w = _host_caveat(None)
+    assert "no measured performance is attached" in w
+    assert not any(c.isdigit() for c in w.split("Read")[0])
+
+
+def test_a_refused_calibration_is_treated_as_absent():
+    cal = _Cal({"M4": _Ch(0.823, 0.805, 0.841)}, usable=False)
+    w = _host_caveat(cal)
+    assert "0.823" not in w
+    assert "no measured performance is attached" in w
+
+
+def test_an_unevaluable_channel_says_so():
+    w = _host_caveat(_Cal({"M4": _Ch(None, None, None)}))
+    assert "not evaluable" in w and "reliability is unknown" in w
+
+
+def test_a_discriminating_channel_is_reported_as_above_chance():
+    """And still as a hypothesis: beating chance on a ranking task is not a
+    measured activity for the compound in front of the reader."""
+    w = _host_caveat(_Cal({"M4": _Ch(0.70, 0.65, 0.75, discriminates=True)}))
+    assert "0.700" in w and "above chance" in w
+    assert "mechanistic hypothesis" in w
+
+
+def test_a_direct_acting_route_gets_no_host_directed_caveat():
+    out = guards.path_warnings(HOST_PATH, "M1 direct-acting",
+                               calibration=_Cal({"M1": _Ch(0.513, 0.452, 0.574)}))
+    assert not any("HOST-DIRECTED ROUTE" in w for w in out)
