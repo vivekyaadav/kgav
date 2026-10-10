@@ -6,7 +6,7 @@ requires-python = ">=3.11"
 dependencies = ["pyyaml>=6", "pandas", "pyarrow"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-cov", "ruff"]
+dev = ["pytest>=8", "pytest-cov", "pytest-xdist", "ruff"]
 chem = ["rdkit>=2024.3"]
 
 [tool.ruff]

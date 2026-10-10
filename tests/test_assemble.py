@@ -218,10 +218,8 @@ def test_manifest_records_degree_and_merges(built):
 
 
 # ----------------------------------------------------------- real assembly
-@needs_release
-def test_real_assembled_release_validates():
-    nodes = [json.loads(x) for x in (ASSEMBLED / "nodes.jsonl").read_text().splitlines() if x.strip()]
-    edges = [json.loads(x) for x in (ASSEMBLED / "edges.jsonl").read_text().splitlines() if x.strip()]
+def test_real_assembled_release_validates(real_jsonl):
+    nodes, edges = real_jsonl
     assert len(nodes) > 50_000 and len(edges) > 300_000
     ids = {n["id"] for n in nodes}
     dangling = [e for e in edges if e["subject"] not in ids or e["object"] not in ids]

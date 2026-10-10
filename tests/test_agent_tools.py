@@ -233,7 +233,7 @@ def test_triage_ranks_the_named_controls_correctly():
     The rule may use only quantities this project measured: direct-acting
     evidence, then selectivity, then potency as a tiebreak.
     """
-    g = GraphTools(REAL)
+    g = real_tools
     ids = {n: g.resolve(n).data[0]["id"]
            for n in ("nirmatrelvir", "remdesivir", "chloroquine",
                      "hydroxychloroquine")}
@@ -249,7 +249,7 @@ def test_triage_ranks_the_named_controls_correctly():
 def test_triage_reports_compounds_it_could_not_rank():
     """Silently returning three of four requested compounds is a failure the
     user cannot detect."""
-    g = GraphTools(REAL)
+    g = real_tools
     real_id = g.resolve("nirmatrelvir").data[0]["id"]
     r = g.triage([real_id, "INCHIKEY:DOESNOTEXIST"], "NCBITaxon:2697049")
     assert len(r.data) == 1
