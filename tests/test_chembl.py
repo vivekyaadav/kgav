@@ -7,7 +7,9 @@ from pathlib import Path
 import pytest
 
 from kgav.aliases import AliasIndex
+import kgav.chembl as chembl_mod
 from kgav.chembl import (
+    accounting,
     assay_readout,
     build_viral_target_index,
     ingest_activities,
@@ -357,23 +359,40 @@ def test_every_row_is_emitted_or_counted_as_dropped():
     assert s["duplicate"] == 1
 
 
-def test_the_driver_lists_every_counter_the_module_sets():
-    """A new counter added to chembl.py must be added to the driver's lists.
+def test_every_counter_the_module_sets_has_a_declared_fate():
+    """A new counter in chembl.py must land in EMITTED, DROPPED, or a
+    breakdown prefix.
 
-    This is the test that would have failed on ce133f1 rather than four months
-    later: it compares the counters the module can set against the ones the
-    driver accounts for.
+    STATIC, by design: it reads the source rather than running the ingest, so
+    it also covers counters on branches no test exercises. That is why it
+    caught reattributed_to_organism being unlisted, and why it would have
+    failed on ce133f1 rather than four months later.
+
+    It used to grep the DRIVER for the counter names. The lists now live in
+    chembl.py beside the code that increments them -- because they drifted
+    from the driver, which is the whole reason this test exists -- so it
+    checks against the lists themselves.
     """
     import re
     src = (ROOT / "src/kgav/chembl.py").read_text()
-    drv = (ROOT / "scripts/ingest_chembl.py").read_text()
-    set_by_module = set(re.findall(r'stats\["([a-z_]+)"\]', src))
-    # Counted but reported in their own sections rather than the two lists.
-    reported_elsewhere = {"rows", "censored", "unresolved"}
-    accounted = set(re.findall(r'"([a-z_]+)",?\s*$', drv, re.M)) | \
-                set(re.findall(r'"([a-z_]+)"', drv))
-    missing = set_by_module - accounted - reported_elsewhere
-    assert not missing, f"chembl.py sets counters the driver never reports: {sorted(missing)}"
+    # Plain counters, and the prefix of f-string ones: stats[f"resolved_{nsp}"]
+    plain = set(re.findall(r'stats\["([a-z_0-9]+)"\]', src))
+    prefixed = set(re.findall(r'stats\[f"([a-z_]+)\{', src))
+    declared = set(chembl_mod.EMITTED_COUNTERS) | set(chembl_mod.DROPPED_COUNTERS) \
+        | set(chembl_mod.BREAKDOWN_COUNTERS)
+    prefixes = chembl_mod.BREAKDOWN_PREFIXES
+
+    missing = {c for c in plain
+               if c not in declared and not c.startswith(prefixes)}
+    assert not missing, (
+        f"chembl.py sets counters with no declared fate: {sorted(missing)}. "
+        f"Add each to EMITTED_COUNTERS or DROPPED_COUNTERS, or give it a "
+        f"breakdown prefix if it describes rows rather than deciding them.")
+
+    # An f-string counter must match a declared prefix, or it is invisible to
+    # the accounting and to this check both.
+    stray = {pfx for pfx in prefixed if not pfx.startswith(prefixes)}
+    assert not stray, f"f-string counters with no declared prefix: {sorted(stray)}"
 
 
 # ------------------- what the measurement was made ON, not just what it says
@@ -499,3 +518,74 @@ def test_no_protein_edge_still_claims_biochemical_unconditionally():
                       "infores:chembl")
     kinds = {e["qualifiers"]["assay_type"] for e in em.edges}
     assert kinds == {"reporter", "biochemical", "binding"}
+
+
+# ------------------------------------------- every row's fate is accounted
+def _row_covering(kind):
+    """One row engineered to take each branch through ingest_activities."""
+    base = _viral_row("Inhibition of recombinant 3CL protease", assay=f"A_{kind}")
+    if kind == "no_inchikey":
+        base["inchikey"] = None
+    elif kind == "unconvertible_units":
+        base["standard_units"] = "mg/ml"
+    elif kind == "multicomponent_target":
+        base["target_name"] = "Spike glycoprotein/ACE2"
+    elif kind == "no_target_node":
+        base["accession"] = None
+        base["description"] = "no chain named here"
+    elif kind == "undecidable":
+        base["standard_value"] = 5000.0
+        base["standard_relation"] = ">"
+    elif kind == "cellular":
+        base["description"] = PSEUDOVIRUS
+    elif kind == "organism":
+        base["target_type"] = "ORGANISM"
+    elif kind == "inactive":
+        base["standard_value"] = 50_000.0
+        base["standard_relation"] = ">"
+    return base
+
+
+def test_every_row_is_either_emitted_or_dropped():
+    """THE INVARIANT. It failed by exactly 1,238 rows when a new counter was
+    added and not listed, the layer was never written, and the reassembly
+    that followed silently used the previous chembl layer -- so every count
+    came back identical and nothing downstream said why.
+    """
+    kinds = ["active", "no_inchikey", "unconvertible_units",
+             "multicomponent_target", "no_target_node", "undecidable",
+             "cellular", "organism", "inactive"]
+    rows = [_row_covering(k) for k in kinds]
+    rows.append(_row_covering("active"))        # a duplicate of the first
+    em = Emit()
+    s = ingest_activities(em, rows, {"2697049": {}}, {"2697049": "2697049"},
+                          "infores:chembl")
+    emitted, dropped, unlisted = accounting(s)
+    assert emitted + dropped == s["rows"] == len(rows), (
+        f"{s['rows']} rows, {emitted} emitted, {dropped} dropped; "
+        f"unlisted: {unlisted}")
+
+
+def test_no_counter_the_module_sets_has_an_unstated_fate():
+    """A counter in neither list and matching no breakdown prefix is a row
+    whose fate nobody can state."""
+    rows = [_row_covering(k) for k in
+            ("active", "cellular", "organism", "inactive", "undecidable",
+             "no_inchikey", "multicomponent_target")]
+    em = Emit()
+    s = ingest_activities(em, rows, {"2697049": {}}, {"2697049": "2697049"},
+                          "infores:chembl")
+    assert accounting(s)[2] == []
+
+
+def test_the_breakdown_counters_are_excluded_from_the_sum():
+    """readout_* and assay_type_* are incremented before dedup and classify,
+    so they are a SUPERSET of what gets emitted -- 1,921 rows read as
+    cellular while 1,238 were reattributed. Adding them would double-count."""
+    em = Emit()
+    rows = [_row_covering("cellular"), _row_covering("active")]
+    s = ingest_activities(em, rows, {"2697049": {}}, {"2697049": "2697049"},
+                          "infores:chembl")
+    assert s["readout_cells"] >= 1 and s["readout_protein"] >= 1
+    emitted, dropped, _ = accounting(s)
+    assert emitted + dropped == len(rows)

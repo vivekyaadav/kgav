@@ -233,6 +233,41 @@ def assay_readout(description: str, assay_type_code: str | None = None) -> tuple
             else "biochemical")
 
 
+# EVERY ROW'S FATE. Kept here, beside the code that increments the counters,
+# because they lived in the driver and drifted from it: the accounting check
+# failed by exactly the 1,238 rows a new counter tracked, the layer was never
+# written, and the reassembly that followed silently used the previous one.
+#
+# EMITTED and DROPPED must partition every row. BREAKDOWN_PREFIXES name
+# counters that DESCRIBE rows instead of deciding their fate -- they are
+# incremented before dedup and classify, so they are a superset of what is
+# emitted and must not enter the sum.
+EMITTED_COUNTERS = ("protein_edges", "measured_inactive_edges",
+                    "organism_edges", "reattributed_to_organism")
+DROPPED_COUNTERS = ("no_inchikey", "unmapped_taxon", "unconvertible_units",
+                    "no_target_node", "duplicate", "multicomponent_target",
+                    "binding_constant_on_organism",
+                    "undecidable_protein_measurement")
+BREAKDOWN_COUNTERS = ("rows", "censored", "unresolved")
+BREAKDOWN_PREFIXES = ("resolved_", "readout_", "assay_type_")
+
+
+def accounting(stats) -> tuple[int, int, list[str]]:
+    """(emitted, dropped, counters whose fate is unstated).
+
+    An unaccounted row is a row whose fate nobody can state, which is how
+    1,433 pairs spent four months asserting inhibition they had no
+    measurement for.
+    """
+    emitted = sum(stats[k] for k in EMITTED_COUNTERS)
+    dropped = sum(stats[k] for k in DROPPED_COUNTERS)
+    unlisted = sorted(
+        set(stats) - set(EMITTED_COUNTERS) - set(DROPPED_COUNTERS)
+        - set(BREAKDOWN_COUNTERS)
+        - {k for k in stats if k.startswith(BREAKDOWN_PREFIXES)})
+    return emitted, dropped, unlisted
+
+
 def ingest_activities(em, rows: list[dict], viral_targets: dict[str, dict[str, str]],
                       taxon_map: dict[str, str], source: str) -> Counter:
     stats: Counter = Counter()
