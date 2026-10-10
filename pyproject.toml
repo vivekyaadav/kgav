@@ -23,3 +23,10 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+markers = [
+  # Re-parses raw source files rather than a built release. Excluded from the
+  # default run because one such test was 41s -- half the wall time, and the
+  # floor under any parallelism, since one worker holds it while the rest
+  # finish. Run by `make test-all` and by `make gate`.
+  "slow: integration check against data/raw, minutes not seconds",
+]

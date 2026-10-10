@@ -140,8 +140,18 @@ def test_output_validates_against_schema(built):
 
 # ----------------------------------------------------------------- real data
 @needs_data
+@pytest.mark.slow
 def test_real_host_layer_scale(tmp_path):
-    """Sanity bands. A tenfold miss here means the mapping silently broke."""
+    """Sanity bands. A tenfold miss here means the mapping silently broke.
+
+    MARKED SLOW: 41s, which was half the suite's wall time in one test and
+    the floor under any amount of parallelism -- one worker sits on it while
+    every other finishes. It re-parses the raw sources (the human proteome,
+    the STRING aliases, and the 11-million-line STRING links file), so it is
+    an integration check on the ingest rather than a unit test, and the thing
+    it guards against is a source file changing shape. `make test` excludes
+    it; `make test-all` and `make gate` run it.
+    """
     em = Emit()
     ingest_proteome(em, load_human_proteome(HOST / "human_proteome.json.gz"), PROV)
     accs = {n["id"].split(":", 1)[1] for n in em.nodes.values() if n["class"] == "Protein"}
