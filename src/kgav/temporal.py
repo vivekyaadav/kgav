@@ -80,7 +80,8 @@ def build_split(release: Path, cutoff: int, held_out: set[str],
                 undated_policy: str = "include",
                 inactive_above_nm: float = DEFAULT_INACTIVE_ABOVE_NM,
                 active_below_nm: float = DEFAULT_ACTIVE_BELOW_NM,
-                label_predicates: set[str] | None = None) -> Split:
+                label_predicates: set[str] | None = None,
+                overlap_policy: str = "drop-from-test") -> Split:
     """Partition a release at `cutoff`.
 
     `held_out` is what to STRIP from the training graph. `label_predicates` is
@@ -106,6 +107,14 @@ def build_split(release: Path, cutoff: int, held_out: set[str],
       include   keep undated non-computed edges in the training graph
       exclude   drop them (conservative: an unknown date may be post-cutoff)
       computed_only  keep only undated edges from a computed source
+
+    overlap_policy:
+      drop-from-test  a compound measured on both sides leaves the TEST set
+                      (default: it is already known, so it is not a
+                      prospective case)
+      keep            leave the overlap in place, so audit()'s L5 check fails
+                      and the protocol refuses -- the previous behaviour,
+                      kept for reproducing the refusal
 
     LABEL POLARITY COMES FROM labels.classify, not from the relation alone.
     This module used to keep every exact-relation label as a positive and
@@ -200,6 +209,43 @@ def build_split(release: Path, cutoff: int, held_out: set[str],
                 s.stats[f"{side}_ambiguous_dropped"] += len(both)
             positives[virus] = a - both
             negatives[virus] = i - both
+
+    # A COMPOUND MEASURED ON BOTH SIDES IS NOT A PROSPECTIVE TEST CASE, so it
+    # leaves the TEST set and stays in train. audit()'s L5 check already says
+    # exactly this ("a compound measured both before and after the cutoff is
+    # already known") and then refuses, which left the module stating the
+    # right rule and declining to apply it.
+    #
+    # WHAT MADE THIS FIRE. The NCATS CPE layer is one screen under one
+    # publication (PMID:33708112) dated 2020, so every label it contributes
+    # routes to train at any cutoff from 2020 on. 19 of those compounds were
+    # re-measured by ChEMBL papers in 2022-2024 and so also appeared in test.
+    # diagnose_temporal_leak.py showed the split by source as 19/19 clean --
+    # ncats-opendata on the train side, chembl on the test side, not one mixed
+    # case -- so this is a screen's publication date meeting the cutoff, not
+    # re-measurement disagreement. All 19 agreed on polarity across both
+    # sources, which is why dropping them costs no information: the test side
+    # learns nothing from a compound whose answer the train side already has.
+    #
+    # Dropped from TEST and not from TRAIN because the direction matters: the
+    # protocol asks what the pre-cutoff graph could have predicted, and
+    # removing the pre-cutoff measurement instead would delete evidence that
+    # genuinely existed at the time.
+    if overlap_policy not in {"drop-from-test", "keep"}:
+        raise ValueError(f"unknown overlap_policy {overlap_policy!r}")
+    if overlap_policy == "drop-from-test":
+        for kind, test_side, train_side in (
+                ("positive", s.test_labels, s.train_labels),
+                ("negative", s.test_negatives, s.train_negatives)):
+            for virus in sorted(test_side):
+                already = test_side[virus] & train_side.get(virus, set())
+                if already:
+                    s.stats[f"test_{kind}_already_known_dropped"] += len(already)
+                    test_side[virus] -= already
+                    s.violations.append(
+                        f"{len(already):,} {kind} test compounds for {virus} "
+                        f"were already measured pre-{cutoff} and left the "
+                        f"test set")
     return s
 
 

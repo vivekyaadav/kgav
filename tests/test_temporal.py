@@ -377,3 +377,112 @@ def test_schema_rejects_a_label_on_the_wrong_object_class():
 
 def test_the_shipped_schema_declares_consistent_labels():
     assert load_schema().validate_labels() == []
+
+
+# ----------- a compound measured on both sides is not a prospective case
+HELD = {"HAS_ANTIVIRAL_ACTIVITY_AGAINST"}
+
+
+def _both_sides(tmp_path, value=100.0):
+    """One compound measured pre- and post-cutoff, as the NCATS screen and a
+    later ChEMBL paper did for 19 compounds in v0.1."""
+    return _release(tmp_path, [
+        _activity("INCHIKEY:BOTH", V, value, date="2020-01-01"),   # train
+        _activity("INCHIKEY:BOTH", V, value, date="2024-01-01"),   # test
+        _activity("INCHIKEY:ONLYTEST", V, value, date="2024-06-01"),
+    ])
+
+
+def test_a_compound_known_before_the_cutoff_leaves_the_test_set(tmp_path):
+    """audit()'s L5 check already said a compound measured on both sides is
+    already known, then refused -- the module stated the rule and declined to
+    apply it. In v0.1 this was 19 compounds: the NCATS CPE screen is one
+    publication dated 2020, so every label it contributes routes to train,
+    and ChEMBL re-measured 19 of them in 2022-2024.
+    """
+    s = build_split(_both_sides(tmp_path), 2021, HELD)
+
+    assert s.train_labels[V] == {"INCHIKEY:BOTH"}, "train keeps the evidence"
+    assert s.test_labels[V] == {"INCHIKEY:ONLYTEST"}, \
+        "the already-known compound must leave TEST, not train"
+    assert s.stats["test_positive_already_known_dropped"] == 1
+    assert any("already measured pre-2021" in v for v in s.violations), \
+        "the drop must be recorded, not silent"
+
+    # and the audit that used to abort the run now finds nothing
+    assert not [p for p in audit(s, tmp_path, HELD)
+                if p.startswith("L5")], "L5 should have nothing left to report"
+
+
+def test_the_direction_of_the_drop_is_test_not_train(tmp_path):
+    """Removing the pre-cutoff measurement instead would delete evidence that
+    genuinely existed at the time, which is a different (and wrong) protocol:
+    the question is what the pre-cutoff graph could have predicted.
+    """
+    s = build_split(_both_sides(tmp_path), 2021, HELD)
+    assert "INCHIKEY:BOTH" in s.train_labels[V]
+    assert "INCHIKEY:BOTH" not in s.test_labels[V]
+
+
+def test_negatives_are_dropped_on_the_same_rule(tmp_path):
+    """A compound already known INACTIVE is no more a prospective test case
+    than one already known active. 14 of the 19 v0.1 overlaps were negatives:
+    both sides carried HAS_ANTIVIRAL_ACTIVITY_AGAINST and both classified as
+    inactive, because polarity comes from classify() and not the predicate.
+    """
+    s = build_split(_both_sides(tmp_path, value=50_000.0), 2021, HELD)
+    assert s.train_negatives[V] == {"INCHIKEY:BOTH"}
+    assert s.test_negatives[V] == {"INCHIKEY:ONLYTEST"}
+    assert s.stats["test_negative_already_known_dropped"] == 1
+    assert not s.stats["test_positive_already_known_dropped"]
+
+
+def test_keep_reproduces_the_refusal(tmp_path):
+    """The previous behaviour stays reachable, so the refusal this replaced
+    can be reproduced rather than only described.
+    """
+    r = _both_sides(tmp_path)
+    s = build_split(r, 2021, HELD, overlap_policy="keep")
+    assert s.test_labels[V] == {"INCHIKEY:BOTH", "INCHIKEY:ONLYTEST"}
+    assert not s.stats["test_positive_already_known_dropped"]
+    assert [p for p in audit(s, r, HELD) if p.startswith("L5")], \
+        "keep must still trip L5, or the refusal cannot be reproduced"
+
+
+def test_an_unknown_overlap_policy_is_refused(tmp_path):
+    import pytest
+    with pytest.raises(ValueError, match="overlap_policy"):
+        build_split(_both_sides(tmp_path), 2021, HELD, overlap_policy="nope")
+
+
+def test_both_protocols_read_one_coverage_floor():
+    """guards.py and tools.py each held their own copy of AUC 0.826 and
+    drifted. The cross-sectional side gates on calibration's
+    MIN_REACHED_POSITIVES; the temporal side must import that same constant
+    rather than define a floor of its own, or the two protocols will answer
+    "is this evaluable?" differently on the same release.
+    """
+    import ast
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parents[1] / "scripts/temporal_split.py"
+    tree = ast.parse(src.read_text())
+
+    imported = any(
+        isinstance(n, ast.ImportFrom) and n.module == "kgav.calibration"
+        and any(a.name == "MIN_REACHED_POSITIVES" for a in n.names)
+        for n in ast.walk(tree))
+    assert imported, "temporal_split must import the shared floor"
+
+    # MIN_TRUSTWORTHY_EXPECTATION is NOT a second floor and is allowed: it
+    # gates on expected hits under random (exp >= 1.0), which is about whether
+    # a LIFT is interpretable, not about how much of the test set a scorer can
+    # reach. The first draft of this test flagged it, which is the distinction
+    # worth recording rather than papering over.
+    ALLOWED = {"MIN_TRUSTWORTHY_EXPECTATION"}
+    own = [t.id for n in ast.walk(tree) if isinstance(n, ast.Assign)
+           for t in n.targets if isinstance(t, ast.Name)
+           and t.id.isupper() and t.id not in ALLOWED
+           and ("REACH" in t.id or "COVERAGE" in t.id or "FLOOR" in t.id
+                or "MIN_" in t.id)]
+    assert not own, f"second coverage floor defined locally: {own}"
