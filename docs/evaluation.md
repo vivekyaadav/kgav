@@ -123,9 +123,24 @@ So p-values make the *uncontrolled* protocol look full of discoveries.
 **Degree's own p-value is the diagnostic.** Where it is significant, the
 labels track how much a compound has been studied, and a channel beating
 random on those labels says nothing about mechanism -- only beating *degree*
-does. `confound_warning()` prints this under any table where it applies, and
-both tables now carry a `vs deg` column, because channel-against-degree is the
-comparison that carries information.
+does. `confound_warning()` prints the verdict under every table, both ways:
+
+    CONFOUNDED            degree is itself significant -- SARS-CoV, MERS-CoV,
+                          HCoV-229E, HCoV-NL63 cross-sectionally, and
+                          MERS-CoV and SARS-CoV temporally
+    BASELINE AT CHANCE    degree is indistinguishable from random AND a
+                          channel is significant -- SARS-CoV-2 temporal, the
+                          only table in the project where this holds
+    (nothing)             neither, so there is nothing to report
+
+Stating the good case out loud matters: printed only as an *absence* of
+warning, the one condition every real result here depends on was left for the
+reader to notice.
+
+Both tables also carry a `vs deg` column, with `(~)` marking a ratio whose
+denominator is itself at chance. SARS-CoV-2 cross-sectional is why: M4 reads
+4.44x a degree lift of **0.45**, which is M4 lift 1.99 at p=0.14. A ratio
+against a noisy denominator describes; it does not test.
 
 Note SARS-CoV especially: M1 at p<0.0001 looks like the strongest result in
 the project until you see that degree scores 9.51 on the same labels against

@@ -41,12 +41,27 @@ DEFAULT_OVERLAP_POLICY = "drop-from-test"
 
 
 def _vs(m: dict) -> str:
-    """Lift relative to the degree baseline, which is the comparison that
-    carries information; p alone is against a random ranking."""
+    """Lift relative to the degree baseline -- the comparison that carries
+    information, since p alone is against a random ranking.
+
+    Four distinguishable states, because collapsing them to "-" hid the one
+    row where a channel beat degree outright (HCoV-229E M2 4.65 against a
+    degree lift of 0.00):
+
+        base   this IS the baseline row
+       >deg    degree scored 0.00, so the ratio is undefined and the channel
+               wins outright
+        1.93~  the ratio, with (~) when degree itself is below random and the
+               denominator therefore inflates it
+          -    no baseline to compare against
+    """
+    if m.get("beats_degree") is None and m.get("lift_vs_degree") is None:
+        return "   base" if "vs_degree_readable" in m else "      -"
     v = m.get("lift_vs_degree")
     if v is None:
-        return "      -"
-    return f"{v:>7.2f}"
+        return "   >deg" if m.get("beats_degree") else "  <=deg"
+    return f"{v:>6.2f}~" if m.get("vs_degree_readable") is False \
+        else f"{v:>7.2f}"
 
 
 def _p(m: dict) -> str:

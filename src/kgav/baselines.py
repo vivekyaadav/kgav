@@ -481,12 +481,46 @@ def degree_relative(per: dict[str, dict], degree_key: str = DEGREE_KEY) -> None:
     deg = per.get(degree_key)
     base = (deg or {}).get("lift")
     for name, m in per.items():
-        if name == degree_key or not base:
+        if name == degree_key:
             m["lift_vs_degree"] = None
             m["beats_degree"] = None
+            m["vs_degree_readable"] = None
             continue
-        m["lift_vs_degree"] = m["lift"] / base
+        if base is None:
+            # No baseline row at all, so there is nothing to compare against.
+            m["lift_vs_degree"] = None
+            m["beats_degree"] = None
+            m["vs_degree_readable"] = None
+            continue
+        # A RATIO IS ONLY EVIDENCE WHEN THE DENOMINATOR IS. Two cases broke
+        # the first version of this column, both visible in the v0.1 run:
+        #
+        #  base == 0  HCoV-229E temporal computed_only: degree lift 0.00 and
+        #             M2 lift 4.65. The ratio is undefined, `not base` sent it
+        #             down the no-baseline branch, and the one row where a
+        #             channel beat degree outright printed as "-" --
+        #             indistinguishable from the baseline row itself.
+        #             beats_degree carries it instead of a ratio, and NOT
+        #             float("inf"), which json.dumps writes as `Infinity` and
+        #             would make every results file invalid JSON.
+        #
+        #  base < 1   SARS-CoV-2 cross-sectional: degree lift 0.45, p=0.99 --
+        #             WORSE than random. M4's 4.44x against it reads as
+        #             decisive and is 4.44 * 0.45 = 1.99, p=0.14. Beating a
+        #             sub-random baseline is not an achievement, so the ratio
+        #             is marked unreadable rather than shown bare.
         m["beats_degree"] = m["lift"] > base
+        m["lift_vs_degree"] = (m["lift"] / base) if base else None
+        # Readable means the DENOMINATOR is a real effect. When degree is
+        # itself at chance the ratio divides by noise, so it describes rather
+        # than tests -- SARS-CoV-2 cross-sectional reads M4 at 4.44x a degree
+        # lift of 0.45 (p=0.99), which is M4 lift 1.99 at p=0.14. My first
+        # threshold here was `base >= 1.0`, which wrongly flagged the clean
+        # SARS-CoV-2 temporal row where degree sits at 0.93, p=0.63: that is
+        # degree AT CHANCE, which is the condition a real result needs, not a
+        # defect in it.
+        dp = (deg or {}).get("p_value")
+        m["vs_degree_readable"] = dp is not None and dp < SIGNIFICANCE
 
 
 def confound_warning(per: dict[str, dict], degree_key: str = DEGREE_KEY,
@@ -501,17 +535,40 @@ def confound_warning(per: dict[str, dict], degree_key: str = DEGREE_KEY,
     if not deg:
         return None
     dp, dl = deg.get("p_value"), deg.get("lift")
-    if dp is None or dp >= alpha:
+    # BOTH are required to read the baseline. Without dl there is nothing to
+    # compare against; without dp there is no way to say whether the baseline
+    # is at chance, so neither verdict can be given. This also removes a
+    # latent TypeError: the at-chance branch formats dp, and lift_pvalue
+    # returns None whenever a row has no positives or k covers the pool.
+    if dl is None or dp is None:
         return None
-    better = sorted((m["lift"], n) for n, m in per.items()
-                    if n != degree_key and m.get("lift") is not None
-                    and m["lift"] > (dl or 0))
-    tail = (f"{better[-1][1]} exceeds it at {better[-1][0]:.2f}"
+    others = [(m["lift"], m.get("p_value"), n) for n, m in per.items()
+              if n != degree_key and m.get("lift") is not None]
+    better = sorted(x for x in others if x[0] > dl)
+    tail = (f"{better[-1][2]} exceeds it at {better[-1][0]:.2f}"
             if better else "no channel exceeds it")
-    return (f"CONFOUNDED: the degree baseline is itself significant "
-            f"(lift {dl:.2f}, p={dp:.4f}). These labels track how much a "
-            f"compound has been studied, so a channel beating RANDOM says "
-            f"nothing about mechanism -- only beating DEGREE does. {tail}.")
+
+    if dp is not None and dp < alpha:
+        return (f"CONFOUNDED: the degree baseline is itself significant "
+                f"(lift {dl:.2f}, p={dp:.4f}). These labels track how much a "
+                f"compound has been studied, so a channel beating RANDOM says "
+                f"nothing about mechanism -- only beating DEGREE does. "
+                f"{tail}.")
+
+    # THE GOOD CASE, AND IT DESERVES SAYING OUT LOUD. Degree at chance is the
+    # condition every real result in this project depends on, and it held in
+    # exactly one place: SARS-CoV-2 under the temporal protocol. Printing it
+    # only as an absence of warning left the reader to notice it.
+    sig = sorted((p_, lift, n) for lift, p_, n in others
+                 if p_ is not None and p_ < alpha)
+    if sig:
+        p_, lift, n = sig[0]
+        return (f"BASELINE AT CHANCE: degree lift {dl:.2f} (p={dp:.4f}) is "
+                f"indistinguishable from random here, so {n}'s lift {lift:.2f} "
+                f"(p={p_:.4f}) is not explained by study volume. This is the "
+                f"only condition under which a channel's p means what it "
+                f"appears to mean.")
+    return None
 
 
 def lift_row(scores: dict[str, float], pos: set[str], k: int = 100) -> dict:
