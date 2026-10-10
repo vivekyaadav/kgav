@@ -242,6 +242,22 @@ def assay_readout(description: str, assay_type_code: str | None = None) -> tuple
 # counters that DESCRIBE rows instead of deciding their fate -- they are
 # incremented before dedup and classify, so they are a superset of what is
 # emitted and must not enter the sum.
+# Qualifiers that mean something on an ORGANISM edge. An ALLOWLIST, not a
+# copy of the protein row's dict: copying carried target_resolution and domain
+# -- which describe how the PROTEIN was resolved out of the assay text and say
+# nothing once the edge is on the organism -- and produced 2,110
+# UNDECLARED_QUALIFIER violations, so the layer was not written.
+#
+# The schema is deliberately not widened to admit them. nominal_protein_target
+# already records WHICH protein the source named, which is the auditable fact;
+# how its accession was derived belongs to a protein edge. Declaring
+# protein-resolution fields on the organism predicate to keep a detail is the
+# widening this module already refuses elsewhere, on the grounds that it lets
+# a real error through unnoticed later.
+ORGANISM_QUALIFIERS = ("ec50_nm", "ic50_nm", "cc50_nm", "relation",
+                       "assay_type", "cell_line", "selectivity_index",
+                       "nominal_protein_target")
+
 EMITTED_COUNTERS = ("protein_edges", "measured_inactive_edges",
                     "organism_edges", "reattributed_to_organism")
 DROPPED_COUNTERS = ("no_inchikey", "unmapped_taxon", "unconvertible_units",
@@ -380,10 +396,20 @@ def ingest_activities(em, rows: list[dict], viral_targets: dict[str, dict[str, s
         stats[f"assay_type_{assay_type}"] += 1
 
         if where == "cells":
+            # SAME RULE AS THE ORGANISM BRANCH ABOVE. A Ki or Kd is a binding
+            # constant against a purified enzyme and is not meaningful against
+            # a whole organism -- and a row reporting one while describing a
+            # cellular readout contradicts itself twice over. The existing
+            # branch drops these; this path bypassed that rule, which is how a
+            # reattribution would have carried ki_nm onto an organism edge.
+            if r["standard_type"] in ("Ki", "Kd"):
+                stats["binding_constant_on_organism"] += 1
+                continue
             # The nominal protein target is kept so the reattribution is
             # auditable rather than silent: it is why this row exists at all.
-            org_quals = dict(quals)
-            org_quals["nominal_protein_target"] = target_node
+            quals["nominal_protein_target"] = target_node
+            org_quals = {k: v for k, v in quals.items()
+                         if k in ORGANISM_QUALIFIERS}
             org_key = (drug, "HAS_ANTIVIRAL_ACTIVITY_AGAINST",
                        f"NCBITaxon:{tax}", r["assay"], r["standard_type"])
             if org_key in seen:
