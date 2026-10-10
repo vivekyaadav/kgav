@@ -19,6 +19,10 @@ So a calibrated ranking returns nothing, and that is the correct output. The
 graph can report evidence for a compound it is asked about; it has no measured
 basis for a shortlist.
 
+**The temporal protocol is a different story, and it is the first non-null
+this project has produced.** It was blocked until 2026-10-11 and is reported
+in its own section below.
+
 Five earlier figures for M1 -- 0.823, 0.726, 0.660, 0.499, 0.513 -- are
 reported below rather than withdrawn, because the sequence is the result. Each
 was produced by a protocol that failed a control the next one applied.
@@ -88,6 +92,67 @@ could move it, because almost nothing reaches it.
 minimum class size that script already requires before evaluating a virus is
 the minimum for evaluating one channel of it.
 
+## The temporal protocol: the first signal above the baseline
+
+Pre-2021 graph, post-2021 measurements. **This protocol is
+publication-disjoint by construction** -- evidence is pre-cutoff and the label
+post-cutoff, so the 94.9% shared-PMID confound that took cross-sectional M1 to
+0.499 cannot occur. That is why it can show something the cross-sectional
+protocol cannot.
+
+It had been refusing to run. `audit()`'s L5 check found 19 SARS-CoV-2
+compounds on both sides of the cutoff and aborted; the NCATS CPE layer is one
+screen under one publication dated 2020, so every label it contributes routes
+to train, and ChEMBL re-measured 19 of them in 2022-2024.
+`diagnose_temporal_leak.py` split them 19/19 by source with no mixed case, so
+they are now dropped from the TEST set -- already-known compounds are not
+prospective cases -- and `--overlap-policy keep` reproduces the refusal.
+
+### SARS-CoV-2, cutoff 2021, undated=include
+
+231 of 1,575 post-2021 compounds exist in the pre-2021 graph: a **14.7%
+ceiling on recall**. `p` is the exact hypergeometric tail, P(hits >= observed)
+under random ranking -- the lift equivalent of the AUC intervals above.
+
+| scorer | pool | pos | hits | exp | lift | p | |
+|---|---|---|---|---|---|---|---|
+| **M1** | 296 | 8 | 6 | 2.7 | **2.22** | **0.020** | |
+| M2 | 855 | 7 | 2 | 0.8 | 2.44 | 0.193 | (!) |
+| M4 | 2,701 | 13 | 2 | 0.5 | 4.16 | 0.081 | (!) |
+| M6 | 186 | 4 | 3 | 2.2 | 1.40 | 0.369 | |
+| M7 | 91 | 29 | 29 | 31.9 | 0.91 | — | (!) |
+| COMBINED | 3,246 | 50 | 4 | 1.5 | 2.60 | 0.066 | |
+| degree | 4,316 | 231 | 5 | 5.4 | 0.93 | 0.628 | |
+
+**M1 is the first scorer in this project to beat the degree baseline on a
+protocol that controls its confound.** Degree is at chance here (0.93,
+p=0.63); M1 is at 2.22, p=0.020.
+
+**What that does and does not establish.** 28 scorer/virus rows were evaluated
+in this run, so a 0.05 threshold expects between one and two rows at p<0.05 by
+chance alone. Bonferroni over 28 is alpha=0.0018, and **M1's 0.020 does not
+survive it.** The result is suggestive and unreplicated: six hits, eight
+reachable positives.
+
+One row does survive correction -- MERS-CoV M4, 3 hits from 5 positives in a
+pool of 2,682, **p=0.00048** -- and it is flagged untrustworthy, because its
+expectation is 0.19 and lift 16.09 is unstable at that sample size. It is the
+least likely row in the run and it rests on five compounds. A hypothesis for a
+targeted test, not a finding.
+
+### Two implementations of one rule, again
+
+`temporal_split.py` carried its own copy of `baselines.lift_row` predating the
+`and pool > k` fix, so M7 printed unflagged at pool 91 (SARS-CoV-2), 34
+(SARS-CoV) and 14 (MERS-CoV) -- where `ranked[:k]` IS the whole pool and lift
+is exactly pool/k. `compare_metapaths.py` flagged the same channel on the same
+release. The driver now imports `lift_row`, and a test asserts it defines no
+numeric scoring rule of its own.
+
+This is the third figure in this project to have had two implementations with
+only one of them fixed, after AUC 0.826 in `guards.py` and `tools.py` and the
+coverage floor.
+
 ## Six measured causes
 
 | Cause | Measurement |
@@ -97,7 +162,7 @@ the minimum for evaluating one channel of it.
 | `INHIBITS` is effectively two proteins | nsp5 4,745 and nsp3 2,269 of ~7,400 resolved chains |
 | The graph is two compound populations | 45 of 12,821 compounds have both `INHIBITS` and `TARGETS` |
 | M8 inert | no `MEMBER_OF_CLASS` or `FOLD_SIMILAR_TO` edges; `ingest_folds` writes a layer `LAYER_PRECEDENCE` does not list (strict xfail in `test_assemble`) |
-| M3/M5 untestable temporally | both PPI layers wholly post-cutoff (STRING 2023-08-28, VirHostNet 2024-01-01) |
+| M3/M5 untestable temporally | both PPI layers wholly post-cutoff (STRING 2023-08-28, VirHostNet 2024-01-01); the protocol itself was blocked by L5 until 2026-10-11 |
 
 Note which are *evaluation* faults rather than graph faults. The graph
 validates, provenance is intact, and 500 host proteins that drugs target are
@@ -112,7 +177,11 @@ it.
 - **Not** that the host-directed hypothesis is refuted. M4 and M5 are the
   channels that *were* tested, and both at chance on 15 compounds is weak
   evidence either way.
-- No prospective validation. Every figure here is retrospective.
+- **Not** that M1 works. Its temporal lift of 2.22 is nominally p=0.020 on
+  six hits and does not survive correction for the 28 rows evaluated
+  alongside it.
+- No prospective validation. Every figure here is retrospective, the temporal
+  split included: it simulates prospective use on data that already exists.
 
 ## What would strengthen it
 
@@ -139,8 +208,21 @@ python scripts/hard_negatives.py --selectivity verified-only \
 
 # no-op control: must reproduce row 2 exactly
 python scripts/hard_negatives.py --selectivity all --selectivity-applies both
+
+# the temporal protocol
+python scripts/temporal_split.py --cutoff 2021 --undated include
+python scripts/temporal_split.py --cutoff 2021 --undated computed_only
+
+# control: must refuse, naming the 19 already-known compounds
+python scripts/temporal_split.py --cutoff 2021 --undated include \
+    --overlap-policy keep
+
+# every results file must describe the graph on disk
+make check-results
 ```
 
 Diagnostics behind the causes: `diagnose_hop_attrition.py` (hop-by-hop
 survivors), `diagnose_label_overlap.py` (population overlap, shared PMIDs),
-`diagnose_assay_type.py` (cellular readouts filed against proteins).
+`diagnose_assay_type.py` (cellular readouts filed against proteins),
+`diagnose_temporal_leak.py` (which source put a label on which side of the
+cutoff).

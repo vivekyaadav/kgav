@@ -408,6 +408,51 @@ def combine(dwpc: dict[str, dict[str, dict[str, float]]], virus: str,
 MIN_TRUSTWORTHY_EXPECTATION = 1.0
 
 
+def lift_pvalue(pool: int, positives: int, k: int, hits: int) -> float | None:
+    """P(hits >= observed) under random ranking: the exact hypergeometric tail.
+
+    THE LIFT EQUIVALENT OF auc_interval. Every AUC in this project carries a
+    Hanley-McNeil interval, and lift carried only the `trustworthy` heuristic
+    -- expectation >= 1 and pool > k -- which answers "could this be read at
+    all", not "could this have happened by chance". On the 2021 temporal split
+    the two disagree:
+
+      SARS-CoV-2 M1   pool 296   8 pos   6 hits   exp 2.7   lift 2.22  p=0.020
+      MERS-CoV   M4   pool 2,682 5 pos   3 hits   exp 0.2   lift 16.1  p=0.0007
+
+    M4 is flagged untrustworthy because its expectation is 0.19, yet 3 hits
+    from 5 positives in a 2,682 pool is the least likely row in the run. The
+    heuristic is a guard against unreadable figures, not a test, and it was
+    being read as one.
+
+    Drawing the top k from a pool of `pool` containing `positives` is sampling
+    WITHOUT replacement, so the null is hypergeometric, not Poisson. Computed
+    in log space: pool 4,316 choose 100 is a 240-digit integer and the ratio
+    is all that matters.
+
+    Returns None when the question is empty (no positives, or k covers the
+    whole pool so every draw is identical).
+    """
+    if positives <= 0 or pool <= 0 or k <= 0 or k >= pool:
+        return None
+    upper = min(positives, k)
+    if hits > upper:
+        return 0.0
+    def _lc(n: int, r: int) -> float:
+        if r < 0 or r > n:
+            return float("-inf")
+        return (math.lgamma(n + 1) - math.lgamma(r + 1)
+                - math.lgamma(n - r + 1))
+    denom = _lc(pool, k)
+    terms = [_lc(positives, i) + _lc(pool - positives, k - i) - denom
+             for i in range(max(hits, 0), upper + 1)]
+    terms = [x for x in terms if x != float("-inf")]
+    if not terms:
+        return 0.0
+    m = max(terms)
+    return min(1.0, math.exp(m) * sum(math.exp(x - m) for x in terms))
+
+
 def lift_row(scores: dict[str, float], pos: set[str], k: int = 100) -> dict:
     """Hits@k against the pool's own random expectation.
 
@@ -435,7 +480,11 @@ def lift_row(scores: dict[str, float], pos: set[str], k: int = 100) -> dict:
             # BOTH conditions. Expectation >= 1 says the hit count is not a
             # coin flip; pool > k says the ranking was actually exercised.
             "trustworthy": exp >= MIN_TRUSTWORTHY_EXPECTATION and pool > k,
-            "lift_is_pool_artifact": pool <= k}
+            "lift_is_pool_artifact": pool <= k,
+            # Reported alongside `trustworthy`, not folded into it: the
+            # heuristic says whether the figure is readable, the p-value says
+            # whether it is surprising, and collapsing them hid MERS M4.
+            "p_value": lift_pvalue(pool, p, k, h)}
 
 
 def degree_ranking(g: Graph) -> dict[str, float]:

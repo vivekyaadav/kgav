@@ -13,26 +13,55 @@ from kgav.baselines import (
     combine,
     degree_ranking,
     dwpc_scores,
-    hits_at_k,
-    mrr,
-    rank,
+    lift_row,
 )
 from kgav.calibration import MIN_REACHED_POSITIVES
 from kgav.provenance import write_refusal, write_results
 from kgav.schema import load_schema
 from kgav.temporal import audit, build_split, write_split
 
-MIN_TRUSTWORTHY_EXPECTATION = 1.0
+# THIS SCRIPT USED TO CARRY ITS OWN COPY OF lift_row, and the copy was the
+# version from before the pool-size bug was fixed:
+#
+#     "trustworthy": exp >= MIN_TRUSTWORTHY_EXPECTATION      <- local copy
+#     "trustworthy": exp >= MIN_TRUSTWORTHY_EXPECTATION and pool > k
+#
+# baselines.lift_row's own docstring records why the second condition exists:
+# when the pool is no larger than k, ranked[:k] IS the whole pool, so lift is
+# exactly pool/k and carries no information. The fix landed in baselines and
+# never reached this copy, so the temporal output printed SARS-CoV-2 M7 0.91
+# (pool 91), SARS-CoV M7 0.34 (pool 34) and MERS-CoV M7 0.14 (pool 14)
+# unflagged, while compare_metapaths.py flagged the same channel on the same
+# release. One concept, two implementations, and only one of them was fixed.
+evaluate = lift_row
+
+DEFAULT_OVERLAP_POLICY = "drop-from-test"
 
 
-def evaluate(scores: dict[str, float], pos: set[str], k: int) -> dict:
-    r = rank(scores)
-    p = len(pos & set(scores))
-    exp = k * p / len(r) if r else 0.0
-    h = hits_at_k(r, pos, k)
-    return {"pool": len(r), "pos": p, "hits": h, "expected": exp,
-            "lift": (h / exp) if exp else 0.0, "mrr": mrr(r, pos),
-            "trustworthy": exp >= MIN_TRUSTWORTHY_EXPECTATION}
+def _p(m: dict) -> str:
+    """p shown only where it answers something: None means the question was
+    empty (no positives, or k covering the whole pool)."""
+    v = m.get("p_value")
+    return "      -" if v is None else (f"{v:>7.4f}" if v >= 0.0001
+                                        else "< .0001")
+
+
+def _results_name(args) -> str:
+    """The results filename, carrying any NON-DEFAULT policy.
+
+    WHY. --overlap-policy keep exists to reproduce the refusal, and it wrote
+    to the same path as the real run -- so running the control destroyed the
+    result it was a control for, replacing a full temporal evaluation with a
+    refusal record. Same shape as data/results vs data/results-corrected:
+    two different runs, one filename.
+
+    The default keeps its existing name, so nothing already on disk is
+    renamed and no reader has to learn a new path.
+    """
+    name = f"temporal_{args.cutoff}_{args.undated}"
+    if args.overlap_policy != DEFAULT_OVERLAP_POLICY:
+        name += f"_overlap-{args.overlap_policy}"
+    return name + ".json"
 
 
 def main() -> int:
@@ -45,7 +74,7 @@ def main() -> int:
     ap.add_argument("--undated", default="include",
                     choices=["include", "exclude", "computed_only"])
     ap.add_argument("-k", type=int, default=100)
-    ap.add_argument("--overlap-policy", default="drop-from-test",
+    ap.add_argument("--overlap-policy", default=DEFAULT_OVERLAP_POLICY,
                     choices=["drop-from-test", "keep"],
                     help="a compound measured on BOTH sides of the cutoff is "
                          "already known, so by default it leaves the test "
@@ -91,7 +120,7 @@ def main() -> int:
         # called them STALE and said "regenerate it" -- advice that cannot be
         # followed, because this branch is why they cannot be regenerated.
         args.results.mkdir(parents=True, exist_ok=True)
-        out = args.results / f"temporal_{args.cutoff}_{args.undated}.json"
+        out = args.results / _results_name(args)
         write_refusal(out, {"cutoff": args.cutoff,
                             "undated_policy": args.undated,
                             "overlap_policy": args.overlap_policy,
@@ -143,15 +172,16 @@ def main() -> int:
         per["COMBINED"] = evaluate(combine(dwpc, virus), test_pos, args.k)
         per["degree"] = evaluate(deg, test_pos, args.k)
         print(f"    {'scorer':<10} {'pool':>7} {'pos':>5} {'hits':>5} "
-              f"{'exp':>7} {'lift':>7} {'mrr':>7}")
+              f"{'exp':>7} {'lift':>7} {'p':>7} {'mrr':>7}")
         for name, m in per.items():
             flag = "" if m["trustworthy"] else " (!)"
             print(f"    {name:<10} {m['pool']:>7,} {m['pos']:>5,} {m['hits']:>5} "
-                  f"{m['expected']:>7.1f} {m['lift']:>7.2f} {m['mrr']:>7.4f}{flag}")
+                  f"{m['expected']:>7.1f} {m['lift']:>7.2f} {_p(m)} "
+                  f"{m['mrr']:>7.4f}{flag}")
         results[label] = per
 
     args.results.mkdir(parents=True, exist_ok=True)
-    write_results(args.results / f"temporal_{args.cutoff}_{args.undated}.json",
+    write_results(args.results / _results_name(args),
                   {"cutoff": args.cutoff, "undated_policy": args.undated,
                    "overlap_policy": args.overlap_policy,
                    "reachability_floor": MIN_REACHED_POSITIVES,
