@@ -32,12 +32,20 @@ than total volume:
     python scripts/diagnose_flavivirus_join.py
     python scripts/diagnose_flavivirus_join.py --cutoff 2016   # Zika outbreak
 
+Each source is read with that source's OWN reader -- chembl.query_activities,
+orcs.virus_taxon, vhppi.parse_row -- so a count here is what an ingest would
+actually see. The first version text-scanned the host-side files instead and
+was wrong in both directions: it globbed by extension and missed
+vhn_*.tab27 entirely, and it counted taxon ids in ORCS, which identifies a
+virus by condition text and never by id.
+
 Read-only. Writes nothing. Degrades per-source: a missing ChEMBL db or raw
 directory is reported and the rest still runs.
 """
 from __future__ import annotations
 
 import argparse
+import json
 import sqlite3
 import sys
 from collections import Counter, defaultdict
@@ -48,6 +56,8 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.chembl import assay_readout, query_activities
+from kgav.orcs import is_virus_resistance_screen, virus_taxon
+from kgav.vhppi import parse_row
 
 # Names ChEMBL may file these under. Matched case-insensitively against
 # target_dictionary.organism to FIND tax_ids, never to resolve one: every
@@ -134,31 +144,80 @@ def _activity_report(rows: list[dict], cutoff: int) -> dict:
     }
 
 
-def _count_raw(directory: Path, taxa: set[str], label: str) -> dict:
-    """How many lines in a raw directory mention any of these taxa.
+def _orcs_report(orcs_dir: Path, hints: tuple[str, ...]) -> dict:
+    """ORCS coverage the way the INGEST finds it: by condition text.
 
-    Deliberately a TEXT scan and not a parse: this answers "is there anything
-    here at all", and a parser tuned to the coronavirus files would report
-    zero for a flavivirus file whose columns differ -- the silent zero again.
+    MY FIRST VERSION COUNTED TAXON IDS IN THE RAW FILES AND WAS MEANINGLESS.
+    orcs.virus_taxon never looks at a taxon id -- it regexes CONDITION_NAME,
+    PHENOTYPE, NOTES and SCREEN_NAME against VIRUS_PATTERNS. So "11082: 165
+    line mentions" counted incidental substrings in gene and screen columns,
+    and I read it as coverage.
+
+    VIRUS_PATTERNS holds the seven coronaviruses and nothing else, so
+    virus_taxon returns None for every flavivirus screen however much data is
+    there. That is a PATTERNS gap, not a data gap, and this reports the
+    screens a pattern would have to match.
     """
-    if not directory.exists():
-        return {"status": f"no {label} directory at {directory}"}
-    hits: Counter = Counter()
-    files = 0
-    for p in sorted(directory.rglob("*")):
-        if not p.is_file() or p.suffix.lower() not in (
-                ".txt", ".tsv", ".csv", ".mitab", ".psi", ".json"):
+    index = orcs_dir / "screens_all.json"
+    if not index.exists():
+        return {"status": f"no screens_all.json in {orcs_dir}"}
+    try:
+        screens = json.loads(index.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        return {"status": f"unreadable: {exc}"}
+
+    fields = ("CONDITION_NAME", "PHENOTYPE", "NOTES", "SCREEN_NAME")
+    matched, usable = [], 0
+    for s in screens:
+        low = " ".join(str(s.get(f, "")) for f in fields).lower()
+        hit = next((h for h in hints if h in low), None)
+        if not hit:
             continue
-        files += 1
-        try:
-            text = p.read_text(errors="replace")
-        except OSError:
-            continue
-        for tax in taxa:
-            n = text.count(tax)
-            if n:
-                hits[tax] += n
-    return {"status": "ok", "files_scanned": files, "taxon_mentions": dict(hits)}
+        ok = bool(is_virus_resistance_screen(s))
+        usable += ok
+        matched.append({
+            "id": s.get("SCREEN_ID") or s.get("screen_id"),
+            "condition": str(s.get("CONDITION_NAME") or "")[:56],
+            "already_mapped": virus_taxon(s),
+            "virus_resistance": ok,
+        })
+    return {"status": "ok", "screens": len(screens),
+            "matched": matched, "usable": usable}
+
+
+def _vhppi_report(vhppi_dir: Path, taxa: set[str]) -> dict:
+    """VirHostNet coverage, parsed with the ingest's own parse_row.
+
+    MY FIRST VERSION SCANNED BY EXTENSION and allowed
+    .txt/.tsv/.csv/.mitab/.psi/.json. VirHostNet ships as vhn_*.tab27, which
+    ingest_vhppi.py globs by that exact pattern -- so my filter excluded every
+    file, reported "0 files scanned", and I printed "NO mention of any
+    surveyed taxon -- M2, M4 and M5 would have no host route". That was my
+    glob, not the data. An extension allowlist is a parse by another name, and
+    it produced exactly the silent zero this script claims to prevent.
+    """
+    if not vhppi_dir.exists():
+        return {"status": f"no directory at {vhppi_dir}"}
+    files = sorted(vhppi_dir.glob("vhn_*.tab27"))
+    if not files:
+        return {"status": f"no vhn_*.tab27 in {vhppi_dir}",
+                "hint": "ingest_vhppi.py globs that exact pattern"}
+    rows = unparseable = 0
+    per_tax: Counter = Counter()
+    for path in files:
+        for line in path.read_text(errors="replace").splitlines():
+            if not line.strip() or line.startswith("#"):
+                continue
+            rows += 1
+            r = parse_row(line)
+            if not r:
+                unparseable += 1
+                continue
+            for side in ("taxid_a", "taxid_b"):
+                if r[side] in taxa:
+                    per_tax[r[side]] += 1
+    return {"status": "ok", "files": len(files), "rows": rows,
+            "unparseable": unparseable, "per_tax": dict(per_tax)}
 
 
 def main() -> int:
@@ -261,24 +320,46 @@ def main() -> int:
     print("\n" + "=" * 78)
     print("HOST-SIDE LAYERS  (M2/M4/M5 depend entirely on these)")
     print("=" * 78)
-    for label, directory in (("ORCS", args.orcs_dir),
-                             ("VirHostNet", args.vhppi_dir)):
-        res = _count_raw(directory, all_taxa, label)
-        print(f"\n  {label}: {res['status']}")
-        if res.get("status") != "ok":
-            continue
-        print(f"    {res['files_scanned']} file(s) scanned")
-        if not res["taxon_mentions"]:
-            print("    NO mention of any surveyed taxon -- M2, M4 and M5 "
-                  "would have no\n    host route for these viruses, leaving "
-                  "M1, M6 and M7 as the only\n    testable channels.")
-        for tax, n in sorted(res["taxon_mentions"].items(),
-                             key=lambda kv: -kv[1]):
-            print(f"    {tax:<10} {n:>8,} line mentions")
-    print("\n  A text scan, not a parse: it answers 'is anything here at all'. "
-          "A parser\n  tuned to the coronavirus files would report zero for a "
-          "file whose columns\n  differ, which is the silent zero this whole "
-          "register exists to prevent.")
+
+    orcs = _orcs_report(args.orcs_dir, FLAVI_NAME_HINTS)
+    print(f"\n  ORCS: {orcs['status']}")
+    if orcs.get("status") == "ok":
+        print(f"    {orcs['screens']:,} human screens | "
+              f"{len(orcs['matched'])} mention a flavivirus | "
+              f"{orcs['usable']} are virus-resistance screens")
+        if not orcs["matched"]:
+            print("    NOTHING. M2, M4 and M5 would have no host route for "
+                  "these viruses,\n    leaving M1, M6 and M7 as the only "
+                  "testable channels.")
+        else:
+            print(f"\n    {'screen':<10}{'resist':>8}{'mapped':>9}  condition")
+            for m in orcs["matched"][:40]:
+                print(f"    {str(m['id']):<10}"
+                      f"{('yes' if m['virus_resistance'] else 'no'):>8}"
+                      f"{str(m['already_mapped'] or '-'):>9}  {m['condition']}")
+            if len(orcs["matched"]) > 40:
+                print(f"    ... {len(orcs['matched']) - 40} more")
+            unmapped = [m for m in orcs["matched"] if not m["already_mapped"]]
+            if unmapped:
+                print(f"\n    {len(unmapped)} of these map to NO taxon: "
+                      f"orcs.VIRUS_PATTERNS holds the seven\n    "
+                      f"coronaviruses only, so virus_taxon returns None for "
+                      f"every flavivirus\n    screen however much data is "
+                      f"there. A patterns gap, not a data gap.")
+
+    vhn = _vhppi_report(args.vhppi_dir, all_taxa)
+    print(f"\n  VirHostNet: {vhn['status']}")
+    if vhn.get("hint"):
+        print(f"    ({vhn['hint']})")
+    if vhn.get("status") == "ok":
+        print(f"    {vhn['files']} file(s), {vhn['rows']:,} rows, "
+              f"{vhn['unparseable']:,} unparseable")
+        if not vhn["per_tax"]:
+            print("    NO interaction names a surveyed taxon in either taxid "
+                  "column.\n    M3 and M5 would have no viral-host bridge "
+                  "for these viruses.")
+        for tax, n in sorted(vhn["per_tax"].items(), key=lambda kv: -kv[1]):
+            print(f"    {tax:<10} {n:>8,} interactions")
 
     print("\n" + "=" * 78)
     print("WHAT THIS DOES NOT DECIDE")
