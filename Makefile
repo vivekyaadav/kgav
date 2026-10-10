@@ -57,8 +57,18 @@ release-validate:
 # Flags results computed from a release that has since changed. The stale
 # "before" column that made a falling positive count read as a rise was
 # undetectable because results carried no provenance.
+# AUDIT WHAT THE SCRIPTS WRITE. This pointed at data/results-corrected, a
+# snapshot from 2026-09-17 that nothing writes to and only this target reads,
+# while every script defaults to data/results. So the audit reported 11 stale
+# files in a directory nobody uses and said nothing about the one in use --
+# which then held one current file, two stale, and eight with no provenance
+# block at all. An integrity check aimed at the wrong directory is worse than
+# none: it returns a verdict about neither.
+#
+# data/results-corrected is superseded. Two directories with identical
+# filenames, one audited and one used, is the hazard itself.
 check-results:
-	python scripts/check_results.py $(or $(RESULTS),data/results-corrected)
+	python scripts/check_results.py $(or $(RESULTS),data/results)
 
 clean:
 	find . -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true

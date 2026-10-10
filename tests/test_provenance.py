@@ -6,6 +6,8 @@ as a baseline afterwards. A positive count that had fallen 1,011 -> 889 read
 as a rise from 736, because nothing in the file said which graph it described.
 """
 import json
+import re
+from pathlib import Path
 
 from kgav.provenance import (
     PROVENANCE_KEY,
@@ -14,6 +16,8 @@ from kgav.provenance import (
     release_fingerprint,
     write_results,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _release(tmp_path, edges="a\n", nodes="n\n"):
@@ -106,3 +110,35 @@ def test_a_missing_release_is_not_reported_as_current(tmp_path):
     status, msg = check_file(out, tmp_path / "does-not-exist")
     assert status == "stale"
     assert "cannot verify" in msg
+
+
+# ------------------- the audit must check the directory in actual use
+def test_the_results_audit_checks_the_directory_the_scripts_write_to():
+    """make check-results pointed at data/results-corrected, a snapshot from
+    2026-09-17 that nothing writes to, while every script defaults to
+    data/results. It reported 11 stale files in an unused directory and
+    nothing about the one in use -- which held eight files with no provenance
+    block at all, the exact case provenance.py was written for.
+
+    Compares the Makefile target against the scripts' own defaults, because
+    two places that must agree and are edited separately will drift.
+    """
+    mk = (ROOT / "Makefile").read_text()
+    m = re.search(r"check-results:\s*\n\s*python scripts/check_results\.py "
+                  r"\$\(or \$\(RESULTS\),([^)]+)\)", mk)
+    assert m, "could not find the check-results target"
+    audited = m.group(1).strip()
+
+    written = set()
+    for script in ("hard_negatives", "run_baselines", "temporal_split",
+                   "compare_metapaths"):
+        src = (ROOT / "scripts" / f"{script}.py").read_text()
+        for d in re.findall(r'default=root / "(data/results[^"]*)"', src):
+            if not d.endswith(".json"):      # a file, not an output directory
+                written.add(d)
+
+    assert written, "no script declares a results output directory"
+    assert written == {audited}, (
+        f"make check-results audits {audited!r} but the scripts write to "
+        f"{sorted(written)}. An integrity check aimed at the wrong directory "
+        f"reports a verdict about neither.")
