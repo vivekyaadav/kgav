@@ -49,6 +49,20 @@ def _gene(symbol, gid, score, hit="YES"):
     ("Virus: HCoV-229E", "11137"),
     ("Middle East respiratory syndrome coronavirus", "1335626"),
     ("Influenza A virus", None),
+    # The exact CONDITION_NAME strings the real ORCS index carries for its
+    # 11 flavivirus screens. Before these patterns existed virus_taxon
+    # returned None for every one, so the screens were present and
+    # unreachable.
+    ("Virus: Dengue virus 2 Thailand/16681/84", "11060"),
+    ("Virus: Dengue virus 2 Jamaica/1409/1983", "11060"),
+    ("Virus: West Nile virus", "11082"),
+    ("Virus: Zika virus", "64320"),
+    ("Virus: Yellow Fever Virus 17D", "11089"),
+    # No screen exists for these in this ORCS release, so no pattern does
+    # either. None is the correct answer, not a gap to paper over.
+    ("Virus: Dengue virus 1", None),
+    ("Virus: Dengue virus 3", None),
+    ("Virus: Japanese encephalitis virus", None),
 ])
 def test_virus_matching(text, expected):
     assert virus_taxon({"CONDITION_NAME": text}) == expected
@@ -285,3 +299,47 @@ def test_override_turns_an_unresolvable_screen_into_a_screen_level_one():
     assert stats["override_applied"] == 1
     assert stats["edges"] == 1, "an applied override must produce edges"
     assert em.edges[0]["qualifiers"]["direction"] == "dependency"
+
+
+def test_a_dengue_strain_screen_resolves_to_the_species_taxon():
+    """Two ORCS screens name different DENV-2 strains -- Thailand/16681/84
+    (31634, the strain the register pins for DENV-2's chains) and
+    Jamaica/1409/1983. Both must land on species 11060, because that is the
+    node the graph uses and the one M1's OrganismTaxon hop terminates on.
+    """
+    for strain in ("Thailand/16681/84", "Jamaica/1409/1983", "16681-PDK53"):
+        text = f"Virus: Dengue virus 2 {strain}"
+        assert virus_taxon({"CONDITION_NAME": text}) == "11060", text
+
+
+def test_no_generic_dengue_pattern_shadows_the_serotypes():
+    """The SARS-CoV/SARS-CoV-2 trap in dengue form. A bare r"dengue" pattern
+    would match every serotype and file all four under whichever taxon it
+    carried, silently. Serotype IS the distinction this project ingests, so
+    each one is matched on its own digit and a generic pattern is banned.
+
+    Asserted on the patterns themselves rather than on behaviour: a generic
+    pattern added BELOW the serotypes would pass a behavioural test today and
+    swallow DENV-1, DENV-3 and DENV-4 the moment they were added.
+    """
+    from kgav.orcs import VIRUS_PATTERNS
+
+    for pattern, taxon in VIRUS_PATTERNS:
+        src = pattern.pattern.lower()
+        if "dengue" in src:
+            assert any(d in src for d in "1234"), (
+                f"generic dengue pattern {src!r} -> {taxon}: it would shadow "
+                f"every serotype matched after it")
+
+
+def test_the_flavivirus_patterns_do_not_disturb_the_coronaviruses():
+    """Seven coronavirus screens were being ingested before these patterns
+    were added, and pattern order decides every match."""
+    for text, expected in (("Virus: SARS-CoV-2 (isolate USA-WA1/2020)", "2697049"),
+                           ("Virus: SARS-CoV Urbani", "694009"),
+                           ("Virus: HCoV-OC43", "31631"),
+                           ("Virus: HCoV-229E", "11137"),
+                           ("Virus: HCoV-NL63", "277944"),
+                           ("Virus: HCoV-HKU1", "290028"),
+                           ("Middle East respiratory syndrome coronavirus", "1335626")):
+        assert virus_taxon({"CONDITION_NAME": text}) == expected, text

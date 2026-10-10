@@ -185,6 +185,9 @@ def _orcs_report(orcs_dir: Path, hints: tuple[str, ...]) -> dict:
             "matched": matched, "usable": usable}
 
 
+HUMAN_TAXON = "9606"
+
+
 def _vhppi_report(vhppi_dir: Path, taxa: set[str]) -> dict:
     """VirHostNet coverage, parsed with the ingest's own parse_row.
 
@@ -204,6 +207,7 @@ def _vhppi_report(vhppi_dir: Path, taxa: set[str]) -> dict:
                 "hint": "ingest_vhppi.py globs that exact pattern"}
     rows = unparseable = 0
     per_tax: Counter = Counter()
+    present: Counter = Counter()
     for path in files:
         for line in path.read_text(errors="replace").splitlines():
             if not line.strip() or line.startswith("#"):
@@ -216,8 +220,17 @@ def _vhppi_report(vhppi_dir: Path, taxa: set[str]) -> dict:
             for side in ("taxid_a", "taxid_b"):
                 if r[side] in taxa:
                     per_tax[r[side]] += 1
+                elif r[side] and r[side] != HUMAN_TAXON:
+                    present[r[side]] += 1
+    # WHAT IS PRESENT, NOT ONLY WHAT IS MISSING. Reporting absence alone let
+    # me conclude "M3 and M5 would have no viral-host bridge" from a set of
+    # per-virus downloads that contain only coronaviruses. The absence is the
+    # DOWNLOAD SCOPE, not VirHostNet's coverage, and the histogram of taxa
+    # actually in the files makes that obvious instead of leaving it to be
+    # inferred.
     return {"status": "ok", "files": len(files), "rows": rows,
-            "unparseable": unparseable, "per_tax": dict(per_tax)}
+            "unparseable": unparseable, "per_tax": dict(per_tax),
+            "other_viral": present.most_common(12)}
 
 
 def main() -> int:
@@ -354,12 +367,20 @@ def main() -> int:
     if vhn.get("status") == "ok":
         print(f"    {vhn['files']} file(s), {vhn['rows']:,} rows, "
               f"{vhn['unparseable']:,} unparseable")
-        if not vhn["per_tax"]:
-            print("    NO interaction names a surveyed taxon in either taxid "
-                  "column.\n    M3 and M5 would have no viral-host bridge "
-                  "for these viruses.")
         for tax, n in sorted(vhn["per_tax"].items(), key=lambda kv: -kv[1]):
             print(f"    {tax:<10} {n:>8,} interactions")
+        if not vhn["per_tax"]:
+            print("    NO interaction names a surveyed taxon in either taxid "
+                  "column.")
+            if vhn["other_viral"]:
+                print("    The viral taxa these files DO contain:")
+                for tax, n in vhn["other_viral"]:
+                    print(f"      {tax:<10} {n:>8,}")
+                print("    These are per-virus downloads. The absence above "
+                      "is this directory's\n    DOWNLOAD SCOPE, not "
+                      "VirHostNet's coverage -- fetch the flavivirus files "
+                      "and\n    re-run before concluding M3 and M5 have no "
+                      "route.")
 
     print("\n" + "=" * 78)
     print("WHAT THIS DOES NOT DECIDE")
