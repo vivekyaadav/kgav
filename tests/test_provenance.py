@@ -142,3 +142,53 @@ def test_the_results_audit_checks_the_directory_the_scripts_write_to():
         f"make check-results audits {audited!r} but the scripts write to "
         f"{sorted(written)}. An integrity check aimed at the wrong directory "
         f"reports a verdict about neither.")
+# ------------------------------------------- a refusal is a recordable state
+def test_a_refusal_replaces_the_numbers_it_declined_to_produce(tmp_path):
+    """temporal_split.py aborts on a fatal leakage audit without writing,
+    which left the PREVIOUS run's numbers on disk -- from a graph three
+    revisions old -- with nothing saying the protocol now refuses to run.
+    check_results then said "STALE, regenerate it", advice that cannot be
+    followed because the refusal is why it cannot be regenerated.
+    """
+    from kgav.provenance import REFUSAL_KEY, write_refusal
+
+    rel = _release(tmp_path)
+    out = tmp_path / "temporal_2021_include.json"
+
+    # a previous, successful run
+    write_results(out, {"cutoff": 2021, "results": {"SARS-CoV-2": {"M1": 1}}},
+                  rel)
+    assert check_file(out, rel)[0] == "ok"
+    assert "results" in json.loads(out.read_text())
+
+    # the same protocol, now refusing
+    write_refusal(out, {"cutoff": 2021, "results": {"SARS-CoV-2": {"M1": 1}}},
+                  ["L5 label overlap: 5 positive compounds"], rel)
+    doc = json.loads(out.read_text())
+
+    # the dead numbers are gone, not kept alongside the refusal
+    assert "results" not in doc, "a refusal that still carries numbers reads as numbers"
+    assert doc[REFUSAL_KEY] == ["L5 label overlap: 5 positive compounds"]
+    assert doc["cutoff"] == 2021, "the split's own parameters are still recorded"
+
+    status, msg = check_file(out, rel)
+    assert status == "refused", f"expected refused, got {status}"
+    assert "L5 label overlap" in msg, "the reason must reach the operator"
+
+
+def test_a_refusal_from_an_older_graph_still_reads_stale(tmp_path):
+    """Staleness is checked before refusal: a refusal recorded against a graph
+    that has since moved describes a refusal that may no longer happen, so it
+    is not a current statement about this release.
+    """
+    from kgav.provenance import write_refusal
+
+    rel = _release(tmp_path, edges="a\n")
+    out = tmp_path / "temporal_2021_include.json"
+    write_refusal(out, {"cutoff": 2021}, ["L5 label overlap: 5"], rel)
+    assert check_file(out, rel)[0] == "refused"
+
+    (rel / "edges.jsonl").write_text("a\nb\n")      # release moves
+    status, msg = check_file(out, rel)
+    assert status == "stale", f"expected stale, got {status}"
+    assert "edges" in msg, "the stale message must name what moved"
