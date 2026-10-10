@@ -542,11 +542,16 @@ def confound_warning(per: dict[str, dict], degree_key: str = DEGREE_KEY,
     # returns None whenever a row has no positives or k covers the pool.
     if dl is None or dp is None:
         return None
-    others = [(m["lift"], m.get("p_value"), n) for n, m in per.items()
+    others = [(m["lift"], m.get("p_value"), n, m.get("trustworthy"))
+              for n, m in per.items()
               if n != degree_key and m.get("lift") is not None]
     better = sorted(x for x in others if x[0] > dl)
-    tail = (f"{better[-1][2]} exceeds it at {better[-1][0]:.2f}"
-            if better else "no channel exceeds it")
+    if better:
+        lift, _p, name, tw = better[-1]
+        mark = "" if tw else " -- but that row is flagged (!)"
+        tail = f"{name} exceeds it at {lift:.2f}{mark}"
+    else:
+        tail = "no channel exceeds it"
 
     if dp is not None and dp < alpha:
         return (f"CONFOUNDED: the degree baseline is itself significant "
@@ -559,15 +564,21 @@ def confound_warning(per: dict[str, dict], degree_key: str = DEGREE_KEY,
     # condition every real result in this project depends on, and it held in
     # exactly one place: SARS-CoV-2 under the temporal protocol. Printing it
     # only as an absence of warning left the reader to notice it.
-    sig = sorted((p_, lift, n) for lift, p_, n in others
-                 if p_ is not None and p_ < alpha)
+    # TRUSTWORTHY IS REQUIRED, NOT JUST SIGNIFICANT. This branch read p and
+    # ignored the field beside it, and promoted HCoV-OC43 temporal M4: pool
+    # 2,545, ONE positive, lift 25.45, p=0.0393 -- and 100/2545 = 0.0393
+    # exactly, so that p IS the sampling fraction for a single compound. The
+    # row already carried (!) for expectation < 1. Requiring True explicitly
+    # rather than `is not False`, because a row with no verdict has not earned
+    # a promotion either.
+    sig = sorted((p_, lift, n) for lift, p_, n, tw in others
+                 if p_ is not None and p_ < alpha and tw is True)
     if sig:
         p_, lift, n = sig[0]
         return (f"BASELINE AT CHANCE: degree lift {dl:.2f} (p={dp:.4f}) is "
                 f"indistinguishable from random here, so {n}'s lift {lift:.2f} "
-                f"(p={p_:.4f}) is not explained by study volume. This is the "
-                f"only condition under which a channel's p means what it "
-                f"appears to mean.")
+                f"(p={p_:.4f}) is not explained by study volume. A channel's p "
+                f"only means what it appears to mean under this condition.")
     return None
 
 

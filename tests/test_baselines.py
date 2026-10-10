@@ -592,8 +592,8 @@ def test_the_heuristic_and_the_pvalue_are_reported_separately():
 
 
 # ------------- a p-value is against random, not against the confound
-def _row(lift, p):
-    return {"lift": lift, "p_value": p}
+def _row(lift, p, trustworthy=True):
+    return {"lift": lift, "p_value": p, "trustworthy": trustworthy}
 
 
 def test_the_confound_warning_fires_when_degree_is_itself_significant():
@@ -728,3 +728,44 @@ def test_no_baseline_row_at_all_raises_nothing():
     degree_relative(unstamped)
     assert unstamped["M1"]["vs_degree_readable"] is False
     assert confound_warning(unstamped) is None
+
+
+def test_an_untrustworthy_row_is_never_promoted_by_the_baseline_read():
+    """HCoV-OC43 temporal computed_only: M4 pool 2,545, ONE positive, lift
+    25.45, p=0.0393 -- and 100/2545 = 0.0393 exactly, so that p IS the
+    sampling fraction for a single compound. The row already carried (!) for
+    expectation < 1, and the first version of this branch read p, ignored the
+    field beside it, and announced the result anyway.
+    """
+    from kgav.baselines import confound_warning
+
+    per = {"M4": _row(25.45, 0.0393, trustworthy=False),
+           "degree": _row(1.32, 0.5358, trustworthy=False)}
+    assert confound_warning(per) is None
+
+    # the same table with a trustworthy channel does report
+    per["M4"]["trustworthy"] = True
+    assert "BASELINE AT CHANCE" in confound_warning(per)
+
+
+def test_a_row_with_no_trustworthy_verdict_is_not_promoted():
+    """`is True`, not `is not False`: a row that never got a verdict has not
+    earned a promotion either."""
+    from kgav.baselines import confound_warning
+
+    per = {"M4": {"lift": 25.45, "p_value": 0.0393},
+           "degree": _row(1.32, 0.5358)}
+    assert confound_warning(per) is None
+
+
+def test_the_confounded_tail_marks_an_untrustworthy_challenger():
+    """MERS-CoV temporal: M4 exceeds degree at 16.09 on five positives with
+    expectation 0.19. Naming it without the flag read as a channel beating the
+    baseline."""
+    from kgav.baselines import confound_warning
+
+    per = {"M4": _row(16.09, 0.0005, trustworthy=False),
+           "degree": _row(4.62, 0.0260)}
+    warn = confound_warning(per)
+    assert "M4 exceeds it at 16.09" in warn
+    assert "flagged (!)" in warn, warn

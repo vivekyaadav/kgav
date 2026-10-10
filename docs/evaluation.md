@@ -26,9 +26,10 @@ in its own section below.
 The one-line version of every table here:
 
 > **In every cross-sectional virus where a reasoning channel cleared p<0.05,
-> the degree baseline cleared it too -- 4 of 4, no exception. Exactly one row
-> in the project has a channel significant while degree is at chance:
-> SARS-CoV-2 M1 under the temporal protocol.**
+> the degree baseline cleared it too -- 4 of 4, no exception. Exactly one
+> virus and channel in the project has a trustworthy significant result while
+> degree is at chance: SARS-CoV-2 M1 under the temporal protocol, lift 2.22
+> at p=0.020 on six hits.**
 
 Five earlier figures for M1 -- 0.823, 0.726, 0.660, 0.499, 0.513 -- are
 reported below rather than withdrawn, because the sequence is the result. Each
@@ -129,13 +130,25 @@ does. `confound_warning()` prints the verdict under every table, both ways:
                           HCoV-229E, HCoV-NL63 cross-sectionally, and
                           MERS-CoV and SARS-CoV temporally
     BASELINE AT CHANCE    degree is indistinguishable from random AND a
-                          channel is significant -- SARS-CoV-2 temporal, the
-                          only table in the project where this holds
+                          TRUSTWORTHY channel is significant -- SARS-CoV-2
+                          temporal, the only virus and channel in the project
+                          where this holds
     (nothing)             neither, so there is nothing to report
 
 Stating the good case out loud matters: printed only as an *absence* of
 warning, the one condition every real result here depends on was left for the
 reader to notice.
+
+`trustworthy` is required, not just significance. The first version checked
+only `p` and promoted HCoV-OC43 temporal M4: pool 2,545, **one** positive,
+lift 25.45, p=0.0393 -- and 100/2,545 = 0.0393 exactly, so that p *is* the
+sampling fraction for a single compound. The row already carried `(!)`.
+
+**It appears under both undated policies, and that is not a replication.** M1
+reads pool 296, 8 positives, 6 hits, lift 2.22, p=0.0196 in `include` and
+`computed_only` alike, because M1 traverses `INHIBITS`, which is fully dated,
+so the undated policy never touches its pool. Only degree moves (0.93 ->
+1.10). Two identical numbers from one pool are one observation.
 
 Both tables also carry a `vs deg` column, with `(~)` marking a ratio whose
 denominator is itself at chance. SARS-CoV-2 cross-sectional is why: M4 reads
