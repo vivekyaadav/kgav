@@ -37,6 +37,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import yaml
 
+from kgav.virus_register import declared_taxa
+
 ASSAY_TYPE_NAMES = {"B": "binding", "F": "functional", "A": "ADMET",
                     "T": "toxicity", "P": "physicochemical", "U": "unclassified"}
 
@@ -92,11 +94,7 @@ def main() -> int:
         return 1
 
     cfg = yaml.safe_load(args.config.read_text())
-    taxa: set[str] = set()
-    for v in cfg["viruses"]:
-        taxa.add(str(v["taxon"]))
-        for iso in v.get("isolate_taxa") or []:
-            taxa.add(str(iso))
+    taxa = set(declared_taxa(cfg))
 
     con = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
     con.row_factory = sqlite3.Row

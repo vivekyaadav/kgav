@@ -14,23 +14,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.aliases import AliasIndex
 from kgav.emit import Emit
+from kgav.virus_register import declared_taxa
 from kgav.vhppi import ingest_mitab
-
-
-def build_taxon_map(config: Path) -> dict[str, str]:
-    """Every viral taxid that may appear -> the species taxid the graph uses.
-
-    VirHostNet files MERS under the HCoV-EMC/2012 isolate and HKU1 under a
-    strain taxon. Querying the species node returns zero rows for both. Without
-    this map those interactions look like an unknown organism and vanish.
-    """
-    cfg = yaml.safe_load(config.read_text())
-    m: dict[str, str] = {}
-    for v in cfg["viruses"]:
-        m[str(v["taxon"])] = str(v["taxon"])
-        for iso in v.get("isolate_taxa") or []:
-            m[str(iso)] = str(v["taxon"])
-    return m
 
 
 def main() -> int:
@@ -49,7 +34,21 @@ def main() -> int:
     index = AliasIndex.from_releases(args.spine, args.host)
     print(f"  {len(index):,} nodes, {len(index.alias):,} aliases")
 
-    taxon_map = build_taxon_map(args.config)
+    # ONE MAP, FROM THE REGISTER. virus_register.declared_taxa exists for
+    # exactly this and its docstring says so -- "the same shape the ingests
+    # build ad hoc from isolate_taxa, derived here so chain_source cannot
+    # drift out of the map" -- and nothing called it: four scripts built the
+    # map by hand and the canonical function was reached only by its own test.
+    # Five implementations of one mapping, which is how AUC 0.826, the
+    # coverage floor and lift's trustworthy rule each ended up with two.
+    #
+    # declared_taxa also folds in chain_source.taxon, which the hand-built
+    # copies omitted. Identical on the current register -- verified before
+    # this change -- because validate()'s UNDECLARED_CHAIN_TAXON already
+    # forces every differing chain taxon into isolate_taxa. So this is
+    # behaviour-neutral today and stops being luck tomorrow.
+    taxon_map = declared_taxa(
+        yaml.safe_load(args.config.read_text()))
     print(f"  {len(taxon_map)} viral taxids mapped to "
           f"{len(set(taxon_map.values()))} species")
 

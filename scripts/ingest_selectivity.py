@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from kgav.emit import Emit
 from kgav.schema import load_schema
 from kgav.selectivity import SI_THRESHOLD, ingest_selectivity, query_pairs
+from kgav.virus_register import declared_taxa
 
 
 def main() -> int:
@@ -29,11 +30,20 @@ def main() -> int:
     args = ap.parse_args()
 
     cfg = yaml.safe_load(args.config.read_text())
-    taxon_map: dict[str, str] = {}
-    for v in cfg["viruses"]:
-        taxon_map[str(v["taxon"])] = str(v["taxon"])
-        for iso in v.get("isolate_taxa") or []:
-            taxon_map[str(iso)] = str(v["taxon"])
+    # ONE MAP, FROM THE REGISTER. virus_register.declared_taxa exists for
+    # exactly this and its docstring says so -- "the same shape the ingests
+    # build ad hoc from isolate_taxa, derived here so chain_source cannot
+    # drift out of the map" -- and nothing called it: four scripts built the
+    # map by hand and the canonical function was reached only by its own test.
+    # Five implementations of one mapping, which is how AUC 0.826, the
+    # coverage floor and lift's trustworthy rule each ended up with two.
+    #
+    # declared_taxa also folds in chain_source.taxon, which the hand-built
+    # copies omitted. Identical on the current register -- verified before
+    # this change -- because validate()'s UNDECLARED_CHAIN_TAXON already
+    # forces every differing chain taxon into isolate_taxa. So this is
+    # behaviour-neutral today and stops being luck tomorrow.
+    taxon_map = declared_taxa(cfg)
 
     print("pairing antiviral EC50/IC50 with CC50/TC50 within the same document")
     rows = query_pairs(args.db, sorted(taxon_map))
