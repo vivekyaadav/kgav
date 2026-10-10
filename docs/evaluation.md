@@ -2,142 +2,145 @@
 
 ## The claim
 
-**Once evidence that shares a publication with its own label is withheld, no
-metapath separates measured-active from measured-inactive compounds. M1 scores
-0.499 [0.452, 0.546]; the degree-only baseline scores 0.528 [0.481, 0.575].
-Both intervals span 0.5.**
+**Of seven reasoning channels, two were ever evaluated. Both are
+indistinguishable from chance. The other five reach too few measured actives
+for their AUCs to describe anything but the imputed floor.**
 
-Three earlier figures for the same metapath — 0.823, 0.726, 0.660 — were each
-produced by a protocol that failed a control the next one applied. They are
-reported here in full, because the sequence is the result.
+    evaluated   M4  0.507 [0.447, 0.568]   reaches 15 of 89 actives
+                M5  0.516 [0.455, 0.577]   reaches 14 of 89
 
-## Three nested confounds, and what each removed
+    not         M3  reaches  9    M2 reaches 5    M1 reaches 3
+    evaluated   M6  reaches  1    M7 reaches 0    M8 emits no paths at all
 
-Each row below adds one control to the row above it. CIs are Hanley–McNeil.
+    baseline    degree 0.582 [0.520, 0.644] — the only scorer clear of 0.5,
+                and it is the null hypothesis, not a reasoning channel
 
-| # | Protocol | pos | neg | cov_pos | cov_neg | **M1** | degree |
-|---|---|---|---|---|---|---|---|
-| 1 | `selective-only`, positives only | 816 | 4,874 | 68.8% | 4.0% | 0.823 [0.805, 0.841] | 0.661 |
-| 2 | `all` — no selectivity filter | 1,730 | 4,874 | 49.4% | 4.0% | 0.726 [0.711, 0.741] | 0.613 |
-| 3 | `verified-only`, **both** sides | 1,028 | 165 | 56.6% | 25.5% | 0.660 [0.619, 0.701] | 0.528 |
-| 4 | **+ `--publication-disjoint`** | 1,028 | 165 | **1.1%** | 1.2% | **0.499 [0.452, 0.546]** | 0.528 |
+So a calibrated ranking returns nothing, and that is the correct output. The
+graph can report evidence for a compound it is asked about; it has no measured
+basis for a shortlist.
 
-### 1 -> 2: the filter was asymmetric
+Five earlier figures for M1 -- 0.823, 0.726, 0.660, 0.499, 0.513 -- are
+reported below rather than withdrawn, because the sequence is the result. Each
+was produced by a protocol that failed a control the next one applied.
 
-Row 1 filtered positives to compounds with a verified selectivity index and
-left negatives whole. Characterised compounds carry more edges, so the positive
-class was 17× more reachable than the negative class. Remove the filter
-entirely and 0.823 becomes 0.726 — most of the gap was annotation density.
+## The sequence
 
-### 2 -> 3: equalising the evidence basis
+Each row adds one control to the row above. CIs are Hanley-McNeil.
 
-`--selectivity-applies both` requires the same paired cytotoxicity evidence of
-a compound before it may be a negative. The coverage ratio falls from 12.4× to
-2.2× and M1 to 0.660. The degree baseline falls from 0.613 to 0.528, which is
-the control working as intended: degree *is* study volume, so equalising
-characterisation should remove most of it.
+| # | Protocol | pos | neg | cov_pos | cov_neg | **M1** |
+|---|---|---|---|---|---|---|
+| 1 | `selective-only`, positives only | 816 | 4,874 | 68.8% | 4.0% | 0.823 [0.805, 0.841] |
+| 2 | `all` — no selectivity filter | 1,730 | 4,874 | 49.4% | 4.0% | 0.726 [0.711, 0.741] |
+| 3 | `verified-only`, **both** sides | 1,028 | 165 | 56.6% | 25.5% | 0.660 [0.619, 0.701] |
+| 4 | + `--publication-disjoint` | 1,028 | 165 | 1.1% | 1.2% | 0.499 [0.452, 0.546] |
+| 5 | + `--label-source` (one screen) | 89 | 7,343 | 3.4% | 0.7% | **not evaluable** |
 
-At this point M1's margin over the baseline looked intact (+0.113 -> +0.132)
-and the intervals did not overlap. That reading was wrong, because a fourth
-confound had not been tested.
+**1 -> 2. The filter was asymmetric.** Row 1 filtered positives to compounds
+with a verified selectivity index and left negatives whole, so the positive
+class was 17x more reachable. Remove the filter and 0.823 becomes 0.726.
 
-### 3 -> 4: the evidence and the answer came from one paper
+**2 -> 3. Equalising the evidence basis.** Requiring the same paired
+cytotoxicity evidence of a negative drops the coverage ratio to 2.2x and M1 to
+0.660. The degree baseline falls 0.613 -> 0.528, which is the control working:
+degree *is* study volume.
 
-Of the 1,070 compounds carrying both an `INHIBITS` edge and a
-`HAS_ANTIVIRAL_ACTIVITY_AGAINST` label where both sides cite a publication,
-**1,015 — 94.9% — share at least one PMID.**
+**3 -> 4. Evidence and answer from one paper.** Of 1,070 compounds carrying
+both an `INHIBITS` edge and an antiviral label where both cite a publication,
+**1,015 -- 94.9% -- share a PMID**. A paper reporting an Mpro IC50 reports a
+cell-based EC50 in the same table, and ChEMBL files them as two records: M1
+traverses a measurement taken alongside the answer. Neither split separates
+them, because both facts hang off one compound and carry one date.
+Withholding that evidence took M1's reach over the evaluated positives from
+56.6% to 1.1% -- 582 compounds to 11. **That coverage collapse, not the AUC,
+is the finding.**
 
-A paper reporting an Mpro IC50 reports a cell-based EC50 in the same table.
-ChEMBL files them as two activity records. The ingest turns one into the edge
-M1 traverses and the other into the label M1 is scored against. The AUC is
-then retrieval, not prediction.
+**4 -> 5. One screen, so both classes are matched by construction.** Pooling
+ChEMBL and NCATS labels restores the confound by a new route: ChEMBL actives
+are antiviral research compounds carrying viral-target annotations, panel
+inactives are library compounds carrying host-target ones, so the classes
+differ by provenance as much as by activity. Pooled, M4 reads 0.445 -- *below*
+chance -- purely because the negatives are 4x more reachable than the
+positives. Restricted to the NCATS CPE screen, both classes come off the same
+plates under one protocol: matched structurally rather than by a filter.
 
-Neither existing split separates them. A compound-level split cannot: both
-facts hang off one compound. The temporal split cannot: one paper, one date.
+### Control
 
-`--publication-disjoint` withholds from traversal every edge citing a paper
-that also reported that compound's own label. It withheld 1,150 of 3,938
-`INHIBITS` edges — 29% — and **M1's reach over the evaluated positives fell
-from 56.6% to 1.1%**, from roughly 582 compounds to 11.
+`--selectivity all --selectivity-applies both` must be a no-op, because `all`
+short-circuits the filter block entirely. It reproduces the row-2 figure, so
+the flag does nothing it should not.
 
-That coverage collapse, not the AUC, is the finding. 98% of the positives M1
-could reach were reachable only through same-paper evidence.
+## Why the coverage floor exists
 
-## Nothing beats the null hypothesis
+`evaluate_against_negatives` imputes a floor score for every compound a scorer
+does not reach. That is deliberate and stays: a scorer evaluated only on what
+it reaches chooses its own test set, which is how a channel with 3% coverage
+posts a perfect AUC.
 
-SARS-CoV-2, cross-sectional, protocol 4:
+But it means a low-coverage channel's AUC is dominated by the imputation, while
+its interval is computed from `n_pos` and implies far more evidence than the
+channel touched. M1's 0.513 rests on **three** compounds out of 89.
 
-| M1 | M2 | M3 | M4 | M5 | M6 | M7 | COMBINED | degree |
-|---|---|---|---|---|---|---|---|---|
-| 0.499 | 0.493 | 0.497 | 0.481 | 0.476 | 0.496 | 0.509 | 0.487 | 0.528 |
+The assay-readout fix is what made this visible: it removed 540 `INHIBITS`
+edges, a seventh of the channel, and M1's AUC did not move by 0.001. Nothing
+could move it, because almost nothing reaches it.
 
-`baselines.py` states the bar: *"A learned scorer that does not clearly beat
-all three is not a result."* The best scorer here is the degree baseline, and
-it does not clear chance either.
+`MIN_REACHED_POSITIVES = 10` matches `hard_negatives.MIN_CLASS_SIZE` -- the
+minimum class size that script already requires before evaluating a virus is
+the minimum for evaluating one channel of it.
 
-Two further readings:
-
-- **Seasonal coronaviruses are degree, undisguised.** HCoV-OC43 degree 0.746,
-  HCoV-229E 0.699, on ~80 tested compounds each. With a pool that small,
-  "has this compound been studied" is a strong predictor and no mechanism is
-  involved.
-- **The temporal split is worse than chance.** degree 0.439, and M1 reaches
-  0.0% of post-2021 actives from the pre-2021 graph. Consistent with the
-  earlier finding that 77% of post-cutoff compounds are absent from the prior
-  graph entirely.
-
-## Why it cannot currently work — all six reasons, measured
+## Six measured causes
 
 | Cause | Measurement |
 |---|---|
 | Evidence co-reported with labels | 94.9% shared PMIDs (1,015/1,070) |
-| `INHIBITS` is effectively one protein | 2,586 of 3,938 edges on `PRO_0000449623`; 19 distinct viral proteins of 343 |
-| Negatives cannot reach host-directed paths | 1.5% in M2's pool vs 12.1% expected — 7.9× under-represented |
-| The graph is two graphs | 45 of 12,821 compounds have both `INHIBITS` and `TARGETS` |
-| M8 inert | no `MEMBER_OF_CLASS` or `FOLD_SIMILAR_TO` edges in the release |
+| M1 was never purely direct-acting | 1,884 of 7,677 protein-target rows (24.5%) described a CELLULAR readout and were filed against a viral protein; now reattributed to the organism |
+| `INHIBITS` is effectively two proteins | nsp5 4,745 and nsp3 2,269 of ~7,400 resolved chains |
+| The graph is two compound populations | 45 of 12,821 compounds have both `INHIBITS` and `TARGETS` |
+| M8 inert | no `MEMBER_OF_CLASS` or `FOLD_SIMILAR_TO` edges; `ingest_folds` writes a layer `LAYER_PRECEDENCE` does not list (strict xfail in `test_assemble`) |
 | M3/M5 untestable temporally | both PPI layers wholly post-cutoff (STRING 2023-08-28, VirHostNet 2024-01-01) |
 
-Note which of these are *evaluation* faults rather than graph faults. The graph
-validates, the provenance is intact, and 500 host proteins that drugs target
-are dependency host factors by CRISPR screen — a real repurposing surface. No
-protocol here has ever scored against it, because no labels exist in that
-population.
+Note which are *evaluation* faults rather than graph faults. The graph
+validates, provenance is intact, and 500 host proteins that drugs target are
+dependency host factors by CRISPR screen -- a real repurposing surface that no
+protocol here has scored against, because almost no labelled compound reaches
+it.
 
-## What is not concluded
+## What is not claimed
 
-- **Not** that knowledge-graph repurposing fails. These protocols never tested
-  prediction, so they cannot have refuted it.
-- **Not** that host-directed metapaths are uninformative. They were scored
-  against a negative set they structurally cannot reach.
-- 165 negatives is thin; the interval is 0.094 wide against 0.030 for row 2.
+- **Not** that knowledge-graph repurposing fails. Five of seven channels were
+  never evaluated; the two that were are thin at 14 and 15 reached actives.
+- **Not** that the host-directed hypothesis is refuted. M4 and M5 are the
+  channels that *were* tested, and both at chance on 15 compounds is weak
+  evidence either way.
+- No prospective validation. Every figure here is retrospective.
 
-## What would make it testable
+## What would strengthen it
 
-Labels in the population where repositioning happens. An approved-drug
-antiviral screening panel (ReFRAME, Broad Drug Repurposing Hub, NCATS OpenData)
-supplies actives *and* inactives among approved compounds, which is where the
-`TARGETS` edges are; and because such screens are generated independently of
-ChEMBL target annotations, they carry no co-reporting leakage to withhold.
-
-That is a labels problem, not a topology problem. More interactome added to a
-graph nothing can be scored against changes none of the six rows above.
+More labelled compounds that the host-directed channels can reach. The NCATS
+CPE screen supplied 89 actives and 7,343 measured inactives in the
+approved-drug population, which is what made rows 4 and 5 possible at all; a
+second independent panel would raise M4 and M5 from 15 reached actives to
+something an interval can be read off.
 
 ## Reproducing
 
 ```bash
-# row 4 -- the current claim
-python scripts/hard_negatives.py --selectivity verified-only \
-    --selectivity-applies both --publication-disjoint
+# row 5 -- the current protocol
+python scripts/hard_negatives.py --selectivity all --publication-disjoint \
+    --label-source infores:ncats-opendata
+python scripts/calibrate.py          # which channels were evaluable, and why not
 
-# rows 1-3, in order
+# rows 1-4, in order
 python scripts/hard_negatives.py --selectivity selective-only
 python scripts/hard_negatives.py --selectivity all
 python scripts/hard_negatives.py --selectivity verified-only --selectivity-applies both
+python scripts/hard_negatives.py --selectivity verified-only \
+    --selectivity-applies both --publication-disjoint
 
-# no-op control: --selectivity all short-circuits the filter, so adding
-# --selectivity-applies both must reproduce row 2 exactly. It does (0.726).
+# no-op control: must reproduce row 2 exactly
 python scripts/hard_negatives.py --selectivity all --selectivity-applies both
 ```
 
-Diagnostics behind the six causes: `diagnose_hop_attrition.py` (hop-by-hop
-survivors) and `diagnose_label_overlap.py` (population overlap, shared PMIDs).
+Diagnostics behind the causes: `diagnose_hop_attrition.py` (hop-by-hop
+survivors), `diagnose_label_overlap.py` (population overlap, shared PMIDs),
+`diagnose_assay_type.py` (cellular readouts filed against proteins).
