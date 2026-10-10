@@ -1,10 +1,27 @@
-.PHONY: install test lint gate release-validate check-results clean
+.PHONY: install test test-serial test-slowest lint gate release-validate check-results clean
 
 install:
 	pip install -e ".[dev]"
 
+# --dist loadfile keeps a file's tests on one worker, which matters because the
+# release fixtures are session-scoped PER WORKER: the default per-test
+# distribution can land test_agent_tools' two real-graph tests on two workers
+# and parse the release twice. By file, the three release-reading files parse
+# once each, in parallel.
 test:
+	pytest -q -n auto --dist loadfile
+
+# Serial. Use when a failure needs a readable traceback, or to check that a
+# failure is real rather than two workers colliding -- xdist runs each test in
+# a separate PROCESS, so the code under test needs no thread-safety, but a
+# test that writes outside tmp_path would still race.
+test-serial:
 	pytest -q
+
+# Where the time actually goes. The suite went 8s without a release on disk
+# and 85s with one, because four files each re-read the 102 MB edges.jsonl.
+test-slowest:
+	pytest -q --durations=15
 
 lint:
 	ruff check src tests scripts

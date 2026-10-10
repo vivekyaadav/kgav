@@ -298,10 +298,8 @@ def test_rank_is_descending(g):
 REAL = Path(__file__).resolve().parents[1] / "data" / "releases" / "v0.1"
 
 
-@pytest.mark.skipif(not (REAL / "nodes.jsonl").exists(), reason="release not built")
-def test_real_graph_has_traversable_host_paths():
-    s = load_schema()
-    g = Graph.load(REAL, skip_predicates=s.held_out_predicates())
+def test_real_graph_has_traversable_host_paths(real_graph):
+    g = real_graph
     targets = sum(len(v) for (p, _n), v in g.out.items() if p == "TARGETS")
     assert targets > 5_000, f"only {targets} TARGETS edges -- M2-M6 need these"
 
