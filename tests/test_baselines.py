@@ -589,3 +589,70 @@ def test_the_heuristic_and_the_pvalue_are_reported_separately():
     assert m["trustworthy"] is False, "the readability heuristic still fires"
     assert m["p_value"] < 0.001, "while the exact null says it is surprising"
     assert m["p_value"] == lift_pvalue(2682, 5, 100, 3)
+
+
+# ------------- a p-value is against random, not against the confound
+def _row(lift, p):
+    return {"lift": lift, "p_value": p}
+
+
+def test_the_confound_warning_fires_when_degree_is_itself_significant():
+    """SARS-CoV cross-sectional on v0.1: M1 lift 2.10 p<0.0001, and degree
+    lift 9.51 p<0.0001 on the SAME labels. In every cross-sectional virus
+    where a channel cleared 0.05, degree cleared it too -- 4 of 4, no
+    exception. A reader shown only M1's p would call that a discovery.
+    """
+    from kgav.baselines import confound_warning
+
+    per = {"M1": _row(2.10, 0.00001), "M3": _row(1.90, 0.1424),
+           "degree": _row(9.51, 0.00001)}
+    warn = confound_warning(per)
+    assert warn is not None
+    assert "CONFOUNDED" in warn
+    assert "no channel exceeds it" in warn, \
+        "degree outranks M1 4.5x here, which is the whole point"
+
+
+def test_no_warning_when_the_baseline_is_at_chance():
+    """SARS-CoV-2 temporal: M1 lift 2.22 p=0.020 with degree at 0.93 p=0.63.
+    The control is working, so the channel's p means what it appears to mean.
+    This is the only row in the project where that is true.
+    """
+    from kgav.baselines import confound_warning
+
+    per = {"M1": _row(2.22, 0.0196), "M6": _row(1.40, 0.3693),
+           "degree": _row(0.93, 0.6276)}
+    assert confound_warning(per) is None
+
+
+def test_the_warning_names_a_channel_that_does_beat_degree():
+    from kgav.baselines import confound_warning
+
+    per = {"M4": _row(11.86, 0.00001), "degree": _row(10.87, 0.00001)}
+    warn = confound_warning(per)
+    assert "M4 exceeds it at 11.86" in warn, warn
+
+
+def test_degree_relative_annotates_every_row_against_the_baseline():
+    from kgav.baselines import degree_relative
+
+    per = {"M1": _row(2.10, 0.0001), "degree": _row(9.51, 0.0001)}
+    degree_relative(per)
+    assert abs(per["M1"]["lift_vs_degree"] - 2.10 / 9.51) < 1e-12
+    assert per["M1"]["beats_degree"] is False
+    assert per["degree"]["lift_vs_degree"] is None, \
+        "the baseline is not compared to itself"
+
+
+def test_a_missing_or_zero_baseline_annotates_rather_than_divides():
+    """HCoV-HKU1 has no measured activity, and a zero-lift degree row is
+    normal on the thin viruses. Neither may raise."""
+    from kgav.baselines import confound_warning, degree_relative
+
+    for per in ({"M1": _row(2.0, 0.01)},
+                {"M1": _row(2.0, 0.01), "degree": _row(0.0, 1.0)},
+                {"M1": _row(2.0, 0.01), "degree": {"lift": 1.0,
+                                                   "p_value": None}}):
+        degree_relative(per)
+        assert per["M1"]["lift_vs_degree"] in (None, 2.0)
+        assert confound_warning(per) is None

@@ -18,6 +18,8 @@ from kgav.baselines import (
     Graph,
     combine,
     degree_ranking,
+    confound_warning,
+    degree_relative,
     dwpc_scores,
     hits_at_k,
     lift_row,
@@ -42,6 +44,15 @@ def positives(release: Path) -> dict[str, set[str]]:
 def row(name: str, scores: dict[str, float], pos: set[str], k: int = 100) -> dict:
     """Thin wrapper; the metric lives in baselines so it can be tested."""
     return lift_row(scores, pos, k)
+
+
+def _vs(m: dict) -> str:
+    """Lift relative to the degree baseline, which is the comparison that
+    carries information; p alone is against a random ranking."""
+    v = m.get("lift_vs_degree")
+    if v is None:
+        return "      -"
+    return f"{v:>7.2f}"
 
 
 def _p(m: dict) -> str:
@@ -84,7 +95,7 @@ def main() -> int:
             print("    unevaluable: no measured activity\n")
             continue
         print(f"    {'scorer':<10} {'pool':>7} {'pos':>5} {'hits':>5} "
-                f"{'exp':>7} {'lift':>7} {'p':>7} {'mrr':>7}")
+                f"{'exp':>7} {'lift':>7} {'p':>7} {'vs deg':>7} {'mrr':>7}")
         per: dict[str, dict] = {}
         for name in sorted(dwpc):
             sc = {d: by[virus] for d, by in dwpc[name].items() if virus in by}
@@ -94,11 +105,14 @@ def main() -> int:
             per[name] = row(name, sc, p, args.k)
         per["COMBINED"] = row("COMBINED", combine(dwpc, virus), p, args.k)
         per["degree"] = row("degree", deg, p, args.k)
+        degree_relative(per)
         for name, m in per.items():
             flag = "" if m["trustworthy"] else " (!)"
             print(f"    {name:<10} {m['pool']:>7,} {m['pos']:>5,} {m['hits']:>5} "
                   f"{m['expected']:>7.1f} {m['lift']:>7.2f} {_p(m)} "
-                  f"{m['mrr']:>7.4f}{flag}")
+                  f"{_vs(m)} {m['mrr']:>7.4f}{flag}")
+        if (warn := confound_warning(per)):
+            print(f"    ! {warn}")
         results[label] = per
         print()
 

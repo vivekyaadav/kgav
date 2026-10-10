@@ -453,6 +453,67 @@ def lift_pvalue(pool: int, positives: int, k: int, hits: int) -> float | None:
     return min(1.0, math.exp(m) * sum(math.exp(x - m) for x in terms))
 
 
+DEGREE_KEY = "degree"
+SIGNIFICANCE = 0.05
+
+
+def degree_relative(per: dict[str, dict], degree_key: str = DEGREE_KEY) -> None:
+    """Annotate every row with its lift relative to the degree baseline.
+
+    WHY A P-VALUE IS NOT ENOUGH. lift_pvalue's null is RANDOM RANKING, so it
+    answers "could this ordering have arisen by chance" and nothing else. It
+    cannot see a confound that inflates the scorer and the labels together --
+    which is the confound this project spent its whole evaluation on: 94.9% of
+    compounds share a PMID between their INHIBITS edge and their antiviral
+    label, and degree IS study volume.
+
+    So a p-value makes the UNCONTROLLED protocol look full of discoveries. On
+    v0.1, compare_metapaths reports p < 0.0001 for SARS-CoV M1 -- and p <
+    0.0001 for degree on the same labels, at 9.51 lift against M1's 2.10. In
+    every cross-sectional virus where a channel cleared 0.05, degree cleared
+    it too; there is not one exception. The comparison that carries
+    information is channel against DEGREE, not channel against random.
+
+    Degree's own p-value is the diagnostic. If degree is significant, the
+    protocol is measuring how much a compound has been studied, and a channel
+    beating random on those labels says nothing about mechanism.
+    """
+    deg = per.get(degree_key)
+    base = (deg or {}).get("lift")
+    for name, m in per.items():
+        if name == degree_key or not base:
+            m["lift_vs_degree"] = None
+            m["beats_degree"] = None
+            continue
+        m["lift_vs_degree"] = m["lift"] / base
+        m["beats_degree"] = m["lift"] > base
+
+
+def confound_warning(per: dict[str, dict], degree_key: str = DEGREE_KEY,
+                     alpha: float = SIGNIFICANCE) -> str | None:
+    """The one-line read of a results table, or None when it needs no warning.
+
+    Returns a warning when the degree baseline is itself significant, because
+    that is the signature of a protocol measuring study volume rather than
+    biology.
+    """
+    deg = per.get(degree_key)
+    if not deg:
+        return None
+    dp, dl = deg.get("p_value"), deg.get("lift")
+    if dp is None or dp >= alpha:
+        return None
+    better = sorted((m["lift"], n) for n, m in per.items()
+                    if n != degree_key and m.get("lift") is not None
+                    and m["lift"] > (dl or 0))
+    tail = (f"{better[-1][1]} exceeds it at {better[-1][0]:.2f}"
+            if better else "no channel exceeds it")
+    return (f"CONFOUNDED: the degree baseline is itself significant "
+            f"(lift {dl:.2f}, p={dp:.4f}). These labels track how much a "
+            f"compound has been studied, so a channel beating RANDOM says "
+            f"nothing about mechanism -- only beating DEGREE does. {tail}.")
+
+
 def lift_row(scores: dict[str, float], pos: set[str], k: int = 100) -> dict:
     """Hits@k against the pool's own random expectation.
 

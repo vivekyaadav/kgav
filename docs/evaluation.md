@@ -23,6 +23,13 @@ basis for a shortlist.
 this project has produced.** It was blocked until 2026-10-11 and is reported
 in its own section below.
 
+The one-line version of every table here:
+
+> **In every cross-sectional virus where a reasoning channel cleared p<0.05,
+> the degree baseline cleared it too -- 4 of 4, no exception. Exactly one row
+> in the project has a channel significant while degree is at chance:
+> SARS-CoV-2 M1 under the temporal protocol.**
+
 Five earlier figures for M1 -- 0.823, 0.726, 0.660, 0.499, 0.513 -- are
 reported below rather than withdrawn, because the sequence is the result. Each
 was produced by a protocol that failed a control the next one applied.
@@ -92,6 +99,39 @@ could move it, because almost nothing reaches it.
 minimum class size that script already requires before evaluating a virus is
 the minimum for evaluating one channel of it.
 
+## Why a p-value is not the test
+
+`lift_pvalue` reports the exact hypergeometric tail: the probability of that
+many hits under a **random ranking**. That is all it reports. It cannot see a
+confound that inflates the scorer and the labels together -- which is the
+confound this whole document is about, since 94.9% of compounds share a PMID
+between their `INHIBITS` edge and their antiviral label, and **degree IS study
+volume**.
+
+So p-values make the *uncontrolled* protocol look full of discoveries.
+`compare_metapaths.py` runs on unfiltered `build_labels` output, and there:
+
+| virus | best channel | lift | p | degree | p | |
+|---|---|---|---|---|---|---|
+| SARS-CoV | M1 | 2.10 | <.0001 | **9.51** | **<.0001** | degree wins 4.5x |
+| MERS-CoV | M4 | 11.86 | <.0001 | 10.87 | <.0001 | both significant |
+| HCoV-229E | M4 | 8.48 | 0.021 | 4.48 | 0.030 | both significant |
+| HCoV-NL63 | — | 0.00 | 1.000 | **36.15** | **0.027** | degree only |
+| SARS-CoV-2 | M4 | 1.99 | 0.140 | 0.45 | 0.990 | neither |
+| HCoV-OC43 | M4 | 7.40 | 0.129 | 2.20 | 0.230 | neither |
+
+**Degree's own p-value is the diagnostic.** Where it is significant, the
+labels track how much a compound has been studied, and a channel beating
+random on those labels says nothing about mechanism -- only beating *degree*
+does. `confound_warning()` prints this under any table where it applies, and
+both tables now carry a `vs deg` column, because channel-against-degree is the
+comparison that carries information.
+
+Note SARS-CoV especially: M1 at p<0.0001 looks like the strongest result in
+the project until you see that degree scores 9.51 on the same labels against
+M1's 2.10. Reported alone, that p-value would have been the fifth wrong M1
+number in this document.
+
 ## The temporal protocol: the first signal above the baseline
 
 Pre-2021 graph, post-2021 measurements. **This protocol is
@@ -126,7 +166,13 @@ under random ranking -- the lift equivalent of the AUC intervals above.
 
 **M1 is the first scorer in this project to beat the degree baseline on a
 protocol that controls its confound.** Degree is at chance here (0.93,
-p=0.63); M1 is at 2.22, p=0.020.
+p=0.63); M1 is at 2.22, p=0.020. By the test set out above -- channel
+significant, degree not -- this is the only such row anywhere in the project,
+cross-sectional or temporal.
+
+The same table's MERS-CoV rows do NOT qualify: M4 reaches p=0.0005 there, but
+degree reaches p=0.026 on the same labels, so that virus is still inside the
+confound even temporally.
 
 **What that does and does not establish.** 28 scorer/virus rows were evaluated
 in this run, so a 0.05 threshold expects between one and two rows at p<0.05 by
@@ -180,6 +226,9 @@ it.
 - **Not** that M1 works. Its temporal lift of 2.22 is nominally p=0.020 on
   six hits and does not survive correction for the 28 rows evaluated
   alongside it.
+- **Not** that the significant cross-sectional rows are results. Degree is
+  significant in every one of them, which is the signature of a protocol
+  measuring study volume.
 - No prospective validation. Every figure here is retrospective, the temporal
   split included: it simulates prospective use on data that already exists.
 

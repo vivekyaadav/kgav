@@ -11,7 +11,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from kgav.baselines import (
     Graph,
     combine,
+    confound_warning,
     degree_ranking,
+    degree_relative,
     dwpc_scores,
     lift_row,
 )
@@ -36,6 +38,15 @@ from kgav.temporal import audit, build_split, write_split
 evaluate = lift_row
 
 DEFAULT_OVERLAP_POLICY = "drop-from-test"
+
+
+def _vs(m: dict) -> str:
+    """Lift relative to the degree baseline, which is the comparison that
+    carries information; p alone is against a random ranking."""
+    v = m.get("lift_vs_degree")
+    if v is None:
+        return "      -"
+    return f"{v:>7.2f}"
 
 
 def _p(m: dict) -> str:
@@ -171,13 +182,16 @@ def main() -> int:
                 per[name] = evaluate(sc, test_pos, args.k)
         per["COMBINED"] = evaluate(combine(dwpc, virus), test_pos, args.k)
         per["degree"] = evaluate(deg, test_pos, args.k)
+        degree_relative(per)
         print(f"    {'scorer':<10} {'pool':>7} {'pos':>5} {'hits':>5} "
-              f"{'exp':>7} {'lift':>7} {'p':>7} {'mrr':>7}")
+              f"{'exp':>7} {'lift':>7} {'p':>7} {'vs deg':>7} {'mrr':>7}")
         for name, m in per.items():
             flag = "" if m["trustworthy"] else " (!)"
             print(f"    {name:<10} {m['pool']:>7,} {m['pos']:>5,} {m['hits']:>5} "
                   f"{m['expected']:>7.1f} {m['lift']:>7.2f} {_p(m)} "
-                  f"{m['mrr']:>7.4f}{flag}")
+                  f"{_vs(m)} {m['mrr']:>7.4f}{flag}")
+        if (warn := confound_warning(per)):
+            print(f"    ! {warn}")
         results[label] = per
 
     args.results.mkdir(parents=True, exist_ok=True)
