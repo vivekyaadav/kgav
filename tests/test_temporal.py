@@ -455,12 +455,18 @@ def test_an_unknown_overlap_policy_is_refused(tmp_path):
         build_split(_both_sides(tmp_path), 2021, HELD, overlap_policy="nope")
 
 
-def test_both_protocols_read_one_coverage_floor():
-    """guards.py and tools.py each held their own copy of AUC 0.826 and
-    drifted. The cross-sectional side gates on calibration's
-    MIN_REACHED_POSITIVES; the temporal side must import that same constant
-    rather than define a floor of its own, or the two protocols will answer
-    "is this evaluable?" differently on the same release.
+def test_the_temporal_driver_defines_no_scoring_rules_of_its_own():
+    """Three figures in this project have had two implementations, and in
+    every case only one got fixed: AUC 0.826 in guards.py and tools.py; the
+    coverage floor; and lift trustworthiness, where temporal_split.py kept a
+    copy of lift_row from before `and pool > k` was added, so SARS-CoV-2 M7
+    (pool 91), SARS-CoV M7 (pool 34) and MERS-CoV M7 (pool 14) printed
+    unflagged while compare_metapaths.py flagged the same channel.
+
+    The first version of this test ALLOWLISTED the duplicated
+    MIN_TRUSTWORTHY_EXPECTATION on the grounds that it was not a coverage
+    floor. That was true and beside the point: it was a duplicated constant
+    backing a divergent copy of lift_row, which is what the test was for.
     """
     import ast
     from pathlib import Path
@@ -468,21 +474,65 @@ def test_both_protocols_read_one_coverage_floor():
     src = Path(__file__).resolve().parents[1] / "scripts/temporal_split.py"
     tree = ast.parse(src.read_text())
 
-    imported = any(
-        isinstance(n, ast.ImportFrom) and n.module == "kgav.calibration"
-        and any(a.name == "MIN_REACHED_POSITIVES" for a in n.names)
-        for n in ast.walk(tree))
-    assert imported, "temporal_split must import the shared floor"
+    for module, wanted in (("kgav.calibration", "MIN_REACHED_POSITIVES"),
+                           ("kgav.baselines", "lift_row")):
+        assert any(isinstance(n, ast.ImportFrom) and n.module == module
+                   and any(a.name == wanted for a in n.names)
+                   for n in ast.walk(tree)), \
+            f"temporal_split must import {wanted} from {module}"
 
-    # MIN_TRUSTWORTHY_EXPECTATION is NOT a second floor and is allowed: it
-    # gates on expected hits under random (exp >= 1.0), which is about whether
-    # a LIFT is interpretable, not about how much of the test set a scorer can
-    # reach. The first draft of this test flagged it, which is the distinction
-    # worth recording rather than papering over.
-    ALLOWED = {"MIN_TRUSTWORTHY_EXPECTATION"}
+    # No local threshold or floor. DEFAULT_OVERLAP_POLICY is a policy name,
+    # not a numeric rule, so the check is on numeric assignments only.
     own = [t.id for n in ast.walk(tree) if isinstance(n, ast.Assign)
-           for t in n.targets if isinstance(t, ast.Name)
-           and t.id.isupper() and t.id not in ALLOWED
-           and ("REACH" in t.id or "COVERAGE" in t.id or "FLOOR" in t.id
-                or "MIN_" in t.id)]
-    assert not own, f"second coverage floor defined locally: {own}"
+           for t in n.targets if isinstance(t, ast.Name) and t.id.isupper()
+           and isinstance(n.value, ast.Constant)
+           and isinstance(n.value.value, (int, float))]
+    assert not own, f"numeric scoring rule defined locally: {own}"
+
+
+def test_a_pool_no_larger_than_k_is_flagged_in_the_temporal_protocol():
+    """The behavioural half: lift = pool/k exactly when the pool fits inside
+    k, so the figure is a function of pool size and nothing else. This is the
+    case the temporal driver printed clean for every M7 row.
+    """
+    from kgav.baselines import lift_row
+
+    scores = {f"D{i}": 1.0 / (i + 1) for i in range(30)}
+    pos = {f"D{i}" for i in range(8)}
+
+    small = lift_row(scores, pos, k=100)          # pool 30 <= k
+    assert small["pool"] <= 100
+    assert small["lift_is_pool_artifact"] is True
+    assert small["trustworthy"] is False, \
+        "a lift that is pool/k by construction must never read as trustworthy"
+    assert small["expected"] >= 1.0, \
+        "and expectation alone would have passed it, which was the bug"
+
+    big = lift_row(scores, pos, k=5)              # pool 30 > k
+    assert big["lift_is_pool_artifact"] is False
+    assert big["trustworthy"] is True
+
+
+def test_a_control_run_does_not_overwrite_the_result_it_controls():
+    """--overlap-policy keep wrote to the same path as the real run, so
+    reproducing the refusal destroyed the evaluation it was a control for.
+    """
+    import argparse
+    import importlib.util
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parents[1] / "scripts/temporal_split.py"
+    spec = importlib.util.spec_from_file_location("_ts", src)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    default = argparse.Namespace(cutoff=2021, undated="include",
+                                 overlap_policy=mod.DEFAULT_OVERLAP_POLICY)
+    control = argparse.Namespace(cutoff=2021, undated="include",
+                                 overlap_policy="keep")
+
+    assert mod._results_name(default) == "temporal_2021_include.json", \
+        "the default must keep its existing filename"
+    assert mod._results_name(control) != mod._results_name(default), \
+        "the control must not land on the real run's path"
+    assert "keep" in mod._results_name(control)

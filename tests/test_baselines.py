@@ -515,3 +515,77 @@ def test_m1_loses_the_leaky_drug_but_not_the_sound_one(coincident, schema):
         assert walk_metapath(g_leak, d, m1["path"], m1.get("constraints"), set())
     assert not walk_metapath(g_clean, D1, m1["path"], m1.get("constraints"), set())
     assert walk_metapath(g_clean, D2, m1["path"], m1.get("constraints"), set())
+
+
+# ------------------- lift needs a null, not just a readability heuristic
+def test_the_lift_pvalue_matches_exact_integer_arithmetic():
+    """Computed in log space because pool 4,316 choose 100 is a 240-digit
+    integer. Checked against the exact rational value on the rows the 2021
+    temporal split actually produced, so a precision regression shows up as a
+    wrong p and not as a silent drift.
+    """
+    from math import comb
+
+    from kgav.baselines import lift_pvalue
+
+    def exact(N, K, k, h):
+        return sum(comb(K, i) * comb(N - K, k - i)
+                   for i in range(h, min(K, k) + 1)) / comb(N, k)
+
+    for N, K, k, h in ((296, 8, 100, 6), (186, 4, 100, 3), (3246, 50, 100, 4),
+                       (4316, 231, 100, 5), (2682, 5, 100, 3), (203, 2, 100, 2)):
+        got, want = lift_pvalue(N, K, k, h), exact(N, K, k, h)
+        assert abs(got - want) < 1e-9, f"N={N} K={K} h={h}: {got} vs {want}"
+
+
+def test_the_null_is_hypergeometric_not_poisson():
+    """Taking the top k from a pool is sampling WITHOUT replacement, so the
+    null has the finite-population correction and a TIGHTER tail than Poisson.
+
+    The direction matters and is counter-intuitive: Poisson is CONSERVATIVE
+    here, so using it would discard real results rather than invent them. My
+    first draft of this test asserted the opposite and failed, which is the
+    reason the direction is pinned by a test at all.
+    """
+    from math import exp, factorial
+
+    from kgav.baselines import lift_pvalue
+
+    N, K, k, h = 120, 20, 100, 20          # every positive inside the top k
+    lam = k * K / N
+    poisson = 1.0 - sum(exp(-lam) * lam ** i / factorial(i) for i in range(h))
+    exact = lift_pvalue(N, K, k, h)
+
+    assert exact < 0.05, "all 20 positives in the top 100 of 120 is unlikely"
+    assert poisson > 0.2, "and Poisson calls the same row unremarkable"
+    assert poisson > 10 * exact, f"Poisson is {poisson / exact:.0f}x too high"
+
+
+def test_an_empty_question_gets_no_pvalue():
+    """None rather than 1.0: 'every draw is identical' is not 'consistent with
+    chance', and a reader given 1.0 would think the question was asked.
+    """
+    from kgav.baselines import lift_pvalue
+    assert lift_pvalue(100, 5, 100, 5) is None, "k covers the whole pool"
+    assert lift_pvalue(91, 29, 100, 29) is None, "k exceeds the pool"
+    assert lift_pvalue(500, 0, 100, 0) is None, "no positives to find"
+
+
+def test_the_heuristic_and_the_pvalue_are_reported_separately():
+    """MERS-CoV M4 is the case: pool 2,682, 5 positives, 3 hits, expectation
+    0.19 -- flagged untrustworthy by `exp >= 1`, and the least likely row in
+    the whole run at p=0.0005. Folding the p-value into `trustworthy` would
+    have hidden it; dropping the heuristic would have let lift 16.09 be read
+    as an effect size. Both are reported.
+    """
+    from kgav.baselines import lift_pvalue, lift_row
+
+    scores = {f"D{i}": 1.0 / (i + 1) for i in range(2682)}
+    pos = {"D0", "D1", "D2", "D2000", "D2500"}        # 3 of 5 inside top 100
+    m = lift_row(scores, pos, k=100)
+
+    assert m["pos"] == 5 and m["hits"] == 3
+    assert m["expected"] < 1.0
+    assert m["trustworthy"] is False, "the readability heuristic still fires"
+    assert m["p_value"] < 0.001, "while the exact null says it is surprising"
+    assert m["p_value"] == lift_pvalue(2682, 5, 100, 3)

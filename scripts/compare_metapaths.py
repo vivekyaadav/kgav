@@ -44,6 +44,14 @@ def row(name: str, scores: dict[str, float], pos: set[str], k: int = 100) -> dic
     return lift_row(scores, pos, k)
 
 
+def _p(m: dict) -> str:
+    """p shown only where it answers something: None means the question was
+    empty (no positives, or k covering the whole pool)."""
+    v = m.get("p_value")
+    return "      -" if v is None else (f"{v:>7.4f}" if v >= 0.0001
+                                        else "< .0001")
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
@@ -76,7 +84,7 @@ def main() -> int:
             print("    unevaluable: no measured activity\n")
             continue
         print(f"    {'scorer':<10} {'pool':>7} {'pos':>5} {'hits':>5} "
-                f"{'exp':>7} {'lift':>7} {'mrr':>7}")
+                f"{'exp':>7} {'lift':>7} {'p':>7} {'mrr':>7}")
         per: dict[str, dict] = {}
         for name in sorted(dwpc):
             sc = {d: by[virus] for d, by in dwpc[name].items() if virus in by}
@@ -89,7 +97,8 @@ def main() -> int:
         for name, m in per.items():
             flag = "" if m["trustworthy"] else " (!)"
             print(f"    {name:<10} {m['pool']:>7,} {m['pos']:>5,} {m['hits']:>5} "
-                  f"{m['expected']:>7.1f} {m['lift']:>7.2f} {m['mrr']:>7.4f}{flag}")
+                  f"{m['expected']:>7.1f} {m['lift']:>7.2f} {_p(m)} "
+                  f"{m['mrr']:>7.4f}{flag}")
         results[label] = per
         print()
 
