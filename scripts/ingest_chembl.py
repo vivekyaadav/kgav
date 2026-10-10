@@ -14,6 +14,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.aliases import AliasIndex
 from kgav.chembl import (
+    EMITTED_COUNTERS,
+    DROPPED_COUNTERS,
+    accounting,
     build_viral_target_index,
     ingest_activities,
     query_activities,
@@ -60,10 +63,7 @@ def main() -> int:
     # screen saying where the rest went. Comparing counts across entities that
     # should agree is this project's stated primary integrity check (README
     # §2.4); it has to hold inside the ingest that feeds it.
-    EMITTED = ("protein_edges", "measured_inactive_edges", "organism_edges")
-    DROPPED = ("no_inchikey", "unmapped_taxon", "unconvertible_units",
-               "no_target_node", "duplicate", "multicomponent_target",
-               "binding_constant_on_organism", "undecidable_protein_measurement")
+    EMITTED, DROPPED = EMITTED_COUNTERS, DROPPED_COUNTERS
 
     print(f"\n{s['protein_edges']:,} INHIBITS + "
           f"{s['measured_inactive_edges']:,} MEASURED_INACTIVE_AGAINST + "
@@ -94,7 +94,8 @@ def main() -> int:
         if s[k]:
             print(f"    {k:<32} {s[k]:>7,}")
 
-    accounted = sum(s[k] for k in EMITTED) + sum(s[k] for k in DROPPED)
+    emitted, dropped, unlisted = accounting(s)
+    accounted = emitted + dropped
     print(f"\n  rows in {s['rows']:,} | emitted + dropped {accounted:,}")
     if accounted != s["rows"]:
         # Not a warning to read past. An unaccounted row is a row whose fate
@@ -103,7 +104,7 @@ def main() -> int:
         print(f"  ACCOUNTING FAILS by {s['rows'] - accounted:,} rows — every "
               f"row must be emitted or counted as dropped.\n  Unlisted "
               f"counters: "
-              f"{sorted(set(s) - set(EMITTED) - set(DROPPED) - {'rows', 'censored', 'unresolved'} - {k for k in s if k.startswith('resolved_')})}")
+              f"{unlisted}")
         return 1
 
     all_nodes = list(index.nodes.values()) + list(em.nodes.values())
