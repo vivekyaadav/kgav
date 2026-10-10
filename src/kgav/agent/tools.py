@@ -406,8 +406,15 @@ class GraphTools:
             # SELECTIVITY BEFORE POTENCY. Ordering on potency first ranked
             # chloroquine (160 nM, SI 15) above remdesivir (1,560 nM, SI 107)
             # -- and potency without selectivity is precisely the signal that
-            # made chloroquine look promising in 2020. Selectivity is what
-            # took M1's AUC from 0.729 to 0.826.
+            # made chloroquine look promising in 2020. That reasoning stands
+            # on its own; the evidence once cited for it does not.
+            # "Selectivity took M1's AUC from 0.729 to 0.826" was measured by
+            # filtering positives to compounds with verified selectivity data
+            # while leaving negatives whole, which also moved cov_pos 49% ->
+            # 69% and left cov_neg at 4%. Most of that gain was annotation
+            # density: symmetric, M1 reads 0.660, and 0.499 once same-paper
+            # evidence is withheld. Selectivity still comes first because
+            # potency alone is the chloroquine failure, not because of 0.826.
             #
             # Compounds with an unverified selectivity index rank below those
             # with one: unknown is not a passing grade.
@@ -445,10 +452,10 @@ class GraphTools:
             "final tiebreak. The NUMBER of routes does not affect the order, "
             "host-directed routes contribute nothing to it, and a compound "
             "whose selectivity is unknown ranks below one with a measured "
-            "index. Direct-acting paths "
-            "separate selective antivirals from measured inactives at AUC 0.826; "
-            "host-directed paths score below chance and are shown for context "
-            "only."))
+            "index. "
+            + guards.direct_acting_caveat(self.calibration)
+            + ". Host-directed routes contribute nothing to this order and "
+            "are shown for context only."))
         if missing:
             warns.append(f"{len(missing)} requested compound(s) are not in this "
                          f"graph and were not ranked: {', '.join(missing)}")

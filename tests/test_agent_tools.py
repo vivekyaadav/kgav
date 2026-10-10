@@ -133,7 +133,10 @@ def test_path_warnings_attach_to_their_own_route(graph):
     r = graph.explain(CYTO, V)
     joined = " ".join(r.verbalised)
     assert "CELL CONTEXT" in joined and "SIGMAR1" in joined
-    assert "below chance" in joined
+    # The host-directed caveat must be attached. WHAT it says comes from the
+    # calibration -- asserting the literal "below chance" is how this test
+    # passed while the figure inside it went stale.
+    assert "HOST-DIRECTED ROUTE" in joined
 
 
 def test_path_warnings_are_also_required_warnings(graph):
@@ -176,7 +179,12 @@ def test_triage_ranks_direct_acting_above_host_directed(graph):
 
 def test_triage_states_why_it_ranks_that_way(graph):
     r = graph.triage([DRUG], V)
-    assert any("0.826" in w and "below chance" in w for w in r.warnings)
+    # NOT "0.826": that figure came from a protocol which filtered positives
+    # and left negatives whole, and the same metapath reads 0.499 under the
+    # publication-disjoint control. The caveat states what was measured, or
+    # that nothing was.
+    assert any("direct-acting" in w for w in r.warnings)
+    assert not any("0.826" in w for w in r.warnings)
 
 
 # ----------------------------------------------------------------- evidence
