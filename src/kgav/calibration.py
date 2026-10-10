@@ -41,6 +41,21 @@ from pathlib import Path
 # A channel must beat chance with its interval, not its point estimate.
 CHANCE = 0.5
 
+# AN AUC OVER UNREACHED POSITIVES IS NOT A MEASUREMENT OF THE CHANNEL.
+# evaluate_against_negatives imputes a floor score for every compound a
+# scorer does not reach, which is the right choice -- a scorer evaluated only
+# on what it happens to reach chooses its own test set. But it means a
+# channel's AUC is dominated by that floor when its coverage is low, and the
+# interval is computed from n_pos rather than from the number it actually
+# reached. M1 reads 0.513 [0.453, 0.574] on 89 positives while reaching
+# 3.4% of them: THREE compounds. The figure describes the imputation, and the
+# interval implies far more evidence than three compounds provide.
+#
+# 10 matches hard_negatives.MIN_CLASS_SIZE, which is the minimum class size
+# that script requires before evaluating a virus at all. The same number is
+# the minimum for evaluating one channel.
+MIN_REACHED_POSITIVES = 10
+
 # Protocols whose numbers must never become weights, with the reason. Checked
 # by name so a results file produced under one is refused rather than silently
 # trusted -- the whole sequence in docs/evaluation.md is numbers that looked
@@ -66,6 +81,17 @@ class ChannelCalibration:
     coverage_neg: float = 0.0
 
     @property
+    def n_reached_pos(self) -> int:
+        """Positives this channel actually found a path to."""
+        return round(self.coverage_pos * self.n_pos)
+
+    @property
+    def evaluable(self) -> bool:
+        """Whether the AUC describes the channel or the imputation."""
+        return (self.auc is not None
+                and self.n_reached_pos >= MIN_REACHED_POSITIVES)
+
+    @property
     def discriminates(self) -> bool:
         """Whether the interval clears chance.
 
@@ -73,7 +99,7 @@ class ChannelCalibration:
         does, and every channel on this release has a point estimate above or
         near 0.5 while none has an interval that excludes it.
         """
-        return (self.auc is not None and self.ci_lo is not None
+        return (self.evaluable and self.ci_lo is not None
                 and self.ci_lo > CHANCE)
 
     @property
@@ -90,12 +116,21 @@ class ChannelCalibration:
         """One line an agent can put in front of a reader."""
         if self.auc is None:
             return f"{self.name}: not evaluable ({self.n_pos}+/{self.n_neg}-)"
+        if not self.evaluable:
+            # Say what is missing rather than a number. Reporting 0.513 for a
+            # channel that reached three compounds is the same error as a
+            # hardcoded AUC: more confidence than the evidence carries.
+            return (f"{self.name}: NOT EVALUABLE — reaches {self.n_reached_pos} "
+                    f"of {self.n_pos:,} measured actives "
+                    f"({self.coverage_pos:.1%}), below the {MIN_REACHED_POSITIVES} "
+                    f"needed for an AUC to describe the channel rather than "
+                    f"the imputed floor")
         verdict = ("discriminates" if self.discriminates
                    else "indistinguishable from chance")
         return (f"{self.name}: AUC {self.auc:.3f} "
                 f"[{self.ci_lo:.3f}, {self.ci_hi:.3f}] on {self.n_pos:,} "
-                f"measured active / {self.n_neg:,} measured inactive — "
-                f"{verdict}")
+                f"measured active / {self.n_neg:,} measured inactive, "
+                f"reaching {self.n_reached_pos} of them — {verdict}")
 
 
 @dataclass
@@ -116,6 +151,13 @@ class Calibration:
             return []
         return [n for n, c in sorted(self.channels.items()) if c.discriminates]
 
+    def evaluable(self) -> list[str]:
+        """Channels whose AUC describes the channel rather than the floor."""
+        return [n for n, c in sorted(self.channels.items()) if c.evaluable]
+
+    def not_evaluable(self) -> list[str]:
+        return [n for n, c in sorted(self.channels.items()) if not c.evaluable]
+
     def weights(self) -> dict[str, float]:
         if not self.usable:
             return {}
@@ -131,16 +173,26 @@ class Calibration:
         if self.refused_reason:
             return (f"calibration from {self.source_file} was refused: "
                     f"{self.refused_reason}")
-        evaluated = [c for c in self.channels.values() if c.auc is not None]
-        if not evaluated:
-            return (f"no channel was evaluable for {self.virus} under "
-                    f"{self.protocol}")
-        best = max(evaluated, key=lambda c: c.auc)
+        tested = [c for c in self.channels.values() if c.evaluable]
+        untested = self.not_evaluable()
+        if not tested:
+            return (f"NO channel was evaluable for {self.virus} under "
+                    f"{self.protocol}: every one reaches fewer than "
+                    f"{MIN_REACHED_POSITIVES} of the measured actives, so "
+                    f"their AUCs describe the imputed floor rather than the "
+                    f"channels. Not evaluated: {', '.join(untested)}. The "
+                    f"graph can report evidence for a named compound; it has "
+                    f"no measured basis for a shortlist.")
+        best = max(tested, key=lambda c: c.auc)
+        tail = (f" {len(untested)} channel(s) were not evaluable at all "
+                f"({', '.join(untested)}), reaching fewer than "
+                f"{MIN_REACHED_POSITIVES} measured actives each."
+                if untested else "")
         return (f"no reasoning channel beats chance for {self.virus} under "
-                f"{self.protocol}: the strongest is {best.describe()}. "
-                f"Ranking candidates would order them by noise, so the graph "
-                f"can report evidence for a named compound but not a "
-                f"shortlist.")
+                f"{self.protocol}: of {len(tested)} evaluable, the strongest "
+                f"is {best.describe()}.{tail} Ranking candidates would order "
+                f"them by noise, so the graph can report evidence for a named "
+                f"compound but not a shortlist.")
 
     def report(self) -> list[str]:
         lines = [f"calibration: {self.protocol} / {self.virus}"

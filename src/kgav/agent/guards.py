@@ -239,6 +239,16 @@ def _channel_caveat(code: str, calibration) -> str:
         return (f"{code} was not evaluable under {calibration.protocol}, so "
                 f"its reliability is unknown. Read the path as a mechanistic "
                 f"hypothesis to evaluate, not as evidence of activity.")
+    if not ch.evaluable:
+        # An AUC computed mostly over positives the channel never reached
+        # describes the imputed floor. Quoting it here would be the hardcoded
+        # figure's error in a new place: more confidence than the evidence.
+        return (f"{code} has NOT been evaluated under "
+                f"{calibration.protocol} — it reaches only "
+                f"{ch.n_reached_pos} of {ch.n_pos:,} measured actives, too "
+                f"few for a measured performance. Its reliability is "
+                f"unknown. Read the path as a mechanistic hypothesis to "
+                f"evaluate, not as evidence of activity.")
     if ch.discriminates:
         return (f"{code} separates measured actives from measured inactives "
                 f"at AUC {ch.auc:.3f} [{ch.ci_lo:.3f}, {ch.ci_hi:.3f}] under "
@@ -275,11 +285,17 @@ def direct_acting_caveat(calibration, code: str = "M1") -> str:
         return (f"{code} was not evaluable under {calibration.protocol}, so "
                 f"this order reflects the evidence available rather than a "
                 f"demonstrated ability to rank")
-    if ch.discriminates:
+    if ch.discriminates:   # implies evaluable
         return (f"direct-acting evidence ({code}) separates measured actives "
                 f"from measured inactives at AUC {ch.auc:.3f} "
                 f"[{ch.ci_lo:.3f}, {ch.ci_hi:.3f}] under "
                 f"{calibration.protocol}")
+    if not ch.evaluable:
+        return (f"direct-acting evidence ({code}) has NOT been evaluated "
+                f"under {calibration.protocol} — it reaches only "
+                f"{ch.n_reached_pos} of {ch.n_pos:,} measured actives — so "
+                f"this order reflects the evidence available rather than a "
+                f"demonstrated ability to rank")
     return (f"direct-acting evidence ({code}) scores AUC {ch.auc:.3f} "
             f"[{ch.ci_lo:.3f}, {ch.ci_hi:.3f}] under {calibration.protocol} — "
             f"indistinguishable from chance, so this order reflects the "
