@@ -196,3 +196,57 @@ def test_every_fold_spec_accession_matches_the_registers_chain_source():
                               f"register {by_taxon[t]}")
     assert not mismatched, "\n  ".join(["spec/register accession mismatch:"]
                                        + mismatched)
+
+
+def test_no_script_builds_the_taxon_map_by_hand():
+    """declared_taxa exists for this and its own docstring says so -- "the same
+    shape the ingests build ad hoc from isolate_taxa, derived here so
+    chain_source cannot drift out of the map" -- and for four scripts nothing
+    called it. ingest_chembl, ingest_selectivity, ingest_vhppi and
+    diagnose_assay_type each rebuilt the mapping inline, so the canonical
+    function was reached only by its own test: five implementations of one
+    mapping.
+
+    That is the shape of three bugs already paid for in this project -- AUC
+    0.826 in guards.py and tools.py, the coverage floor, and lift's
+    trustworthy rule, each fixed in one copy and left broken in the other.
+
+    Detected on the AST rather than by grepping for text, so a reformatted
+    copy still trips it.
+    """
+    import ast
+    from pathlib import Path
+
+    scripts = Path(__file__).resolve().parents[1] / "scripts"
+    offenders = []
+    for path in sorted(scripts.glob("*.py")):
+        tree = ast.parse(path.read_text())
+        for node in ast.walk(tree):
+            # for iso in v.get("isolate_taxa") or []:  -> the hand-built copy
+            if not isinstance(node, ast.For):
+                continue
+            src = ast.dump(node.iter)
+            if "isolate_taxa" in src:
+                offenders.append(f"{path.name}:{node.lineno}")
+    assert not offenders, (
+        "taxon map rebuilt inline instead of via "
+        f"virus_register.declared_taxa: {offenders}")
+
+
+def test_declared_taxa_maps_every_isolate_to_its_species(doc):
+    """What the consolidation has to preserve: VirHostNet files MERS under
+    the HCoV-EMC/2012 isolate and HKU1 under a strain taxon, and querying
+    either species returns zero rows. The map is the only thing standing
+    between those interactions and vanishing as an unknown organism.
+    """
+    m = declared_taxa(doc, "viruses")
+    for entry in doc["viruses"]:
+        species = str(entry["taxon"])
+        assert m[species] == species
+        for iso in entry.get("isolate_taxa") or []:
+            assert m[str(iso)] == species, f"{iso} must map to {species}"
+        chain = str((entry.get("chain_source") or {}).get("taxon") or "")
+        if chain:
+            assert m[chain] == species, (
+                f"chain_source taxon {chain} missing from the map: this is "
+                f"the line the hand-built copies omitted")
