@@ -157,30 +157,61 @@ def check_against_register(report: dict, virus: dict, *, is_extra: bool) -> list
     extra = virus.get("extra_accessions") or []
     problems: list[str] = []
 
+    def _count(where: str) -> list[str]:
+        """Compare the pinned chain count against the file that supplies it."""
+        if not acc or claimed is None or report["chains"].get(acc) == claimed:
+            return []
+        return [f"{acc} carries {report['chains'].get(acc)} Chain features in "
+                f"the {where}, register claims {claimed} "
+                f"(verified {cs.get('verified')}) -- UniProt changed, or the "
+                f"claim was wrong"]
+
+    # WHICH FILE HOLDS THE CHAINS IS THE WHOLE QUESTION.
+    #
+    # ingest_spine does `entries = curated` (scripts/ingest_spine.py:221):
+    # curated accessions REPLACE the proteome rather than augmenting it. So
+    # for a virus declaring extra_accessions, the proteome's CONTENT is never
+    # read -- only its existence matters, because the pfile.exists() guard
+    # returns early before the curated branch is reached.
+    #
+    # The first run of --check got this wrong and reported MERS-CoV as
+    # DISAGREEING: chain_source pins K9N7C7, the proteome holds eleven
+    # unrelated K0B*/K4L* accessions, and that is exactly how MERS is designed
+    # -- K9N7C7 is filed under isolate taxon 1263720 and arrives via
+    # EXTRA_1335626.json.gz. Looking for the chains in the proteome asked the
+    # wrong file. A check that cries wolf on a correctly curated virus gets
+    # switched off, which would have cost more than it saved.
+    replaced = bool(extra)
+
     if is_extra:
         missing = [a for a in extra if a not in report["accessions"]]
         if missing:
             problems.append(
                 f"extra_accessions {missing} not in the response -- the "
                 f"accession query returned {report['accessions']}")
+        if acc in extra:
+            problems += _count("curated file")
+        if report["total_chains"] == 0:
+            problems.append(
+                "the curated file has zero Chain features, so it replaces the "
+                "proteome with entries that carry no mature peptides and every "
+                "ChEMBL row lands on the polyprotein")
         return problems
 
-    # A proteome whose pinned chain_source accession is absent cannot supply
-    # the mature peptides, and extra_accessions is the documented route.
+    if replaced:
+        # Gate token only: it must exist, and nothing about its content is
+        # consumed. Checking it would be checking a file the build discards.
+        return problems
+
     if acc and acc not in report["accessions"]:
-        hint = ("it is already in extra_accessions, so fetch that too"
-                if acc in extra else
-                f"add extra_accessions: [{acc}] to {virus['name']} and re-run")
         problems.append(
             f"chain_source pins {acc} but the proteome contains "
-            f"{report['accessions']} -- {hint}")
-    elif acc and claimed is not None and report["chains"].get(acc) != claimed:
-        problems.append(
-            f"{acc} carries {report['chains'].get(acc)} Chain features, "
-            f"register claims {claimed} (verified {cs.get('verified')}) -- "
-            f"UniProt changed, or the claim was wrong")
+            f"{report['accessions']} -- add extra_accessions: [{acc}] to "
+            f"{virus['name']} and re-run, which is the MERS mechanism")
+    else:
+        problems += _count("proteome")
 
-    if not extra and report["total_chains"] == 0:
+    if report["total_chains"] == 0:
         problems.append(
             "the proteome has zero Chain features, so it builds proteins with "
             "no mature peptides and every ChEMBL row lands on the "

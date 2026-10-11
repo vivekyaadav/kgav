@@ -60,8 +60,26 @@ def _entry(acc: str, chain_descriptions: list[str]) -> dict:
     }
 
 
+def _gz(payload: bytes) -> bytes:
+    """gzip with mtime=0, because the default is time.time().
+
+    This broke the suite on 32 workers. gzip stamps an mtime into its header,
+    so a fixture built at module import produced different BYTES on workers
+    that started either side of a second boundary (0x93 vs 0x94). Those bytes
+    were in a parametrize list and therefore in the test IDs, so xdist saw
+    different tests collected on gw0 and gw10..gw31 and refused to run at all
+    -- "Different tests were collected between gw0 and gw10". It passed on
+    fewer workers purely because they all landed in the same second.
+
+    Two independent fixes, because either alone is fragile: mtime=0 here makes
+    the bytes deterministic, and the parametrize below passes explicit `ids`
+    so no binary ever reaches a test ID again.
+    """
+    return gzip.compress(payload, mtime=0)
+
+
 def _body(entries: list[dict]) -> bytes:
-    return gzip.compress(json.dumps({"results": entries}).encode())
+    return _gz(json.dumps({"results": entries}).encode())
 
 
 ZIKA_PROTEOME = _body([_entry("Q32ZE1", ZIKA_CHAINS), _entry("P0DXN9", [])])
@@ -85,6 +103,35 @@ def _virus(register, name):
 # --------------------------------------------------------------------------
 # URLs
 # --------------------------------------------------------------------------
+def test_the_fixtures_are_byte_identical_in_every_process():
+    """The bug that broke the suite, pinned at its cause.
+
+    gzip writes a 4-byte mtime at offset 4 of its header, defaulting to
+    time.time(). Any fixture built at import time therefore differed between
+    xdist workers that started in different seconds, and because those bytes
+    reached the test IDs, collection itself diverged and the run aborted.
+
+    Asserting the header field rather than comparing two compressions in one
+    process: two calls a microsecond apart agree even with the bug present, so
+    that comparison would pass and prove nothing.
+    """
+    for fixture in (ZIKA_PROTEOME, DENV2_PROTEOME, DENV2_EXTRA):
+        assert fixture[:2] == b"\x1f\x8b", "gzip magic"
+        assert fixture[4:8] == b"\x00\x00\x00\x00", \
+            "gzip mtime must be zeroed, or these bytes vary per process"
+
+
+def test_no_test_id_in_this_module_contains_raw_bytes(request):
+    """The second half of the fix. mtime=0 makes the fixtures deterministic,
+    but any future parametrize over binary would reintroduce unreadable and
+    potentially unstable IDs, so the ids= argument is the durable guard."""
+    ids = [item.nodeid for item in request.session.items
+           if item.nodeid.startswith("tests/test_fetch_raw.py")]
+    assert ids, "precondition: this module's items are collected"
+    for nid in ids:
+        assert "\\x" not in nid, f"binary leaked into a test id: {nid}"
+
+
 def test_proteome_url_asks_the_stream_endpoint_for_compressed_json():
     """`search` paginates and truncates; `stream` returns the whole set.
 
@@ -131,10 +178,10 @@ def test_inspect_accepts_an_uncompressed_body():
 
 @pytest.mark.parametrize("body,because", [
     (b"<html>502 Bad Gateway</html>", "an HTML error page"),
-    (gzip.compress(b'{"messages": ["Invalid query"]}'), "a JSON error object"),
-    (gzip.compress(b'{"results": []}'), "a query that matched nothing"),
-    (gzip.compress(b"not json at all"), "a truncated body"),
-])
+    (_gz(b'{"messages": ["Invalid query"]}'), "a JSON error object"),
+    (_gz(b'{"results": []}'), "a query that matched nothing"),
+    (_gz(b"not json at all"), "a truncated body"),
+], ids=["html-error-page", "json-error-object", "empty-results", "truncated"])
 def test_inspect_refuses_everything_load_proteome_would_read_as_empty(body, because):
     """load_proteome does `.get("results", [])`, so each of these ingests as
     "a virus with no proteins" -- indistinguishable from a missing file, which
@@ -168,24 +215,67 @@ def test_a_changed_chain_count_is_caught_not_trusted(register):
     assert "2026-09-17" in problems[0], "say which claim is being contradicted"
 
 
-def test_denv2_proteome_alone_is_refused_and_names_the_route(register):
-    """The live case. P29990 has NO proteome cross-reference, so UP000095876
-    cannot contain it. Writing the proteome alone yields proteins with no
-    mature peptides -- which is exactly how DENV-2 would have looked had the
-    file been present during the promotion."""
+def test_mers_proteome_is_not_judged_on_content_it_never_supplies(register):
+    """REGRESSION. The first real --check run reported MERS-CoV as DISAGREEING:
+    chain_source pins K9N7C7, and UP000112279 holds eleven unrelated
+    K0B*/K4L* accessions instead.
+
+    That is how MERS is designed. K9N7C7 is filed under isolate taxon 1263720,
+    arrives via EXTRA_1335626.json.gz, and ingest_spine.py:221 does
+    `entries = curated` -- the curated accessions REPLACE the proteome, so its
+    content is never read. Only its existence matters, via the
+    pfile.exists() guard that returns early before the curated branch.
+
+    Checking the proteome asked the wrong file. A check that cries wolf on a
+    correctly curated virus is a check that gets switched off.
+    """
+    m = _virus(register, "MERS-CoV")
+    real_mers_proteome = _body([_entry(a, []) for a in (
+        "K0BRG7", "K0BWD0", "K4LC41", "K0BU37", "K0BVN3", "K0BRH1",
+        "K0BU34", "K0BUR3", "K0BVN0", "K0BWC8", "K4L9K1")])
+    assert fr.check_against_register(
+        fr.inspect(real_mers_proteome), m, is_extra=False) == [], \
+        "a curated virus's proteome must not be judged on content it replaces"
+
+
+def test_denv2_proteome_is_a_gate_token_not_a_source(register):
+    """Same mechanism, the flavivirus case. P29990 has NO proteome
+    cross-reference of any kind, so UP000095876 can never contain it -- and
+    with extra_accessions declared, it does not need to."""
     d = _virus(register, "DENV-2")
-    problems = fr.check_against_register(
-        fr.inspect(DENV2_PROTEOME), d, is_extra=False)
-    assert problems, "a proteome without the pinned accession must not pass"
-    joined = " ".join(problems)
-    assert "P29990" in joined
-    assert "extra_accessions" in joined, "name the documented route"
+    assert d["extra_accessions"] == ["P29990"]
+    assert fr.check_against_register(
+        fr.inspect(DENV2_PROTEOME), d, is_extra=False) == []
 
 
-def test_denv2_extra_file_satisfies_the_extra_check(register):
+def test_the_chains_are_verified_in_the_file_that_actually_supplies_them(register):
+    """The check did not disappear, it moved. DENV-2's 13 chains are claimed
+    on P29990, which lives in the curated file, so that is where the count is
+    compared."""
     d = _virus(register, "DENV-2")
     assert fr.check_against_register(
         fr.inspect(DENV2_EXTRA), d, is_extra=True) == []
+
+    thinner = _body([_entry("P29990", ZIKA_CHAINS[:9])])
+    problems = fr.check_against_register(fr.inspect(thinner), d, is_extra=True)
+    assert len(problems) == 1
+    assert "9 Chain features in the curated file" in problems[0]
+    assert "claims 13" in problems[0] and "2026-09-17" in problems[0]
+
+
+def test_a_virus_with_no_curated_route_is_refused_and_told_to_add_one(register):
+    """What the DENV-2 case looked like BEFORE extra_accessions was set, and
+    what the next promotion of an isolate-curated virus will look like: the
+    pinned accession is absent and nothing declares how it arrives."""
+    virus = {"name": "Hypothetical", "taxon": "1", "proteome_id": "UP0",
+             "chain_source": {"accession": "P29990", "taxon": "31634",
+                              "chains": 13}}
+    problems = fr.check_against_register(
+        fr.inspect(DENV2_PROTEOME), virus, is_extra=False)
+    assert problems, "an unexplained absence must not pass"
+    joined = " ".join(problems)
+    assert "P29990" in joined
+    assert "extra_accessions" in joined, "name the documented route"
 
 
 def test_an_extra_file_missing_its_accession_is_caught(register):
@@ -227,14 +317,31 @@ def test_a_refused_file_is_never_written(register, tmp_path, monkeypatch):
     re-validating it, so a file that disagrees with the register is worse than
     no file -- absence at least records `proteome_missing`."""
     monkeypatch.setattr(fr, "PROTEOMES", tmp_path)
+    # Zika declares no extra_accessions, so its proteome IS the source and is
+    # checked. A chain count that moved from 13 to 9 silently changes which
+    # mature peptide every ChEMBL row lands on.
+    z = _virus(register, "Zika")
+    thinner = _body([_entry("Q32ZE1", ZIKA_CHAINS[:9])])
+    problems = fr.fetch_virus(z, force=True, dry_run=False,
+                              fetch=lambda url: thinner)
+    assert problems, "the proteome contradicted the register and was refused"
+    assert not (tmp_path / "UP000054557.json.gz").exists()
+    assert not fr.sidecar_path(tmp_path / "UP000054557.json.gz").exists(), \
+        "a refusal must not leave provenance for a file that was not written"
+
+
+def test_a_refusal_is_per_file_not_per_virus(register, tmp_path, monkeypatch):
+    """DENV-2 fetches two files. A bad curated file must not suppress a good
+    proteome, or a retry would have to redo both."""
+    monkeypatch.setattr(fr, "PROTEOMES", tmp_path)
     d = _virus(register, "DENV-2")
+    bad_extra = _body([_entry("P29990", [])])        # zero chains
     problems = fr.fetch_virus(
         d, force=True, dry_run=False,
-        fetch=lambda url: DENV2_EXTRA if "accession" in url else DENV2_PROTEOME)
-    assert problems, "the proteome disagreed and must have been refused"
-    assert not (tmp_path / "UP000095876.json.gz").exists()
-    # The EXTRA file was fine and is written: a refusal is per-file.
-    assert (tmp_path / "EXTRA_11060.json.gz").exists()
+        fetch=lambda url: bad_extra if "accession" in url else DENV2_PROTEOME)
+    assert problems
+    assert (tmp_path / "UP000095876.json.gz").exists(), "the good file lands"
+    assert not (tmp_path / "EXTRA_11060.json.gz").exists(), "the bad one does not"
 
 
 def test_a_clean_fetch_writes_the_file_and_its_provenance(register, tmp_path,
