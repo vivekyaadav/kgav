@@ -93,7 +93,8 @@ def test_held_out_predicates_are_declared(schema):
 def test_valid_direct_acting_edge(schema, world):
     e = _edge(_mol()["id"], "INHIBITS", VIRAL_P,
               {"ec50_nm": 120.0, "cc50_nm": 24000.0, "assay_type": "biochemical",
-               "lifecycle_stage": "genome_replication"})
+               "lifecycle_stage": "genome_replication",
+               "target_resolution": "chain_from_assay_description"})
     assert schema.validate_edge(e, _index(world["nodes"])) == []
 
 

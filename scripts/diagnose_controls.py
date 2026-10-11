@@ -179,18 +179,35 @@ def main(argv=None) -> int:
         # `{d: degree for d in g.drugs()}`, so a PROTEIN looked up in it
         # returns 0 and this column would have reported every target as
         # degree 0 -- the silent zero that makes a diagnostic lie.
+        #
+        # target_resolution is printed because it now DECIDES traversal. M1,
+        # M7 and M8 require chain_from_assay_description, so an edge marked
+        # parent_unresolved is no longer walked -- and the degree beside it
+        # explains why that mattered: the parent accession carries fewer
+        # edges than the mature chain, so the unresolved edge used to score
+        # HIGHER. The parent's degree is low precisely BECAUSE resolution
+        # succeeded elsewhere, which made it a denominator rewarding its own
+        # gaps. Shown per edge rather than per target: one drug can hold both
+        # kinds.
         inter: Counter = Counter()
+        res: dict[str, Counter] = {}
         for pred in ("INHIBITS", "TARGETS"):
-            for nbr, _edge in g.neighbours(pred, nid):
+            for nbr, edge in g.neighbours(pred, nid):
                 inter[nbr] += 1
+                r = (edge.get("qualifiers") or {}).get("target_resolution")
+                res.setdefault(nbr, Counter())[r or "-"] += 1
         if inter:
             print("\n  first-hop targets, with the degree DWPC divides by:")
             for tgt, n_edges in inter.most_common(6):
                 props = (g.nodes.get(tgt) or {}).get("properties") or {}
                 lbl = (props.get("protein_family") or props.get("gene_symbol")
                        or tgt)
+                how = ", ".join(f"{k}x{v}" if v > 1 else k
+                                for k, v in res[tgt].most_common())
+                walks = "parent_unresolved" not in res[tgt]
                 print(f"    {lbl!s:<22} degree {g.degree.get(tgt, 0):>8,}"
-                      f"  ({n_edges} edge(s) from this drug)  {tgt}")
+                      f"  ({n_edges} edge(s))  {'M1 walks' if walks else 'M1 REFUSES'}"
+                      f"  [{how}]  {tgt}")
         print()
 
     # ------------------------------------------------- the aggregate check

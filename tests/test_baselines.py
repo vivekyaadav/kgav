@@ -45,7 +45,20 @@ def _drug(nid):
 
 
 def _e(s, p, o, q=None, date="2020-01-01"):
-    return {"subject": s, "predicate": p, "object": o, "qualifiers": q or {},
+    """A fixture edge, mirroring one production invariant deliberately.
+
+    chembl.py sets target_resolution on EVERY INHIBITS edge it emits -- both
+    branches, resolved and unresolved -- and the schema now requires it,
+    because M1/M7/M8 constrain on it and a missing qualifier reads as a
+    failed match. A fixture omitting it is not a simpler fixture; it is an
+    edge the direct-acting channel silently refuses to walk. Defaulted here
+    so that stays true as fixtures are added, and overridable so a test can
+    say parent_unresolved and mean it.
+    """
+    quals = dict(q or {})
+    if p == "INHIBITS":
+        quals.setdefault("target_resolution", "chain_from_assay_description")
+    return {"subject": s, "predicate": p, "object": o, "qualifiers": quals,
             "primary_knowledge_source": "s", "evidence_tier": 1,
             "first_asserted_date": date}
 
@@ -427,7 +440,8 @@ def test_metapath_reach_reports_a_metapath_that_reaches_nothing(tmp_path):
                 "first_asserted_date": "2020-01-01"}
 
     # M1 is walkable; LIVE_ONLY has a predicate with no edges in this graph.
-    edges = [e("INCHIKEY:D", "INHIBITS", "UniProtKB:P1", {"assay_type": "biochemical"}),
+    edges = [e("INCHIKEY:D", "INHIBITS", "UniProtKB:P1",
+               {"assay_type": "biochemical", "target_resolution": "chain_from_assay_description"}),
              e("UniProtKB:P1", "ENCODED_BY", "KGAV:G"),
              e("KGAV:G", "BELONGS_TO", "NCBITaxon:1")]
     rel = tmp_path / "rel"
@@ -602,6 +616,123 @@ def test_m1_loses_the_leaky_drug_but_not_the_sound_one(coincident, schema):
         assert walk_metapath(g_leak, d, m1["path"], m1.get("constraints"), set())
     assert not walk_metapath(g_clean, D1, m1["path"], m1.get("constraints"), set())
     assert walk_metapath(g_clean, D2, m1["path"], m1.get("constraints"), set())
+
+
+# ------------------------------------------------- unresolved target exclusion
+@pytest.fixture
+def resolution(tmp_path):
+    """Two drugs, same biology, filed at two levels of detail.
+
+    RESOLVED inhibits the mature chain, as nirmatrelvir's ChEMBL activity
+    does. VAGUE inhibits the parent polyprotein because its assay
+    description named no protein, as pomotrelvir's does. The parent is given
+    a LOWER degree than the chain, which is the real situation on v0.1
+    (38 against 3,117) and the reason DWPC preferred the vaguer edge.
+    """
+    chain, parent = "UniProtKB:PRO_CHAIN", "UniProtKB:PARENT"
+    nodes = [_drug("INCHIKEY:RESOLVED"), _drug("INCHIKEY:VAGUE"),
+             _prot(chain, True, fam="nsp5"), _prot(parent, True, fam="pp1ab"),
+             {"id": "KGAV:GENE_rep", "class": "Gene",
+              "properties": {"symbol": "rep", "taxon_id": V, "is_viral": True}},
+             {"id": V, "class": "OrganismTaxon",
+              "properties": {"label": "SARS-CoV-2", "family": "Coronaviridae",
+                             "baltimore_class": "IV", "is_enveloped": True}}]
+    edges = [
+        _e("INCHIKEY:RESOLVED", "INHIBITS", chain, {"assay_type": "biochemical"}),
+        _e("INCHIKEY:VAGUE", "INHIBITS", parent,
+           {"assay_type": "biochemical",
+            "target_resolution": "parent_unresolved"}),
+        _e(chain, "ENCODED_BY", "KGAV:GENE_rep"),
+        _e(parent, "ENCODED_BY", "KGAV:GENE_rep"),
+        _e("KGAV:GENE_rep", "BELONGS_TO", V),
+    ]
+    # Padding so the CHAIN outranks the PARENT in degree, as it does on v0.1:
+    # the parent's degree is low precisely BECAUSE resolution succeeded
+    # elsewhere, so it measures how few activities failed to resolve.
+    for i in range(12):
+        d = f"INCHIKEY:PAD{i:02d}"
+        nodes.append(_drug(d))
+        edges.append(_e(d, "INHIBITS", chain, {"assay_type": "biochemical"}))
+    rel = tmp_path / "rel"
+    rel.mkdir()
+    (rel / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
+    (rel / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in edges))
+    return rel
+
+
+def test_an_unresolved_target_does_not_reach_the_direct_acting_channel(
+        resolution, schema):
+    """ChEMBL has no chain-level coronavirus targets, so chembl.py recovers
+    the nsp from the assay description and otherwise files the edge on the
+    parent accession as parent_unresolved -- its docstring's stated purpose
+    being that such an edge is "never mistaken for a measured one".
+    Traversal was where it was mistaken for one.
+    """
+    g = Graph.load(resolution, skip_predicates=schema.held_out_predicates(),
+                   symmetry=schema.symmetry())
+    m1 = schema.metapaths["M1"]
+    assert g.degree["UniProtKB:PARENT"] < g.degree["UniProtKB:PRO_CHAIN"]
+    assert walk_metapath(g, "INCHIKEY:RESOLVED", m1["path"],
+                         m1.get("constraints"), set())
+    assert not walk_metapath(g, "INCHIKEY:VAGUE", m1["path"],
+                             m1.get("constraints"), set())
+
+
+def test_without_the_constraint_the_vaguer_edge_outscores_the_specific_one(
+        resolution, schema):
+    """The defect, kept measurable. Dropping the constraint restores the old
+    behaviour, and the drug whose target was never pinned down scores HIGHER
+    than the one whose target is known -- purely because the parent node
+    carries fewer edges."""
+    g = Graph.load(resolution, skip_predicates=schema.held_out_predicates(),
+                   symmetry=schema.symmetry())
+    path = schema.metapaths["M1"]["path"]
+    vague = walk_metapath(g, "INCHIKEY:VAGUE", path, None, set())[V]
+    resolved = walk_metapath(g, "INCHIKEY:RESOLVED", path, None, set())[V]
+    assert vague > resolved
+
+
+def test_the_gap_is_exactly_the_degree_ratio_raised_to_w(resolution, schema):
+    """The mechanism, pinned as arithmetic rather than described in prose.
+
+    Two drugs, one path each, through different single targets to the same
+    gene and taxon: every factor cancels but the target's own degree, so the
+    DWPC ratio is (deg_a / deg_b) ** w and nothing else. Measured on v0.1
+    this predicted all three one-channel controls to within 0.04% --
+    pomotrelvir, remdesivir and nirmatrelvir, ranks 17, 396 and 6,432, in
+    inverse order of how well studied their targets are.
+    """
+    w = 0.4
+    g = Graph.load(resolution, skip_predicates=schema.held_out_predicates(),
+                   symmetry=schema.symmetry())
+    path = schema.metapaths["M1"]["path"]
+    vague = walk_metapath(g, "INCHIKEY:VAGUE", path, None, set(), w=w)[V]
+    resolved = walk_metapath(g, "INCHIKEY:RESOLVED", path, None, set(), w=w)[V]
+    ratio = (g.degree["UniProtKB:PRO_CHAIN"]
+             / g.degree["UniProtKB:PARENT"]) ** w
+    assert vague / resolved == pytest.approx(ratio, rel=1e-9)
+
+
+def test_every_direct_acting_metapath_carries_the_constraint(schema):
+    """M7 is M1 with a similarity hop in front and M8 is M1 across a fold
+    boundary. A constraint on M1 alone would leave two unguarded doors into
+    the same channel."""
+    for name in ("M1", "M7", "M8"):
+        c = schema.metapaths[name].get("constraints") or {}
+        assert c.get("INHIBITS.target_resolution") == \
+            "chain_from_assay_description", f"{name} is unguarded"
+
+
+def test_an_inhibits_edge_without_target_resolution_is_refused(schema):
+    """Why the qualifier is REQUIRED rather than merely declared: _qualifier_ok
+    reads a missing qualifier as a failed match, so without this the omission
+    would drop the edge from the direct-acting channel in silence."""
+    e = _e("INCHIKEY:X", "INHIBITS", "UniProtKB:V", {"assay_type": "biochemical"})
+    e["qualifiers"].pop("target_resolution")
+    nodes = {"INCHIKEY:X": _drug("INCHIKEY:X"),
+             "UniProtKB:V": _prot("UniProtKB:V", True)}
+    codes = [v.code for v in schema.validate_edge(e, nodes)]
+    assert "MISSING_QUALIFIER" in codes
 
 
 # ------------------- lift needs a null, not just a readability heuristic
