@@ -286,3 +286,60 @@ def test_a_coronavirus_without_its_own_family_still_takes_the_default(tmp_path):
     ingest_virus(em, {"taxon": "2697049", "name": "SARS-CoV-2",
                       "proteome_id": "UP000464024"}, defaults, prov, tmp_path)
     assert em.nodes["NCBITaxon:2697049"]["properties"]["family"] == "Coronaviridae"
+
+
+# ------------- _nsp_number is coronavirus-only and partly matches flaviviruses
+def test_nsp_number_mislabels_flavivirus_chains_and_misses_the_protease():
+    """What the spine would assign to DENV-2's chains, measured against
+    P29990's real 13 CHAIN labels (UniProt, 2026-10-11):
+
+        nsp1    Non-structural protein 1                      <- it is NS1
+        nsp12   RNA-directed RNA polymerase/Methyltransferase NS5
+        None    Serine protease NS3                           <- THE PROBLEM
+        None    Serine protease subunit NS2B
+        None    Non-structural protein 2A / 4A / 4B
+        None    Capsid protein C, prM, pr, M, Envelope protein E
+
+    THE TWO HALVES DO NOT FAIL THE SAME WAY, and that is the finding:
+
+    NS5 WORKS BY ACCIDENT. _nsp_number reads the label as nsp12 and
+    chembl.resolve_nsp reads "NS5 RdRp" as nsp12 too, so
+    viral_targets["11060"]["nsp12"] is DENV-2's NS5 chain and the edge lands
+    on the right protein through a coronavirus family name. The index is
+    keyed per taxon, so there is no cross-family contamination -- only a
+    wrong name.
+
+    NS3 IS UNREACHABLE. "Serine protease NS3" matches none of _nsp_number's
+    three routes, so the chain gets protein_family=None and never enters
+    viral_targets. A "NS2B-NS3 protease" description resolves to None and a
+    "NS3 helicase" one to nsp13, and neither has an entry -- so both fall
+    through to UniProtKB:P29990, the undifferentiated polyprotein. Every
+    flavivirus protease measurement would attach to the whole genome product,
+    which is the chloroquine-on-spike failure in a new place: one node
+    standing in for thirteen proteins.
+
+    PINNED, NOT FIXED. The fix is family-scoped chain naming on both sides at
+    once -- NS1..NS5 from the labels AND from the descriptions -- and a
+    half-fix is worse than none, because changing one side alone breaks the
+    accident that currently makes NS5 work. The ChEMBL description
+    distribution that should drive it is measured by
+    diagnose_flavivirus_targets.py.
+    """
+    from ingest_spine import _nsp_number
+
+    # the accidental match that currently works
+    assert _nsp_number("RNA-directed RNA polymerase/Methyltransferase NS5") == 12
+
+    # the mislabelled one
+    assert _nsp_number("Non-structural protein 1") == 1
+
+    # and the protease, which is the one that matters and is absent
+    for label in ("Serine protease NS3", "Serine protease subunit NS2B",
+                  "Non-structural protein 2A", "Non-structural protein 4A",
+                  "Non-structural protein 4B", "Envelope protein E",
+                  "Capsid protein C", "Genome polyprotein"):
+        assert _nsp_number(label) is None, label
+
+    # coronavirus naming, which must not move
+    assert _nsp_number("3C-like proteinase nsp5") == 5
+    assert _nsp_number("Non-structural protein 3") == 3
