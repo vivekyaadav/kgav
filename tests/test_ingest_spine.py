@@ -173,8 +173,16 @@ def test_real_spine_exposes_mpro_and_rdrp(tmp_path):
 
 
 @needs_data
-def test_every_virus_exposes_the_core_nsps(tmp_path):
-    """All seven coronaviruses must label the same nsps.
+def test_every_coronavirus_exposes_the_core_nsps(tmp_path):
+    """Every CORONAVIRUS must label the same nsps.
+
+    SCOPED BY FAMILY. This asserted it of every built virus and failed the
+    moment DENV-2 was promoted, with "DENV-2 missing ['nsp12', 'nsp13', ...]".
+    That failure was correct and the assertion was wrong: flaviviruses have
+    no nsps. They carry NS1-NS5 -- the protease is NS3 with an NS2B cofactor,
+    the polymerase is NS5 -- and nsp5 is a coronavirus main protease. An
+    invariant about coronavirus naming cannot be asserted of a family that
+    does not use the naming.
 
     Alphacoronaviruses name mature peptides by function ("3C-like proteinase")
     where betacoronaviruses use the number. If the alias table regresses, this
@@ -185,18 +193,53 @@ def test_every_virus_exposes_the_core_nsps(tmp_path):
     spine = build(CONFIG, PROTEOMES, tmp_path / "nsp")
     core = {"nsp3", "nsp5", "nsp12", "nsp13", "nsp14", "nsp15", "nsp16"}
     by_taxon: dict[str, set[str]] = {}
+    corona: dict[str, str] = {}
     labels: dict[str, str] = {}
     for n in spine.nodes.values():
         if n["class"] == "OrganismTaxon":
             labels[n["id"]] = n["properties"]["label"]
+            if n["properties"].get("family") == "Coronaviridae":
+                corona[n["id"]] = n["properties"]["label"]
         elif n["class"] == "Protein" and n["properties"].get("protein_family"):
             by_taxon.setdefault(n["properties"]["taxon_id"], set()).add(
                 n["properties"]["protein_family"])
 
     assert len(labels) == len(yaml.safe_load(CONFIG.read_text())["viruses"])
-    for tid, name in labels.items():
+    assert corona, "no Coronaviridae taxon carries family metadata"
+    for tid, name in corona.items():
         missing = core - by_taxon.get(tid, set())
         assert not missing, f"{name} missing {sorted(missing)}"
+
+
+@needs_data
+@pytest.mark.xfail(strict=True, reason=(
+    "DENV-2 and Zika are declared in `viruses:` but build zero proteins: "
+    "data/raw/proteomes/UP000095876.json.gz and UP000054557.json.gz are not "
+    "cached and this repository has no fetcher. ingest_spine records "
+    "proteome_missing and returns early. STRICT: when the proteomes arrive "
+    "this test passes and the suite goes red, which is the signal to remove "
+    "this marker -- not to leave a passing xfail hiding a resolved gap."))
+def test_every_built_virus_builds_at_least_one_protein(tmp_path):
+    """A virus declared built must produce proteins, or it is an orphan taxon.
+
+    This is what two orphan OrganismTaxon nodes in v0.1 look like from the
+    test suite: the register promises a virus, the spine delivers a label,
+    and nothing in between reports it except a note in a build log.
+    """
+    spine = build(CONFIG, PROTEOMES, tmp_path / "proteins")
+    counts: dict[str, int] = {}
+    labels: dict[str, str] = {}
+    for n in spine.nodes.values():
+        if n["class"] == "OrganismTaxon":
+            labels[n["id"]] = n["properties"]["label"]
+            counts.setdefault(n["id"], 0)
+        elif n["class"] == "Protein":
+            tid = n["properties"].get("taxon_id")
+            if tid:
+                counts[tid] = counts.get(tid, 0) + 1
+
+    empty = sorted(labels[t] for t, c in counts.items() if c == 0)
+    assert not empty, f"declared built but zero proteins: {empty}"
 
 
 # --------------------------------------------------------------------------
