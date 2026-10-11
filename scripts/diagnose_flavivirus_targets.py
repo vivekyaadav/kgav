@@ -167,7 +167,7 @@ def main() -> int:
         print("\n  WHICH PROTEIN THE DESCRIPTION NAMES (probe counts, "
               "overlapping):")
         probe_hits: Counter = Counter()
-        named_none = 0
+        unnamed: list[str] = []
         for r in protein_rows:
             d = r.get("description") or ""
             hit = False
@@ -176,15 +176,40 @@ def main() -> int:
                     probe_hits[label] += 1
                     hit = True
             if not hit:
-                named_none += 1
+                unnamed.append(d)
+        named_none = len(unnamed)
         for label, _ in PROBES:
             n = probe_hits.get(label, 0)
             if n:
                 print(f"    {label:<20}{n:>7,}")
         print(f"    {'(no probe matched)':<20}{named_none:>7,}")
 
+        # THE BUCKET THAT MATTERS MOST HAD NO SAMPLES. The verbatim section
+        # below is keyed on resolve_nsp's verdict, so the rows that match no
+        # protein probe at all were counted and never shown -- 1,025 of
+        # DENV-2's 1,483, which is 69% of the substrate with nothing said
+        # about it. A diagnostic that reports a large unexplained bucket and
+        # then does not print it is asking to be guessed at, and I guessed.
+        if unnamed:
+            print(f"\n  NAMING NO KNOWN PROTEIN -- {named_none:,} rows, the "
+                  f"bucket to explain first:")
+            seen_u: set[str] = set()
+            shown_u = 0
+            for d in unnamed:
+                k = d[:100]
+                if k in seen_u:
+                    continue
+                seen_u.add(k)
+                print(f"      {k}")
+                shown_u += 1
+                if shown_u >= args.samples * 2:
+                    break
+            print(f"      ({len(seen_u):,} distinct of {named_none:,} shown "
+                  f"up to {args.samples * 2})")
+
         # ---- verbatim text, because patterns are written against text
-        print(f"\n  VERBATIM, up to {args.samples} per bucket:")
+        print(f"\n  VERBATIM BY resolve_nsp VERDICT, up to {args.samples} "
+              f"per bucket:")
         for key, _ in verdicts.most_common(4):
             print(f"\n    [{key}]")
             seen = set()
