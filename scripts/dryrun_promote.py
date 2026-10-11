@@ -184,14 +184,48 @@ def main() -> int:
             blocked.append(e["name"])
         print(f"  {'ok ' if ok else 'ABSENT':<7} {e['name']:<14} "
               f"{pid}.json.gz")
+        cs = e.get("chain_source") or {}
+        acc = cs.get("accession")
+        extras = e.get("extra_accessions") or []
+
+        # THE EXTRA FILE, WHEN THE REGISTER DECLARES ONE. ingest_spine reads
+        # EXTRA_<species taxon>.json.gz and its curated entries REPLACE the
+        # proteome -- but the pfile.exists() guard returns early first, so
+        # both files are required.
+        if extras:
+            xfile = args.proteomes / f"EXTRA_{e['taxon']}.json.gz"
+            xok = xfile.exists()
+            if not xok:
+                blocked.append(e["name"])
+            print(f"  {'ok ' if xok else 'ABSENT':<7} {'':<14} "
+                  f"EXTRA_{e['taxon']}.json.gz  for {', '.join(extras)}")
+
         if ok:
             try:
-                n = len(json.loads(gzip.decompress(pfile.read_bytes()))
-                        .get("results", []))
-                claimed = (e.get("chain_source") or {}).get("chains")
-                print(f"          {n} entries in the file; register claims "
-                      f"{claimed} chains on "
-                      f"{(e.get('chain_source') or {}).get('accession')}")
+                entries = (json.loads(gzip.decompress(pfile.read_bytes()))
+                           .get("results", []))
+                print(f"          {len(entries)} entries; register claims "
+                      f"{cs.get('chains')} chains on {acc}")
+                # DOES THE FILE ACTUALLY CONTAIN THE CHAIN SOURCE? This is
+                # the check that would have caught DENV-2 locally. P29990
+                # has no proteome cross-reference at all and is filed under
+                # strain 31634, so UP000095876 does not contain it and the
+                # build produces a virus with zero chains -- which the
+                # register's own comment predicted and nothing enforced.
+                accs = {x.get("primaryAccession") for x in entries}
+                if acc and acc not in accs and acc not in extras:
+                    print(f"          MISSING: {acc} is not in this proteome "
+                          f"and no extra_accessions declares it, so the "
+                          f"chains\n          this virus needs are "
+                          f"unreachable")
+                    blocked.append(e["name"])
+                chains = [x for x in entries
+                          if x.get("primaryAccession") == acc
+                          for f in x.get("features", [])
+                          if f.get("type") == "Chain"]
+                if chains:
+                    print(f"          {len(chains)} CHAIN features on {acc} "
+                          f"in the file")
             except (OSError, ValueError) as exc:
                 print(f"          UNREADABLE: {exc}")
                 blocked.append(e["name"])
