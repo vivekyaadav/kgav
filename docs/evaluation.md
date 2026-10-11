@@ -56,12 +56,20 @@ cytotoxicity evidence of a negative drops the coverage ratio to 2.2x and M1 to
 0.660. The degree baseline falls 0.613 -> 0.528, which is the control working:
 degree *is* study volume.
 
-**3 -> 4. Evidence and answer from one paper.** Of 1,070 compounds carrying
-both an `INHIBITS` edge and an antiviral label where both cite a publication,
-**1,015 -- 94.9% -- share a PMID**. A paper reporting an Mpro IC50 reports a
-cell-based EC50 in the same table, and ChEMBL files them as two records: M1
-traverses a measurement taken alongside the answer. Neither split separates
-them, because both facts hang off one compound and carry one date.
+**3 -> 4. Evidence and answer from one paper.** Of 1,066 compounds carrying
+both an `INHIBITS` edge and an antiviral label, 1,012 have a publication on
+both sides and **933 -- 92.2% -- share a PMID**. A paper reporting an Mpro
+IC50 reports a cell-based EC50 in the same table, and ChEMBL files them as two
+records: M1 traverses a measurement taken alongside the answer. Neither split
+separates them, because both facts hang off one compound and carry one date.
+
+The remaining **50 compounds (4.7%) carry no publication on the `INHIBITS`
+side at all**, and those are outside the control rather than cleared by it:
+`Graph.load(drop_pubs_shared_with=...)` withholds an edge that SHARES a PMID
+with its label, so an edge with no PMID is never a candidate for withholding.
+At 4.7% that does not move row 4, which is why the figure is stated rather
+than qualified -- but the same measurement on DENV-2 reads 68%, and a virus
+can look clean under this control by having nothing to be disjoint from.
 Withholding that evidence took M1's reach over the evaluated positives from
 56.6% to 1.1% -- 582 compounds to 11. **That coverage collapse, not the AUC,
 is the finding.**
@@ -105,7 +113,7 @@ the minimum for evaluating one channel of it.
 `lift_pvalue` reports the exact hypergeometric tail: the probability of that
 many hits under a **random ranking**. That is all it reports. It cannot see a
 confound that inflates the scorer and the labels together -- which is the
-confound this whole document is about, since 94.9% of compounds share a PMID
+confound this whole document is about, since 92.2% of compounds share a PMID
 between their `INHIBITS` edge and their antiviral label, and **degree IS study
 volume**.
 
@@ -164,7 +172,7 @@ number in this document.
 
 Pre-2021 graph, post-2021 measurements. **This protocol is
 publication-disjoint by construction** -- evidence is pre-cutoff and the label
-post-cutoff, so the 94.9% shared-PMID confound that took cross-sectional M1 to
+post-cutoff, so the 92.2% shared-PMID confound that took cross-sectional M1 to
 0.499 cannot occur. That is why it can show something the cross-sectional
 protocol cannot.
 
@@ -231,10 +239,10 @@ coverage floor.
 
 | Cause | Measurement |
 |---|---|
-| Evidence co-reported with labels | 94.9% shared PMIDs (1,015/1,070) |
+| Evidence co-reported with labels | 92.2% shared PMIDs (933/1,012); a further 50 compounds have no `INHIBITS` publication and are outside the control |
 | M1 was never purely direct-acting | 1,884 of 7,677 protein-target rows (24.5%) described a CELLULAR readout and were filed against a viral protein; now reattributed to the organism |
-| `INHIBITS` is effectively two proteins | nsp5 4,745 and nsp3 2,269 of ~7,400 resolved chains |
-| The graph is two compound populations | 45 of 12,821 compounds have both `INHIBITS` and `TARGETS` |
+| `INHIBITS` is effectively two proteins | nsp5 and nsp3 dominate; `INHIBITS` reaches 18 distinct viral proteins in all |
+| The graph is two compound populations | 44 of 18,075 compounds have both `INHIBITS` and `TARGETS` |
 | M8 inert | no `MEMBER_OF_CLASS` or `FOLD_SIMILAR_TO` edges; `ingest_folds` writes a layer `LAYER_PRECEDENCE` does not list (strict xfail in `test_assemble`) |
 | M3/M5 untestable temporally | both PPI layers wholly post-cutoff (STRING 2023-08-28, VirHostNet 2024-01-01); the protocol itself was blocked by L5 until 2026-10-11 |
 
@@ -267,6 +275,37 @@ CPE screen supplied 89 actives and 7,343 measured inactives in the
 approved-drug population, which is what made rows 4 and 5 possible at all; a
 second independent panel would raise M4 and M5 from 15 reached actives to
 something an interval can be read off.
+
+## The figures in this document are not under `make check-results`
+
+`provenance.py` stamps every results FILE with the release it was computed
+from, and `check_results.py` rejects one whose release has moved. The numbers
+written in this document's prose carry no such stamp, so they rot silently --
+which is the stale-before-column problem one layer up from the one
+`provenance.py` was written for.
+
+It had already happened. These figures were recorded against an earlier
+release and were wrong by the time anyone re-ran the diagnostic:
+
+| was | is | why it moved |
+|---|---|---|
+| 94.9% shared PMIDs (1,015/1,070) | 92.2% (933/1,012) | the assay-readout fix removed 540 `INHIBITS` edges |
+| 45 of 12,821 with both edges | 44 of 18,075 | same, plus a different denominator |
+| `INHIBITS` reaches 19 proteins | 18 | same |
+
+Each figure below names the script that re-derives it. Re-run that script
+before quoting a number from this document, and treat a figure with no named
+source as unverified.
+
+| figure | re-derived by |
+|---|---|
+| shared PMIDs, no-publication population, compound overlap, proteins reached | `diagnose_label_overlap.py` |
+| hop-by-hop survivors, druggable host factors | `diagnose_hop_attrition.py` |
+| cellular readouts filed against proteins | `diagnose_assay_type.py` |
+| which source dated a label on which side of the cutoff | `diagnose_temporal_leak.py` |
+| per-channel AUC, coverage, evaluability | `hard_negatives.py` then `calibrate.py` |
+| lift, p, vs-degree, the baseline read | `compare_metapaths.py`, `temporal_split.py` |
+| flavivirus volumes and substrate concentration | `diagnose_flavivirus_join.py`, `diagnose_flavivirus_targets.py` |
 
 ## Reproducing
 
