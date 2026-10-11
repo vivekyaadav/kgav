@@ -236,3 +236,64 @@ def test_a_virus_whose_rows_all_name_it_reports_cleanly(monkeypatch, capsys):
     assert "names this virus" in zika
     assert "WRONG-SPECIES RISK" not in zika
     assert "4 of 4 rows (100.0%)" in zika, zika
+
+
+# --------------------------------------------------------------------------
+# the 52 rows the first patterns mislabelled, and the guard against
+# over-correcting
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("desc", [
+    "Inhibition Dengue serotype-2 NS3B/NS3 protease using "
+    "7-amino-4-methylcoumarin as substrate",
+    "Inhibitory activity against dengue 2 NS3 protease fused via a linker to "
+    "region of NS2B",
+    "Inhibition of dengue2 virus NS3 protease",
+])
+def test_the_fifty_two_rows_that_were_filed_as_naming_no_virus(desc):
+    """These three descriptions are the whole "names no virus" bucket for
+    DENV-2 -- 52 rows, 3 distinct -- and every one names DENV-2.
+
+    The first patterns required `dengue\\s+virus` BEFORE the digit, so
+    "Dengue serotype-2", "dengue 2" and "dengue2 virus" all missed. The bucket
+    label was wrong about its own contents, and the only reason anyone found
+    out is that the previous commit started printing the text next to the
+    count. A count alone would have kept this hidden indefinitely.
+    """
+    assert d.viruses_named(desc) == ["DENV-2"]
+
+
+@pytest.mark.parametrize("desc", [
+    "PUBCHEM_BIOASSAY: Primary and Confirmatory Screening for Flavivirus "
+    "Genomic Capping Enzyme I",
+    "Inhibition of dengue virus NS2B-NS3 protease",
+    "Inhibition of Dengue virus NS2B/NS3 protease",
+    "Inhibition of Dengue virus NS2B-NS3 protease using FRET "
+    "Abz-Nle-Lys-Arg-Arg-Ser-3-(NO2)Tyr",
+    "Inhibition of DENV NS2B-NS3 protease assessed as fluorescence emission "
+    "using benzoyl-Nle-Lys",
+    "Inhibition of recombinant N-terminal His-tagged DENV NS2B-NS3 protease "
+    "expressed in Escherichia",
+    "Inhibition of DENV NS2B/NS3 pro",
+    "Binding affinity to DENV NS2B-NS3 protease assessed as inhibition "
+    "constant using benzoyl-Nle",
+])
+def test_the_generic_bucket_stays_generic_after_loosening(desc):
+    """THE OVER-CORRECTION GUARD, on all the real generic descriptions.
+
+    Loosening to `dengue\\s*(?:virus)?...` risks reading the "2" in "NS2B" as
+    a serotype, which would move 1,045 rows from "names no species" to
+    "names DENV-2" and manufacture the attributability the measurement is
+    supposed to test. It does not happen, because [-\\s]* cannot cross the
+    letters in "NS2B" to reach that digit -- but that is an argument, and
+    these are the strings.
+    """
+    assert d.viruses_named(desc) == []
+    assert d.GENERIC.search(desc)
+
+
+def test_loosening_did_not_break_the_west_nile_trap():
+    """Re-checked after the change, because a looser dengue pattern is exactly
+    what would start reading "West Nile virus serotype 2" as dengue."""
+    assert d.viruses_named(
+        "Inhibition of West Nile virus serotype 2 NS2B-NS3 protease by "
+        "homogeneous fluorimetric assay") == ["West Nile"]

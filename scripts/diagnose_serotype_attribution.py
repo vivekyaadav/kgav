@@ -86,14 +86,30 @@ DEFAULT_DB = (ROOT / "data" / "raw" / "chembl" / "chembl_37"
 # pattern therefore requires "dengue" or "denv" adjacent to the digit.
 #
 # Each entry maps to the register's species taxon.
+# "virus" IS OPTIONAL AND NEED NOT PRECEDE THE DIGIT, which the first version
+# of these patterns required. Printing the buckets caught it immediately: the
+# 52 rows filed as "names no virus" were, verbatim,
+#
+#   Inhibition Dengue serotype-2 NS3B/NS3 protease using 7-amino-4-...
+#   Inhibitory activity against dengue 2 NS3 protease fused via a linker...
+#   Inhibition of dengue2 virus NS3 protease
+#
+# all three naming DENV-2 in a shape `dengue\s+virus...2` cannot match. The
+# bucket label was wrong about its own contents, and the only reason anyone
+# found out is that the text got printed next to the count.
+#
+# \s* rather than \s+, and the type/serotype word no longer has to follow
+# "virus". Verified against all ten distinct generic descriptions: none
+# acquires a serotype, because "dengue virus NS2B-NS3" offers no digit that
+# [-\s]* can reach -- the "2" in "NS2B" is behind letters.
 NAME_PATTERNS: list[tuple[re.Pattern, str, str]] = [
-    (re.compile(r"dengue\s+virus(?:\s+(?:type|serotype))?[-\s]*1(?!\d)"
+    (re.compile(r"dengue\s*(?:virus)?\s*(?:type|serotype)?[-\s]*1(?!\d)"
                 r"|\bdenv[-\s]?1(?!\d)", re.I), "11053", "DENV-1"),
-    (re.compile(r"dengue\s+virus(?:\s+(?:type|serotype))?[-\s]*2(?!\d)"
+    (re.compile(r"dengue\s*(?:virus)?\s*(?:type|serotype)?[-\s]*2(?!\d)"
                 r"|\bdenv[-\s]?2(?!\d)", re.I), "11060", "DENV-2"),
-    (re.compile(r"dengue\s+virus(?:\s+(?:type|serotype))?[-\s]*3(?!\d)"
+    (re.compile(r"dengue\s*(?:virus)?\s*(?:type|serotype)?[-\s]*3(?!\d)"
                 r"|\bdenv[-\s]?3(?!\d)", re.I), "11069", "DENV-3"),
-    (re.compile(r"dengue\s+virus(?:\s+(?:type|serotype))?[-\s]*4(?!\d)"
+    (re.compile(r"dengue\s*(?:virus)?\s*(?:type|serotype)?[-\s]*4(?!\d)"
                 r"|\bdenv[-\s]?4(?!\d)", re.I), "11070", "DENV-4"),
     (re.compile(r"\bzika\b|\bzikv\b", re.I), "64320", "Zika"),
     (re.compile(r"west\s+nile|\bwnv\b", re.I), "11082", "West Nile"),
@@ -293,9 +309,16 @@ def main(argv=None) -> int:
 
   What makes this worth checking at all: M1 is the direct-acting channel, so a
   row filed under the wrong species puts an INHIBITS edge on a protein the
-  compound was never measured against. And if DENV-1, DENV-3 and DENV-4
-  protein evidence is sitting under DENV-2, then DENV-2's substrate advantage
-  is partly theirs -- which bears on which flavivirus gets built first.
+  compound was never measured against.
+
+  MEASURED 2026-10-11, since this text used to speculate: the wrong-species
+  share is SMALL -- 46 of DENV-2's 1,483 protein rows, 3.1%, all on "Genome
+  polyprotein" targets, i.e. coarse curation rather than misfiling. The
+  suspicion that DENV-1/3/4 evidence was propping up DENV-2 was not borne out.
+
+  The column that did matter is "generic flavivirus name": 1,045 rows, 70.5%,
+  naming no species at all and overlapping almost exactly the 1,013 rows with
+  no pubmed_id. Unattributable and unwithholdable are the same rows.
 
   This script measures and recommends nothing.""")
     if grand["names a DIFFERENT virus"]:
