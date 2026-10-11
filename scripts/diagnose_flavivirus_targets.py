@@ -38,6 +38,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from kgav.chembl import assay_readout, query_activities, resolve_nsp
+
+# The keys a flavivirus CHAIN can supply, i.e. what ingest_spine.chain_family
+# returns for the thirteen Chain descriptions on Q32ZE1 and P29990 (UniProt,
+# 2026-10-11 -- identical on both). Resolving a description to a key no chain
+# carries leaves the row on the polyprotein exactly as an unresolved one does,
+# so the two are counted apart below.
+CHAIN_VOCABULARY = {"C", "prM", "pr", "M", "E", "NS1", "NS2A", "NS2B", "NS3",
+                    "NS4A", "NS4B", "NS5"}
 from kgav.virus_register import declared_taxa
 
 # Candidate tokens, matched only to COUNT them. Nothing here is adopted as a
@@ -91,17 +99,29 @@ def main() -> int:
 
     cfg = yaml.safe_load(args.config.read_text())
     default_family = (cfg.get("defaults") or {}).get("family")
-    wanted = [v for v in cfg["viruses"]
-              if (v.get("family") or default_family) == args.family]
+    # BOTH SECTIONS, and `surveyed:` is the point rather than a convenience.
+    #
+    # This read cfg["viruses"] only. The moment DENV-2 and Zika were demoted
+    # back to `surveyed:` it matched nothing and exited -- a script whose only
+    # job is to measure a virus's substrate BEFORE deciding to build it,
+    # unable to look at any virus that has not already been built. Measuring a
+    # surveyed virus is the entire use case.
+    wanted = []
+    for section in ("viruses", "surveyed"):
+        for v in (cfg.get(section) or []):
+            if (v.get("family") or default_family) == args.family:
+                wanted.append((v, section))
     if not wanted:
-        sys.exit(f"no built virus has family {args.family!r}; "
-                 f"promote one first or pass --family")
+        sys.exit(f"no virus in either section has family {args.family!r}; "
+                 f"pass --family")
 
     full_map = declared_taxa(cfg)
-    print(f"{len(wanted)} built {args.family} virus(es): "
-          f"{', '.join(v['name'] for v in wanted)}\n")
+    # Say which section each one is in: a surveyed virus's numbers describe
+    # what a build WOULD see, not what any release contains.
+    print(f"{len(wanted)} {args.family} virus(es): "
+          + ", ".join(f"{v['name']} ({sec})" for v, sec in wanted) + "\n")
 
-    for v in wanted:
+    for v, section in wanted:
         taxa = [t for t, species in full_map.items()
                 if species == str(v["taxon"])]
         rows = query_activities(args.db, sorted(taxa))
@@ -143,7 +163,7 @@ def main() -> int:
                 skipped[f"readout_{w}"] += 1
 
         print("=" * 78)
-        print(f"{v['name']}  (taxa {', '.join(sorted(taxa))})")
+        print(f"{v['name']}  [{section}]  (taxa {', '.join(sorted(taxa))})")
         print("=" * 78)
         print(f"  {len(rows):,} activity rows")
         print(f"  target_type: {dict(target_mix)}")
@@ -157,23 +177,63 @@ def main() -> int:
             print("  nothing to resolve\n")
             continue
 
-        # ---- what resolve_nsp does with them today
+        # ---- BEFORE and AFTER, on the same rows, measured not asserted
+        #
+        # The family-aware table was argued for from 16 quoted descriptions in
+        # tests/test_flavivirus_naming.py. That is enough to show the patterns
+        # read real text and not enough to say what they do to the whole
+        # substrate, so both tables are run over every row here and the
+        # difference is printed. CHAIN_VOCABULARY is the set of keys a chain
+        # can actually supply, read from UniProt, so "resolves" and "joins"
+        # stay separate: a key no chain carries is still a polyprotein row.
         verdicts: Counter = Counter()
+        before: Counter = Counter()
         by_verdict: dict[str, list[str]] = defaultdict(list)
+        joined = unjoinable = 0
         for r in protein_rows:
-            nsp, domain = resolve_nsp(r.get("description") or "")
+            desc = r.get("description") or ""
+            nsp, domain = resolve_nsp(desc, args.family)
             key = f"{nsp}{'/' + domain if domain else ''}" if nsp else "UNRESOLVED"
             verdicts[key] += 1
-            by_verdict[key].append(r.get("description") or "")
+            by_verdict[key].append(desc)
 
-        print("  resolve_nsp TODAY (coronavirus families on flavivirus rows):")
-        for key, n in verdicts.most_common():
-            note = ""
+            old_nsp, old_dom = resolve_nsp(desc)          # coronavirus table
+            before[f"{old_nsp}{'/' + old_dom if old_dom else ''}"
+                   if old_nsp else "UNRESOLVED"] += 1
+
+            if nsp and nsp in CHAIN_VOCABULARY:
+                joined += 1
+            else:
+                unjoinable += 1
+
+        n = len(protein_rows)
+        print(f"  resolve_nsp BEFORE (coronavirus table on flavivirus rows):")
+        for key, c in before.most_common():
+            note = ("  -> falls through to the polyprotein" if key == "UNRESOLVED"
+                    else "  -> a CORONAVIRUS family name")
+            print(f"    {key:<22}{c:>7,}{note}")
+
+        print(f"\n  resolve_nsp NOW (--family {args.family}):")
+        for key, c in verdicts.most_common():
+            head = key.split("/")[0]
             if key == "UNRESOLVED":
-                note = "  -> falls through to the polyprotein"
-            elif key.startswith(("nsp", "NSP")):
-                note = "  -> a CORONAVIRUS family name"
-            print(f"    {key:<14}{n:>7,}{note}")
+                note = "  -> still falls through to the polyprotein"
+            elif head in CHAIN_VOCABULARY:
+                note = "  -> a chain the spine emits"
+            else:
+                note = "  -> NO CHAIN CARRIES THIS KEY, still the polyprotein"
+            print(f"    {key:<22}{c:>7,}{note}")
+
+        was = n - before["UNRESOLVED"]
+        print(f"\n  WOULD THE JOIN LAND? (of {n:,} rows reaching the lookup)")
+        print(f"    resolved to a real chain   {joined:>7,}  "
+              f"{joined / n:>6.1%}")
+        print(f"    still the polyprotein      {unjoinable:>7,}  "
+              f"{unjoinable / n:>6.1%}")
+        print(f"    before this change         {was:>7,}  {was / n:>6.1%}"
+              f"   (and {before['UNRESOLVED']:,} unresolved)")
+        print("    A key no chain carries is not a join. This counts only keys"
+              "\n    present in the UniProt chain vocabulary.")
 
         # ---- which flavivirus protein the text actually names
         print("\n  WHICH PROTEIN THE DESCRIPTION NAMES (probe counts, "

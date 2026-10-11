@@ -297,3 +297,44 @@ def test_ns5_no_longer_depends_on_a_coronavirus_coincidence():
     # The coincidence, still there in the coronavirus table where it belongs.
     assert spine._nsp_number(
         "RNA-directed RNA polymerase/Methyltransferase NS5") == 12
+
+
+def test_the_diagnostics_chain_vocabulary_matches_what_the_spine_emits():
+    """A SECOND HARDCODED LIST, pinned to the first.
+
+    diagnose_flavivirus_targets.CHAIN_VOCABULARY is the set of keys a chain
+    can supply, and the diagnostic uses it to separate "resolved" from
+    "would actually join" -- a description resolving to a key no chain carries
+    leaves the row on the polyprotein exactly as an unresolved one does, so
+    counting them together would overstate the fix.
+
+    That set must equal what chain_family really returns. This repository has
+    already had four hand-built taxon maps drift apart before declared_taxa
+    replaced them; this is the same shape of mistake one layer down, and the
+    cost of it here is a diagnostic that reports a join rate the ingest will
+    not reproduce.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "diag_flavi", ROOT / "scripts" / "diagnose_flavivirus_targets.py")
+    d = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = d
+    spec.loader.exec_module(d)
+
+    emitted = {chain_family(label, "Flaviviridae")
+               for label, _ in FLAVI_CHAINS} - {None}
+    assert d.CHAIN_VOCABULARY == emitted, (
+        f"drifted\n  diagnostic: {sorted(d.CHAIN_VOCABULARY)}\n"
+        f"  spine:      {sorted(emitted)}")
+
+
+def test_every_key_the_activity_side_can_return_is_one_a_chain_supplies():
+    """The join's completeness, from the other direction. If a FLAVI_PATTERNS
+    entry returns a key no chain carries, every row it matches resolves and
+    then silently fails to join -- which looks like success in the resolve
+    counters and like nothing in the graph."""
+    returnable = {nsp for _p, nsp, _d in FLAVI_PATTERNS}
+    emitted = {chain_family(label, "Flaviviridae")
+               for label, _ in FLAVI_CHAINS} - {None}
+    orphans = returnable - emitted
+    assert not orphans, (
+        f"these keys resolve but no chain supplies them: {sorted(orphans)}")
