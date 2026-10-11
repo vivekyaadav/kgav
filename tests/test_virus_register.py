@@ -55,18 +55,58 @@ def test_every_strain_level_virus_declares_its_isolate(doc):
 
 
 def test_zika_and_west_nile_are_species_level_and_declare_no_isolate(doc):
-    """"Not needed" must be distinguishable from "forgotten"."""
+    """"Not needed" must be distinguishable from "forgotten".
+
+    Searched across BOTH sections. This looked in `surveyed:` only and broke
+    the moment Zika was promoted -- a test that knows which section a virus
+    lives in asserts the register's shape as a side effect of asserting a
+    fact about the virus, and fails on a move that changes neither.
+    """
     for name in ("Zika", "West Nile"):
-        v = next(x for x in doc["surveyed"] if x["name"] == name)
+        v = next(x for s in ("viruses", "surveyed")
+                 for x in (doc.get(s) or []) if x["name"] == name)
         assert str(v["chain_source"]["taxon"]) == str(v["taxon"])
         assert not v.get("isolate_taxa")
 
 
+# Every virus the build is MEANT to contain, by name. An accidental promotion
+# fails against this list and names the virus; a deliberate one adds a line
+# that says which virus, which `len(...) == 7` could not.
+#
+# That assertion was the previous guard and it had to be re-derived by hand
+# every time: dryrun_promote.py reports "pins 7, would be 9" precisely because
+# a count cannot say what changed.
+BUILT = (
+    "SARS-CoV-2", "SARS-CoV", "MERS-CoV",
+    "HCoV-229E", "HCoV-NL63", "HCoV-OC43", "HCoV-HKU1",
+    "DENV-2", "Zika",            # promoted from surveyed 2026-10-11
+)
+
+
 def test_surveyed_viruses_are_not_built(doc):
-    """ingest_spine reads `viruses:` only. Nothing here may leak into v1."""
+    """ingest_spine reads `viruses:` only. Nothing in `surveyed:` may leak."""
     built = {v["taxon"] for v in doc["viruses"]}
     assert not built & {v["taxon"] for v in doc["surveyed"]}
-    assert len(doc["viruses"]) == 7
+
+
+def test_the_built_set_is_exactly_what_is_declared_built(doc):
+    """Named rather than counted, so the failure says which virus."""
+    names = [v["name"] for v in doc["viruses"]]
+    assert names == list(BUILT), (
+        f"built set changed\n  expected: {list(BUILT)}\n  found:    {names}")
+
+
+def test_every_built_virus_has_what_a_build_needs(doc):
+    """A count never checked this. A promoted entry missing proteome_id or an
+    incomplete chain_source builds a virus with no targets and no error."""
+    for v in doc["viruses"]:
+        ref = v.get("name")
+        assert v.get("proteome_id"), f"{ref}: no proteome_id"
+        cs = v.get("chain_source") or {}
+        for field in ("accession", "taxon", "chains", "verified"):
+            assert cs.get(field) not in (None, ""), f"{ref}: chain_source.{field}"
+        assert cs["chains"] > 0, f"{ref}: {cs['chains']} chains"
+        assert "mondo" in v, f"{ref}: mondo must be present, explicitly null"
 
 
 # ------------------------------------------------------------- the rule

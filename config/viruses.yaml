@@ -192,16 +192,96 @@ viruses:
     mondo_source: null
 
 
+  # ------------------------------------------------------------------------
+  # PROMOTED FROM `surveyed:` on 2026-10-11. The entries below are the ones
+  # measured there since 2026-09-17, unchanged except for this note and one
+  # corrected cross-reference in the Zika comment.
+  #
+  # WHY THESE TWO, measured by diagnose_flavivirus_join.py against the real
+  # ChEMBL, ORCS and VirHostNet sources rather than chosen by reputation:
+  #
+  #            compounds  protein rows  publications  top PMID  ORCS screens
+  #   DENV-2       5,489         1,531           135        1%             3
+  #   Zika         3,692           387            78        2%             2
+  #
+  # The top-PMID column is the reason. Cross-sectional M1 collapsed to AUC
+  # 0.499 under --publication-disjoint because 94.9% of compounds shared a
+  # PMID between their INHIBITS edge and their own antiviral label: a
+  # single-burst 2020 literature. A virus whose activities spread over 135
+  # papers and 19 years cannot fail that way. This is not more data inside
+  # the same confound, it is a test the coronavirus graph cannot give.
+  #
+  # AND IT MAKES M8 MEAN SOMETHING. folds.py records that the protease fold
+  # is SHARED across Coronaviridae 3CLpro, Picornaviridae 3C and
+  # Flaviviridae NS3 (SSF50494, G3DSA:2.40.10.10) and that the discriminator
+  # is the catalytic nucleophile. phase0_verify_folds.py already pins P29990
+  # and Q32ZE1 as expect=serine, labelled NEGATIVE CONTROL. A cross-family
+  # channel had no second family to reach, so "M8 inert" was two faults
+  # wearing one label and the unlisted LAYER_PRECEDENCE entry was never the
+  # whole story. Enabling that layer is a separate change.
+  #
+  # WHAT WAS DELIBERATELY NOT DONE. ChEMBL also carries targets under 12637
+  # ("Dengue virus", 2 targets) and 11051 ("Flavivirus", 1), which this
+  # register does NOT declare. Both are genus- or species-group catch-alls,
+  # and folding one into a serotype pools measurements this project keeps
+  # separate on purpose -- the same reason orcs.VIRUS_PATTERNS matches each
+  # dengue serotype on its own digit and bans a generic `dengue` pattern.
+  # Reversible: add them to isolate_taxa with a note saying why.
+  #
+  # West Nile is the obvious third (775 compounds, 286 protein rows, 2 ORCS
+  # screens) and stays in `surveyed:` so promoting it is a deliberate act
+  # rather than a side effect of this one.
+  # ------------------------------------------------------------------------
+  - taxon: "11060"
+    name: DENV-2
+    family: Flaviviridae
+    full_name: "Dengue virus type 2"
+    proteome_id: UP000095876
+    # Species 11060 has no curated polyprotein: its reference proteome is
+    # TrEMBL-only with a single protein and zero Chain features. The 13-16
+    # mature peptides are curated under strain 31634 (Thailand/16681/1984; the accession ingest_folds.py already hardcodes).
+    # Without this mapping every chain-level target is silently absent.
+    isolate_taxa: ["31634"]
+    chain_source: {accession: P29990, taxon: "31634", chains: 13,
+                   verified: "2026-09-17"}
+    # No MONDO term pinned. Label matching is banned (normalize_bio.
+    # MondoResolver), and no xref has been curated for this taxon yet.
+    mondo: null
+    mondo_source: null
+
+  - taxon: "64320"
+    name: Zika
+    family: Flaviviridae
+    full_name: "Zika virus"
+    proteome_id: UP000054557
+    # Curated AT THE SPECIES TAXON, like five of the seven coronaviruses
+    # above: no isolate mapping is needed and none is declared, so the
+    # validator can tell "not needed" from "forgotten". (It was one of
+    # only two species-curated entries in `surveyed:`; West Nile is
+    # the other and is still there.)
+    chain_source: {accession: Q32ZE1, taxon: "64320", chains: 13,
+                   verified: "2026-09-17"}
+    # No MONDO term pinned. Label matching is banned (normalize_bio.
+    # MondoResolver), and no xref has been curated for this taxon yet.
+    mondo: null
+    mondo_source: null
+
 # ---------------------------------------------------------------------------
 # SURVEYED, NOT BUILT. Measured 2026-09-17; no ingest reads this list yet.
 # ingest_spine.py reads `viruses:` only, so nothing here changes the v1 build.
 # An entry graduates by being moved into `viruses:` above.
 #
-# WHY THIS SECTION IS HERE RATHER THAN IN A NOTE. Seven of these nine are
-# curated under a strain taxon, and the species taxon returns a TrEMBL
-# proteome with ONE protein and no Chain features. That is the MERS trap at
-# seven times the scale. Recording the strain taxa now, validated by the same
-# rule as the coronaviruses, is what stops the next build rediscovering it.
+# WHY THIS SECTION IS HERE RATHER THAN IN A NOTE. Six of these seven are
+# curated under a strain taxon -- West Nile is the exception -- and the
+# species taxon returns a TrEMBL proteome with ONE protein and no Chain
+# features. That is the MERS trap at six times the scale. Recording the
+# strain taxa now, validated by the same rule as the coronaviruses, is what
+# stops the next build rediscovering it.
+#
+# It was nine entries, seven strain-curated, until DENV-2 and Zika were
+# promoted on 2026-10-11. These counts are maintained by hand and the test
+# test_surveyed_viruses_are_not_built does not check them, so they are worth
+# distrusting if they disagree with the list below.
 #
 # Every chain_source below was verified against UniProt on the date shown:
 # reviewed entry, PRO_ chain ids present, start/end coordinates present.
@@ -224,22 +304,6 @@ surveyed:
     mondo: null
     mondo_source: null
 
-  - taxon: "11060"
-    name: DENV-2
-    family: Flaviviridae
-    full_name: "Dengue virus type 2"
-    proteome_id: UP000095876
-    # Species 11060 has no curated polyprotein: its reference proteome is
-    # TrEMBL-only with a single protein and zero Chain features. The 13-16
-    # mature peptides are curated under strain 31634 (Thailand/16681/1984; the accession ingest_folds.py already hardcodes).
-    # Without this mapping every chain-level target is silently absent.
-    isolate_taxa: ["31634"]
-    chain_source: {accession: P29990, taxon: "31634", chains: 13,
-                   verified: "2026-09-17"}
-    # No MONDO term pinned. Label matching is banned (normalize_bio.
-    # MondoResolver), and no xref has been curated for this taxon yet.
-    mondo: null
-    mondo_source: null
 
   - taxon: "11069"
     name: DENV-3
@@ -275,20 +339,6 @@ surveyed:
     mondo: null
     mondo_source: null
 
-  - taxon: "64320"
-    name: Zika
-    family: Flaviviridae
-    full_name: "Zika virus"
-    proteome_id: UP000054557
-    # Curated AT THE SPECIES TAXON -- one of only two here. No isolate
-    # mapping needed, and none is declared, so the validator can tell the
-    # difference between "not needed" and "forgotten".
-    chain_source: {accession: Q32ZE1, taxon: "64320", chains: 13,
-                   verified: "2026-09-17"}
-    # No MONDO term pinned. Label matching is banned (normalize_bio.
-    # MondoResolver), and no xref has been curated for this taxon yet.
-    mondo: null
-    mondo_source: null
 
   - taxon: "11082"
     name: West Nile

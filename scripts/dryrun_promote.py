@@ -20,6 +20,7 @@ assumption should cost a read, not a rebuild.
 from __future__ import annotations
 
 import argparse
+import ast
 import copy
 import importlib.util
 import re
@@ -72,6 +73,26 @@ def _hardcoded_counts() -> list[tuple[str, int, str]]:
             m = pat.search(line)
             if m:
                 out.append((f"{path.name}:{n}", int(m.group(1)), line.strip()))
+
+    # AND THE NAMED SET THAT REPLACED THE COUNT. test_virus_register.BUILT
+    # lists every virus the build is meant to contain. Reporting only the
+    # count made this section print "no test pins the number of built
+    # viruses" the moment the count was replaced by something better --
+    # a dry run that goes quiet when the guard improves is worse than no
+    # dry run, because quiet reads as safe.
+    tv = ROOT / "tests" / "test_virus_register.py"
+    if tv.exists():
+        tree = ast.parse(tv.read_text())
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Assign)
+                    and any(isinstance(x, ast.Name) and x.id == "BUILT"
+                            for x in node.targets)
+                    and isinstance(node.value, (ast.Tuple, ast.List))):
+                names = [e.value for e in node.value.elts
+                         if isinstance(e, ast.Constant)]
+                out.append((f"test_virus_register.py:{node.lineno} BUILT",
+                            len(names), f"BUILT names {len(names)}: "
+                            f"{', '.join(names)}"))
     return out
 
 
@@ -215,10 +236,23 @@ def main() -> int:
         print("  vs SDD), so MOTIF mode may emit edges and must mark them WEAK.")
         print("  phase0_verify_folds.py already labels the flavivirus")
         print("  proteases 'NEGATIVE CONTROL'.")
-        print("\n  M8 EMITS NOTHING TODAY, AND NOT ONLY FOR THE PRECEDENCE")
-        print("  REASON. A cross-family channel needs a second family in the")
-        print("  graph. With seven coronaviruses there is nothing for it to")
-        print("  reach, so 'M8 inert' has been two faults wearing one label.")
+        fams_now = sorted({(v.get("family")
+                            or (cfg.get("defaults") or {}).get("family"))
+                           for v in cfg["viruses"]})
+        fams_after = sorted({(v.get("family")
+                              or (cfg.get("defaults") or {}).get("family"))
+                             for v in promoted["viruses"]})
+        print(f"\n  FAMILIES IN THE BUILD: {', '.join(fams_now)}")
+        if fams_after != fams_now:
+            print(f"  after promotion:       {', '.join(fams_after)}")
+        if len(fams_now) < 2:
+            print("  A cross-family channel needs a SECOND family to reach, so"
+                  " M8 emits\n  nothing today for that reason as well as the "
+                  "unlisted layer -- two\n  faults wearing one label.")
+        else:
+            print("  Two or more families are already built, so the layer "
+                  "being unlisted in\n  LAYER_PRECEDENCE is now the only "
+                  "thing keeping M8 empty.")
 
     print("\n" + "=" * 78)
     print("WHAT THIS DOES NOT DO")
