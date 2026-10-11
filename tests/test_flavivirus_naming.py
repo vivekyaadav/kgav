@@ -412,3 +412,73 @@ def test_every_flavivirus_in_the_register_resolves_at_least_one_taxon():
             assert taxa, (
                 f"{v['name']} ({section}) resolves no taxa, so it would be "
                 f"reported as having no activity data")
+
+
+# --------------------------------------------------------------------------
+# the residue the real database left, and the restraint it required
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("desc,expected", [
+    ("Inhibitory activity against CF40.NS3pro from Dengue virus type 2",
+     ("NS3", "protease")),
+    ("Inhibition of Zika virus MTase (4 to 278 residues) expressed in "
+     "Escherichia coli T7", ("NS5", "methyltransferase")),
+    ("Binding affinity to Zika virus Methyltransferase",
+     ("NS5", "methyltransferase")),
+    ("Inhibition of West Nile virus protease", ("NS3", "protease")),
+])
+def test_the_nineteen_rows_the_real_database_left_unresolved(desc, expected):
+    """Measured, not guessed. After the two-sided naming landed, the real
+    ChEMBL database left exactly 19 unresolved protein rows across the three
+    flaviviruses that have any -- DENV-2 12, Zika 6, West Nile 1 -- and all 19
+    were these three phrasings (diagnose_flavivirus_targets.py, 2026-10-11).
+
+    Safe only because of a fact about the family: a flavivirus encodes exactly
+    ONE viral protease, the NS2B-NS3 heterodimer, and exactly ONE
+    methyltransferase, NS5's N-terminal domain. The bare function name is
+    unambiguous within Flaviviridae. It is NOT within Coronaviridae, which has
+    nsp3 PLpro and nsp5 3CLpro -- one more reason the tables stay apart.
+    """
+    assert resolve_nsp(desc, "Flaviviridae") == expected
+
+
+@pytest.mark.parametrize("desc", [
+    "Inhibition of furin protease",
+    "Inhibition of human cathepsin B protease",
+    "Inhibition of TMPRSS2 protease activity",
+    "Inhibition of trypsin-like protease",
+])
+def test_host_proteases_still_fall_through(desc):
+    """THE RESTRAINT, pinned. A bare \\bprotease\\b rule would have gained one
+    row -- "Inhibition of West Nile virus protease" -- and started claiming
+    host protease assays as the viral NS3. Host proteases are real drug
+    targets in flavivirus papers (furin cleaves prM), so those rows exist, and
+    filing them on NS3 would put an INHIBITS edge on a viral protein for a
+    measurement made on a human one.
+
+    Requiring "virus" or "viral" adjacent keeps the one real row and leaves
+    these alone. If someone later widens this to a bare word, these fail.
+    """
+    assert resolve_nsp(desc, "Flaviviridae") == (None, None)
+
+
+def test_the_specific_rules_still_win_over_the_new_general_ones():
+    """Order again. The new bare-ish rules sit after the specific ones, so a
+    description naming both a protein and a function keeps the protein."""
+    assert resolve_nsp("Inhibition of Dengue virus type 2 NS5 RNA "
+                       "methyltransferase SAM site", "Flaviviridae") \
+        == ("NS5", "methyltransferase")
+    assert resolve_nsp("Inhibition of Dengue virus 2 NS3 helicase",
+                       "Flaviviridae") == ("NS3", "helicase")
+    assert resolve_nsp("Inhibition of Zika virus NS2B-NS3 protease",
+                       "Flaviviridae") == ("NS3", "protease")
+
+
+def test_the_new_patterns_do_not_touch_coronavirus_rows():
+    """nsp3 is a papain-like protease and nsp5 a 3C-like protease, so within
+    Coronaviridae a bare "viral protease" is genuinely ambiguous -- which is
+    why these rules live in the flavivirus table only."""
+    for desc in ("Inhibition of SARS-CoV-2 viral protease",
+                 "Inhibition of SARS-CoV-2 virus methyltransferase"):
+        before = resolve_nsp(desc)
+        assert before == resolve_nsp(desc, "Coronaviridae")
+        assert before[0] != "NS3" and before[0] != "NS5"

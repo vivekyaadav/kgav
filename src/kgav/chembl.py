@@ -121,6 +121,30 @@ FLAVI_PATTERNS: list[tuple[re.Pattern, str, str | None]] = [
      "NS5", "methyltransferase"),
     (re.compile(r"rdrp|rna[- ]dependent rna pol|rna[- ]directed rna pol"
                 r"|\bns5\b", re.IGNORECASE), "NS5", "rdrp"),
+    # CLOSING THE MEASURED RESIDUE. After the two-sided naming landed, the
+    # real database left 19 unresolved protein rows across the three
+    # flaviviruses that have any (DENV-2 12, Zika 6, West Nile 1), and all 19
+    # were these three phrasings. Each is safe only because of a fact about
+    # the family: a flavivirus encodes exactly ONE viral protease (the
+    # NS2B-NS3 heterodimer) and exactly ONE methyltransferase (NS5's
+    # N-terminal domain). Within Flaviviridae the bare function name is
+    # therefore unambiguous -- which is not true within Coronaviridae, and is
+    # another reason these tables stay apart.
+    #
+    # "CF40.NS3pro" -- CF40 is the 40-residue NS2B cofactor construct.
+    (re.compile(r"\bns3\s*pro\b", re.IGNORECASE), "NS3", "protease"),
+    # DELIBERATELY NOT a bare \bprotease\b. That would gain the single row
+    # "Inhibition of West Nile virus protease" and start claiming HOST
+    # protease assays -- furin, cathepsin, TMPRSS2, trypsin -- which today
+    # fall through correctly. Requiring "virus"/"viral" next to it keeps the
+    # one real row and leaves the host ones alone.
+    (re.compile(r"\b(?:virus|viral)\s+protease\b", re.IGNORECASE),
+     "NS3", "protease"),
+    # Same restraint: "Zika virus MTase (4 to 278 residues)" and "Zika virus
+    # Methyltransferase" are the real rows, and both name the virus.
+    (re.compile(r"\b(?:virus|viral)\s+(?:\w+\s+){0,2}"
+                r"(?:methyltransferase|mtase)\b", re.IGNORECASE),
+     "NS5", "methyltransferase"),
     (re.compile(r"\bns1\b", re.IGNORECASE), "NS1", None),
     (re.compile(r"\bns4b\b", re.IGNORECASE), "NS4B", None),
     (re.compile(r"\bns4a\b", re.IGNORECASE), "NS4A", None),

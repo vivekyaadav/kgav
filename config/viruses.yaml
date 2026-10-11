@@ -279,15 +279,28 @@ surveyed:
   #   NS5                  -> nsp12 on BOTH sides, right by accident
   #   NS1                  -> nsp1, a different protein in another family
   #
-  # NS2B-NS3, the most-studied flavivirus drug target, is among the eleven.
-  # For Zika that is 315 of the 355 rows reaching the chain lookup, against 9
-  # for the RdRp -- so the join would reach 9 of 355 (2.5%) and the protease
-  # evidence would land on the undifferentiated polyprotein. Downloading the
-  # proteomes does not move that number; only the naming decision does, and a
-  # one-sided fix breaks the accident that makes NS5 work. The fork is written
-  # out in the strict xfail on
-  # test_the_chembl_join_can_reach_the_flavivirus_protease, next to the
-  # measurement in test_nsp_number_mislabels_flavivirus_chains_and_misses_the_protease.
+  # CLOSED 2026-10-11. chain_family() on the spine side and FLAVI_PATTERNS on
+  # the activity side now name each family's own proteins, kept apart because
+  # folds.py refuses to equate a cysteine protease with a serine one. Measured
+  # on the real ChEMBL database, rows reaching the chain lookup that resolve
+  # to a chain the spine emits:
+  #
+  #                  before      after
+  #   DENV-2       4  (0.3%)   1,471 (99.2%)
+  #   Zika         9  (2.5%)     349 (98.3%)
+  #   West Nile    0  (0.0%)     183 (99.5%)
+  #
+  # NS2B-NS3, the most-studied flavivirus drug target, was unreachable before
+  # and is 315 of Zika's 355 rows. Nothing about the current release changed:
+  # these viruses are surveyed, and ingest_spine reads `viruses:` only.
+  #
+  # STILL OPEN, and it is not a naming problem: a row's taxon comes from
+  # ChEMBL target_dictionary.tax_id, so several rows filed under DENV-2 have
+  # descriptions naming DENV-1, DENV-3 or DENV-4, while those three report
+  # zero rows on the protein path. If their evidence is sitting under DENV-2
+  # then DENV-2's substrate advantage is partly theirs.
+  # scripts/diagnose_serotype_attribution.py measures it; do not promote
+  # DENV-2 before reading that output.
   #
   # ORCS is ready: orcs.VIRUS_PATTERNS now matches dengue serotype 2, Zika,
   # West Nile and yellow fever, and 7 of the 11 flavivirus screens pass
