@@ -302,3 +302,132 @@ def test_the_agents_ids_pass_its_own_verifier(graph):
     from kgav.agent.verify import EDGE_ID_RE
     for eid in graph.explain(DRUG, V).edge_ids:
         assert EDGE_ID_RE.findall(f"claim [{eid}].") == [eid], eid
+
+
+# --------------------------------------------------------------------------
+# one calibration per virus
+# --------------------------------------------------------------------------
+ZIKA = "NCBITaxon:64320"
+
+
+class _Ch:
+    """A channel that DISCRIMINATES, so a leak takes the most confident branch."""
+    def __init__(self, auc=0.675, lo=0.660, hi=0.690):
+        self.auc, self.ci_lo, self.ci_hi = auc, lo, hi
+        self.n_pos, self.n_neg = 2020, 10956
+        self.coverage_pos, self.coverage_neg = 0.368, 0.018
+
+    @property
+    def n_reached_pos(self):
+        return round(self.coverage_pos * self.n_pos)
+
+    evaluable = True
+    discriminates = True
+
+
+class _Cal:
+    def __init__(self, virus, protocol="single-screen"):
+        self.virus, self.protocol = virus, protocol
+        self.channels = {"M1": _Ch(), "M4": _Ch()}
+        self.refused_reason = ""
+        self.usable = True
+
+
+@pytest.fixture
+def two_virus_graph(tmp_path):
+    """The `graph` fixture plus a Zika taxon, so a virus exists with no
+    calibration of its own."""
+    def drug(nid, name):
+        return {"id": nid, "class": "SmallMolecule",
+                "properties": {"smiles": "C", "inchikey_skel": nid[-5:],
+                               "chembl_id": name, "is_approved": True,
+                               "label": name, "salt_collapsed": False,
+                               "stereo_collapsed": False}}
+    nodes = [
+        {"id": V, "class": "OrganismTaxon",
+         "properties": {"label": "SARS-CoV-2", "family": "Coronaviridae",
+                        "baltimore_class": "IV", "is_enveloped": True}},
+        {"id": ZIKA, "class": "OrganismTaxon",
+         "properties": {"label": "Zika", "family": "Flaviviridae",
+                        "baltimore_class": "IV", "is_enveloped": True}},
+        {"id": "UniProtKB:NS3", "class": "Protein",
+         "properties": {"taxon_id": ZIKA, "is_viral": True, "reviewed": True,
+                        "sequence_hash": "h", "protein_family": "NS3"}},
+        {"id": "KGAV:GZ", "class": "Gene",
+         "properties": {"symbol": "POLY", "taxon_id": ZIKA, "is_viral": True}},
+        drug(DRUG, "nirmatrelvir"),
+    ]
+
+    def e(s, p, o, q=None):
+        return {"subject": s, "predicate": p, "object": o, "qualifiers": q or {},
+                "primary_knowledge_source": "infores:chembl",
+                "evidence_tier": 1, "first_asserted_date": "2021-03-04"}
+
+    edges = [
+        e(DRUG, "INHIBITS", "UniProtKB:NS3",
+          {"assay_type": "biochemical", "ic50_nm": 25.0}),
+        e("UniProtKB:NS3", "ENCODED_BY", "KGAV:GZ"),
+        e("KGAV:GZ", "BELONGS_TO", ZIKA),
+        e(DRUG, "HAS_ANTIVIRAL_ACTIVITY_AGAINST", ZIKA,
+          {"assay_type": "cell_based_antiviral", "ec50_nm": 100.0}),
+    ]
+    (tmp_path / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text("\n".join(json.dumps(x) for x in edges))
+    return tmp_path
+
+
+def test_a_single_calibration_is_not_reused_for_another_virus(two_virus_graph):
+    """THE BUG. GraphTools held one calibration and explain()/triage() both
+    took a virus argument without using it, so an instance built with
+    SARS-CoV-2's numbers answered Zika questions with SARS-CoV-2's AUC."""
+    t = GraphTools(two_virus_graph, calibration=_Cal("SARS-CoV-2"))
+    assert t.calibration_for(V) is not None, "its own virus still resolves"
+    assert t.calibration_for(ZIKA) is None, \
+        "another virus must resolve to None, never to these numbers"
+
+
+def test_the_curie_and_the_label_name_the_same_virus(two_virus_graph):
+    """calibration.load stores whatever key the CALLER passed -- kgav_ask
+    passes "SARS-CoV-2", a caller holding the release passes the CURIE -- so
+    neither form can be assumed. The release's own labels bridge them."""
+    by_label = GraphTools(two_virus_graph, calibration=_Cal("SARS-CoV-2"))
+    assert by_label.calibration_for(V) is not None
+    by_curie = GraphTools(two_virus_graph, calibration=_Cal(V))
+    assert by_curie.calibration_for("SARS-CoV-2") is not None
+    assert by_curie.calibration_for(ZIKA) is None
+
+
+def test_a_mapping_resolves_each_virus_to_its_own(two_virus_graph):
+    t = GraphTools(two_virus_graph, calibration={
+        "SARS-CoV-2": _Cal("SARS-CoV-2"), "Zika": _Cal("Zika")})
+    assert t.calibration_for(V).virus == "SARS-CoV-2"
+    assert t.calibration_for(ZIKA).virus == "Zika"
+
+
+def test_a_mis_keyed_mapping_raises(two_virus_graph):
+    """Keying one virus's calibration under another reintroduces the bug by a
+    different route, so it is refused rather than tolerated."""
+    with pytest.raises(ValueError, match="measured on"):
+        GraphTools(two_virus_graph, calibration={"Zika": _Cal("SARS-CoV-2")})
+
+
+def test_triage_on_an_uncalibrated_virus_quotes_no_auc(two_virus_graph):
+    """END TO END, and this is the test that would have caught it. The channel
+    above DISCRIMINATES, so a leak renders the module's most confident
+    sentence -- "separates measured actives from measured inactives at AUC
+    0.675" -- about a virus whose real M1 is 0.511, at chance."""
+    t = GraphTools(two_virus_graph, calibration=_Cal("SARS-CoV-2"))
+    out = t.triage([DRUG], ZIKA)
+    text = (out.note or "") + " " + " ".join(out.warnings or [])
+    assert "0.675" not in text, f"SARS-CoV-2's AUC leaked into a Zika answer:\n{text}"
+    assert "separates measured actives" not in text
+    assert "no measured performance" in text or "not been evaluated" in text, \
+        f"expected the uncalibrated branch, got:\n{text}"
+
+
+def test_triage_on_the_calibrated_virus_still_quotes_its_auc(two_virus_graph):
+    """The fix must not silence the virus that WAS measured."""
+    t = GraphTools(two_virus_graph, calibration=_Cal("SARS-CoV-2"))
+    out = t.triage([DRUG], V)
+    text = (out.note or "") + " " + " ".join(out.warnings or [])
+    assert "0.675" in text, f"the measured virus lost its figure:\n{text}"

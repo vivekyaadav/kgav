@@ -59,11 +59,28 @@ class GraphTools:
 
     def __init__(self, release: Path, name_index: dict[str, str] | None = None,
                  calibration=None):
-        # Handed to guards.path_warnings so a host-directed route reports the
-        # AUC that was actually measured. None means the caveat says the route
-        # is uncalibrated, which is the honest fallback -- the figure used to
-        # be hardcoded and went stale.
-        self.calibration = calibration
+        # ONE CALIBRATION PER VIRUS, NOT ONE PER INSTANCE.
+        #
+        # This was a single `self.calibration`, handed to every caveat
+        # regardless of which virus was asked about. explain() and triage()
+        # both TAKE a virus argument and neither used it to pick the
+        # calibration, so an agent constructed with SARS-CoV-2's numbers and
+        # asked about Zika would state Zika's direct-acting route "separates
+        # measured actives from measured inactives at AUC 0.675" -- SARS-CoV-2's
+        # figure, on the discriminates branch, which is the most confident
+        # sentence this module can emit. Zika's own M1 is 0.511, at chance.
+        #
+        # Latent while every virus was at chance anyway. Live the moment a
+        # second family arrived with asymmetric calibration, and the mismatch
+        # was always detectable: Calibration carries its own `.virus`, and
+        # nothing compared it to the virus being answered about.
+        #
+        # Accepts a single Calibration (for one virus) or a {virus:
+        # Calibration} mapping. A virus with no calibration resolves to None,
+        # which routes the caveats to their honest "uncalibrated" branch --
+        # never to another virus's numbers.
+        self._calibrations: dict[str, object] = {}
+        self._pending_calibration = calibration
         self.nodes: dict[str, dict] = {}
         self.edges: list[dict] = []
         self.out: dict[tuple[str, str], list[dict]] = defaultdict(list)
@@ -124,6 +141,60 @@ class GraphTools:
             self.by_id[e["_id"]] = e
             self.out[(e["predicate"], e["subject"])].append(e)
             self.inv[(e["predicate"], e["object"])].append(e)
+
+        # After the nodes, because reconciling a calibration's key needs
+        # _label to translate a taxon CURIE into the display label the results
+        # file is keyed by. calibration.load stores whatever key the CALLER
+        # passed -- "SARS-CoV-2" from kgav_ask, "NCBITaxon:2697049" from a
+        # caller holding the release -- so neither form can be assumed.
+        self._index_calibrations(self._pending_calibration)
+        del self._pending_calibration
+
+    # --------------------------------------------------- calibration lookup
+    def _same_virus(self, a: str, b: str) -> bool:
+        """Whether two virus keys name one virus, across CURIE and label.
+
+        "NCBITaxon:2697049" and "SARS-CoV-2" share no characters, so this
+        needs the release's own node labels rather than string surgery --
+        which is the same reason calibration.load takes a node_labels map.
+        """
+        if a == b:
+            return True
+        for x, y in ((a, b), (b, a)):
+            if x in self.nodes and self._label(x) == y:
+                return True
+        return False
+
+    def _index_calibrations(self, calibration) -> None:
+        if calibration is None:
+            return
+        if hasattr(calibration, "channels"):          # one Calibration
+            key = getattr(calibration, "virus", "") or ""
+            self._calibrations[key] = calibration
+            return
+        for key, cal in dict(calibration).items():
+            # A MIS-KEYED MAP IS A SILENT WRONG-FIGURE GENERATOR, which is the
+            # bug this method exists to end, so it raises rather than being
+            # tolerated. Keying SARS-CoV-2's calibration under Zika would
+            # reintroduce the exact failure by a different route.
+            own = getattr(cal, "virus", "") or ""
+            if own and not self._same_virus(key, own):
+                raise ValueError(
+                    f"calibration keyed under {key!r} was measured on {own!r}; "
+                    f"a calibration must be keyed by the virus it measured")
+            self._calibrations[key] = cal
+
+    def calibration_for(self, virus: str):
+        """The calibration measured ON this virus, or None.
+
+        None rather than a fallback: every caveat has an honest uncalibrated
+        branch, and "its reliability is unknown" is weaker than a figure and
+        true, where another virus's figure is neither.
+        """
+        for key, cal in self._calibrations.items():
+            if self._same_virus(key, virus):
+                return cal
+        return None
 
     # ------------------------------------------------------------- helpers
     def _label(self, node_id: str) -> str:
@@ -295,7 +366,7 @@ class GraphTools:
             # test_agent_tools asserts the text lands in the right route block,
             # test_agent_verify hands verify() a hand-built caveat directly.
             route_warnings = guards.path_warnings(
-                nodes, route, calibration=self.calibration)
+                nodes, route, calibration=self.calibration_for(virus))
             for w in route_warnings:
                 lines.append(f"  ! {w}")
             warns.extend(route_warnings)
@@ -453,7 +524,7 @@ class GraphTools:
             "host-directed routes contribute nothing to it, and a compound "
             "whose selectivity is unknown ranks below one with a measured "
             "index. "
-            + guards.direct_acting_caveat(self.calibration)
+            + guards.direct_acting_caveat(self.calibration_for(virus))
             + ". Host-directed routes contribute nothing to this order and "
             "are shown for context only."))
         if missing:

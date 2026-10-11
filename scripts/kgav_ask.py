@@ -86,7 +86,14 @@ def main() -> int:
                          "quote. Absent, a host-directed route is reported as "
                          "uncalibrated rather than given a number.")
     ap.add_argument("--virus-label", default="SARS-CoV-2",
-                    help="key the results file uses for the virus")
+                    help="with --no-all-viruses, the single results-file key "
+                         "to load a calibration for")
+    ap.add_argument("--all-viruses", action=argparse.BooleanOptionalAction,
+                    default=True,
+                    help="load a calibration for every virus the results file "
+                         "holds (default). --no-all-viruses loads only "
+                         "--virus-label, which is how this behaved when an "
+                         "agent asked about Zika could quote SARS-CoV-2's AUC.")
     args = ap.parse_args()
     question = " ".join(args.question)
 
@@ -98,15 +105,25 @@ def main() -> int:
     # loaded here and named in the text. A missing or unreadable results file
     # is not fatal: the route is then reported as uncalibrated, which is
     # weaker than a number and true.
-    cal = None
+    # EVERY VIRUS THE FILE HOLDS, not just one.
+    #
+    # This loaded a single calibration for --virus-label and handed it to
+    # GraphTools, which then used it for whatever virus the question named.
+    # Asked about Zika, the agent quoted SARS-CoV-2's AUC. Now each virus gets
+    # its own, keyed by the label the results file uses, and a virus the file
+    # does not cover resolves to None -- reported as uncalibrated rather than
+    # borrowing another virus's numbers.
+    cals: dict[str, object] = {}
     if args.results.exists():
         try:
-            cal = kgav_calibration.load(args.results, args.virus_label)
+            labels = (kgav_calibration.available_viruses(args.results)
+                      if args.all_viruses else [args.virus_label])
+            for label in labels:
+                cals[label] = kgav_calibration.load(args.results, label)
         except (OSError, ValueError, KeyError) as exc:
             print(f"note: could not read {args.results.name} ({exc}); "
-                  f"host-directed routes will be reported as uncalibrated",
-                  file=sys.stderr)
-    orch = Orchestrator(GraphTools(args.release, calibration=cal))
+                  f"routes will be reported as uncalibrated", file=sys.stderr)
+    orch = Orchestrator(GraphTools(args.release, calibration=cals or None))
 
     model = None
     if not args.no_model:
