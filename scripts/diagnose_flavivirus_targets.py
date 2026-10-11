@@ -47,8 +47,20 @@ PROBES: list[tuple[str, re.Pattern]] = [
     ("NS1", re.compile(r"\bNS1\b|non[- ]structural protein 1\b", re.IGNORECASE)),
     ("NS2A", re.compile(r"\bNS2A\b", re.IGNORECASE)),
     ("NS2B", re.compile(r"\bNS2B\b", re.IGNORECASE)),
-    ("NS2B-NS3", re.compile(r"NS2B[- /]*NS3|NS3[- /]*NS2B", re.IGNORECASE)),
-    ("NS3", re.compile(r"\bNS3\b", re.IGNORECASE)),
+    ("NS2B-NS3", re.compile(r"NS2B[- /]*NS3|NS3[- /]*NS2B|CF40",
+                            re.IGNORECASE)),
+    # \bNS3\b CANNOT MATCH "NS3pro": there is no word boundary after the 3.
+    # DENV-2's single largest assay is "Inhibitory activity against
+    # CF40.NS3pro from Dengue virus type 2" -- CF40 is the 40-residue NS2B
+    # cofactor construct -- and it landed in "named no known protein"
+    # alongside a PubChem capping-enzyme campaign. Two descriptions, 1,025
+    # rows, reported as unexplained because the probe was too strict. The
+    # bucket was never unexplained; the probes could not see it.
+    ("NS3", re.compile(r"\bNS3\b|NS3pro|NS3[- ]?protease", re.IGNORECASE)),
+    ("CF40/NS3pro", re.compile(r"CF40|NS3pro", re.IGNORECASE)),
+    ("capping enzyme", re.compile(r"capping enzyme|genomic capping",
+                                  re.IGNORECASE)),
+    ("PubChem HTS", re.compile(r"PUBCHEM_BIOASSAY", re.IGNORECASE)),
     ("NS4A", re.compile(r"\bNS4A\b", re.IGNORECASE)),
     ("NS4B", re.compile(r"\bNS4B\b", re.IGNORECASE)),
     ("NS5", re.compile(r"\bNS5\b", re.IGNORECASE)),
@@ -193,19 +205,23 @@ def main() -> int:
         if unnamed:
             print(f"\n  NAMING NO KNOWN PROTEIN -- {named_none:,} rows, the "
                   f"bucket to explain first:")
-            seen_u: set[str] = set()
-            shown_u = 0
-            for d in unnamed:
-                k = d[:100]
-                if k in seen_u:
-                    continue
-                seen_u.add(k)
-                print(f"      {k}")
-                shown_u += 1
-                if shown_u >= args.samples * 2:
-                    break
-            print(f"      ({len(seen_u):,} distinct of {named_none:,} shown "
-                  f"up to {args.samples * 2})")
+            # COUNT DISTINCT OVER EVERYTHING, DISPLAY A SAMPLE. The first
+            # version counted inside the display loop, which breaks at the
+            # sample cap -- so it would have printed "16 distinct" whenever
+            # there were 16 or more, and the one number that matters here is
+            # how CONCENTRATED the bucket is. DENV-2's 1,025 rows turned out
+            # to be 2 descriptions, which is the whole finding.
+            #
+            # Dedup on the full string, not d[:100]: two descriptions
+            # differing past character 100 are different assays. Printing is
+            # truncated; counting is not.
+            distinct = Counter(unnamed)
+            for d, n in distinct.most_common(args.samples * 2):
+                print(f"      {n:>6,}  {d[:96]}")
+            print(f"      -- {len(distinct):,} distinct description(s) across "
+                  f"{named_none:,} rows")
+            if len(distinct) > args.samples * 2:
+                print(f"      ({args.samples * 2} shown)")
 
         # ---- verbatim text, because patterns are written against text
         print(f"\n  VERBATIM BY resolve_nsp VERDICT, up to {args.samples} "
