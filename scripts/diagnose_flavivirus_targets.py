@@ -196,6 +196,55 @@ def main() -> int:
                 print(f"    {label:<20}{n:>7,}")
         print(f"    {'(no probe matched)':<20}{named_none:>7,}")
 
+        # CONCENTRATION OF THE SUBSTRATE ITSELF, which is the statistic the
+        # promotion argument needed and did not have.
+        #
+        # diagnose_flavivirus_join reports a top-PMID share over ALL rows,
+        # and DENV-2's 1% across 135 publications is what argued for building
+        # it: a dispersed literature cannot reproduce the SARS-CoV-2 failure
+        # where 94.9% of compounds shared a PMID between their INHIBITS edge
+        # and their own label.
+        #
+        # But that figure covers 8,748 rows, of which 7,227 are cellular or
+        # organism-level and never reach a chain. The subset M1 actually
+        # traverses is 1,483, and 1,013 of them are a single PubChem capping
+        # enzyme campaign. A statistic computed over the whole file says
+        # nothing about the concentration of the part a channel uses.
+        #
+        # Rows with NO pubmed_id matter separately: --publication-disjoint
+        # withholds an edge that shares a PMID with its own label, so a row
+        # carrying no PMID is never withheld by that control at all.
+        pmids_p: Counter = Counter()
+        assays_p: Counter = Counter()
+        no_pmid = 0
+        assay_desc: dict[str, str] = {}
+        for r in protein_rows:
+            pm = r.get("pubmed_id")
+            if pm:
+                pmids_p[str(pm)] += 1
+            else:
+                no_pmid += 1
+            a = r.get("assay") or "?"
+            assays_p[a] += 1
+            assay_desc.setdefault(a, r.get("description") or "")
+
+        n = len(protein_rows)
+        print(f"\n  CONCENTRATION OF M1's SUBSTRATE ({n:,} protein rows):")
+        print(f"    {len(pmids_p):,} distinct PMID(s)")
+        print(f"    {no_pmid:,} rows carry NO pubmed_id "
+              f"({no_pmid / n:.0%}) -- --publication-disjoint cannot "
+              f"withhold these")
+        if pmids_p:
+            pm, c = pmids_p.most_common(1)[0]
+            print(f"    top PMID  PMID:{pm}  {c:,} rows ({c / n:.0%})")
+        if assays_p:
+            a, c = assays_p.most_common(1)[0]
+            print(f"    top assay {a}  {c:,} rows ({c / n:.0%})")
+            print(f"              {assay_desc[a][:66]}")
+        print("    Compare this against the all-rows top-PMID share in "
+              "diagnose_flavivirus_join:\n    they answer different "
+              "questions and only this one is about M1.")
+
         # THE BUCKET THAT MATTERS MOST HAD NO SAMPLES. The verbatim section
         # below is keyed on resolve_nsp's verdict, so the rows that match no
         # protein probe at all were counted and never shown -- 1,025 of
