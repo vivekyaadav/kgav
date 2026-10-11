@@ -203,7 +203,31 @@ def build_taxon_family_index(index, taxon_map: dict[str, str]) -> dict[str, str]
 
 
 def query_activities(db: Path, taxa: list[str]) -> list[dict]:
-    """Every usable coronavirus activity, with its assay description."""
+    """Every usable activity for these taxa, with its assay description.
+
+    AN EMPTY `taxa` IS A CALLER BUG AND IS REFUSED, because the alternative is
+    a confident wrong answer. With no taxa the WHERE clause became
+    `tax_id IN ()`, which standard SQL rejects but SQLite accepts as
+    always-false -- so the query returned zero rows and every caller read that
+    as "this virus has no activity data".
+
+    That is what happened on 2026-10-11:
+    diagnose_flavivirus_targets.py asked declared_taxa for a SURVEYED virus's
+    taxa while declared_taxa defaults to the `viruses:` section, got {}, and
+    printed "DENV-2: 0 activity rows, nothing to resolve" for a virus that has
+    8,748 -- having reported 8,748 correctly an hour earlier. No error, no
+    empty-result warning, just a measurement that read as a finding.
+
+    Zero rows for a real taxon and zero rows for no taxon must not look the
+    same. The first is data; the second is a bug.
+    """
+    if not taxa:
+        raise ValueError(
+            "query_activities called with no taxa: this returns zero rows via "
+            "`IN ()` rather than failing, which is indistinguishable from a "
+            "virus having no data. The caller probably read the wrong "
+            "register section -- declared_taxa(doc) defaults to `viruses:` "
+            "and a surveyed virus needs declared_taxa(doc, 'surveyed')")
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     con.row_factory = sqlite3.Row
     placeholders = ",".join("?" * len(taxa))
