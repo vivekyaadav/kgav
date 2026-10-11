@@ -17,6 +17,7 @@ from kgav.chembl import (
     EMITTED_COUNTERS,
     DROPPED_COUNTERS,
     accounting,
+    build_taxon_family_index,
     build_viral_target_index,
     ingest_activities,
     query_activities,
@@ -56,16 +57,23 @@ def main() -> int:
     print("loading spine + host")
     index = AliasIndex.from_releases(args.spine, args.host)
     viral_targets = build_viral_target_index(index, taxon_map)
+    # Which pattern table reads each description, derived from the graph's own
+    # OrganismTaxon.family rather than a list kept in step by hand.
+    taxon_families = build_taxon_family_index(index, taxon_map)
     n_targets = sum(len(v) for v in viral_targets.values())
     print(f"  {len(index):,} nodes | {n_targets} viral chain targets across "
           f"{len(viral_targets)} viruses")
+    for fam in sorted(set(taxon_families.values())):
+        n = sum(1 for f in taxon_families.values() if f == fam)
+        print(f"  {fam}: {n} taxon(s)")
 
     print(f"\nquerying {args.db.name}")
     rows = query_activities(args.db, sorted(taxon_map))
     print(f"  {len(rows):,} activities")
 
     em = Emit()
-    s = ingest_activities(em, rows, viral_targets, taxon_map, "infores:chembl")
+    s = ingest_activities(em, rows, viral_targets, taxon_map,
+                          "infores:chembl", taxon_families)
 
     # EVERY ROW IN MUST BE A REPORTED OUTCOME. ce133f1 added two counters --
     # measured_inactive_edges and undecidable_protein_measurement -- and this

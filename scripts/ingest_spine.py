@@ -80,6 +80,73 @@ def _nsp_number(label):
     return None
 
 
+# FLAVIVIRUS CHAIN NAMES, from the real annotations rather than a convention.
+#
+# Read from rest.uniprot.org on 2026-10-11 for Q32ZE1 (Zika, a component of
+# UP000054557) and P29990 (DENV-2 strain Thailand/16681/1984): thirteen Chain
+# features each, with the SAME thirteen descriptions character for character.
+# UniProt annotates the family from one controlled vocabulary, so this table
+# covers every flavivirus in the register and there is no per-virus curation.
+#
+# Exact strings for the structural chains, because they collide on prefixes:
+# "Protein prM" and "Peptide pr" are different chains, and a regex on "pr"
+# claims both.
+FLAVI_STRUCTURAL = {
+    "capsid protein c": "C",
+    "protein prm": "prM",
+    "peptide pr": "pr",
+    "small envelope protein m": "M",
+    "envelope protein e": "E",
+}
+# "Serine protease subunit NS2B", "Serine protease NS3",
+# "RNA-directed RNA polymerase/Methyltransferase NS5".
+FLAVI_TOKEN_RE = re.compile(r"\bns(\d[ab]?)\b", re.IGNORECASE)
+# "Non-structural protein 1", "... 2A", "... 4A", "... 4B". The [ab] group is
+# the point: a bare (\d+) reads "Non-structural protein 2A" as NS2, which is a
+# different chain that also exists.
+FLAVI_PHRASE_RE = re.compile(r"non-structural protein (\d[ab]?)", re.IGNORECASE)
+
+
+def _flavivirus_chain(label: str) -> str | None:
+    """Resolve a flavivirus chain description to its own protein name.
+
+    "Genome polyprotein" returns None deliberately: it is the parent product,
+    not a mature peptide, and giving it a family key would make the whole
+    polyprotein a join target competing with the chains cut from it -- which
+    is the undifferentiated-node failure this naming exists to end.
+    """
+    low = (label or "").lower().strip()
+    if low in FLAVI_STRUCTURAL:
+        return FLAVI_STRUCTURAL[low]
+    m = FLAVI_TOKEN_RE.search(low) or FLAVI_PHRASE_RE.search(low)
+    if m:
+        return f"NS{m.group(1).upper()}"
+    return None
+
+
+def chain_family(label: str, family: str | None) -> str | None:
+    """What protein_family a chain gets, chosen by the virus's family.
+
+    A BRANCH RATHER THAN A MERGED TABLE, on purpose. Every one of
+    SARS-CoV-2's sixteen pp1ab chains carries an explicit nspN token
+    ("Host translation inhibitor nsp1", "3C-like proteinase nsp5",
+    "RNA-directed RNA polymerase nsp12" -- UniProt P0DTD1, read 2026-10-11),
+    so the coronavirus routes are untouched here and coronavirus naming cannot
+    move: non-Flaviviridae input reaches exactly the code it reached before.
+
+    The two namespaces are kept apart because folds.py:41 refuses to link a
+    cysteine protease to a serine one -- "Cys != Ser, no edge, no exceptions".
+    nsp5 is a cysteine protease and NS2B-NS3 a serine protease, so a shared
+    functional key would assert upstream, and silently, the equivalence that
+    gate exists to deny. build_viral_target_index is keyed per taxon, so the
+    two never meet.
+    """
+    if family == "Flaviviridae":
+        return _flavivirus_chain(label)
+    n = _nsp_number(label)
+    return f"nsp{n}" if n else None
+
+
 
 
 @dataclass
@@ -190,9 +257,10 @@ def ingest_virus(em: Emit, cfg: dict, defaults: dict, prov: dict, proteome_dir: 
     # The other three defaults happen to be right for Flaviviridae too
     # (+ssRNA, enveloped), which is exactly why this would not have announced
     # itself: one wrong field among three correct ones.
+    vfamily = cfg.get("family") or defaults["family"]
     em.node(taxon_curie, "OrganismTaxon",
             label=name,
-            family=cfg.get("family") or defaults["family"],
+            family=vfamily,
             baltimore_class=cfg.get("baltimore_class") or defaults["baltimore_class"],
             genome_type=cfg.get("genome_type") or defaults.get("genome_type"),
             is_enveloped=defaults["is_enveloped"] if cfg.get("is_enveloped") is None
@@ -311,7 +379,7 @@ def ingest_virus(em: Emit, cfg: dict, defaults: dict, prov: dict, proteome_dir: 
 
             ccurie = f"UniProtKB:{cid}"
             seen_chains[key] = ccurie
-            nsp = _nsp_number(label)
+            fam = chain_family(label, vfamily)
 
             em.node(ccurie, "Protein",
                     gene_symbol=symbol,
@@ -320,7 +388,7 @@ def ingest_virus(em: Emit, cfg: dict, defaults: dict, prov: dict, proteome_dir: 
                     sequence_hash=_sha(f"{acc}:{cid}"),
                     reviewed=entry.get("entryType", "").startswith("UniProtKB reviewed"),
                     mature_peptide=label or cid,
-                    protein_family=f"nsp{nsp}" if nsp else None)
+                    protein_family=fam)
 
             if symbol:
                 em.edge(ccurie, "ENCODED_BY", f"KGAV:GENE_{tax}_{symbol}",

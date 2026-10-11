@@ -1,0 +1,299 @@
+"""Two-sided flavivirus protein naming, against real strings on both sides.
+
+WHY THE TWO SIDES ARE ONE COMMIT
+
+A chain's protein_family (written by ingest_spine) and an assay description's
+resolved family (read by chembl.resolve_nsp) are the two halves of one join
+key: build_viral_target_index maps taxon -> {family: chain node id}, and
+ingest_activities looks the description's answer up in it. Change one side
+alone and the key stops matching -- which would have broken the single
+flavivirus join that works today, NS5/RdRp resolving to nsp12 on both sides by
+coincidence. So both move here, together.
+
+WHY THE NAMESPACES STAY SEPARATE
+
+src/kgav/folds.py:41 -- "NUCLEOPHILE mode: Identical residue required.
+Cys != Ser, no edge, no exceptions." Coronavirus nsp5 is a cysteine protease;
+the flavivirus NS2B-NS3 protease is a serine protease. A shared functional key
+like "protease" would assert that equivalence inside protein_family, silently,
+upstream of the gate written to refuse it. folds/TargetClass stays the one
+place a cross-family claim is made and checked.
+
+PROVENANCE OF EVERY STRING HERE
+
+Chain descriptions: rest.uniprot.org, 2026-10-11.
+  Q32ZE1  Zika virus (64320), component of UP000054557 -- 13 Chain features
+  P29990  DENV-2 strain Thailand/16681/1984 (31634), no proteome xref -- 13
+  P0DTD1  SARS-CoV-2 (2697049) pp1ab -- 16 Chain features
+Assay descriptions: quoted from scripts/diagnose_flavivirus_targets.py output
+on the real ChEMBL database, same date.
+
+Nothing here is a string I composed to make a pattern pass.
+"""
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+
+import pytest
+
+from kgav.chembl import FLAVI_PATTERNS, NSP_PATTERNS, resolve_nsp
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _spine():
+    spec = importlib.util.spec_from_file_location(
+        "ingest_spine_naming", ROOT / "scripts" / "ingest_spine.py")
+    m = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = m          # @dataclass resolves via sys.modules
+    spec.loader.exec_module(m)
+    return m
+
+
+spine = _spine()
+chain_family = spine.chain_family
+
+# Q32ZE1 and P29990, verbatim and in genome order. Identical on both.
+FLAVI_CHAINS = (
+    ("Genome polyprotein", None),          # the parent product, not a peptide
+    ("Capsid protein C", "C"),
+    ("Protein prM", "prM"),
+    ("Peptide pr", "pr"),
+    ("Small envelope protein M", "M"),
+    ("Envelope protein E", "E"),
+    ("Non-structural protein 1", "NS1"),
+    ("Non-structural protein 2A", "NS2A"),
+    ("Serine protease subunit NS2B", "NS2B"),
+    ("Serine protease NS3", "NS3"),
+    ("Non-structural protein 4A", "NS4A"),
+    ("Non-structural protein 4B", "NS4B"),
+    ("RNA-directed RNA polymerase/Methyltransferase NS5", "NS5"),
+)
+
+# P0DTD1's sixteen, verbatim. Every one carries an explicit nspN token, which
+# is why the coronavirus routes need no change: they never relied on the
+# function-name table for this polyprotein.
+CORONA_CHAINS = (
+    ("Replicase polyprotein 1ab", None),
+    ("Host translation inhibitor nsp1", "nsp1"),
+    ("Non-structural protein 2", "nsp2"),
+    ("Papain-like protease nsp3", "nsp3"),
+    ("Non-structural protein 4", "nsp4"),
+    ("3C-like proteinase nsp5", "nsp5"),
+    ("Non-structural protein 6", "nsp6"),
+    ("Non-structural protein 7", "nsp7"),
+    ("Non-structural protein 8", "nsp8"),
+    ("Viral protein genome-linked nsp9", "nsp9"),
+    ("Non-structural protein 10", "nsp10"),
+    ("RNA-directed RNA polymerase nsp12", "nsp12"),
+    ("Helicase nsp13", "nsp13"),
+    ("Guanine-N7 methyltransferase nsp14", "nsp14"),
+    ("Uridylate-specific endoribonuclease nsp15", "nsp15"),
+    ("2'-O-methyltransferase nsp16", "nsp16"),
+)
+
+
+# --------------------------------------------------------------------------
+# the chain side
+# --------------------------------------------------------------------------
+@pytest.mark.parametrize("label,expected", FLAVI_CHAINS,
+                         ids=[c[0] for c in FLAVI_CHAINS])
+def test_every_flavivirus_chain_gets_its_own_name(label, expected):
+    assert chain_family(label, "Flaviviridae") == expected
+
+
+def test_all_twelve_mature_flavivirus_chains_are_now_keyed():
+    """Eleven of thirteen were unkeyed before this commit, and chembl.py skips
+    a chain with no protein_family -- so they could not be joined at all."""
+    keyed = {c: chain_family(c, "Flaviviridae") for c, _ in FLAVI_CHAINS}
+    assert sum(1 for v in keyed.values() if v is None) == 1, keyed
+    assert keyed["Genome polyprotein"] is None, "the parent stays unkeyed"
+    assert len(set(v for v in keyed.values() if v)) == 12, \
+        "twelve distinct chains, no two collapsing onto one key"
+
+
+def test_prm_and_pr_do_not_collapse_onto_each_other():
+    """"Protein prM" and "Peptide pr" are different chains at different
+    positions (123-290 and 123-215 on Q32ZE1). A prefix regex claims both,
+    which is why these five are matched as exact strings."""
+    assert chain_family("Protein prM", "Flaviviridae") == "prM"
+    assert chain_family("Peptide pr", "Flaviviridae") == "pr"
+
+
+def test_ns2a_is_not_read_as_ns2():
+    """A bare (\\d+) capture reads "Non-structural protein 2A" as NS2 -- a
+    different chain that also exists in the vocabulary. The [ab] group is the
+    whole reason this is not a one-line regex."""
+    assert chain_family("Non-structural protein 2A", "Flaviviridae") == "NS2A"
+    assert chain_family("Non-structural protein 4A", "Flaviviridae") == "NS4A"
+    assert chain_family("Non-structural protein 4B", "Flaviviridae") == "NS4B"
+
+
+@pytest.mark.parametrize("label,expected", CORONA_CHAINS,
+                         ids=[c[0] for c in CORONA_CHAINS])
+def test_coronavirus_chain_naming_is_unchanged(label, expected):
+    """NO REGRESSION, on the real sixteen. The release must come out of this
+    commit identical for the seven built viruses."""
+    assert chain_family(label, "Coronaviridae") == expected
+
+
+def test_a_coronavirus_label_is_never_read_by_the_flavivirus_table():
+    """The branch is the guarantee, not the patterns. Non-Flaviviridae input
+    reaches exactly the code it reached before this commit, so no flavivirus
+    pattern can touch a coronavirus row however it is written later."""
+    for label, expected in CORONA_CHAINS:
+        n = spine._nsp_number(label)
+        assert chain_family(label, "Coronaviridae") == (f"nsp{n}" if n else None)
+        assert chain_family(label, None) == expected, "default is coronavirus"
+
+
+def test_the_two_namespaces_are_disjoint():
+    """If a key appeared in both, build_viral_target_index being taxon-scoped
+    would be the only thing preventing a false identity. Belt and braces: no
+    flavivirus key is spelled like a coronavirus one."""
+    flavi = {v for _, v in FLAVI_CHAINS if v}
+    corona = {v for _, v in CORONA_CHAINS if v}
+    assert not flavi & corona
+    assert not any(k.lower().startswith("nsp") for k in flavi)
+
+
+# --------------------------------------------------------------------------
+# the activity side
+# --------------------------------------------------------------------------
+# Quoted from diagnose_flavivirus_targets.py against the real ChEMBL DB.
+REAL_ASSAY_DESCRIPTIONS = [
+    ("Binding affinity to Zika virus NS2B-NS3 protease", "NS3", "protease"),
+    ("Inhibition of Zika virus NS2B/NS3 protease", "NS3", "protease"),
+    ("Inhibition of C-terminal His6-tagged linked Zika virus NS2B-NS3 "
+     "protease domain expressed", "NS3", "protease"),
+    ("Inhibition of N-terminal hexa-histidine tagged Zika virus NS2B/NS3 "
+     "protease expressed in E", "NS3", "protease"),
+    ("Inhibition of Zika virus unlinked NS2B-NS3 protease preincubated for "
+     "5 mins followed by be", "NS3", "protease"),
+    ("Inhibition of Dengue virus 2 NS3 helicase incubated for 2 mins "
+     "followed by ATP addition", "NS3", "helicase"),
+    ("Non-competitive inhibition of Dengue virus 4 NS3 helicase",
+     "NS3", "helicase"),
+    ("Inhibition of RNA unwinding activity of thioredoxin/His6 tagged "
+     "Dengue virus 2 TSV01 NS3 h", "NS3", "helicase"),
+    ("Inhibition of Dengue virus type 2 NS5 RNA methyltransferase SAM site",
+     "NS5", "methyltransferase"),
+    ("Inhibition of Dengue virus type 2 NS5 RNA methyltransferase at 8 nM "
+     "enzyme concentration", "NS5", "methyltransferase"),
+    ("Inhibition of ZIKV 2'-O-MTase assessed as reduction in [3H]AdoMet "
+     "transfer on to capped Gp", "NS5", "methyltransferase"),
+    ("PUBCHEM_BIOASSAY: Primary and Confirmatory Screening for Flavivirus "
+     "Genomic Capping Enzyme", "NS5", "methyltransferase"),
+    ("Inhibition of Zika virus RNA-dependent RNA polymerase using "
+     "poly(rC)/rG13 as substrate aft", "NS5", "rdrp"),
+    ("Binding affinity to ZIKV RdRP by SPR assay", "NS5", "rdrp"),
+    ("Binding affinity to N-terminal His-tagged recombinant ZIKV ZG-01 RdRp "
+     "(272 to 903 residues", "NS5", "rdrp"),
+    ("Inhibition of Zika virus wild type RNA-dependent RNA polymerase using "
+     "ATP as substrate", "NS5", "rdrp"),
+]
+
+
+@pytest.mark.parametrize("desc,family,domain", REAL_ASSAY_DESCRIPTIONS,
+                         ids=[d[0][:48] for d in REAL_ASSAY_DESCRIPTIONS])
+def test_real_flavivirus_assay_descriptions_resolve(desc, family, domain):
+    assert resolve_nsp(desc, "Flaviviridae") == (family, domain)
+
+
+def test_the_protease_rows_now_reach_ns3_rather_than_the_polyprotein():
+    """The number this commit exists to move. 315 of the 355 Zika rows that
+    reach the chain lookup name a protease and resolved to nothing before;
+    they now resolve to NS3, which is a chain the spine emits."""
+    protease_rows = [d for d, f, dom in REAL_ASSAY_DESCRIPTIONS
+                     if dom == "protease"]
+    assert protease_rows
+    for d in protease_rows:
+        assert resolve_nsp(d, "Flaviviridae")[0] == "NS3"
+        # What it did before: nothing at all.
+        assert resolve_nsp(d)[0] is None, \
+            "precondition: the coronavirus table could not read this"
+
+
+def test_the_two_bifunctional_chains_are_split_by_domain_not_by_node():
+    """NS3 is protease + helicase; NS5 is methyltransferase + RdRp. UniProt
+    annotates one chain each, so the domain qualifier carries the distinction
+    rather than inventing nodes the source does not have."""
+    assert resolve_nsp("Zika virus NS2B-NS3 protease", "Flaviviridae") \
+        == ("NS3", "protease")
+    assert resolve_nsp("Dengue virus 2 NS3 helicase", "Flaviviridae") \
+        == ("NS3", "helicase")
+    assert resolve_nsp("DENV NS5 methyltransferase", "Flaviviridae") \
+        == ("NS5", "methyltransferase")
+    assert resolve_nsp("ZIKV RdRp", "Flaviviridae") == ("NS5", "rdrp")
+
+
+def test_the_methyltransferase_rule_precedes_the_rdrp_rule():
+    """Order matters and is load-bearing: the bare \\bns5\\b fallback in the
+    RdRp rule would otherwise claim "NS5 RNA methyltransferase" and file an
+    MTase measurement as a polymerase one. DENV-2's largest single assay --
+    1,013 rows, the PubChem capping-enzyme screen -- is MTase."""
+    pats = [p.pattern for p, _, _ in FLAVI_PATTERNS]
+    mt = next(i for i, p in enumerate(pats) if "mtase" in p)
+    rd = next(i for i, p in enumerate(pats) if "rdrp" in p)
+    assert mt < rd
+    assert resolve_nsp("NS5 RNA methyltransferase SAM site", "Flaviviridae") \
+        == ("NS5", "methyltransferase")
+
+
+def test_coronavirus_descriptions_are_unchanged_by_the_new_argument():
+    """resolve_nsp gained an argument. Defaulted or given a coronavirus
+    family, every existing caller must get exactly what it got before."""
+    for desc in ("Inhibition of SARS-CoV-2 3CL protease",
+                 "Inhibition of SARS-CoV-2 Mpro",
+                 "Inhibition of SARS-CoV-2 RdRp",
+                 "Inhibition of SARS-CoV-2 nsp13 helicase",
+                 "Inhibition of SARS-CoV PLpro",
+                 "Inhibition of nsp14 exoribonuclease",
+                 "Inhibition of SARS-CoV-2 nsp16 2'-O-methyltransferase"):
+        assert resolve_nsp(desc) == resolve_nsp(desc, "Coronaviridae")
+        assert resolve_nsp(desc) == resolve_nsp(desc, None)
+        assert resolve_nsp(desc)[0] is not None, desc
+
+
+def test_an_unknown_family_falls_back_to_the_coronavirus_table():
+    """Not a guess -- the pre-existing behaviour. A taxon with no family in
+    the graph gets what it got before this commit, never a flavivirus read."""
+    assert resolve_nsp("Inhibition of SARS-CoV-2 Mpro", "Picornaviridae") \
+        == resolve_nsp("Inhibition of SARS-CoV-2 Mpro")
+    assert len(NSP_PATTERNS) == 9, "the coronavirus table is untouched"
+
+
+# --------------------------------------------------------------------------
+# the two sides agree, which is the point
+# --------------------------------------------------------------------------
+def test_the_join_key_matches_end_to_end():
+    """Simulates build_viral_target_index: key the real chains, then look up
+    what the real descriptions resolve to. This is the test that a one-sided
+    change breaks."""
+    index = {chain_family(label, "Flaviviridae"): f"UniProtKB:PRO_{i}"
+             for i, (label, _) in enumerate(FLAVI_CHAINS)
+             if chain_family(label, "Flaviviridae")}
+
+    for desc, expected_family, _domain in REAL_ASSAY_DESCRIPTIONS:
+        fam, _ = resolve_nsp(desc, "Flaviviridae")
+        assert fam == expected_family
+        assert fam in index, (
+            f"{desc!r} resolves to {fam!r}, which no chain supplies -- the "
+            f"row would fall through to the undifferentiated polyprotein")
+
+
+def test_ns5_no_longer_depends_on_a_coronavirus_coincidence():
+    """Before this commit NS5 joined only because "RNA-directed RNA
+    polymerase" appears in both families' vocabularies and both sides
+    independently said nsp12. That accident is now an explicit rule on each
+    side, and neither says nsp12."""
+    assert chain_family(
+        "RNA-directed RNA polymerase/Methyltransferase NS5", "Flaviviridae") \
+        == "NS5"
+    assert resolve_nsp("Zika virus RNA-dependent RNA polymerase",
+                       "Flaviviridae") == ("NS5", "rdrp")
+    # The coincidence, still there in the coronavirus table where it belongs.
+    assert spine._nsp_number(
+        "RNA-directed RNA polymerase/Methyltransferase NS5") == 12

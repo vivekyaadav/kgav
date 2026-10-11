@@ -385,31 +385,32 @@ def test_zika_and_denv2_chains_share_one_vocabulary():
     ]
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "DESIGN DECISION NOT MADE, deliberately left failing rather than guessed. "
-    "Reaching the flavivirus protease means changing what protein_family "
-    "holds, and the options differ in cost: (a) namespace by family -- "
-    "Flaviviridae keyed 'NS3'/'NS5', Coronaviridae keyed 'nsp5' -- which "
-    "needs chembl.resolve_nsp to learn the flavivirus vocabulary IN THE SAME "
-    "commit or the nine NS5 rows that work today stop working; or (b) keep "
-    "nspN as a coronavirus-only namespace and let folds/TargetClass carry "
-    "every cross-family link. Both sides must move together, so it is one "
-    "decision, not two patches. strict=True: the commit that decides it turns "
-    "this green and must delete this marker."))
 def test_the_chembl_join_can_reach_the_flavivirus_protease():
-    """The outcome either option must produce.
+    """DECIDED, and the marker deleted as its own reason instructed.
 
-    Why it is worth a marker: 315 of the 355 Zika rows that reach the chain
-    lookup name a protease, and 9 name the RdRp
-    (scripts/diagnose_flavivirus_targets.py, 2026-10-11). NS5 is the only
-    chain that resolves, so the join reaches 9 of 355 -- 2.5% -- and the
-    protease evidence, which is almost all of it, lands on the
-    undifferentiated polyprotein. Downloading the proteomes does not change
-    that number; only this decision does.
+    This was xfail(strict=True) while the key scheme was an open question.
+    The question is settled by src/kgav/folds.py:41 -- "NUCLEOPHILE mode:
+    Identical residue required. Cys != Ser, no edge, no exceptions." Flavivirus
+    NS2B-NS3 is a serine protease and coronavirus nsp5 a cysteine protease, so
+    a shared functional key such as "protease" would assert inside
+    protein_family the very cross-family equivalence that gate refuses, and
+    assert it upstream of the gate. Each family therefore keeps its own
+    namespace, and folds/TargetClass stays the one place a cross-family claim
+    is made and checked.
+
+    What it was worth fixing for: 315 of the 355 Zika rows that reach the
+    chain lookup name a protease, against 9 for the RdRp
+    (scripts/diagnose_flavivirus_targets.py, 2026-10-11). Those 315 resolved
+    to nothing and landed on the undifferentiated polyprotein.
+
+    _nsp_number itself is deliberately unchanged -- it remains the
+    coronavirus-only function, which is why the test above still measures it
+    returning None here. chain_family is the family-aware entry point, and
+    tests/test_flavivirus_naming.py holds the two-sided detail.
     """
-    from ingest_spine import _nsp_number
+    from ingest_spine import chain_family
 
-    n = _nsp_number("Serine protease NS3")
-    assert n is not None, "the protease must be keyable at all"
-    assert not str(n).isdigit() or n not in (1, 3, 5, 12, 13, 14, 15, 16), \
-        f"keyed as nsp{n}, a coronavirus protein's name"
+    key = chain_family("Serine protease NS3", "Flaviviridae")
+    assert key == "NS3", "the protease must be keyable"
+    assert not key.lower().startswith("nsp"), \
+        f"keyed as {key}, a coronavirus protein's name"
