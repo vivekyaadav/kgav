@@ -429,17 +429,26 @@ def main() -> int:
                       "route.")
             if vhn["unmapped"]:
                 lost = sum(vhn["unmapped"].values())
-                print(f"\n    AND A FINDING ABOUT THE CURRENT BUILD: "
-                      f"{len(vhn['unmapped'])} taxon(s), {lost:,} rows, are "
-                      f"in\n    these files and NOT in the built register's "
-                      f"taxon_map, so ingest_vhppi\n    counts them as "
-                      f"unmapped_viral_taxon and discards them. A host taxon "
-                      f"(rat,\n    mouse) there is expected; a VIRAL strain "
-                      f"of a virus you already build is\n    an isolate_taxa "
-                      f"entry missing from config/viruses.yaml. The taxid "
-                      f"fields above are\n    printed verbatim; if they "
-                      f"carry no organism name, look the ids up before\n"
-                      f"    adding anything to the register.")
+                print(f"\n    OUTSIDE THE BUILT REGISTER'S TAXON MAP: "
+                      f"{len(vhn['unmapped'])} taxon(s), {lost:,} rows.\n"
+                      f"    A host taxon (rat, mouse) there is expected. A "
+                      f"viral strain of a virus\n    you already build may be "
+                      f"an isolate_taxa entry worth adding -- the taxid\n"
+                      f"    fields above are verbatim, so look the ids up "
+                      f"first.\n"
+                      f"\n    THIS DOES NOT SAY THE ROWS ARE LOST, AND AN "
+                      f"EARLIER VERSION DID. It read\n    \"so ingest_vhppi "
+                      f"counts them as unmapped_viral_taxon and discards "
+                      f"them\",\n    which is a causal claim this script "
+                      f"cannot make: ingest_mitab checks the\n    taxon map "
+                      f"LAST, after unparseable, no_detection_method, "
+                      f"unresolved_id,\n    self_interaction and "
+                      f"viral_viral. On v0.1 these rows die at "
+                      f"unresolved_id\n    and the taxon map is never "
+                      f"consulted -- declaring the two SARS-CoV isolates\n"
+                      f"    left the layer byte-identical. Only the ingest's "
+                      f"own dropped counters say\n    which gate a row dies "
+                      f"at; run it and read them.")
 
     print("\n" + "=" * 78)
     print("WHAT THIS DOES NOT DECIDE")

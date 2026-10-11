@@ -55,10 +55,29 @@ viruses:
     name: SARS-CoV
     # ISOLATES DECLARED FOR THE PPI LAYER, NOT FOR CHAINS. chain_source above
     # is the species itself, so nothing here is needed to find mature
-    # peptides. These two exist because VirHostNet files 73 host-viral
-    # interactions under them, and without the declaration ingest_vhppi
-    # counts each as `unmapped_viral_taxon` and discards it -- the MERS trap
-    # in the PPI layer rather than the chain layer.
+    # peptides. These two are declared because VirHostNet files 73 host-viral
+    # interactions under them.
+    #
+    # DECLARING THEM RECOVERS NOTHING TODAY, AND THE MEASUREMENT SAYS SO.
+    # Running ingest_vhppi with and without these two entries gives a
+    # byte-identical layer -- 10,888 edges either way -- and the assembled
+    # release is unchanged at 71,261 nodes / 370,937 edges, with
+    # check_results reporting 0 stale against results computed before the
+    # change.
+    #
+    # The reason is the gate order in vhppi.ingest_mitab. `unmapped_viral_taxon`
+    # is 0 in BOTH runs, so these rows never reach the taxon map: they are
+    # dropped earlier, at `unresolved_id`, because an isolate carries its own
+    # UniProt accessions and the spine builds SARS-CoV protein nodes from the
+    # species reference proteome UP000000354. The taxon map is never consulted
+    # for a row whose identifiers did not resolve.
+    #
+    # WHAT WOULD ACTUALLY RECOVER THEM is extra_accessions, the mechanism MERS
+    # uses above: pull the isolate's reviewed accessions alongside the
+    # proteome and reassign them to the species taxon, so the alias index can
+    # resolve them. That is a spine change and it is not done here. These
+    # entries stay because they are true and because they are the breadcrumb
+    # to the 73 rows; they are not load-bearing.
     #
     # Found by the VirHostNet taxon histogram in
     # diagnose_flavivirus_join.py, which prints every taxon in the files and
@@ -85,7 +104,7 @@ viruses:
     # figure in docs/evaluation.md. Both return zero rows for
     # IC50/EC50/Ki/Kd, so this is a PPI-only change.
     isolate_taxa: ["227984", "698419"]
-    curation_note: "isolates declared for VirHostNet PPI coverage only; no ChEMBL activity under either"
+    curation_note: "isolates present in VirHostNet; INERT until extra_accessions lets the spine resolve their identifiers. No ChEMBL activity under either."
     proteome_id: UP000000354
     mondo: "MONDO:0005091"
     mondo_source: "severe acute respiratory syndrome; sole exact match, verified 2026-09"
