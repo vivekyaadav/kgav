@@ -298,3 +298,73 @@ def test_a_file_predating_the_flags_is_protocol_unknown(tmp_path):
     p = tmp_path / "old.json"
     p.write_text(json.dumps(doc))
     assert C.load(p, "SARS-CoV-2").protocol.endswith("unknown")
+
+
+# ------------------------------------------- run_baselines' calibration wiring
+def _run_baselines():
+    """run_baselines loaded by path, so these test the shipped script rather
+    than a restatement of it."""
+    import importlib.util
+    import sys as _sys
+    from pathlib import Path as _Path
+    root = _Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location(
+        "run_baselines", root / "scripts" / "run_baselines.py")
+    m = importlib.util.module_from_spec(spec)
+    _sys.modules[spec.name] = m
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_without_the_flag_nothing_is_loaded_and_the_column_is_uncalibrated(
+        tmp_path):
+    """calibrate.py has printed "run_baselines.py  # with --calibrated once
+    wired" since the calibration module landed, and it was never wired: the
+    script called combine(dwpc, virus) and headed the column "dwpc", with
+    nothing to say which channels had cleared chance."""
+    rb = _run_baselines()
+    assert rb.load_calibration(False, tmp_path / "nope.json", LABEL,
+                               "cross_sectional") is None
+    assert rb.dwpc_mode(None) == "uncalibrated"
+
+
+def test_asking_for_calibration_without_the_file_refuses(tmp_path):
+    """No silent fallback. Being handed an uncalibrated order under the same
+    column heading is the failure the flag exists to prevent, so a missing
+    file is fatal rather than ignored."""
+    rb = _run_baselines()
+    with pytest.raises(FileNotFoundError):
+        rb.load_calibration(True, tmp_path / "nope.json", LABEL,
+                            "cross_sectional")
+
+
+def test_the_measured_release_refuses_to_rank(tmp_path):
+    """The position on v0.1: not one channel's interval excludes chance, so
+    there is no order to report and saying so is the result."""
+    rb = _run_baselines()
+    cal = rb.load_calibration(True, _results(tmp_path, MEASURED), LABEL,
+                              "cross_sectional")
+    assert rb.dwpc_mode(cal) == "refused"
+    assert cal.why_not()
+
+
+def test_a_discriminating_channel_yields_a_calibrated_ranking(tmp_path):
+    """And the other side of it, so "refused" is a measurement rather than
+    the only thing this code can say."""
+    rb = _run_baselines()
+    rows = dict(MEASURED)
+    rows["M4"] = _row(0.70, 0.62, 0.78, cov_pos=0.40, cov_neg=0.30)
+    cal = rb.load_calibration(True, _results(tmp_path, rows), LABEL,
+                              "cross_sectional")
+    assert rb.dwpc_mode(cal) == "calibrated"
+    assert "M4" in cal.weights()
+
+
+def test_the_three_modes_are_the_declared_ones(tmp_path):
+    """The mode string is written into the results file, so it is part of the
+    record and not a print statement."""
+    rb = _run_baselines()
+    cal = rb.load_calibration(True, _results(tmp_path, MEASURED), LABEL,
+                              "cross_sectional")
+    for m in (rb.dwpc_mode(None), rb.dwpc_mode(cal)):
+        assert m in rb.DWPC_MODES
