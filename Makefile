@@ -1,4 +1,4 @@
-.PHONY: install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results clean
+.PHONY: install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw clean
 
 install:
 	pip install -e ".[dev]"
@@ -69,6 +69,19 @@ release-validate:
 # filenames, one audited and one used, is the hazard itself.
 check-results:
 	python scripts/check_results.py $(or $(RESULTS),data/results)
+
+# FETCH THE RAW INPUTS, AND AUDIT WHAT IS ALREADY THERE.
+#
+# data/raw/* is gitignored and was populated by hand, so a fresh clone could
+# not rebuild v0.1 and nothing recorded which UniProt release the proteins
+# came from. check-raw is the audit and needs no network: it reports a file
+# that disagrees with config/viruses.yaml, a built virus whose proteome is
+# absent, and a file placed by hand with no URL, date or checksum.
+check-raw:
+	python scripts/fetch_raw.py --check
+
+fetch-raw:
+	python scripts/fetch_raw.py --all-built
 
 clean:
 	find . -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true

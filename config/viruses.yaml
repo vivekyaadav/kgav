@@ -249,23 +249,45 @@ surveyed:
   # having nothing to be disjoint from. Zika's rows all carry PMIDs and its
   # top assay is 29%, so the control can act on all of them.
   #
-  # WHAT EACH STILL NEEDS, measured rather than assumed:
+  # GATE 1 -- THE FILES. Now a command rather than a note:
   #
-  #   Zika    data/raw/proteomes/UP000054557.json.gz. Q32ZE1 IS a component
-  #           of that proteome and carries 13 CHAIN features with EXACT
-  #           positions (UniProt, 2026-10-11), so one file is enough.
-  #   DENV-2  UP000095876.json.gz AND EXTRA_11060.json.gz. P29990 carries 13
-  #           CHAIN features but has NO proteome cross-reference at all and
-  #           is filed under strain 31634, so no proteome download produces
+  #   python scripts/fetch_raw.py --virus Zika
+  #   python scripts/fetch_raw.py --virus DENV-2
+  #
+  # Re-read from rest.uniprot.org on 2026-10-11, and both claims below held:
+  #
+  #   Zika    UP000054557 returns 2 entries -- Q32ZE1 and P0DXN9 -- and
+  #           Q32ZE1 carries 13 CHAIN features with exact positions. One file
+  #           is enough, and chain_source's count is correct.
+  #   DENV-2  UP000095876 AND EXTRA_11060.json.gz. P29990 carries 13 CHAIN
+  #           features, is filed under strain 31634, and has NO proteome
+  #           cross-reference of any kind, so no proteome download produces
   #           it; extra_accessions below is the MERS mechanism for that.
+  #           fetch_raw REFUSES to write the proteome alone and says so.
   #
-  # BOTH need target resolution that does not exist yet. chembl.NSP_PATTERNS
+  # Both chain_source counts still read 13, matching `verified: 2026-09-17` a
+  # month later -- and fetch_raw now checks that on every fetch, so the date
+  # is a tested claim rather than a remembered one.
+  #
+  # GATE 2 -- THE NAMES, and it is one decision, not nine. chembl.NSP_PATTERNS
   # and ingest_spine._nsp_number name coronavirus proteins. Measured against
-  # P29990's real chain labels: NS5 resolves to nsp12 on BOTH sides, so it
-  # works by accident; NS3 -- the most-studied flavivirus drug target --
-  # resolves to nothing on the chain side and lands on the whole polyprotein.
-  # A one-sided fix breaks the accident. See the test
-  # test_nsp_number_mislabels_flavivirus_chains_and_misses_the_protease.
+  # the real chain labels, which are IDENTICAL on Q32ZE1 and P29990 -- UniProt
+  # annotates the family from one controlled vocabulary, so a single rule
+  # covers all nine flaviviruses here and there is no per-virus curation:
+  #
+  #   11 of 13 chains      protein_family = None, so chembl.py:113 skips them
+  #   NS5                  -> nsp12 on BOTH sides, right by accident
+  #   NS1                  -> nsp1, a different protein in another family
+  #
+  # NS2B-NS3, the most-studied flavivirus drug target, is among the eleven.
+  # For Zika that is 315 of the 355 rows reaching the chain lookup, against 9
+  # for the RdRp -- so the join would reach 9 of 355 (2.5%) and the protease
+  # evidence would land on the undifferentiated polyprotein. Downloading the
+  # proteomes does not move that number; only the naming decision does, and a
+  # one-sided fix breaks the accident that makes NS5 work. The fork is written
+  # out in the strict xfail on
+  # test_the_chembl_join_can_reach_the_flavivirus_protease, next to the
+  # measurement in test_nsp_number_mislabels_flavivirus_chains_and_misses_the_protease.
   #
   # ORCS is ready: orcs.VIRUS_PATTERNS now matches dengue serotype 2, Zika,
   # West Nile and yellow fever, and 7 of the 11 flavivirus screens pass
