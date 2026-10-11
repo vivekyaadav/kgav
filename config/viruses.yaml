@@ -232,7 +232,23 @@ viruses:
     # Not a fiction to fill a path: the ORF is real and encodes the
     # polyprotein that all thirteen mature peptides are cut from. POLY names
     # the one gene they share, so every chain ENCODED_BY resolves to it.
-    gene_symbol: POLY
+    #
+    # PER ACCESSION, because the two entries are NOT one gene. A first version
+    # declared a single symbol for the virus and gave it to both, making
+    # Q32ZE1 and P0DXN9 share one Gene node. P0DXN9 is UniProt's reviewed
+    # "uORF protein" (function: "Plays a role in viral replication"), and a
+    # uORF is by definition a different reading frame from the polyprotein, so
+    # that merge asserted two genes are one.
+    #
+    # BASIS, since UniProt does not state the frame outright: the claim here
+    # rests on UniProt's own protein name for P0DXN9 and nothing more. If that
+    # protein turns out to be a product of the main ORF, uORF is wrong and
+    # should be removed rather than merged back into POLY -- a protein with no
+    # gene is unreachable by M1, which is honest, whereas a protein on the
+    # wrong gene is a false path.
+    gene_symbol:
+      Q32ZE1: POLY
+      P0DXN9: uORF
     # Curated AT THE SPECIES TAXON, like five of the seven coronaviruses
     # above: no isolate mapping is needed and none is declared, so the
     # validator can tell "not needed" from "forgotten". (It was one of

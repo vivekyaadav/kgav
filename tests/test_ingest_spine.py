@@ -460,3 +460,50 @@ def test_the_chembl_join_can_reach_the_flavivirus_protease():
     assert key == "NS3", "the protease must be keyable"
     assert not key.lower().startswith("nsp"), \
         f"keyed as {key}, a coronavirus protein's name"
+
+
+def test_the_declared_gene_symbol_is_per_accession_not_per_virus():
+    """REGRESSION. The first fix for Zika's genes=0 declared ONE symbol for
+    the virus and handed it to every entry lacking a gene name, so Q32ZE1 (the
+    genome polyprotein) and P0DXN9 both became POLY and shared a single Gene
+    node -- the build printed "genes=2" while Gene rose by one and
+    node_merged:Gene went 2 -> 3.
+
+    P0DXN9 is UniProt's reviewed "uORF protein", function "Plays a role in
+    viral replication", and a uORF is by definition a different reading frame
+    from the polyprotein. Merging them asserted two genes are one, which is
+    the false identity this project refuses everywhere else -- it is the same
+    mistake as keying a flavivirus protease as nsp5.
+    """
+    from ingest_spine import _gene_symbol
+
+    declared = {"Q32ZE1": "POLY", "P0DXN9": "uORF"}
+    assert _gene_symbol({"primaryAccession": "Q32ZE1"}, declared) == "POLY"
+    assert _gene_symbol({"primaryAccession": "P0DXN9"}, declared) == "uORF"
+    assert _gene_symbol({"primaryAccession": "Q32ZE1"}, declared) \
+        != _gene_symbol({"primaryAccession": "P0DXN9"}, declared), \
+        "two reading frames must not collapse onto one gene node"
+
+    # An accession the register does not name gets nothing. A protein with no
+    # gene is unreachable by M1, which is honest; a protein on the wrong gene
+    # is a false path.
+    assert _gene_symbol({"primaryAccession": "P0DTG0"}, declared) is None
+    # And a real UniProt gene name always wins over any declaration.
+    assert _gene_symbol(
+        {"primaryAccession": "Q32ZE1",
+         "genes": [{"geneName": {"value": "rep"}}]}, declared) == "rep"
+
+
+def test_the_register_declares_a_symbol_for_every_zika_entry_it_needs():
+    """Both Zika accessions are named, so neither silently loses its gene.
+    Read from the register rather than hardcoded, so adding an entry to the
+    map is enough and this test does not need editing."""
+    import yaml
+
+    cfg = yaml.safe_load(CONFIG.read_text())
+    zika = next(v for v in cfg["viruses"] if v["name"] == "Zika")
+    declared = zika["gene_symbol"]
+    assert isinstance(declared, dict), "per accession, not one string"
+    assert declared == {"Q32ZE1": "POLY", "P0DXN9": "uORF"}
+    assert len(set(declared.values())) == len(declared), \
+        "distinct accessions must not share a symbol"

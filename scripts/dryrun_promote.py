@@ -255,22 +255,31 @@ def main() -> int:
                 # walk from a compound to the Zika taxon. One read of the
                 # cached file would have said so beforehand, which is what
                 # this now does.
-                declared = e.get("gene_symbol")
-                with_genes = [x.get("primaryAccession") for x in entries
-                              if x.get("genes")]
-                if with_genes:
-                    print(f"          gene symbols from UniProt on "
-                          f"{len(with_genes)}/{len(entries)} entries")
-                elif declared:
-                    print(f"          no UniProt gene names; register "
-                          f"declares gene_symbol: {declared}")
-                else:
-                    print(f"          NO GENE SYMBOL: no entry has a `genes` "
-                          f"field and the register declares no\n          "
-                          f"gene_symbol, so ingest_spine emits no Gene node "
-                          f"-- no ENCODED_BY, no\n          BELONGS_TO, and "
+                # PER ACCESSION, matching ingest_spine. gene_symbol is a
+                # map, because declaring one symbol for the whole virus made
+                # Zika's polyprotein and its uORF protein share a Gene node.
+                declared = e.get("gene_symbol") or {}
+                if isinstance(declared, str):      # tolerate the old shape
+                    declared = dict.fromkeys(
+                        (x.get("primaryAccession") for x in entries), declared)
+                naked = [x.get("primaryAccession") for x in entries
+                         if not x.get("genes")]
+                covered = [a for a in naked if a in declared]
+                uncovered = [a for a in naked if a not in declared]
+                print(f"          gene symbols: "
+                      f"{len(entries) - len(naked)} from UniProt, "
+                      f"{len(covered)} declared, {len(uncovered)} missing")
+                if uncovered and len(uncovered) == len(entries):
+                    print(f"          NO GENE SYMBOL ANYWHERE: {uncovered} "
+                          f"have no `genes` field and the\n          register "
+                          f"declares none, so ingest_spine emits no Gene node "
+                          f"-- no\n          ENCODED_BY, no BELONGS_TO, and "
                           f"M1 cannot reach this taxon at all")
                     blocked.append(e["name"])
+                elif uncovered:
+                    print(f"          note: {uncovered} get no Gene node, so "
+                          f"those proteins alone are\n          unreachable "
+                          f"by M1. The taxon is still reachable via the rest.")
             except (OSError, ValueError) as exc:
                 print(f"          UNREADABLE: {exc}")
                 blocked.append(e["name"])
