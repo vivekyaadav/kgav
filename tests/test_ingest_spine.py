@@ -212,19 +212,21 @@ def test_every_coronavirus_exposes_the_core_nsps(tmp_path):
 
 
 @needs_data
-@pytest.mark.xfail(strict=True, reason=(
-    "DENV-2 and Zika are declared in `viruses:` but build zero proteins: "
-    "data/raw/proteomes/UP000095876.json.gz and UP000054557.json.gz are not "
-    "cached and this repository has no fetcher. ingest_spine records "
-    "proteome_missing and returns early. STRICT: when the proteomes arrive "
-    "this test passes and the suite goes red, which is the signal to remove "
-    "this marker -- not to leave a passing xfail hiding a resolved gap."))
 def test_every_built_virus_builds_at_least_one_protein(tmp_path):
     """A virus declared built must produce proteins, or it is an orphan taxon.
 
-    This is what two orphan OrganismTaxon nodes in v0.1 look like from the
-    test suite: the register promises a virus, the spine delivers a label,
-    and nothing in between reports it except a note in a build log.
+    This is what two orphan OrganismTaxon nodes in v0.1 looked like from the
+    test suite: the register promised a virus, the spine delivered a label,
+    and nothing in between reported it except a note in a build log. It was
+    xfail(strict=True) for exactly as long as DENV-2 and Zika sat in
+    `viruses:` without cached proteomes -- roughly an hour -- and the xfail is
+    gone because the register is, not because the gap was papered over.
+
+    It now guards forward: promote a virus whose proteome is not in
+    data/raw/proteomes and this fails BEFORE ingest_chembl emits 1,881
+    DANGLING edges and assemble_release invalidates every results file.
+    dryrun_promote.py Section 0 checks the same precondition on demand; this
+    is the copy that runs whether or not anyone remembers to ask.
     """
     spine = build(CONFIG, PROTEOMES, tmp_path / "proteins")
     counts: dict[str, int] = {}
