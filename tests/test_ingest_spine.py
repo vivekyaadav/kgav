@@ -345,3 +345,71 @@ def test_nsp_number_mislabels_flavivirus_chains_and_misses_the_protease():
     # coronavirus naming, which must not move
     assert _nsp_number("3C-like proteinase nsp5") == 5
     assert _nsp_number("Non-structural protein 3") == 3
+
+
+# Verbatim from rest.uniprot.org, read 2026-10-11 for BOTH polyproteins.
+FLAVIVIRUS_CHAINS = (
+    "Genome polyprotein", "Capsid protein C", "Protein prM", "Peptide pr",
+    "Small envelope protein M", "Envelope protein E",
+    "Non-structural protein 1", "Non-structural protein 2A",
+    "Serine protease subunit NS2B", "Serine protease NS3",
+    "Non-structural protein 4A", "Non-structural protein 4B",
+    "RNA-directed RNA polymerase/Methyltransferase NS5",
+)
+
+
+def test_zika_and_denv2_chains_share_one_vocabulary():
+    """Read on 2026-10-11: Q32ZE1 (Zika, 64320, a component of UP000054557)
+    and P29990 (DENV-2 strain Thailand/16681/1984, 31634, no proteome
+    cross-reference at all) each carry thirteen Chain features with the SAME
+    thirteen descriptions, character for character.
+
+    The test above measured P29990 alone, which left open whether each virus
+    would need its own curated patterns -- nine entries in `surveyed:` would
+    have meant nine curation jobs. It does not: UniProt annotates the family
+    from one controlled vocabulary, so ONE chain-naming rule covers Zika,
+    DENV-2 and the seven flaviviruses still at zero protein rows.
+
+    This is the cheap half of the gate. Pinned here so that if a later commit
+    writes per-virus patterns, this says they are not needed.
+    """
+    from ingest_spine import _nsp_number
+
+    assert len(FLAVIVIRUS_CHAINS) == 13 == len(set(FLAVIVIRUS_CHAINS))
+
+    keyed = {c: _nsp_number(c) for c in FLAVIVIRUS_CHAINS}
+    assert sum(1 for v in keyed.values() if v is None) == 11, keyed
+    assert [c for c, v in keyed.items() if v is not None] == [
+        "Non-structural protein 1",                           # wrong: NS1
+        "RNA-directed RNA polymerase/Methyltransferase NS5",  # right by accident
+    ]
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "DESIGN DECISION NOT MADE, deliberately left failing rather than guessed. "
+    "Reaching the flavivirus protease means changing what protein_family "
+    "holds, and the options differ in cost: (a) namespace by family -- "
+    "Flaviviridae keyed 'NS3'/'NS5', Coronaviridae keyed 'nsp5' -- which "
+    "needs chembl.resolve_nsp to learn the flavivirus vocabulary IN THE SAME "
+    "commit or the nine NS5 rows that work today stop working; or (b) keep "
+    "nspN as a coronavirus-only namespace and let folds/TargetClass carry "
+    "every cross-family link. Both sides must move together, so it is one "
+    "decision, not two patches. strict=True: the commit that decides it turns "
+    "this green and must delete this marker."))
+def test_the_chembl_join_can_reach_the_flavivirus_protease():
+    """The outcome either option must produce.
+
+    Why it is worth a marker: 315 of the 355 Zika rows that reach the chain
+    lookup name a protease, and 9 name the RdRp
+    (scripts/diagnose_flavivirus_targets.py, 2026-10-11). NS5 is the only
+    chain that resolves, so the join reaches 9 of 355 -- 2.5% -- and the
+    protease evidence, which is almost all of it, lands on the
+    undifferentiated polyprotein. Downloading the proteomes does not change
+    that number; only this decision does.
+    """
+    from ingest_spine import _nsp_number
+
+    n = _nsp_number("Serine protease NS3")
+    assert n is not None, "the protease must be keyable at all"
+    assert not str(n).isdigit() or n not in (1, 3, 5, 12, 13, 14, 15, 16), \
+        f"keyed as nsp{n}, a coronavirus protein's name"
