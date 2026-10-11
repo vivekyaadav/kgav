@@ -115,12 +115,20 @@ def main() -> int:
 
     both = sorted(inh_c & pos_c)
     shared = same = 0
+    no_evidence_pub = no_label_pub = neither = 0
     for c in both:
         a, b = pubs.get((c, "INHIBITS"), set()), pubs.get((c, POS), set())
         if a and b:
             shared += 1
             if a & b:
                 same += 1
+        elif not a and not b:
+            neither += 1
+        elif not a:
+            no_evidence_pub += 1
+        else:
+            no_label_pub += 1
+
     print(f"\ncompounds with BOTH an INHIBITS edge and a {POS} label: {len(both):,}")
     print(f"  both sides carry publications                        {shared:,}")
     print(f"  and they SHARE at least one publication              {same:,}"
@@ -129,6 +137,37 @@ def main() -> int:
     print("  cell-based label it is scored against came from one paper. That is")
     print("  not wrong data -- it is the same experiment counted twice, and it")
     print("  inflates M1 in a way no compound-level split removes.")
+
+    # THE DENOMINATOR IS CONDITIONAL, AND THE CONDITION IS THE HOLE.
+    #
+    # 94.9% is the share AMONG compounds where both sides cite a publication.
+    # label_publication_index's docstring says so and I have quoted the figure
+    # without the qualifier. The compounds below are not in that denominator
+    # and are invisible to --publication-disjoint for a stronger reason:
+    # Graph.load(drop_pubs_shared_with=...) withholds an edge that SHARES a
+    # PMID with its label, so an edge carrying no PMID is never a candidate
+    # for withholding at all.
+    #
+    # Found by measuring the flaviviruses, where it is extreme: 1,013 of
+    # DENV-2's 1,483 protein-level rows -- 68% -- come from one PubChem
+    # capping-enzyme campaign with no pubmed_id, so the control that moved
+    # SARS-CoV-2's M1 from 0.660 to 0.499 cannot touch two thirds of DENV-2's
+    # evidence. A virus can look clean under that control by having nothing to
+    # be disjoint from.
+    unwithholdable = no_evidence_pub + neither
+    print("\n  OUTSIDE THAT DENOMINATOR, and outside the control:")
+    print(f"    evidence has no PMID, label does                   "
+          f"{no_evidence_pub:,}")
+    print(f"    neither side has a PMID                            {neither:,}")
+    print(f"    label has no PMID, evidence does                   "
+          f"{no_label_pub:,}")
+    if both:
+        print(f"\n    {unwithholdable:,} of {len(both):,} "
+              f"({100 * unwithholdable / len(both):.1f}%) carry NO publication "
+              f"on the\n    INHIBITS side, so --publication-disjoint can "
+              f"never withhold their evidence.\n    Whatever M1 retains under "
+              f"that control, this is the part the control was\n    structurally "
+              f"unable to remove -- not the part it judged safe.")
     return 0
 
 
