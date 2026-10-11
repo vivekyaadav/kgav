@@ -71,6 +71,16 @@ from typing import Self
 SUPPORTED_VIRUS = "NCBITaxon:2697049"
 SI_THRESHOLD = 10.0
 
+# BIOLOGY, NOT MEASUREMENT, WHICH IS WHY IT STAYS IN PROSE.
+#
+# Everything else quoted to a user in this module is rendered from a
+# Calibration, because a measured figure is release-dependent and a hardcoded
+# one goes stale -- that lesson cost two rewrites and a deleted constant. The
+# statements below are different in kind: published virology that does not
+# change when v0.1 is rebuilt. They belong in prose. What they must NOT do is
+# describe one viral family's biology while answering about another, which is
+# what they did until this patch.
+#
 # Host factors whose route is known to be cell-context dependent. Chloroquine
 # and hydroxychloroquine act through the first two; the endosomal machinery is
 # the route that made them look effective in Vero E6 and useless in airway
@@ -366,6 +376,57 @@ def direct_acting_caveat(calibration, code: str = "M1") -> str:
             f"evidence available rather than a demonstrated ability to rank")
 
 
+def _family_of(path_nodes: list[dict]) -> str | None:
+    """The viral family this path ends at, from the path itself.
+
+    No new plumbing: ingest_spine writes `family` onto every OrganismTaxon
+    from config/viruses.yaml, and a path that ends at a virus contains that
+    node. src/kgav/chembl.py reads the same property.
+    """
+    for n in path_nodes or ():
+        if n.get("class") == "OrganismTaxon":
+            fam = (n.get("properties") or {}).get("family")
+            if fam:
+                return str(fam)
+    return None
+
+
+def _cell_context_text(hits: list[str], family: str | None) -> str:
+    """Why this route's contribution depends on the cell system, per family.
+
+    THE BUG THIS FIXES. One text described SARS-CoV-2 entry -- TMPRSS2, Vero
+    E6, chloroquine in 2020 -- and was attached to every path through these
+    genes, including a flavivirus one. The genes are genuinely involved in
+    both (flavivirus entry is clathrin-mediated and acidification-dependent),
+    so the warning belongs on both; the EXPLANATION does not transfer, and an
+    explanation about the wrong virus is worse than none because it reads as
+    specific knowledge.
+    """
+    genes = ", ".join(hits)
+    if family == "Coronaviridae":
+        return (f"this path runs through {genes}, whose contribution depends "
+                "on the cell type used. The endosomal and sigma-receptor "
+                "routes are prominent in Vero E6 cells and largely absent in "
+                "TMPRSS2-expressing airway cells. Chloroquine's apparent "
+                "SARS-CoV-2 activity in 2020 came from exactly this route and "
+                "did not translate to patients.")
+    if family == "Flaviviridae":
+        return (f"this path runs through {genes}. Flavivirus entry is "
+                "clathrin-mediated and depends on endosomal acidification, so "
+                "this route is genuine rather than a cell-line artifact -- but "
+                "whether acting on it helps depends on the system. Vero, the "
+                "standard flavivirus line, carries a deletion of the type I "
+                "interferon locus, and flaviviruses are strongly restricted by "
+                "type I interferon, so neither an effect nor its absence in "
+                "Vero transfers to interferon-competent cells. Vero is also "
+                "monkey kidney epithelium rather than the neural progenitor or "
+                "placental tissue that determines Zika pathology.")
+    return (f"this path runs through {genes}, whose contribution depends on "
+            "the cell type used. No family-specific account of that dependence "
+            "is recorded here for this virus, so read the route as a "
+            "hypothesis whose cell-system dependence is unassessed.")
+
+
 def path_warnings(path_nodes: list[dict], metapath: str | None = None,
                   calibration=None) -> list[str]:
     """Warnings a retrieved path must carry into the answer.
@@ -387,15 +448,8 @@ def path_warnings(path_nodes: list[dict], metapath: str | None = None,
     }
     hits = sorted(symbols & CELL_CONTEXT_SENSITIVE)
     if hits:
-        out.append(caveat(
-            "cell_context",
-            f"this path runs through {', '.join(hits)}, whose "
-            "contribution depends on the cell type used. The endosomal and "
-            "sigma-receptor routes are prominent in Vero E6 cells and largely "
-            "absent in TMPRSS2-expressing airway cells. Chloroquine's apparent "
-            "SARS-CoV-2 activity in 2020 came from exactly this route and did "
-            "not translate to patients."
-        ))
+        out.append(caveat("cell_context",
+                          _cell_context_text(hits, _family_of(path_nodes))))
 
     # Route labels carry a description ("M2 host-directed"), so match the
     # identifier prefix rather than the whole string.
@@ -416,11 +470,32 @@ def path_warnings(path_nodes: list[dict], metapath: str | None = None,
 NON_TRANSFERRING_CELL_LINES = ("vero", "bhk", "huh-7", "huh7", "hel 299", "mrc5")
 
 
-def cell_line_note(cell_line: str | None) -> str:
+# Vero's type I interferon locus is DELETED, which is a property of the line
+# rather than of any virus -- so the fact is stated once and its consequence
+# is drawn per family. BHK, Huh-7, HEL 299 and MRC5 are on the
+# non-transferring list for their own reasons, and this does not assert the
+# interferon fact about them.
+IFN_DEFICIENT_LINES = ("vero",)
+
+
+def cell_line_note(cell_line: str | None, family: str | None = None) -> str:
+    """Whether a measurement in this cell system transfers, per viral family.
+
+    THE BUG THIS FIXES. This said "lacks meaningful TMPRSS2 expression.
+    SARS-CoV-2 enters such cells by the endosomal route" for ANY measurement
+    in these lines. Vero is also the standard flavivirus line, so a Zika
+    selectivity index came back explained by SARS-CoV-2 entry biology -- a
+    confident, specific, irrelevant sentence. The reason a Vero result does
+    not transfer for a flavivirus is the line's interferon deletion, not
+    TMPRSS2, which flaviviruses do not use.
+    """
     if not cell_line:
         return ""
     c = cell_line.lower()
-    if any(x in c for x in NON_TRANSFERRING_CELL_LINES):
+    if not any(x in c for x in NON_TRANSFERRING_CELL_LINES):
+        return caveat("cell_line", f"measured in {cell_line}.")
+
+    if family == "Coronaviridae":
         return caveat(
             "cell_line",
             f"measured in {cell_line}, which lacks meaningful TMPRSS2 "
@@ -429,7 +504,29 @@ def cell_line_note(cell_line: str | None) -> str:
             "in TMPRSS2-expressing airway cells. A selectivity index from this "
             "system does not transfer."
         )
-    return caveat("cell_line", f"measured in {cell_line}.")
+    if family == "Flaviviridae":
+        if any(x in c for x in IFN_DEFICIENT_LINES):
+            return caveat(
+                "cell_line",
+                f"measured in {cell_line}, which carries a deletion of the "
+                "type I interferon locus. Flaviviruses are strongly restricted "
+                "by type I interferon, so a selectivity index from this system "
+                "captures neither interferon-dependent activity nor its "
+                "absence, and does not transfer to interferon-competent cells."
+            )
+        return caveat(
+            "cell_line",
+            f"measured in {cell_line}, a line on which antiviral results are "
+            "known not to transfer reliably. The specific reason is not "
+            "characterised here for this family, so treat the index as "
+            "system-dependent."
+        )
+    return caveat(
+        "cell_line",
+        f"measured in {cell_line}, a line on which antiviral results are known "
+        "not to transfer reliably. No family-specific reason is recorded for "
+        "this virus, so treat the index as system-dependent."
+    )
 
 
 def selectivity_note(selectivity_index: float | None,

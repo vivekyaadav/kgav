@@ -165,10 +165,77 @@ def _prot(sym):
     return {"properties": {"gene_symbol": sym}}
 
 
+def _taxon(family, label="X"):
+    """A virus node as ingest_spine actually writes it: with its family."""
+    return {"id": "NCBITaxon:1", "class": "OrganismTaxon",
+            "properties": {"label": label, "family": family}}
+
+
 def test_cell_context_warning_fires_on_the_chloroquine_route():
-    w = path_warnings([_prot("SIGMAR1"), _prot("TMEM97")])
+    """Now supplies a CORONAVIRUS, because the explanation is family-scoped.
+
+    This passed a path with no OrganismTaxon and asserted the SARS-CoV-2 text,
+    so it was implicitly requiring that a path naming no virus be explained by
+    coronavirus entry biology -- which is the bug this patch fixes.
+    """
+    w = path_warnings([_prot("SIGMAR1"), _prot("TMEM97"),
+                       _taxon("Coronaviridae", "SARS-CoV-2")])
     assert w and "CELL CONTEXT" in w[0]
     assert "Vero E6" in w[0] and "chloroquine" in w[0].lower()
+
+
+def test_a_flavivirus_route_is_not_explained_by_coronavirus_entry():
+    """THE BUG. The genes are genuinely involved in flavivirus entry too --
+    clathrin-mediated, acidification-dependent -- so the warning belongs on
+    both. The EXPLANATION does not transfer: flaviviruses do not use TMPRSS2,
+    and chloroquine's 2020 SARS-CoV-2 story is not theirs. An explanation
+    about the wrong virus is worse than none, because it reads as specific
+    knowledge."""
+    w = path_warnings([_prot("RAB7A"), _prot("ATP6V1A"),
+                       _taxon("Flaviviridae", "Zika")])
+    assert w and "CELL CONTEXT" in w[0]
+    assert "interferon" in w[0].lower(), f"expected the real reason:\n{w[0]}"
+    for leaked in ("TMPRSS2", "chloroquine", "SARS-CoV-2", "airway"):
+        assert leaked.lower() not in w[0].lower(), \
+            f"coronavirus biology leaked into a flavivirus path: {leaked}\n{w[0]}"
+
+
+def test_an_unknown_family_gets_no_borrowed_explanation():
+    """A path with no virus, or a family this module has no account of, must
+    say the dependence is unassessed rather than borrow one."""
+    w = path_warnings([_prot("SIGMAR1")])
+    assert w and "CELL CONTEXT" in w[0]
+    assert "unassessed" in w[0]
+    for leaked in ("TMPRSS2", "chloroquine", "interferon"):
+        assert leaked.lower() not in w[0].lower(), f"borrowed {leaked}:\n{w[0]}"
+
+
+# ------------------------------------------------- cell line, per family
+def test_a_vero_measurement_is_explained_by_the_right_mechanism():
+    """Vero is the standard line for BOTH families and the reason a result
+    does not transfer differs: TMPRSS2 absence for a coronavirus, the type I
+    interferon deletion for a flavivirus. One text said TMPRSS2 for both."""
+    corona = guards.cell_line_note("Vero E6", family="Coronaviridae")
+    assert "TMPRSS2" in corona
+
+    flavi = guards.cell_line_note("Vero E6", family="Flaviviridae")
+    assert "interferon" in flavi.lower()
+    assert "TMPRSS2" not in flavi, f"TMPRSS2 is not a flavivirus route:\n{flavi}"
+
+
+def test_the_interferon_fact_is_claimed_only_for_vero():
+    """Vero's interferon locus deletion is a property of that line. BHK,
+    Huh-7, HEL 299 and MRC5 are on the non-transferring list for their own
+    reasons, and this must not assert the interferon fact about them."""
+    other = guards.cell_line_note("Huh-7", family="Flaviviridae")
+    assert "interferon" not in other.lower(), \
+        f"asserted Vero's property about another line:\n{other}"
+    assert "not to transfer reliably" in other
+
+
+def test_a_transferring_cell_line_is_reported_plainly():
+    note = guards.cell_line_note("Calu-3", family="Coronaviridae")
+    assert "Calu-3" in note and "TMPRSS2" not in note
 
 
 def test_no_cell_context_warning_on_a_direct_acting_route():
@@ -243,7 +310,8 @@ HOST_PATH = [{"id": "INCHIKEY:X", "class": "SmallMolecule", "properties": {}},
              {"id": "UniProtKB:Q99720", "class": "Protein",
               "properties": {"gene_symbol": "SIGMAR1", "is_viral": False}},
              {"id": "NCBITaxon:2697049", "class": "OrganismTaxon",
-              "properties": {"label": "SARS-CoV-2"}}]
+              "properties": {"label": "SARS-CoV-2",
+                             "family": "Coronaviridae"}}]
 
 
 def _host_caveat(cal):
