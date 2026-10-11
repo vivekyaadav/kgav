@@ -36,7 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from kgav.assemble import LAYER_PRECEDENCE
-from kgav.channels import blocked_by, layer_predicates
+from kgav.channels import layer_predicates, reachable_for_virus
 from kgav.virus_register import declared_taxa, validate
 
 _CFG_CACHE: dict = {}
@@ -284,26 +284,63 @@ def main() -> int:
     # Derived from the schema's own metapath declarations and from the
     # predicates each layer release actually emitted -- not a list anyone
     # maintains, because this is precisely the text that goes stale.
-    print("\n  WHICH CHANNELS THIS BLOCKS (schema metapaths x layers on disk)")
+    print("\n  WHICH CHANNELS WOULD REACH THE PROMOTED VIRUS")
     layer_preds = layer_predicates(ROOT / "data" / "releases", "v0.1")
     if not layer_preds:
         print("    no v0.1-* layer releases on disk; cannot derive")
     else:
-        blocked_map = blocked_by(SCHEMA.get("metapaths") or {},
-                                 layer_preds, unavailable)
-        for code in sorted(blocked_map):
-            why = blocked_map[code]
-            if why:
-                print(f"    {code:<4} BLOCKED by {'; '.join(sorted(why))}")
+        # WHICH LAYERS WILL HOLD DATA ABOUT *THIS* VIRUS.
+        #
+        # The first version of this report asked only whether some layer
+        # anywhere emits a predicate, and so announced "M3 evaluable" for
+        # Zika: PHYSICALLY_INTERACTS_WITH exists in the host layer with
+        # 150,432 edges. But M3 reaches the taxon through a VIRAL protein, and
+        # host's PPIs are human-human -- only vhppi bridges host to virus, and
+        # it has no flavivirus files. Wired is not the same as reachable.
+        covering = {"spine"} if not blocked else set()
+        vhn = sorted((ROOT / "data" / "raw" / "vhppi").glob("vhn_*.tab27"))
+        promoted_taxa = {t for e in moving
+                         for t in ([str(e["taxon"])]
+                                   + [str(x) for x in (e.get("isolate_taxa") or [])]
+                                   + [str((e.get("chain_source") or {}).get("taxon")
+                                          or e["taxon"])])}
+        if vhn and any(f"taxid:{t}" in f.read_text() for f in vhn
+                       for t in promoted_taxa):
+            covering.add("vhppi")
+        if "orcs" not in unavailable:
+            covering.add("orcs")
+        if args.db.exists():
+            try:
+                from kgav.chembl import query_activities
+                if query_activities(args.db, sorted(promoted_taxa)):
+                    covering.add("chembl")
+            except Exception as e:                   # noqa: BLE001 - reported
+                print(f"    could not check ChEMBL coverage: {e}")
+        print(f"    layers that will hold data for "
+              f"{', '.join(e['name'] for e in moving)}: "
+              f"{', '.join(sorted(covering)) or 'none'}")
+
+        reach = reachable_for_virus(SCHEMA.get("metapaths") or {},
+                                    layer_preds, covering)
+        for code in sorted(reach):
+            i = reach[code]
+            src = ", ".join(sorted(i["sources"])) or "no layer emits it"
+            if i["reachable"]:
+                print(f"    {code:<4} REACHES IT   enters via {i['entry']} "
+                      f"({src})")
             else:
-                print(f"    {code:<4} evaluable once the proteome lands")
-        clear = [c for c, w in blocked_map.items() if not w]
-        if clear:
-            print(f"\n    So {', '.join(sorted(clear))} need only the "
-                  f"proteome. M1 is the direct-acting\n    channel and the "
-                  f"only one with a defensible result in this project, so a\n"
-                  f"    first flavivirus evaluation is not waiting on ORCS or "
-                  f"VirHostNet.")
+                print(f"    {code:<4} cannot reach it: enters via "
+                      f"{i['entry']} ({src})")
+        yes = sorted(c for c, i in reach.items() if i["reachable"])
+        if yes:
+            print(f"\n    {', '.join(yes)} would reach it. M1 is the "
+                  f"direct-acting channel and the\n    only one carrying a "
+                  f"defensible result here, so a first evaluation is not\n"
+                  f"    waiting on ORCS or VirHostNet -- those gate the "
+                  f"host-mediated channels.")
+        else:
+            print("\n    No channel would reach it. Promoting now adds a "
+                  "taxon and no evidence.")
 
     # ------------------------------------------------------------- register
     print("\n" + "=" * 78)

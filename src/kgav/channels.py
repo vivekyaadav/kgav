@@ -118,3 +118,65 @@ def blocked_by(metapaths: dict, layer_preds: dict[str, set[str]],
         blockers |= {f"no layer emits {p}" for p in info["unsupplied"]}
         out[code] = blockers
     return out
+
+
+def virus_entry_predicate(path: list[str],
+                          spine_predicates: set[str]) -> str | None:
+    """The predicate that must attach something to THIS virus's own proteins.
+
+    WHY "IS THE PREDICATE WIRED" IS THE WRONG QUESTION FOR A NEW VIRUS.
+
+    channel_layers answers whether some layer anywhere emits a predicate. For
+    a virus being promoted that is not enough, and the first version of this
+    module reported M3 as "evaluable once the proteome lands" because
+    PHYSICALLY_INTERACTS_WITH is emitted by the host layer -- 150,432 edges of
+    it. But M3 is
+
+        SmallMolecule -TARGETS-> Protein -PHYSICALLY_INTERACTS_WITH->
+        Protein -ENCODED_BY-> Gene -BELONGS_TO-> OrganismTaxon
+
+    and that second Protein is the VIRAL one, because the Gene below it
+    belongs to the virus. host's PPIs are human-human and can never reach a
+    viral taxon; only the vhppi layer bridges host to virus, and it has no
+    flavivirus files. So M3 cannot reach Zika, and reporting it as evaluable
+    was a false green about the very thing this module exists to report.
+
+    Derived by walking the path BACKWARDS from the OrganismTaxon endpoint.
+    Every step the SPINE supplies (ENCODED_BY, BELONGS_TO) stays inside the
+    virus's own subgraph, so the node before it is still viral. The first
+    predicate the spine does not supply is the bridge: the one hop that has to
+    come from a source carrying data about this particular virus.
+
+    Returns None when the whole path is spine-supplied, which no declared
+    metapath is -- every one of them has to enter the virus from somewhere.
+    """
+    preds = predicates_in(path)
+    for pred in reversed(preds):
+        if pred not in spine_predicates:
+            return pred
+    return None
+
+
+def reachable_for_virus(metapaths: dict, layer_preds: dict[str, set[str]],
+                        covering: set[str]) -> dict[str, dict[str, object]]:
+    """{code: {"entry": predicate, "sources": layers, "reachable": bool}}
+
+    `covering` is the set of layers that will hold data about the virus being
+    promoted -- spine once its proteome is cached, chembl when the ChEMBL
+    database has rows for its taxa, vhppi when its PPI files are downloaded,
+    orcs when its screens are ingestable. A channel is reachable for that
+    virus when at least one layer supplying its entry predicate is in there.
+
+    This is a weaker claim than "the channel will produce paths": it says the
+    hop into the virus has a source. Whether that source has enough rows is
+    what diagnose_flavivirus_targets measures.
+    """
+    spine_preds = layer_preds.get("spine", set())
+    out: dict[str, dict[str, object]] = {}
+    for code, spec in (metapaths or {}).items():
+        entry = virus_entry_predicate(spec.get("path") or [], spine_preds)
+        sources = {lyr for lyr, preds in layer_preds.items()
+                   if entry and entry in preds}
+        out[code] = {"entry": entry, "sources": sources,
+                     "reachable": bool(sources & covering)}
+    return out

@@ -145,3 +145,76 @@ def test_a_layer_that_was_never_run_blocks_its_channels(tmp_path, metapaths):
     assert info["M1"]["unsupplied"] == set(), "M1 is walkable on these two"
     assert "HOST_FACTOR_FOR" in info["M2"]["unsupplied"], \
         "with no orcs layer, M2's predicate has no source at all"
+
+
+# --------------------------------------------------------------------------
+# "is the predicate wired" vs "does THIS virus have data there"
+# --------------------------------------------------------------------------
+def test_m3_cannot_reach_a_newly_promoted_virus_without_virhostnet(metapaths):
+    """THE FALSE GREEN THIS FIXES.
+
+    The dry run reported "M3 evaluable once the proteome lands" for Zika,
+    because PHYSICALLY_INTERACTS_WITH is emitted by the host layer -- 150,432
+    edges of it. But M3's path is
+
+        SmallMolecule -TARGETS-> Protein -PHYSICALLY_INTERACTS_WITH->
+        Protein -ENCODED_BY-> Gene -BELONGS_TO-> OrganismTaxon
+
+    and the second Protein is the VIRAL one, because the Gene under it belongs
+    to the virus. host's PPIs are human-human and cannot reach a viral taxon;
+    only vhppi bridges host to virus, and it has no flavivirus files. So M3
+    cannot reach Zika, and the report said it could.
+    """
+    from kgav.channels import reachable_for_virus
+
+    got = reachable_for_virus(metapaths, REAL_LAYERS, {"spine", "chembl"})
+    assert got["M3"]["entry"] == "PHYSICALLY_INTERACTS_WITH"
+    assert got["M3"]["sources"] == {"host", "vhppi"}
+    assert got["M3"]["reachable"] is False, \
+        "host supplies the predicate but cannot reach a viral taxon"
+
+
+def test_only_m1_and_m7_reach_a_virus_covered_by_spine_and_chembl(metapaths):
+    """Zika's real situation after fetch_raw: proteome cached, 355 ChEMBL
+    protein rows, no ORCS screens ingestable, no VirHostNet files."""
+    from kgav.channels import reachable_for_virus
+
+    got = reachable_for_virus(metapaths, REAL_LAYERS, {"spine", "chembl"})
+    reaches = {c for c, i in got.items() if i["reachable"]}
+    assert reaches == {"M1", "M7"}, reaches
+
+
+def test_the_entry_predicate_is_the_first_non_spine_hop_from_the_taxon(metapaths):
+    """Derived by walking the path backwards from OrganismTaxon: every hop the
+    spine supplies stays inside the virus's own subgraph, so the first one it
+    does not supply is where the virus must be entered from outside."""
+    from kgav.channels import virus_entry_predicate
+
+    spine = REAL_LAYERS["spine"]
+    assert virus_entry_predicate(metapaths["M1"]["path"], spine) == "INHIBITS"
+    assert virus_entry_predicate(metapaths["M7"]["path"], spine) == "INHIBITS"
+    assert virus_entry_predicate(metapaths["M2"]["path"], spine) \
+        == "HOST_FACTOR_FOR"
+    assert virus_entry_predicate(metapaths["M8"]["path"], spine) \
+        == "MEMBER_OF_CLASS"
+
+
+def test_adding_virhostnet_coverage_makes_m3_reachable(metapaths):
+    """The counterfactual, so the test says what WOULD unblock it rather than
+    only that it is blocked."""
+    from kgav.channels import reachable_for_virus
+
+    with_vhn = reachable_for_virus(metapaths, REAL_LAYERS,
+                                   {"spine", "chembl", "vhppi"})
+    assert with_vhn["M3"]["reachable"] is True
+    assert with_vhn["M2"]["reachable"] is False, "M2 still needs orcs"
+
+
+def test_every_metapath_has_an_entry_predicate(metapaths):
+    """A path entirely spine-supplied would never need an outside source,
+    which no declared metapath is -- each has to enter the virus somewhere. If
+    one returned None the reachability verdict would be vacuous."""
+    from kgav.channels import virus_entry_predicate
+
+    for code, spec in metapaths.items():
+        assert virus_entry_predicate(spec["path"], REAL_LAYERS["spine"]), code
