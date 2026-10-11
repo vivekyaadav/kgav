@@ -53,6 +53,39 @@ viruses:
     chain_source: {accession: P0C6X7, taxon: "694009", chains: 15,
                    verified: "2026-09-17"}   # species is curated; no isolate needed
     name: SARS-CoV
+    # ISOLATES DECLARED FOR THE PPI LAYER, NOT FOR CHAINS. chain_source above
+    # is the species itself, so nothing here is needed to find mature
+    # peptides. These two exist because VirHostNet files 73 host-viral
+    # interactions under them, and without the declaration ingest_vhppi
+    # counts each as `unmapped_viral_taxon` and discards it -- the MERS trap
+    # in the PPI layer rather than the chain layer.
+    #
+    # Found by the VirHostNet taxon histogram in
+    # diagnose_flavivirus_join.py, which prints every taxon in the files and
+    # flags the ones outside this map. Identified from UniProt taxonomy
+    # (rest.uniprot.org/taxonomy/<id>.json) on 2026-10-11, not from memory:
+    #
+    #   227984  SARS coronavirus Tor2     66 rows   lineage ... -> 694009
+    #   698419  SARS coronavirus wtic-MB   7 rows   lineage ... -> 694009
+    #                                                -> 698398 recombinant SARSr-CoV
+    #
+    # 698419 IS A CURATION JUDGEMENT, not a lookup. Its parent is
+    # "recombinant SARSr-CoV": wtic-MB is an infectious cDNA clone, so its
+    # proteins are authentic SARS-CoV sequences and its host interactions are
+    # SARS-CoV host interactions. Someone who wants engineered constructs out
+    # of the graph should remove this line, and the reasoning is recorded here
+    # so that disagreement is possible.
+    #
+    # 698398 itself is NOT declared: it does not appear in the files, and the
+    # register's rule is to declare what is observed rather than what might be.
+    #
+    # NEITHER CARRIES CHEMBL ACTIVITY. Checked before declaring them, because
+    # declared_taxa feeds ingest_chembl and ingest_selectivity as well as
+    # ingest_vhppi, and a label-set change would have moved every evaluation
+    # figure in docs/evaluation.md. Both return zero rows for
+    # IC50/EC50/Ki/Kd, so this is a PPI-only change.
+    isolate_taxa: ["227984", "698419"]
+    curation_note: "isolates declared for VirHostNet PPI coverage only; no ChEMBL activity under either"
     proteome_id: UP000000354
     mondo: "MONDO:0005091"
     mondo_source: "severe acute respiratory syndrome; sole exact match, verified 2026-09"
