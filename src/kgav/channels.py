@@ -30,29 +30,54 @@ from pathlib import Path
 from kgav.schema import parse_hop
 
 
-def layer_predicates(release_root: Path, prefix: str) -> dict[str, set[str]]:
-    """{layer name: predicates it emitted}, read from the layer releases.
+def layer_predicates(release_root: Path, prefix: str,
+                     include: set[str] | None = None
+                     ) -> tuple[dict[str, set[str]], list[str]]:
+    """({layer name: predicates it emitted}, [directories skipped])
 
     Measured rather than declared: a layer's edges.jsonl is the only thing
-    that knows what it produced. A layer directory that does not exist, or
-    exists and is empty, maps to an empty set -- which is the honest answer
-    and is what makes a missing input visible downstream.
+    that knows what it produced. A layer that exists and is empty maps to an
+    empty set, which is the honest answer and is what makes a missing input
+    visible downstream.
+
+    `include` RESTRICTS WHAT COUNTS AS A LAYER, and the first version had no
+    such filter. It globbed <prefix>-* and so counted v0.1-train2021,
+    v0.1-train2021-corrected and the two strict variants as layers -- those
+    are TEMPORAL TRAINING SPLITS, derived subsets of the assembled release,
+    so they contain INHIBITS and HOST_FACTOR_FOR like the release does. The
+    dry run then printed
+
+        M1  enters via INHIBITS (chembl, train2021, train2021-corrected, ...)
+
+    naming four things that supply nothing. The verdict survived only because
+    coverage is measured separately, so a split name was never in `covering` --
+    which means this was a latent fault rather than a wrong answer, and it
+    would have become a wrong answer the moment a split name got in.
+
+    Skipped directories are RETURNED rather than dropped, because a layer
+    silently excluded is the failure this project already has on record:
+    ingest_folds writes a layer LAYER_PRECEDENCE does not list, and
+    assemble_release filtered it out while every count still looked right.
     """
     out: dict[str, set[str]] = {}
+    skipped: list[str] = []
     for d in sorted(release_root.glob(f"{prefix}-*")):
         if not d.is_dir():
             continue
         name = d.name[len(prefix) + 1:]
+        if include is not None and name not in include:
+            skipped.append(name)
+            continue
         preds: set[str] = set()
         edges = d / "edges.jsonl"
         if edges.exists():
             for line in edges.read_text().splitlines():
                 if line.strip():
-                    p = json.loads(line).get("predicate")
-                    if p:
-                        preds.add(p)
+                    pred = json.loads(line).get("predicate")
+                    if pred:
+                        preds.add(pred)
         out[name] = preds
-    return out
+    return out, skipped
 
 
 def predicates_in(path: list[str]) -> list[str]:

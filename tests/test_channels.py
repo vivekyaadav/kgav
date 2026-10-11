@@ -123,7 +123,7 @@ def test_layer_predicates_reads_what_a_layer_actually_emitted(tmp_path):
     (tmp_path / "v0.1-orcs").mkdir()          # ran, wrote nothing
     (tmp_path / "v0.1-orcs" / "edges.jsonl").write_text("")
 
-    got = layer_predicates(tmp_path, "v0.1")
+    got, skipped = layer_predicates(tmp_path, "v0.1")
     assert got["spine"] == {"ENCODED_BY", "BELONGS_TO"}
     assert got["orcs"] == set(), "an empty layer is not a missing layer"
     assert "vhppi" not in got, "a layer never run is absent, not empty"
@@ -140,7 +140,7 @@ def test_a_layer_that_was_never_run_blocks_its_channels(tmp_path, metapaths):
     (tmp_path / "v0.1-chembl" / "edges.jsonl").write_text(
         json.dumps({"predicate": "INHIBITS"}) + "\n")
 
-    preds = layer_predicates(tmp_path, "v0.1")
+    preds, _ = layer_predicates(tmp_path, "v0.1")
     info = channel_layers(metapaths, preds)
     assert info["M1"]["unsupplied"] == set(), "M1 is walkable on these two"
     assert "HOST_FACTOR_FOR" in info["M2"]["unsupplied"], \
@@ -218,3 +218,42 @@ def test_every_metapath_has_an_entry_predicate(metapaths):
 
     for code, spec in metapaths.items():
         assert virus_entry_predicate(spec["path"], REAL_LAYERS["spine"]), code
+
+
+def test_training_splits_are_not_counted_as_layers(tmp_path):
+    """THE LATENT FAULT. v0.1-train2021 and friends are temporal training
+    splits -- derived subsets of the assembled release -- so they carry
+    INHIBITS and HOST_FACTOR_FOR exactly as the release does. Unfiltered, the
+    dry run printed
+
+        M1  enters via INHIBITS (chembl, train2021, train2021-corrected, ...)
+
+    naming four things that supply nothing. The verdict held only because
+    coverage is measured separately and no split name was ever in `covering`,
+    so this was one step from being a wrong answer rather than a cosmetic one.
+    """
+    for name, pred in (("spine", "ENCODED_BY"), ("chembl", "INHIBITS"),
+                       ("train2021", "INHIBITS"),
+                       ("train2021-corrected-strict", "INHIBITS")):
+        (tmp_path / f"v0.1-{name}").mkdir()
+        (tmp_path / f"v0.1-{name}" / "edges.jsonl").write_text(
+            json.dumps({"predicate": pred}) + "\n")
+
+    got, skipped = layer_predicates(tmp_path, "v0.1",
+                                    include={"spine", "chembl"})
+    assert set(got) == {"spine", "chembl"}
+    assert sorted(skipped) == ["train2021", "train2021-corrected-strict"]
+
+
+def test_a_skipped_directory_is_reported_not_dropped(tmp_path):
+    """A layer silently excluded is this project's own worst bug on record:
+    ingest_folds writes a layer LAYER_PRECEDENCE does not list, and
+    assemble_release filtered it out while every count still looked right. So
+    the filter returns what it removed."""
+    (tmp_path / "v0.1-folds").mkdir()
+    (tmp_path / "v0.1-folds" / "edges.jsonl").write_text(
+        json.dumps({"predicate": "FOLD_SIMILAR_TO"}) + "\n")
+    got, skipped = layer_predicates(tmp_path, "v0.1", include={"spine"})
+    assert got == {}
+    assert skipped == ["folds"], \
+        "an unlisted layer must be named, since that is exactly the M8 gap"

@@ -285,7 +285,13 @@ def main() -> int:
     # predicates each layer release actually emitted -- not a list anyone
     # maintains, because this is precisely the text that goes stale.
     print("\n  WHICH CHANNELS WOULD REACH THE PROMOTED VIRUS")
-    layer_preds = layer_predicates(ROOT / "data" / "releases", "v0.1")
+    # LAYER_PRECEDENCE is the project's own statement of what a layer is, so
+    # the temporal training splits (v0.1-train2021*) are excluded by it rather
+    # than by a list kept here. Whatever is skipped gets printed.
+    layer_preds, skipped = layer_predicates(ROOT / "data" / "releases", "v0.1",
+                                            include=set(LAYER_PRECEDENCE))
+    if skipped:
+        print(f"    not layers, skipped: {', '.join(skipped)}")
     if not layer_preds:
         print("    no v0.1-* layer releases on disk; cannot derive")
     else:
