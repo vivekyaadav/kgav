@@ -250,3 +250,35 @@ def test_declared_taxa_maps_every_isolate_to_its_species(doc):
             assert m[chain] == species, (
                 f"chain_source taxon {chain} missing from the map: this is "
                 f"the line the hand-built copies omitted")
+
+
+def test_the_sars_cov_ppi_isolates_stay_declared(doc):
+    """VirHostNet files 73 host-viral interactions under two SARS-CoV isolate
+    taxa. Undeclared, ingest_vhppi counts each as `unmapped_viral_taxon` and
+    discards it -- silently, because an unknown organism is indistinguishable
+    from an absent one.
+
+        227984  SARS coronavirus Tor2      66 rows
+        698419  SARS coronavirus wtic-MB    7 rows
+
+    Both identified from UniProt taxonomy, both with 694009 in their lineage.
+    Pinned here because the failure mode is invisible: remove them and the
+    graph loses 73 edges from the layer M3 and M5 are built from, with
+    nothing in any output saying so except a counter nobody reads.
+    """
+    m = declared_taxa(doc, "viruses")
+    for iso in ("227984", "698419"):
+        assert m.get(iso) == "694009", (
+            f"{iso} must map to SARS-CoV; undeclared it is discarded as "
+            f"unmapped_viral_taxon")
+
+
+def test_a_ppi_isolate_is_not_mistaken_for_a_chain_source(doc):
+    """SARS-CoV's chain_source is the species itself. These isolates exist
+    only so the PPI layer can resolve them, and nothing should start reading
+    chains from a recombinant clone because a taxon appeared in the list.
+    """
+    sars = next(v for v in doc["viruses"] if str(v["taxon"]) == "694009")
+    assert str(sars["chain_source"]["taxon"]) == "694009"
+    assert "227984" in [str(x) for x in sars["isolate_taxa"]]
+    assert sars["chain_source"]["accession"] == "P0C6X7"
