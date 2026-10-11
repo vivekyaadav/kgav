@@ -192,6 +192,49 @@ viruses:
     mondo_source: null
 
   # ------------------------------------------------------------------------
+  # ZIKA, PROMOTED 2026-10-12 -- the second attempt, with the evidence the
+  # first one lacked. dryrun_promote reported Section 0 clear: UP000054557
+  # cached and verified (2 entries; Q32ZE1 carrying the 13 CHAIN features
+  # chain_source claims, re-read from UniProt 2026-10-11), and M1 and M7
+  # reaching this taxon through INHIBITS from the chembl layer.
+  #
+  # WHY ZIKA AND NOT DENV-2, which has 4x the activity rows. Measured over
+  # the rows that reach the chain lookup, not over all 8,748:
+  #
+  #                   reach lookup   name their own virus   carry a PMID
+  #   Zika                     355           355 (100%)       355 (100%)
+  #   DENV-2                 1,483           392  (26%)       470  (32%)
+  #
+  # DENV-2 is at parity once a row must name the virus it is filed under
+  # (392 vs 355), and its other 1,045 rows are one PubChem capping-enzyme
+  # screen naming no species and carrying no pubmed_id -- which
+  # --publication-disjoint cannot withhold. Zika also needs one proteome
+  # file against two, and is curated at the species taxon rather than
+  # through a strain. The same usable evidence for far less handling.
+  #
+  # WHAT THIS DOES NOT BUY. M2, M4, M5 and M6 still need ORCS_KEY, M3 needs
+  # VirHostNet flavivirus files, and M8 needs `folds` added to
+  # LAYER_PRECEDENCE. Zika is evaluable on the direct-acting channel only --
+  # which is the channel this project has its one defensible result on.
+  # ------------------------------------------------------------------------
+  - taxon: "64320"
+    name: Zika
+    family: Flaviviridae
+    full_name: "Zika virus"
+    proteome_id: UP000054557
+    # Curated AT THE SPECIES TAXON, like five of the seven coronaviruses
+    # above: no isolate mapping is needed and none is declared, so the
+    # validator can tell "not needed" from "forgotten". (It was one of
+    # only two species-curated entries in `surveyed:`; West Nile is
+    # the other and is still there.)
+    chain_source: {accession: Q32ZE1, taxon: "64320", chains: 13,
+                   verified: "2026-09-17"}
+    # No MONDO term pinned. Label matching is banned (normalize_bio.
+    # MondoResolver), and no xref has been curated for this taxon yet.
+    mondo: null
+    mondo_source: null
+
+  # ------------------------------------------------------------------------
   # DENV-2 AND ZIKA WERE PROMOTED HERE ON 2026-10-11 AND MOVED BACK THE SAME
   # DAY. The measurements that drove both decisions are kept with the entries
   # in `surveyed:` below, because they are the evidence for the next attempt.
@@ -235,8 +278,10 @@ viruses:
 # reviewed entry, PRO_ chain ids present, start/end coordinates present.
 # ---------------------------------------------------------------------------
 surveyed:
-  # MEASURED 2026-10-11, NOT BUILT. Promoted on this date and moved back the
-  # same day; the figures below are why, and the order is Zika first.
+  # MEASURED 2026-10-11. Zika was promoted out of here on 2026-10-12 and its
+  # entry now sits in `viruses:` above. DENV-2 stays, and the figures below
+  # are why the order was Zika first -- note that DENV-2 is NOT next on
+  # volume: the attribution table further down shows its advantage is parity.
   #
   #           protein rows  distinct PMIDs  no PMID       top assay
   #   Zika             355              18      0  (0%)     104 (29%)
@@ -375,23 +420,6 @@ surveyed:
     # file is consulted.
     extra_accessions: [P29990]
     curation_note: "chains live on strain 31634's P29990, which has no proteome xref; pulled via EXTRA_11060.json.gz and reassigned to species 11060"
-    # No MONDO term pinned. Label matching is banned (normalize_bio.
-    # MondoResolver), and no xref has been curated for this taxon yet.
-    mondo: null
-    mondo_source: null
-
-  - taxon: "64320"
-    name: Zika
-    family: Flaviviridae
-    full_name: "Zika virus"
-    proteome_id: UP000054557
-    # Curated AT THE SPECIES TAXON, like five of the seven coronaviruses
-    # above: no isolate mapping is needed and none is declared, so the
-    # validator can tell "not needed" from "forgotten". (It was one of
-    # only two species-curated entries in `surveyed:`; West Nile is
-    # the other and is still there.)
-    chain_source: {accession: Q32ZE1, taxon: "64320", chains: 13,
-                   verified: "2026-09-17"}
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
     mondo: null

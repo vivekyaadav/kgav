@@ -97,8 +97,21 @@ def _hardcoded_counts() -> list[tuple[str, int, str]]:
     # Reported as CANDIDATES, not failures: `== 7` also appears for the seven
     # metapaths in test_calibration.py, which has nothing to do with viruses.
     # Over-reporting costs a glance; under-reporting cost a broken build.
-    built_now = len(_CFG_CACHE["viruses"]) if _CFG_CACHE else 0
-    if built_now:
+    # TWO COUNTS, NOT ONE. This scanned for the built-virus count only, and
+    # the 2026-10-12 Zika promotion broke four tests it had not named. One of
+    # them, test_declared_taxa_still_defaults_to_the_built_section, asserted
+    # `len(built) == 11` -- the size of the TAXON MAP, which grows with a
+    # promotion too and is a different number from the virus count because of
+    # isolate_taxa and chain_source. The other three asserted output ORDER or
+    # string membership, which no count scan can see; those are what
+    # `make test` is for, and it must be run after the register edit and
+    # BEFORE the ingest chain. That ordering is the whole lesson of the first
+    # promotion attempt.
+    counts = set()
+    if _CFG_CACHE:
+        counts.add(len(_CFG_CACHE["viruses"]))
+        counts.add(len(declared_taxa(_CFG_CACHE)))
+    for built_now in sorted(counts):
         loose = re.compile(rf"==\s*{built_now}\b")
         for path in sorted((ROOT / "tests").glob("*.py")):
             for n, line in enumerate(path.read_text().splitlines(), 1):

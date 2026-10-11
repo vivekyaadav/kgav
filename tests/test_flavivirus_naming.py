@@ -378,14 +378,24 @@ def test_declared_taxa_still_defaults_to_the_built_section():
 
     cfg = yaml.safe_load((ROOT / "config" / "viruses.yaml").read_text())
     built = declared_taxa(cfg)
-    assert len(built) == 11, "the ingests' map must stay the built one"
-    for surveyed_taxon in ("11060", "64320", "31634"):
-        assert surveyed_taxon not in built, (
-            f"{surveyed_taxon} is surveyed; in the ingests' map it would "
-            f"produce edges to a taxon with no nodes")
-
     surveyed = declared_taxa(cfg, "surveyed")
-    assert {"11060", "31634", "64320"} <= set(surveyed)
+
+    # DERIVED, not a literal. This asserted len(built) == 11 and that 64320
+    # was absent, which broke the moment Zika was legitimately promoted on
+    # 2026-10-12 -- the count and the membership were both standing in for the
+    # actual intent, which is that the two sections do not bleed into each
+    # other. Stated that way it survives any promotion.
+    built_taxa = {str(v["taxon"]) for v in cfg["viruses"]}
+    surveyed_taxa = {str(v["taxon"]) for v in cfg["surveyed"]}
+    assert not built_taxa & surveyed_taxa
+
+    for t in surveyed_taxa:
+        assert t not in built, (
+            f"{t} is surveyed; in the ingests' map it would produce edges to "
+            f"a taxon with no nodes")
+    for t in built_taxa:
+        assert t in built, f"{t} is built and must be in the ingests' map"
+    assert surveyed_taxa <= set(surveyed)
 
 
 def test_every_flavivirus_in_the_register_resolves_at_least_one_taxon():
