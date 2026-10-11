@@ -298,27 +298,39 @@ surveyed:
   # target_dictionary.tax_id and the description gets no vote, so what the
   # description names was counted separately. Of the rows on the protein path:
   #
-  #                      names its own virus   generic   other sp.   none
-  #   Zika        355         355 (100.0%)           0          0       0
-  #   West Nile   184         184 (100.0%)           0          0       0
-  #   DENV-2    1,483         340  (22.9%)       1,045         46      52
+  #                      names its own virus   generic   other sp.
+  #   Zika        355         355 (100.0%)           0          0
+  #   West Nile   184         184 (100.0%)           0          0
+  #   DENV-2    1,483         392  (26.4%)       1,045         46
   #
-  # The wrong-species worry turned out SMALL: 46 rows, 3.1%, and all of them
-  # sit on "Genome polyprotein" targets (CHEMBL5980, CHEMBL3559678), which
-  # makes them coarse target curation rather than misfiling. Five sampled
-  # strings had suggested something much bigger; they did not support it.
+  # DENV-2's 392 READS 340 IN THE FIRST RUN OF THAT SCRIPT. The difference is
+  # a regex gap of mine, not a change in the data: 52 rows landed in a
+  # "names no virus" bucket while saying "Dengue serotype-2", "dengue 2" and
+  # "dengue2 virus", shapes the original pattern could not match because it
+  # required "virus" between "dengue" and the digit. It surfaced only because
+  # the bucket's text got printed beside its count. All 52 carry a pubmed_id.
   #
-  # The real finding is the column next to it. 1,045 of DENV-2's 1,483 rows
-  # (70.5%) name no virus more specific than "flavivirus" or "dengue virus" --
-  # overwhelmingly the PubChem capping-enzyme screen, which is also the 1,013
-  # rows carrying no pubmed_id. So DENV-2's substrate is large and mostly
-  # unattributable, and its SPECIES-SPECIFIC share is 340 rows: FEWER than
-  # Zika's 355, every one of which names Zika and carries a publication.
+  # The wrong-species worry turned out SMALL: 46 rows, 3.1%, all on "Genome
+  # polyprotein" targets (CHEMBL5980, CHEMBL3559678), so coarse target
+  # curation rather than misfiling. Five sampled strings had suggested
+  # something much larger and did not support it.
   #
-  # DENV-2's 4x row advantage does not survive asking whether a row names the
-  # virus it is filed under. Zika first is now the stronger call, not the
-  # cautious one, and West Nile -- 184 rows, 100% named, 0% PMID-less -- is
-  # the better second despite having the fewest rows.
+  # WHAT IS TRUE AFTER BOTH CORRECTIONS. 1,045 of DENV-2's rows (70.5%) name
+  # no species -- overwhelmingly the PubChem capping-enzyme screen, which is
+  # also the 1,013 rows with no pubmed_id, so unattributable and unwithholdable
+  # are the same rows. DENV-2's usable share is 392 against Zika's 355: its
+  # raw 4.2x row advantage collapses to 1.1x, which is parity, NOT a deficit.
+  # An earlier version of this note said 340 and "FEWER than Zika's"; that was
+  # wrong in DENV-2's favour and is corrected here.
+  #
+  # SO THE ORDER STANDS ON HANDLING, NOT VOLUME. Zika first because it needs
+  # one proteome file, its chain_source is species-level, 100% of its rows
+  # name it, and none must be excluded. DENV-2 needs UP000095876 AND
+  # EXTRA_11060 (P29990 has no proteome cross-reference at all), its
+  # chain_source is strain 31634, and 74% of its substrate has to be set aside
+  # -- the same amount of usable evidence for several times the handling.
+  # West Nile is the better second: 184 rows, 100% named, 0% PMID-less, one
+  # species-level proteome.
   # scripts/diagnose_serotype_attribution.py reproduces all of this.
   #
   # ORCS is ready: orcs.VIRUS_PATTERNS now matches dengue serotype 2, Zika,
