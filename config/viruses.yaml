@@ -244,6 +244,32 @@ viruses:
     isolate_taxa: ["31634"]
     chain_source: {accession: P29990, taxon: "31634", chains: 13,
                    verified: "2026-09-17"}
+    # THE MERS MECHANISM, WHICH THIS ENTRY DOCUMENTED AND DID NOT APPLY.
+    # The comment above records that species 11060's proteome is TrEMBL-only
+    # with zero Chain features, and chain_source points at strain 31634 --
+    # but nothing told the build how to REACH that strain, so downloading
+    # UP000095876 would build DENV-2 with zero chains exactly as the comment
+    # predicts.
+    #
+    # Checked against UniProt on 2026-10-11, not assumed:
+    #   P29990  13 CHAIN features, all with EXACT start/end -- the register's
+    #           claimed count is correct. Chains: polyprotein, C, prM, pr, M,
+    #           E, NS1, NS2A, NS2B, NS3 (Serine protease NS3), NS4A, NS4B,
+    #           NS5 (RNA-directed RNA polymerase/Methyltransferase).
+    #           NO proteome cross-reference at all, and it is filed under
+    #           strain 31634, so no proteome download produces it.
+    #
+    # Contrast Zika below: Q32ZE1 also carries 13 chains and IS a component
+    # of UP000054557, so it needs no extra_accessions. The two flaviviruses
+    # differ and the difference is not guessable from the register alone.
+    #
+    # ingest_spine reads data/raw/proteomes/EXTRA_<SPECIES taxon>.json.gz --
+    # EXTRA_11060.json.gz here -- and curated entries REPLACE the proteome
+    # rather than augmenting it. The UP000095876.json.gz file must still
+    # exist, because the pfile.exists() guard returns early before the EXTRA
+    # file is consulted.
+    extra_accessions: [P29990]
+    curation_note: "chains live on strain 31634's P29990, which has no proteome xref; pulled via EXTRA_11060.json.gz and reassigned to species 11060"
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
     mondo: null
