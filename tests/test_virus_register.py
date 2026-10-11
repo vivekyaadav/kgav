@@ -254,17 +254,17 @@ def test_declared_taxa_maps_every_isolate_to_its_species(doc):
 
 def test_the_sars_cov_ppi_isolates_stay_declared(doc):
     """VirHostNet files 73 host-viral interactions under two SARS-CoV isolate
-    taxa. Undeclared, ingest_vhppi counts each as `unmapped_viral_taxon` and
-    discards it -- silently, because an unknown organism is indistinguishable
-    from an absent one.
+    taxa, identified from UniProt taxonomy with 694009 in both lineages:
 
         227984  SARS coronavirus Tor2      66 rows
         698419  SARS coronavirus wtic-MB    7 rows
 
-    Both identified from UniProt taxonomy, both with 694009 in their lineage.
-    Pinned here because the failure mode is invisible: remove them and the
-    graph loses 73 edges from the layer M3 and M5 are built from, with
-    nothing in any output saying so except a counter nobody reads.
+    THIS TEST ASSERTS THE MAPPING, NOT AN EFFECT. The first version of this
+    docstring claimed removing these entries loses the graph 73 edges. It
+    does not: ingest_vhppi produces a byte-identical layer with and without
+    them, because `unmapped_viral_taxon` is 0 either way and the rows are
+    dropped earlier at `unresolved_id`. The declaration is correct and inert
+    until extra_accessions lets the spine resolve the isolates' identifiers.
     """
     m = declared_taxa(doc, "viruses")
     for iso in ("227984", "698419"):
