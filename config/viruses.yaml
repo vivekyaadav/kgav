@@ -222,6 +222,17 @@ viruses:
     family: Flaviviridae
     full_name: "Zika virus"
     proteome_id: UP000054557
+    # DECLARED BECAUSE UNIPROT HAS NONE. Q32ZE1 has no `genes` field at all
+    # (checked 2026-10-12): flaviviruses encode a single ORF and UniProt does
+    # not name it. Without a symbol ingest_spine emits no Gene node, so no
+    # ENCODED_BY and no BELONGS_TO, and M1 -- INHIBITS, ENCODED_BY,
+    # BELONGS_TO -- cannot reach this taxon at all. The first Zika build
+    # printed "genes=0" and left BELONGS_TO at 70.
+    #
+    # Not a fiction to fill a path: the ORF is real and encodes the
+    # polyprotein that all thirteen mature peptides are cut from. POLY names
+    # the one gene they share, so every chain ENCODED_BY resolves to it.
+    gene_symbol: POLY
     # Curated AT THE SPECIES TAXON, like five of the seven coronaviruses
     # above: no isolate mapping is needed and none is declared, so the
     # validator can tell "not needed" from "forgotten". (It was one of

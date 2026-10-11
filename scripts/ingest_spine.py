@@ -200,7 +200,28 @@ def _rec_name(entry: dict) -> str:
     return entry.get("primaryAccession", "?")
 
 
-def _gene_symbol(entry: dict) -> str | None:
+def _gene_symbol(entry: dict, declared: str | None = None) -> str | None:
+    """The gene symbol for an entry, or the register's declared fallback.
+
+    WHY A FALLBACK EXISTS. Q32ZE1, the Zika polyprotein, HAS NO `genes` FIELD
+    AT ALL (UniProt, read 2026-10-12). Flaviviruses encode a single ORF and
+    UniProt assigns it no gene name. Without a symbol, ingest_virus emits no
+    Gene node, hence no ENCODED_BY and no BELONGS_TO -- and M1 is
+
+        SmallMolecule -INHIBITS-> Protein -ENCODED_BY-> Gene -BELONGS_TO->
+        OrganismTaxon
+
+    so the channel the whole Zika promotion was for could not reach Zika.
+    The 2026-10-12 build made that visible as one line, "Zika proteins=2
+    mature=13 genes=0", with BELONGS_TO still at 70 and ENCODED_BY unchanged.
+
+    The gene is NOT a fiction being invented to fill a path. A flavivirus
+    genuinely has one open reading frame encoding one polyprotein; UniProt
+    simply does not name it. Declaring the name in config/viruses.yaml is the
+    same curation the register already does for chain_source and
+    extra_accessions -- stated where someone can check it, rather than
+    derived in code from whatever happens to be in the entry.
+    """
     genes = entry.get("genes") or []
     for g in genes:
         name = (g.get("geneName") or {}).get("value")
@@ -209,7 +230,7 @@ def _gene_symbol(entry: dict) -> str | None:
         for syn in g.get("orfNames") or []:
             if syn.get("value"):
                 return syn["value"]
-    return None
+    return declared
 
 
 def _chain_label(feat: dict) -> str:
@@ -302,7 +323,12 @@ def ingest_virus(em: Emit, cfg: dict, defaults: dict, prov: dict, proteome_dir: 
         pcurie = f"UniProtKB:{acc}"
         seq = (entry.get("sequence") or {}).get("value", "")
         date = _entry_date(entry)
-        symbol = _gene_symbol(entry)
+        symbol = _gene_symbol(entry, cfg.get("gene_symbol"))
+        if symbol and not (entry.get("genes") or []):
+            em.notes[f"gene_symbol_declared:{name}"] += 1
+        elif not symbol:
+            # Loud, because this silently removes the virus from M1.
+            em.notes[f"NO_GENE_SYMBOL_m1_unreachable:{name}"] += 1
 
         em.node(pcurie, "Protein",
                 gene_symbol=symbol,

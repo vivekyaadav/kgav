@@ -241,6 +241,36 @@ def main() -> int:
                 if chains:
                     print(f"          {len(chains)} CHAIN features on {acc} "
                           f"in the file")
+
+                # CAN ANYTHING REACH THE TAXON? ingest_virus gates the whole
+                # Gene block on `if symbol`, so an entry with no `genes`
+                # field and no declared fallback yields no Gene node, hence
+                # no ENCODED_BY and no BELONGS_TO. M1 is INHIBITS ->
+                # ENCODED_BY -> BELONGS_TO, so the virus is then absent from
+                # the direct-acting channel entirely.
+                #
+                # The 2026-10-12 Zika build is why this check exists. Q32ZE1
+                # has no `genes` field, the build printed "genes=0", schema
+                # PASSed, 3,653 rows resolved to NS3 -- and nothing could
+                # walk from a compound to the Zika taxon. One read of the
+                # cached file would have said so beforehand, which is what
+                # this now does.
+                declared = e.get("gene_symbol")
+                with_genes = [x.get("primaryAccession") for x in entries
+                              if x.get("genes")]
+                if with_genes:
+                    print(f"          gene symbols from UniProt on "
+                          f"{len(with_genes)}/{len(entries)} entries")
+                elif declared:
+                    print(f"          no UniProt gene names; register "
+                          f"declares gene_symbol: {declared}")
+                else:
+                    print(f"          NO GENE SYMBOL: no entry has a `genes` "
+                          f"field and the register declares no\n          "
+                          f"gene_symbol, so ingest_spine emits no Gene node "
+                          f"-- no ENCODED_BY, no\n          BELONGS_TO, and "
+                          f"M1 cannot reach this taxon at all")
+                    blocked.append(e["name"])
             except (OSError, ValueError) as exc:
                 print(f"          UNREADABLE: {exc}")
                 blocked.append(e["name"])
