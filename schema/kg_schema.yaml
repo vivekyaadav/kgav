@@ -331,7 +331,14 @@ edge_classes:
         type: bool
         derived_from_absence_of: [ec50_nm, cc50_nm, ic50_nm, ki_nm, kd_nm]
         doc: "true when activity is asserted with no measured value; derived at assembly"
-    required_qualifiers: [assay_type]
+    # target_resolution IS REQUIRED, because M1/M7/M8 now CONSTRAIN on it and
+    # _qualifier_ok treats a missing qualifier as a failed match. Were it
+    # optional, an INHIBITS edge emitted without it would vanish from the
+    # direct-acting channel with no error -- a silent zero of the exact kind
+    # this repo keeps finding. Required here, the release refuses to validate
+    # instead. chembl.py is the only emitter and sets it on both branches, so
+    # this pins behaviour that already holds rather than asking for new work.
+    required_qualifiers: [assay_type, target_resolution]
 
   - predicate: MEMBER_OF_CLASS
     symmetric: false
@@ -663,9 +670,49 @@ metapaths:
   # A reverse marker on a SYMMETRIC predicate is a schema error: symmetric
   # predicates are traversed both ways by definition, so "<" on one signals a
   # misunderstanding rather than an intent. validate_release rejects it.
+  # THE DIRECT-ACTING CHANNELS REQUIRE A RESOLVED TARGET, and the reason is
+  # arithmetic rather than taste.
+  #
+  # ChEMBL has no chain-level coronavirus targets: every activity maps to the
+  # whole replicase polyprotein. chembl.py recovers the specific nsp from the
+  # assay DESCRIPTION where it can (target_resolution=chain_from_assay_
+  # description) and otherwise files the edge on the parent accession
+  # (parent_unresolved) -- its docstring's stated purpose being that "an
+  # unresolved edge is never mistaken for a measured one". Traversal was
+  # exactly where that mistake was made, and DWPC did not merely tolerate the
+  # unresolved edges, it PREFERRED them.
+  #
+  # Measured on v0.1, SARS-CoV-2, the three drugs reaching the virus by
+  # exactly one channel -- so max-over-channels cannot differentiate them:
+  #
+  #   pomotrelvir   P0DTD1, uncleaved polyprotein   degree    38   rank    17
+  #   remdesivir    nsp12 mature chain              degree   177   rank   396
+  #   nirmatrelvir  nsp5 mature chain               degree 3,117   rank 6,432
+  #
+  # Rank is inversely monotone in target degree with nothing left over:
+  # (deg_nsp5/deg_target)^0.4 predicts each raw DWPC ratio to within 0.04%.
+  # pomotrelvir and nirmatrelvir are both Mpro inhibitors, so that 5.8x gap
+  # is one fact filed at two levels of detail, and the degree correction pays
+  # out for the vaguer filing.
+  #
+  # It is worse than a one-off. A parent accession's degree is low BECAUSE
+  # resolution succeeded for everything else; it measures how few activities
+  # failed to resolve, not how studied the target is. So every improvement to
+  # resolve_nsp lowers the parent's degree and raises the score of whatever
+  # still fails -- a denominator that rewards its own gaps.
+  #
+  # THE COST IS STATED, NOT HIDDEN. pomotrelvir is a genuine Mpro inhibitor
+  # and leaves M1 entirely, because the graph does not know it hits Mpro: its
+  # assay description names no protease, and NSP_PATTERNS already matches
+  # mpro|3cl|main protease, so this is a gap in ChEMBL's annotation rather
+  # than in the pattern table. Losing it is the honest outcome -- the way to
+  # earn it back is to resolve the target, not to let a vague edge outrank a
+  # specific one. The M1 pool shrinks, so the M1 lift and AUC must be
+  # re-measured; that includes the project's one defensible result.
   M1:
     doc: "direct-acting"
     path: [SmallMolecule, INHIBITS, Protein, ENCODED_BY, Gene, BELONGS_TO, OrganismTaxon]
+    constraints: {INHIBITS.target_resolution: chain_from_assay_description}
   M2:
     doc: "host-directed, single hop"
     path: [SmallMolecule, TARGETS, Protein, HOST_FACTOR_FOR, OrganismTaxon]
@@ -699,7 +746,11 @@ metapaths:
   M8:
     doc: "cross-family direct-acting via conserved fold, catalytic type gated"
     path: [SmallMolecule, INHIBITS, Protein, MEMBER_OF_CLASS, TargetClass, FOLD_SIMILAR_TO, TargetClass, "<MEMBER_OF_CLASS", Protein, ENCODED_BY, Gene, BELONGS_TO, OrganismTaxon]
-    constraints: {FOLD_SIMILAR_TO.catalytic_type_match: true}
+    constraints:
+      FOLD_SIMILAR_TO.catalytic_type_match: true
+      # Same rule as M1: an edge that could not be resolved past the
+      # polyprotein cannot support a CROSS-FAMILY fold claim either.
+      INHIBITS.target_resolution: chain_from_assay_description
     exclude_hubs: true
 
   M7:
@@ -711,6 +762,11 @@ metapaths:
     # M1 is the channel that works: 15.5% positive rate in its pool vs M4's 6.3%.
     doc: "cold start via chemical similarity, direct-acting"
     path: [SmallMolecule, CHEMICALLY_SIMILAR_TO, SmallMolecule, INHIBITS, Protein, ENCODED_BY, Gene, BELONGS_TO, OrganismTaxon]
+    # M7 is M1 with a similarity hop in front, so it inherits M1's rule. A
+    # borrowed neighbour's unresolved edge is weaker evidence still: it would
+    # claim a specific protein by analogy to a drug whose own target was
+    # never pinned down.
+    constraints: {INHIBITS.target_resolution: chain_from_assay_description}
 
 retrieval_limits:
   # Hub exclusion is CLASS-SCOPED, and only for host proteins acting as path

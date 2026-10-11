@@ -78,7 +78,9 @@ def layers(tmp_path):
                                  # No `unquantified` here: this edge carries an
                                  # IC50, and the layer that wrote it cannot see
                                  # whether another layer holds a CC50.
-                                 q={"assay_type": "biochemical", "ic50_nm": 25.0})])
+                                 q={"assay_type": "biochemical", "ic50_nm": 25.0,
+                                    "target_resolution":
+                                        "chain_from_assay_description"})])
     return out
 
 
