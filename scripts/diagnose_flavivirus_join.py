@@ -120,9 +120,24 @@ def _activity_report(rows: list[dict], cutoff: int) -> dict:
                 per_compound_pmids[cid].add(str(r["pubmed_id"]))
         if r.get("year"):
             years[int(r["year"])] += 1
-        w, _at = assay_readout(r.get("description") or "",
-                              r.get("assay_type") or "")
-        where[w] += 1
+        # TARGET TYPE DECIDES FIRST, which this did not check and which made
+        # its "protein" column wrong. ingest_activities branches on
+        # target_type == "ORGANISM" before the protein path exists, and skips
+        # a multicomponent target. assay_readout alone is not that filter: it
+        # falls through to "trust the code" when no pattern matches, so a
+        # B-coded "Antiviral activity against Dengue virus 2" -- no cell line,
+        # no CPE, no plaque, no titer -- came back "protein". DENV-2's 1,531
+        # was reported as M1's substrate on that basis and 1,070 of those rows
+        # named no flavivirus protein at all.
+        ttype = r.get("target_type") or "?"
+        if ttype == "ORGANISM":
+            where["organism_target"] += 1
+        elif "/" in (r.get("target_name") or ""):
+            where["multicomponent"] += 1
+        else:
+            w, _at = assay_readout(r.get("description") or "",
+                                   r.get("assay_type") or "")
+            where[w] += 1
 
     dated = sum(years.values())
     top_share = (pmids.most_common(1)[0][1] / dated) if (pmids and dated) else None
@@ -358,18 +373,27 @@ def main() -> int:
         print("\n" + "=" * 78)
         print("READOUT MIX  (assay_readout, the same classifier the ingest uses)")
         print("=" * 78)
-        print(f"  {'virus':<14}{'cells':>8}{'protein':>9}{'unclear':>9}"
-              f"{'span':>14}{'multi-PMID':>12}")
+        print(f"  {'virus':<13}{'organism':>9}{'cells':>7}{'protein':>8}"
+              f"{'unclear':>8}{'multi':>7}{'span':>12}{'mPMID':>7}")
         for name, (_taxa, r) in per_virus.items():
             w = r["readout"]
             span = (f"{r['year_span'][0]}-{r['year_span'][1]}"
                     if r["year_span"] else "-")
-            print(f"  {name:<14}{w.get('cells', 0):>8,}"
-                  f"{w.get('protein', 0):>9,}{w.get('unclear', 0):>9,}"
-                  f"{span:>14}{r['multi_pmid_compounds']:>12,}")
-        print("\n  protein rows are M1's substrate; cells rows become "
-              "organism-level\n  activity. A virus with no protein rows has "
-              "no direct-acting channel.")
+            print(f"  {name:<13}{w.get('organism_target', 0):>9,}"
+                  f"{w.get('cells', 0):>7,}{w.get('protein', 0):>8,}"
+                  f"{w.get('unclear', 0):>8,}{w.get('multicomponent', 0):>7,}"
+                  f"{span:>12}{r['multi_pmid_compounds']:>7,}")
+        print("\n  Only the `protein` column reaches the chain lookup, and it "
+              "is M1's\n  substrate. `organism` rows become "
+              "HAS_ANTIVIRAL_ACTIVITY_AGAINST on the taxon\n  and need no "
+              "chain; `cells` rows are reattributed to the organism the same "
+              "way.\n  A virus with no protein rows has no direct-acting "
+              "channel.\n"
+              "\n  The organism column did not exist until 2026-10-11: those "
+              "rows were being\n  counted as `protein`, so DENV-2 was "
+              "reported with 1,531 rows of M1 substrate\n  and that figure "
+              "argued for promoting it. Compare the columns before quoting "
+              "one.")
 
     # -------------------------------------------------------- host-side data
     all_taxa = {t for e in surveyed for t in _register_taxa(e)}
