@@ -22,7 +22,10 @@ from __future__ import annotations
 import argparse
 import ast
 import copy
+import gzip
 import importlib.util
+import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -34,6 +37,8 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from kgav.assemble import LAYER_PRECEDENCE
 from kgav.virus_register import declared_taxa, validate
+
+_CFG_CACHE: dict = {}
 
 
 def _phase0_targets() -> dict:
@@ -80,6 +85,28 @@ def _hardcoded_counts() -> list[tuple[str, int, str]]:
     # viruses" the moment the count was replaced by something better --
     # a dry run that goes quiet when the guard improves is worse than no
     # dry run, because quiet reads as safe.
+    # ANY comparison against the current built count, anywhere in tests.
+    # The narrow scan above found one breakage; the promotion of DENV-2 and
+    # Zika broke THREE, because test_ingest_spine.py asserts `len(taxa) == 7`
+    # and `len(labels) == 7` -- same magic number, different expression. A
+    # scan that only recognises one spelling under-reports, and a dry run
+    # that under-reports is the thing it exists to prevent.
+    #
+    # Reported as CANDIDATES, not failures: `== 7` also appears for the seven
+    # metapaths in test_calibration.py, which has nothing to do with viruses.
+    # Over-reporting costs a glance; under-reporting cost a broken build.
+    built_now = len(_CFG_CACHE["viruses"]) if _CFG_CACHE else 0
+    if built_now:
+        loose = re.compile(rf"==\s*{built_now}\b")
+        for path in sorted((ROOT / "tests").glob("*.py")):
+            for n, line in enumerate(path.read_text().splitlines(), 1):
+                if not loose.search(line) or "assert" not in line:
+                    continue
+                ref = f"{path.name}:{n}"
+                if any(ref == e[0] for e in out):
+                    continue
+                out.append((ref, None, line.strip()))
+
     tv = ROOT / "tests" / "test_virus_register.py"
     if tv.exists():
         tree = ast.parse(tv.read_text())
@@ -90,9 +117,10 @@ def _hardcoded_counts() -> list[tuple[str, int, str]]:
                     and isinstance(node.value, (ast.Tuple, ast.List))):
                 names = [e.value for e in node.value.elts
                          if isinstance(e, ast.Constant)]
-                out.append((f"test_virus_register.py:{node.lineno} BUILT",
-                            len(names), f"BUILT names {len(names)}: "
-                            f"{', '.join(names)}"))
+                out.append((
+                    f"test_virus_register.py:{node.lineno} BUILT",
+                    len(names),
+                    f"BUILT names {len(names)}: {', '.join(names)}"))
     return out
 
 
@@ -101,9 +129,15 @@ def main() -> int:
     ap.add_argument("--config", type=Path, default=ROOT / "config/viruses.yaml")
     ap.add_argument("--promote", nargs="+", required=True,
                     help="names exactly as they appear under `surveyed:`")
+    ap.add_argument("--proteomes", type=Path,
+                    default=ROOT / "data/raw/proteomes")
+    ap.add_argument("--db", type=Path,
+                    default=ROOT / "data/raw/chembl/chembl_37"
+                                   "/chembl_37_sqlite/chembl_37.db")
     args = ap.parse_args()
 
     cfg = yaml.safe_load(args.config.read_text())
+    _CFG_CACHE.update(cfg)
     surveyed = {e["name"]: e for e in cfg.get("surveyed") or []}
 
     unknown = [n for n in args.promote if n not in surveyed]
@@ -121,6 +155,75 @@ def main() -> int:
     print(f"promoting {len(moving)}: {', '.join(args.promote)}")
     print(f"  viruses:  {len(cfg['viruses'])} -> {len(promoted['viruses'])}")
     print(f"  surveyed: {len(cfg['surveyed'])} -> {len(promoted['surveyed'])}")
+
+    # --------------------------------------------------------- preconditions
+    # THE SECTION THIS SCRIPT DID NOT HAVE, AND THE OMISSION COST A BUILD.
+    # ingest_spine reads a LOCAL CACHE: data/raw/proteomes/<proteome_id>.json.gz,
+    # and there is no fetcher in this repository. When the file is absent it
+    # records proteome_missing:<virus>, returns early, and leaves the virus
+    # with an OrganismTaxon node and nothing else.
+    #
+    # The damage is downstream, not there. declared_taxa now contains the new
+    # taxa, so ingest_chembl queries them, finds thousands of activities and
+    # emits INHIBITS edges to flavivirus proteins that no layer created:
+    # 1,881 DANGLING, SCHEMA FAIL, layer not written. assemble_release then
+    # runs happily on the OLD chembl layer plus the new orphan taxon nodes,
+    # producing a release whose edges are unchanged, whose nodes_sha is not,
+    # and which invalidates every results file in exchange for nothing.
+    #
+    # One stat() per virus would have caught it.
+    print("\n" + "=" * 78)
+    print("0. PRECONDITIONS")
+    print("=" * 78)
+    blocked = []
+    for e in moving:
+        pid = e.get("proteome_id")
+        pfile = args.proteomes / f"{pid}.json.gz"
+        ok = pfile.exists()
+        if not ok:
+            blocked.append(e["name"])
+        print(f"  {'ok ' if ok else 'ABSENT':<7} {e['name']:<14} "
+              f"{pid}.json.gz")
+        if ok:
+            try:
+                n = len(json.loads(gzip.decompress(pfile.read_bytes()))
+                        .get("results", []))
+                claimed = (e.get("chain_source") or {}).get("chains")
+                print(f"          {n} entries in the file; register claims "
+                      f"{claimed} chains on "
+                      f"{(e.get('chain_source') or {}).get('accession')}")
+            except (OSError, ValueError) as exc:
+                print(f"          UNREADABLE: {exc}")
+                blocked.append(e["name"])
+
+    if blocked:
+        print(f"\n  BLOCKED: {', '.join(sorted(set(blocked)))}")
+        print("  ingest_spine would record proteome_missing and build an "
+              "OrganismTaxon with no\n  proteins. ingest_chembl would then "
+              "query the new taxa, emit INHIBITS edges\n  to proteins no "
+              "layer created, and fail its schema check -- after which\n"
+              "  assemble_release still writes a release, invalidating every "
+              "results file for\n  no new facts. Fetch the proteome(s) "
+              "first.")
+        print("\n  The files are UniProt JSON with a top-level \"results\" "
+              "list, which is what\n  ingest_spine.load_proteome parses. "
+              "There is no fetcher in this repo, so\n  whatever produced the "
+              "existing files should produce these; verify the entry\n"
+              "  count against the register's chains before trusting one.")
+    else:
+        print("\n  every promoted virus has its proteome cached")
+
+    other = []
+    if len(os.environ.get("ORCS_KEY", "")) != 32:
+        other.append("ORCS_KEY is not a 32-character key: ingest_orcs.py "
+                     "exits without writing,\n    so the flavivirus "
+                     "screens would not be ingested even once the patterns "
+                     "match")
+    if not args.db.exists():
+        other.append(f"no ChEMBL db at {args.db}: ingest_chembl and "
+                     f"ingest_selectivity cannot run")
+    for o in other:
+        print(f"\n  NOTE: {o}")
 
     # ------------------------------------------------------------- register
     print("\n" + "=" * 78)
@@ -159,9 +262,13 @@ def main() -> int:
     if not counts:
         print("  no test pins the number of built viruses")
     for ref, n, line in counts:
-        verdict = "OK" if n == len(promoted["viruses"]) else "WOULD FAIL"
-        print(f"  {verdict:<11} {ref}  pins {n}, would be "
-              f"{len(promoted['viruses'])}")
+        if n is None:
+            print(f"  {'CANDIDATE':<11} {ref}  compares against "
+                  f"{len(cfg['viruses'])}, the current built count")
+        else:
+            verdict = "OK" if n == len(promoted["viruses"]) else "WOULD FAIL"
+            print(f"  {verdict:<11} {ref}  pins {n}, would be "
+                  f"{len(promoted['viruses'])}")
         print(f"              {line}")
     print("\n  test_surveyed_viruses_are_not_built is the gate that keeps a\n"
           "  surveyed virus out of a build. A promotion updates it; it does\n"

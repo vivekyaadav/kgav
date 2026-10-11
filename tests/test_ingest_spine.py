@@ -148,7 +148,15 @@ def test_real_spine_validates(tmp_path):
 def test_real_spine_has_all_seven_viruses(tmp_path):
     spine = build(CONFIG, PROTEOMES, tmp_path / "real")
     taxa = [n for n in spine.nodes.values() if n["class"] == "OrganismTaxon"]
-    assert len(taxa) == 7, f"expected 7 coronaviruses, got {len(taxa)}"
+    # DERIVED FROM THE REGISTER, not hardcoded. This read `== 7` and broke
+    # when DENV-2 and Zika were promoted -- correctly, but dryrun_promote's
+    # breakage scan looked only for `len(doc["viruses"]) == N` and missed both
+    # assertions in this file, so the promotion landed reporting one breakage
+    # when there were three.
+    expected = len(yaml.safe_load(CONFIG.read_text())["viruses"])
+    assert len(taxa) == expected, (
+        f"register declares {expected} built viruses, spine built "
+        f"{len(taxa)}: {sorted(n['properties']['label'] for n in taxa)}")
 
 
 @needs_data
@@ -185,7 +193,7 @@ def test_every_virus_exposes_the_core_nsps(tmp_path):
             by_taxon.setdefault(n["properties"]["taxon_id"], set()).add(
                 n["properties"]["protein_family"])
 
-    assert len(labels) == 7
+    assert len(labels) == len(yaml.safe_load(CONFIG.read_text())["viruses"])
     for tid, name in labels.items():
         missing = core - by_taxon.get(tid, set())
         assert not missing, f"{name} missing {sorted(missing)}"
