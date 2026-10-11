@@ -263,6 +263,74 @@ def test_single_occupant_pool_scores_one_not_zero(g, schema):
     assert total[D1] == 1.0
 
 
+# ------------------------------------------------------------- tied percentiles
+def _one_channel(values: dict[str, float]) -> dict:
+    """A single metapath pool holding exactly these raw DWPC values."""
+    return {"M1": {drug: {V: v} for drug, v in values.items()}}
+
+
+def test_identical_dwpc_gets_an_identical_percentile():
+    """`pct = i / n` read the POSITIONAL index, so equal scores were ordered
+    by whatever order sorted() left them in -- for equal keys, insertion
+    order. Measured on v0.1: nirmatrelvir and chloroquine both scored
+    0.000242 on M1, both by the single path through nsp5, and were handed
+    0.0180 and 0.0020. The reported rank 6,432 was an artifact of iteration
+    order, not a measurement.
+    """
+    tied = combine(_one_channel({"a": 1.0, "nirmatrelvir": 2.0,
+                                 "chloroquine": 2.0, "d": 3.0}), V)
+    assert tied["nirmatrelvir"] == tied["chloroquine"]
+
+
+def test_reinserting_the_same_pool_in_another_order_changes_nothing():
+    """The property the positional index broke: the output must depend on the
+    scores, not on the order the drugs were added to the dict."""
+    vals = {"a": 1.0, "b": 2.0, "c": 2.0, "d": 2.0, "e": 3.0}
+    forward = combine(_one_channel(vals), V)
+    backward = combine(_one_channel(dict(reversed(vals.items()))), V)
+    assert forward == backward
+
+
+def test_a_tied_group_gets_the_mean_of_the_positions_it_spans():
+    """Midrank, so the tie neither gains nor loses against the drugs around
+    it: three drugs tied across positions 1, 2 and 3 of 5 all score 2/4."""
+    out = combine(_one_channel({"lo": 1.0, "t1": 2.0, "t2": 2.0, "t3": 2.0,
+                                "hi": 3.0}), V)
+    assert out["lo"] == pytest.approx(0.0)
+    assert out["hi"] == pytest.approx(1.0)
+    for d in ("t1", "t2", "t3"):
+        assert out[d] == pytest.approx(0.5)
+
+
+def test_untied_pools_are_unchanged():
+    """The fix must not move a pool that had no ties, or every published
+    COMBINED figure would shift for no reason."""
+    out = combine(_one_channel({"a": 1.0, "b": 2.0, "c": 3.0}), V)
+    assert out["a"] == pytest.approx(0.0)
+    assert out["b"] == pytest.approx(0.5)
+    assert out["c"] == pytest.approx(1.0)
+
+
+def test_a_wholly_degenerate_pool_hands_nobody_a_perfect_score():
+    """If every drug in a channel scores the same, the channel separates
+    nothing. The positional index awarded 1.0 to whichever drug sorted last
+    and 0.0 to whichever sorted first -- a top-of-pool score, drawn from a
+    pool with no top. All of them now sit at the midpoint."""
+    out = combine(_one_channel({c: 7.0 for c in "abcdef"}), V)
+    assert len(out) == 6
+    assert all(v == pytest.approx(0.5) for v in out.values())
+    assert 1.0 not in out.values() and 0.0 not in out.values()
+
+
+def test_ties_are_merged_only_when_exactly_equal():
+    """Exact equality, not a tolerance: identical topology yields
+    bit-identical products, while a tolerance would merge genuinely
+    different scores and add a fitted parameter to a no-training baseline."""
+    out = combine(_one_channel({"a": 1.0, "b": 2.0, "c": 2.0 + 1e-12,
+                                "d": 3.0}), V)
+    assert out["b"] != out["c"]
+
+
 # ----------------------------------------------------------------- baselines
 def test_degree_ranking_ignores_the_virus(g):
     scores = degree_ranking(g)

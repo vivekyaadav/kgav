@@ -399,9 +399,38 @@ def combine(dwpc: dict[str, dict[str, dict[str, float]]], virus: str,
             continue
         ordered = sorted(pool.items(), key=lambda kv: kv[1])
         n = len(ordered) - 1
-        for i, (drug, _v) in enumerate(ordered):
-            pct = i / n
-            best[drug] = max(best[drug], pct * w)
+        # TIES GET THEIR MIDRANK. `pct = i / n` read the POSITIONAL index, so
+        # drugs holding the identical raw DWPC received different percentiles
+        # according to where sorted() happened to place them -- which, for
+        # equal keys, is dict insertion order. Measured on v0.1 M1 for
+        # SARS-CoV-2: nirmatrelvir and chloroquine both score 0.000242, both
+        # by the one path through nsp5, and were handed 0.0180 and 0.0020 --
+        # positions 55 and 6 of the same 49-wide tie block. nirmatrelvir's
+        # reported rank of 6,432 was therefore not a measurement of anything;
+        # reinserting the same drugs in another order would have moved it.
+        #
+        # The block is wide because DWPC is TOPOLOGY ONLY: every drug whose
+        # sole route to this virus is nsp5 traverses the same nodes and so
+        # earns the same number, potency notwithstanding. That is a separate
+        # question from this one; what is fixed here is that the arithmetic
+        # must not invent an order it did not measure.
+        #
+        # Equality is exact, not within a tolerance. These ties arise from
+        # identical topology -- the same product of the same degrees -- so
+        # they are bit-identical by construction, and a tolerance would
+        # instead merge scores that genuinely differ while adding a fitted
+        # parameter to a no-training baseline. Scores separated only by
+        # floating-point association are left separate, which is the
+        # conservative direction: this never merges what is not identical.
+        i = 0
+        while i < len(ordered):
+            j = i
+            while j + 1 < len(ordered) and ordered[j + 1][1] == ordered[i][1]:
+                j += 1
+            pct = ((i + j) / 2) / n          # midrank of positions i..j
+            for drug, _v in ordered[i:j + 1]:
+                best[drug] = max(best[drug], pct * w)
+            i = j + 1
     return dict(best)
 
 
