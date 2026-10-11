@@ -79,7 +79,11 @@ def test_zika_and_west_nile_are_species_level_and_declare_no_isolate(doc):
 BUILT = (
     "SARS-CoV-2", "SARS-CoV", "MERS-CoV",
     "HCoV-229E", "HCoV-NL63", "HCoV-OC43", "HCoV-HKU1",
-    "DENV-2", "Zika",            # promoted from surveyed 2026-10-11
+    # DENV-2 and Zika were promoted on 2026-10-11 and moved back the same day:
+    # neither proteome is cached, so both built an OrganismTaxon with zero
+    # proteins. This list is the one place that says what the build contains,
+    # so adding a name here is the deliberate act -- and the entries now sit in
+    # `surveyed:` carrying the measurements for the next attempt.
 )
 
 
