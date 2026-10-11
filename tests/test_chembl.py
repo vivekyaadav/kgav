@@ -641,3 +641,41 @@ def test_a_cellular_ic50_is_still_reattributed():
                           {"2697049": {}}, {"2697049": "2697049"},
                           "infores:chembl")
     assert s["reattributed_to_organism"] == 1
+
+
+# ---------------- NSP_PATTERNS is coronavirus-only, and silently matches more
+def test_resolve_nsp_matches_flavivirus_descriptions_and_must_be_family_scoped():
+    """NSP_PATTERNS names CORONAVIRUS proteins, and two of its patterns match
+    flavivirus assay descriptions, so a flavivirus row resolves to a
+    coronavirus family name with no error anywhere:
+
+        DENV2 NS5 RNA-dependent RNA polymerase  -> nsp12   (should be NS5)
+        Zika virus NS5 RdRp                     -> nsp12   (should be NS5)
+        DENV2 NS3 helicase                      -> nsp13   (should be NS3)
+        dengue virus NS2B-NS3 protease by FRET  -> None    (should be NS3)
+
+    The two most-studied flavivirus drug targets either mis-file under a
+    coronavirus family or do not resolve at all. That matters because DENV-2
+    contributes 1,531 ChEMBL rows measured ON A PROTEIN, which was the
+    argument for promoting it: the rows exist, and target resolution cannot
+    place them.
+
+    PINNED RATHER THAN FIXED. The fix is the CALLER gating on family, or
+    flavivirus patterns of its own, and which one depends on the real
+    description distribution -- not on a guess. This test fails if someone
+    changes resolve_nsp without dealing with the caller, which is the failure
+    mode worth catching: a half-fix here files flavivirus rows under
+    coronavirus chains, and nothing downstream would say so.
+    """
+    from kgav.chembl import resolve_nsp
+
+    assert resolve_nsp("Inhibition of DENV2 NS5 RNA-dependent RNA polymerase") \
+        == ("nsp12", None)
+    assert resolve_nsp("Inhibition of Zika virus NS5 RdRp") == ("nsp12", None)
+    assert resolve_nsp("Inhibition of DENV2 NS3 helicase") == ("nsp13", None)
+    assert resolve_nsp("Inhibition of dengue virus NS2B-NS3 protease by FRET") \
+        == (None, None)
+
+    # and the coronavirus cases it exists for still work
+    assert resolve_nsp("Inhibition of SARS-CoV-2 3CL protease") == ("nsp5", None)
+    assert resolve_nsp("SARS-CoV-2 PLpro inhibition") == ("nsp3", "PLpro")
