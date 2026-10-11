@@ -174,26 +174,43 @@ def main(argv=None) -> int:
             continue
 
         verdict = Counter()
-        mismatched: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
+        # EVERY BUCKET IS COLLECTED, not just the mismatches.
+        #
+        # The first version counted "generic flavivirus name" and "names no
+        # virus" and printed neither. For DENV-2 that was 1,045 + 52 = 1,097
+        # of 1,483 rows tallied and never shown -- the largest share of the
+        # substrate, invisible. This repository has the same bug on record
+        # already: a 1,025-row bucket was reported without being printed and
+        # then guessed at, and the guess was wrong. A count with no verbatim
+        # text behind it is not a measurement anyone can check.
+        buckets: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
         targets: Counter = Counter()
+        # SPECIES-SPECIFIC *AND* PUBLICATION-BEARING is the cell that decides
+        # build order, because the two controls are independent: naming the
+        # virus is what makes the row attributable, and carrying a pubmed_id
+        # is what lets --publication-disjoint withhold it. A row missing
+        # either is not evidence this project can defend.
+        crosstab: Counter = Counter()
         for r in protein_rows:
             desc = r.get("description") or ""
             named = viruses_named(desc)
+            has_pmid = bool(r.get("pubmed_id"))
             if not named:
-                verdict["generic flavivirus name" if GENERIC.search(desc)
-                        else "names no virus"] += 1
+                key = ("generic flavivirus name" if GENERIC.search(desc)
+                       else "names no virus")
             elif named == [v["name"]]:
-                verdict["names this virus"] += 1
+                key = "names this virus"
             elif v["name"] in named:
-                verdict["names this virus AND others (panel)"] += 1
-                mismatched["panel"].append(
-                    (desc, r.get("target") or "?", r.get("target_name") or "?"))
+                key = "names this virus AND others (panel)"
             else:
-                verdict["names a DIFFERENT virus"] += 1
-                key = "+".join(named)
-                mismatched[key].append(
-                    (desc, r.get("target") or "?", r.get("target_name") or "?"))
+                key = "names a DIFFERENT virus"
                 targets[f"{r.get('target')}  {r.get('target_name')}"] += 1
+            verdict[key] += 1
+            label = ("+".join(named) if key == "names a DIFFERENT virus"
+                     else key)
+            buckets[label].append(
+                (desc, r.get("target") or "?", r.get("target_name") or "?"))
+            crosstab[(key == "names this virus", has_pmid)] += 1
 
         n = len(protein_rows)
         print(f"\n  WHAT THE DESCRIPTION NAMES (of {n:,} protein rows)")
@@ -208,28 +225,53 @@ def main(argv=None) -> int:
             for t, c in targets.most_common(args.samples):
                 print(f"    {c:>6,}  {t}")
 
-        for key in sorted(mismatched):
-            if key == "panel":
-                continue
-            rowset = mismatched[key]
-            print(f"\n  [names {key}, filed as {v['name']}] "
-                  f"{len(rowset):,} row(s), up to {args.samples}:")
-            seen = set()
-            for desc, tgt, tname in rowset:
-                if desc in seen:
-                    continue
-                seen.add(desc)
-                if len(seen) > args.samples:
-                    break
-                print(f"      {desc[:92]}")
-            print(f"      ({len(set(d for d, _, _ in rowset)):,} distinct "
-                  f"description(s) in this bucket)")
+        named_pmid = crosstab[(True, True)]
+        print(f"\n  ATTRIBUTABLE *AND* WITHHOLDABLE (the cell that decides)")
+        print(f"    {'':<26}{'has PMID':>10}{'no PMID':>10}")
+        for is_named, lab in ((True, "names this virus"),
+                              (False, "generic / other / none")):
+            print(f"    {lab:<26}{crosstab[(is_named, True)]:>10,}"
+                  f"{crosstab[(is_named, False)]:>10,}")
+        print(f"    -> {named_pmid:,} of {n:,} rows ({named_pmid / n:.1%}) both"
+              f" name this virus and carry a\n       publication, so they are"
+              f" attributable to it AND reachable by\n       "
+              f"--publication-disjoint. Rows missing either are not evidence\n"
+              f"       this project can defend.")
 
-        if mismatched.get("panel"):
-            rowset = mismatched["panel"]
-            print(f"\n  [names this virus AND others] {len(rowset):,} row(s) "
-                  f"-- cross-reactivity panels, not misfiling:")
-            for desc, _t, _tn in rowset[:args.samples]:
+        PANEL = "names this virus AND others (panel)"
+        # EVERY bucket gets verbatim text, including the big ones. Only
+        # "names this virus" is skipped, because that is the expected case and
+        # diagnose_flavivirus_targets already samples those descriptions by
+        # resolved protein.
+        order = (["generic flavivirus name", "names no virus", PANEL]
+                 + sorted(k for k in buckets
+                          if k not in {"generic flavivirus name",
+                                       "names no virus", PANEL,
+                                       "names this virus"}))
+        for key in order:
+            rowset = buckets.get(key)
+            if not rowset:
+                continue
+            if key == PANEL:
+                head = "[names this virus AND others -- a panel, not misfiling]"
+            elif key in ("generic flavivirus name", "names no virus"):
+                head = f"[{key}]"
+            else:
+                head = f"[names {key}, filed as {v['name']}]"
+            # Distinct count over the WHOLE bucket, computed before the
+            # display loop -- counting inside a loop capped at --samples
+            # reports the sample size as the total, which this project has
+            # done once already.
+            distinct = len({d for d, _t, _n in rowset})
+            print(f"\n  {head} {len(rowset):,} row(s), "
+                  f"{distinct:,} distinct, up to {args.samples}:")
+            shown = set()
+            for desc, _tgt, _tname in rowset:
+                if desc in shown:
+                    continue
+                shown.add(desc)
+                if len(shown) > args.samples:
+                    break
                 print(f"      {desc[:92]}")
         print()
 
