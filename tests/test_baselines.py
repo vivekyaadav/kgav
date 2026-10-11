@@ -270,6 +270,25 @@ def test_degree_ranking_ignores_the_virus(g):
     assert scores[D1] == float(g.degree[D1])
 
 
+def test_degree_ranking_covers_drugs_only_and_g_degree_covers_proteins(g):
+    """degree_ranking is a DRUG ranking. A protein looked up in it returns
+    nothing, so `degree_ranking(g).get(protein, 0)` reports 0 for a node that
+    has a perfectly good degree -- a silent zero, not an error.
+
+    The distinction is load-bearing for anything explaining DWPC, whose
+    denominator is the degree of the INTERMEDIATE nodes a path traverses:
+    those are proteins, so they must be read off g.degree. scripts/
+    diagnose_controls.py printed a 0-degree column for every target until
+    this was caught, which would have argued the opposite of the truth --
+    that nsp5 is unstudied.
+    """
+    prot = "UniProtKB:NSP5"
+    assert g.nodes[prot]["class"] == "Protein"
+    assert g.degree[prot] > 0, "the fixture protein should carry edges"
+    assert prot not in degree_ranking(g)
+    assert degree_ranking(g).get(prot, 0) == 0  # the trap, pinned
+
+
 def test_network_proximity_returns_z_scores(g, schema):
     prox = network_proximity(g, V, schema.retrieval_limits, n_random=20)
     assert prox, "no drugs scored"
