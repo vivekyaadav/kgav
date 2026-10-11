@@ -75,9 +75,72 @@ QUANT_TYPES = {"IC50": "ic50_nm", "EC50": "ec50_nm", "Ki": "ki_nm", "Kd": "kd_nm
 VALID_RELATIONS = {"=", ">", "<", ">=", "<=", "~"}
 
 
-def resolve_nsp(description: str) -> tuple[str | None, str | None]:
-    """(nsp family, domain) named by an assay description, or (None, None)."""
-    for pattern, nsp, domain in NSP_PATTERNS:
+# FLAVIVIRUS DESCRIPTIONS, AND WHY THIS IS A SEPARATE TABLE.
+#
+# NSP_PATTERNS above names coronavirus proteins. Run on flavivirus rows it
+# resolves two things by accident -- "RNA-dependent RNA polymerase" to nsp12
+# and "NS3 helicase" to nsp13 -- and nothing else, because every other
+# flavivirus protein is absent from it. Measured on 2026-10-11: that is 9 of
+# Zika's 355 chain-reaching rows and 4 of DENV-2's 1,483.
+#
+# These are NOT merged into NSP_PATTERNS with shared functional keys, and the
+# reason is in src/kgav/folds.py:41 -- "NUCLEOPHILE mode: Identical residue
+# required. Cys != Ser, no edge, no exceptions." Coronavirus nsp5 is a
+# CYSTEINE protease; the flavivirus NS2B-NS3 protease is a SERINE protease. A
+# shared key such as "protease" would assert in protein_family exactly the
+# cross-family equivalence folds.py refuses on catalytic grounds, and it would
+# assert it silently, upstream of the gate that exists to stop it. Keeping the
+# namespaces separate is what lets folds/TargetClass remain the one place a
+# cross-family claim is made and checked.
+#
+# The index these keys feed is taxon-scoped (build_viral_target_index), so
+# "NS3" under Zika and "nsp3" under SARS-CoV-2 never meet.
+#
+# TWO BIFUNCTIONAL CHAINS, which is what `domain` is for:
+#   NS3  N-terminal protease (needs NS2B as cofactor) + C-terminal helicase
+#   NS5  N-terminal methyltransferase/capping + C-terminal RdRp
+# Both domains resolve to the one chain the spine emits, distinguished by
+# domain rather than by inventing two nodes UniProt does not annotate.
+#
+# A MODELLING CHOICE, stated rather than buried: an "NS2B-NS3 protease" assay
+# measures the heterodimer, and the edge lands on NS3 -- the catalytic
+# subunit, whose His-Asp-Ser triad the inhibitor engages. NS2B is a cofactor
+# that completes the active site; filing the measurement there would attribute
+# catalysis to the wrong chain.
+FLAVI_PATTERNS: list[tuple[re.Pattern, str, str | None]] = [
+    (re.compile(r"ns2b[-/ ]?ns3|ns3[-/ ]?ns2b|\bns2b\b", re.IGNORECASE),
+     "NS3", "protease"),
+    (re.compile(r"ns3.{0,24}helicase|helicase.{0,24}ns3|rna unwinding",
+                re.IGNORECASE), "NS3", "helicase"),
+    (re.compile(r"ns3.{0,24}protease|protease.{0,24}ns3", re.IGNORECASE),
+     "NS3", "protease"),
+    # Before the RdRp rule: "NS5 RNA methyltransferase" names the MTase
+    # domain, and the bare ns5 fallback below would otherwise claim it.
+    (re.compile(r"ns5.{0,30}(methyltransferase|mtase)|2'-o-mtase"
+                r"|capping enzyme|guanylyltransferase", re.IGNORECASE),
+     "NS5", "methyltransferase"),
+    (re.compile(r"rdrp|rna[- ]dependent rna pol|rna[- ]directed rna pol"
+                r"|\bns5\b", re.IGNORECASE), "NS5", "rdrp"),
+    (re.compile(r"\bns1\b", re.IGNORECASE), "NS1", None),
+    (re.compile(r"\bns4b\b", re.IGNORECASE), "NS4B", None),
+    (re.compile(r"\bns4a\b", re.IGNORECASE), "NS4A", None),
+    (re.compile(r"\bns2a\b", re.IGNORECASE), "NS2A", None),
+    (re.compile(r"envelope protein e\b", re.IGNORECASE), "E", None),
+]
+
+PATTERNS_BY_FAMILY = {"Flaviviridae": FLAVI_PATTERNS}
+
+
+def resolve_nsp(description: str,
+                family: str | None = None) -> tuple[str | None, str | None]:
+    """(protein family, domain) named by an assay description.
+
+    `family` is the viral family of the row's taxon, from the release's own
+    OrganismTaxon nodes. Omitted or unrecognised, the coronavirus table is
+    used -- which is the behaviour every existing caller had, so adding the
+    argument cannot move a coronavirus row.
+    """
+    for pattern, nsp, domain in PATTERNS_BY_FAMILY.get(family, NSP_PATTERNS):
         if pattern.search(description or ""):
             return nsp, domain
     return None, None
@@ -115,6 +178,27 @@ def build_viral_target_index(index, taxon_map: dict[str, str]) -> dict[str, dict
         tax = (p.get("taxon_id") or "").split(":")[-1]
         if tax in taxon_map:
             out.setdefault(taxon_map[tax], {})[p["protein_family"]] = n["id"]
+    return out
+
+
+def build_taxon_family_index(index, taxon_map: dict[str, str]) -> dict[str, str]:
+    """taxon -> viral family, read from the graph rather than hardcoded.
+
+    resolve_nsp needs the family to pick its pattern table, and the release
+    already carries it: ingest_spine writes `family` onto every OrganismTaxon
+    from config/viruses.yaml. Deriving it here means a newly promoted virus
+    gets the right table with no second list to keep in step -- the failure
+    that put four hand-built taxon maps in this repository before
+    declared_taxa replaced them.
+    """
+    out: dict[str, str] = {}
+    for n in index.nodes.values():
+        if n["class"] != "OrganismTaxon":
+            continue
+        tax = n["id"].split(":")[-1]
+        fam = n["properties"].get("family")
+        if fam and tax in taxon_map:
+            out[taxon_map[tax]] = fam
     return out
 
 
@@ -285,7 +369,11 @@ def accounting(stats) -> tuple[int, int, list[str]]:
 
 
 def ingest_activities(em, rows: list[dict], viral_targets: dict[str, dict[str, str]],
-                      taxon_map: dict[str, str], source: str) -> Counter:
+                      taxon_map: dict[str, str], source: str,
+                      taxon_families: dict[str, str] | None = None) -> Counter:
+    """`taxon_families` comes from build_taxon_family_index and selects which
+    pattern table reads each row's description. Optional and defaulting to
+    None, so every existing caller keeps the coronavirus table exactly."""
     stats: Counter = Counter()
     seen: set[tuple] = set()
 
@@ -359,7 +447,8 @@ def ingest_activities(em, rows: list[dict], viral_targets: dict[str, dict[str, s
             stats["multicomponent_target"] += 1
             continue
 
-        nsp, domain = resolve_nsp(r.get("description") or "")
+        nsp, domain = resolve_nsp(r.get("description") or "",
+                                  (taxon_families or {}).get(tax))
         target_node = viral_targets.get(tax, {}).get(nsp) if nsp else None
         if target_node:
             quals["target_resolution"] = "chain_from_assay_description"
