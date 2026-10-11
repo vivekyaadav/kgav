@@ -12,6 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from kgav import calibration as C
 from kgav.baselines import (
     Graph,
     combine,
@@ -62,6 +63,46 @@ def name_index(g: Graph, db: Path | None) -> dict[str, str]:
     return out
 
 
+# WHETHER THE DWPC COLUMN IS A VALIDATED RANKING IS PART OF THE RESULT, so
+# the two decisions behind it live here as plain functions rather than inside
+# main(): a script whose behaviour can only be checked by running it against
+# a 74,872-node release is a script whose behaviour is not checked.
+DWPC_MODES = ("uncalibrated", "calibrated", "refused")
+
+
+def load_calibration(calibrated: bool, path: Path, virus: str, section: str):
+    """The Calibration to score with, or None to score uncalibrated.
+
+    Refuses rather than falling back. Asking for calibration and being handed
+    an uncalibrated order under the same column heading is the exact failure
+    the flag exists to prevent, so a missing file is fatal -- the file
+    describes one specific evaluation run and there is no default to stand in
+    for it.
+    """
+    if not calibrated:
+        return None
+    if not path.exists():
+        raise FileNotFoundError(
+            f"--calibrated needs {path}, which does not exist. Run "
+            f"scripts/hard_negatives.py first; this file describes one "
+            f"specific evaluation run and there is no default to fall back on.")
+    return C.load(path, virus, section=section)
+
+
+def dwpc_mode(cal) -> str:
+    """Which of the three claims this run makes about the DWPC column.
+
+    A calibrated ranking, an uncalibrated one and a refusal are three
+    different statements. combine's own comment is why the uncalibrated case
+    needs a name at all: max-over-channels is biased upward by the channel
+    count, so a drug at the top of a CHANCE-LEVEL pool scores 1.0 and
+    outranks one with a real route.
+    """
+    if cal is None:
+        return "uncalibrated"
+    return "calibrated" if cal.can_rank() else "refused"
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
@@ -71,6 +112,17 @@ def main() -> int:
     ap.add_argument("--virus", default="NCBITaxon:2697049")
     ap.add_argument("--out", type=Path, default=root / "data/results")
     ap.add_argument("--top", type=int, default=25)
+    # calibrate.py has been printing "run_baselines.py  # with --calibrated
+    # once wired" since the calibration module landed. This is that wiring.
+    ap.add_argument("--calibrated", action="store_true",
+                    help="restrict the DWPC ranking to channels whose measured "
+                         "interval excludes chance, and refuse to rank if none do")
+    ap.add_argument("--calibration", type=Path,
+                    default=root / "data/results/hard_negatives.json",
+                    help="the evaluation run --calibrated reads its channels from")
+    ap.add_argument("--section", default="cross_sectional",
+                    choices=["cross_sectional", "temporal",
+                             "cross-sectional", "post-2021"])
     args = ap.parse_args()
 
     schema = load_schema()
@@ -98,10 +150,54 @@ def main() -> int:
         reach = sum(1 for by_virus in dwpc[name].values() if args.virus in by_virus)
         print(f"  {name}: {reach:,} drugs reach this virus")
 
-    scorers = {
-        "degree": degree_ranking(g),
-        "dwpc": combine(dwpc, args.virus),
-    }
+    # WHETHER THE DWPC COLUMN IS A VALIDATED RANKING, SAID OUT LOUD.
+    #
+    # This script used to call combine(dwpc, args.virus) and print the result
+    # in a column headed "dwpc", with nothing to distinguish it from a
+    # measured ranking. combine's own comment explains why that is not a
+    # neutral default: max-over-channels is biased upward by the channel
+    # count, so a drug sitting at the top of a CHANCE-LEVEL pool scores 1.0
+    # and outranks one with a real route. Reading the column without knowing
+    # which channels cleared chance is reading noise as an order.
+    #
+    # --calibrated restricts the max to channels whose measured 95% interval
+    # excludes 0.5 and refuses to rank when none do, which on v0.1 is every
+    # one of them. Refusing is the result in that case, not a failure to
+    # produce one. Without the flag the uncalibrated ranking still prints --
+    # every published number reproduces -- but it is now LABELLED, and the
+    # calibration file is consulted so the label can say what calibration
+    # would have said.
+    try:
+        cal = load_calibration(args.calibrated, args.calibration,
+                               args.virus, args.section)
+    except FileNotFoundError as exc:
+        sys.exit(str(exc))
+    mode = dwpc_mode(cal)
+
+    scorers = {"degree": degree_ranking(g)}
+    if mode == "uncalibrated":
+        scorers["dwpc"] = combine(dwpc, args.virus)
+        print("\n  dwpc column is UNCALIBRATED: the max runs over every "
+              "channel that\n  reaches this virus, whether or not it was "
+              "measured above chance.")
+        if args.calibration.exists():
+            peek = C.load(args.calibration, args.virus, section=args.section)
+            if not peek.can_rank():
+                print(f"  calibration on {args.calibration.name} would refuse "
+                      f"to rank: {peek.why_not()}")
+            else:
+                print(f"  calibration would keep: "
+                      f"{', '.join(sorted(peek.weights()))}  (--calibrated)")
+    elif mode == "calibrated":
+        scorers["dwpc"] = combine(dwpc, args.virus, calibration=cal)
+        print(f"\n  dwpc column is CALIBRATED on {args.section}, over "
+              f"{', '.join(sorted(cal.weights()))}")
+    else:
+        print(f"\n  DWPC RANKING REFUSED. {cal.why_not()}")
+        print("  No channel's measured interval excludes chance, so there is "
+              "no order to\n  report. The degree baseline and the biology "
+              "controls below still stand:\n  evidence for a named compound "
+              "does not require a ranking.")
     print("\ncomputing network proximity")
     prox = network_proximity(g, args.virus, schema.retrieval_limits)
     if prox:
@@ -135,8 +231,16 @@ def main() -> int:
                 cells.append(f"{pos:>12,}" if pos else f"{'unscored':>12}")
             print(f"{cname:<22} {kind:<10} " + " ".join(cells))
 
-    print(f"\ntop {args.top} by DWPC:")
-    for i, (drug, score) in enumerate(ranked_all["dwpc"][:args.top], 1):
+    # ranked_all has no "dwpc" key when the ranking was refused, and
+    # indexing it there would end the run with a KeyError after the controls
+    # table -- losing the results file for a run that worked exactly as
+    # intended.
+    if "dwpc" not in ranked_all:
+        print("\nno top-N by DWPC: the ranking was refused above.")
+    else:
+        print(f"\ntop {args.top} by DWPC:")
+
+    for i, (drug, score) in enumerate(ranked_all.get("dwpc", [])[:args.top], 1):
         contrib = sorted(((n, dwpc[n][drug][args.virus]) for n in dwpc
                           if drug in dwpc[n] and args.virus in dwpc[n][drug]),
                          key=lambda kv: -kv[1])
@@ -147,8 +251,18 @@ def main() -> int:
     print("  * = has measured activity (was held out of traversal)")
 
     args.out.mkdir(parents=True, exist_ok=True)
+    # HOW THE DWPC COLUMN WAS PRODUCED IS PART OF THE RESULT. A calibrated
+    # ranking, an uncalibrated one and a refusal are three different claims,
+    # and a file recording only the numbers cannot tell them apart.
+    # check_results tracks staleness against the release and the schema, not
+    # against the flags a script was invoked with, so the flags go in here.
     payload = {
         "virus": args.virus,
+        "dwpc_ranking": mode,
+        "dwpc_channels": (sorted(cal.weights()) if mode == "calibrated"
+                          else None),
+        "calibration_section": args.section if cal is not None else None,
+        "calibration_protocol": cal.protocol if cal is not None else None,
         "held_out": sorted(held),
         "n_positives": len(positives),
         "n_negatives": len(negatives),
