@@ -244,6 +244,52 @@ def test_every_built_virus_builds_at_least_one_protein(tmp_path):
     assert not empty, f"declared built but zero proteins: {empty}"
 
 
+@needs_data
+def test_every_built_virus_can_be_reached_from_its_proteins(tmp_path):
+    """The M1 TAIL, which the proteins test above does not cover.
+
+    M1 is SmallMolecule -INHIBITS-> Protein -ENCODED_BY-> Gene -BELONGS_TO->
+    OrganismTaxon. A virus with proteins but no Gene node has no ENCODED_BY
+    and no BELONGS_TO, so nothing can walk from a compound to the taxon and
+    the virus is absent from the direct-acting channel entirely.
+
+    THIS IS NOT HYPOTHETICAL. The 2026-10-12 Zika build printed
+
+        Zika   proteins=2   mature=13   genes=0   disease=0
+
+    with BELONGS_TO still at 70 and ENCODED_BY unchanged at 19,370. Zika had
+    thirteen mature peptides, 3,653 assay rows resolving to NS3, schema PASS
+    -- and was unreachable on the one channel the promotion was for. Q32ZE1
+    has no `genes` field, ingest_virus gates the whole Gene block on
+    `if symbol`, and nothing reported it as a problem.
+
+    The proteins test passed, because 2 > 0. Proteins are necessary and not
+    sufficient; this asserts the rest of the path.
+    """
+    spine = build(CONFIG, PROTEOMES, tmp_path / "proteins")
+
+    labels = {n["id"]: n["properties"]["label"]
+              for n in spine.nodes.values() if n["class"] == "OrganismTaxon"}
+    genes: dict[str, int] = {t: 0 for t in labels}
+    for n in spine.nodes.values():
+        if n["class"] == "Gene":
+            tid = n["properties"].get("taxon_id")
+            if tid in genes:
+                genes[tid] += 1
+    reached = {e["object"] for e in spine.edges
+               if e["predicate"] == "BELONGS_TO"}
+
+    no_gene = sorted(labels[t] for t, c in genes.items() if c == 0)
+    assert not no_gene, (
+        f"built with proteins but no Gene node, so unreachable by M1: "
+        f"{no_gene}")
+
+    unreached = sorted(labels[t] for t in labels if t not in reached)
+    assert not unreached, (
+        f"no BELONGS_TO edge, so no metapath ending at the taxon can reach "
+        f"them: {unreached}")
+
+
 # --------------------------------------------------------------------------
 # The register's promotion path: "an entry graduates by being moved into
 # viruses: above". It must not graduate into the wrong family.
