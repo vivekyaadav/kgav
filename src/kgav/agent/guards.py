@@ -42,10 +42,26 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Self
 
-# Measured on release v0.1. Quoted by the refusal messages so a user is given
-# the reason rather than a bare no.
-TEMPORAL_AUC = 0.500
-ABSENT_FRACTION = 0.77
+# TEMPORAL_AUC = 0.500 AND ABSENT_FRACTION = 0.77 WERE HERE, both deleted.
+#
+# They were measured figures hardcoded into user-facing prose, which is the
+# exact bug _channel_caveat and direct_acting_caveat were each rewritten to
+# remove -- and their docstrings say so. The refusal message kept doing it.
+#
+# ABSENT_FRACTION was worse than stale, it was the wrong SHAPE. Measured on
+# this release the post-cutoff absent fraction is 85.3% for SARS-CoV-2
+# (1,343/1,575) and 99.0% for Zika (575/581), so there is no single number for
+# a module-level constant to hold. One global value was always a per-virus
+# quantity in disguise; a second viral family just made that obvious.
+#
+# TEMPORAL_AUC 0.500 happens to still be right -- post-2021 M1 reads 0.502 for
+# SARS-CoV-2 and 0.502 for Zika -- which is precisely why it was dangerous.
+# A figure that is correct today and unlinked to any run is one release away
+# from being quoted wrongly with full confidence.
+#
+# The refusal now renders from a temporal Calibration when one is supplied and
+# states the limit without a figure when none is. The MECHANISM is the durable
+# claim and needs no number.
 # CROSS_SECTIONAL_AUC = 0.826 WAS HERE, dead: defined, never read, while the
 # number users actually saw was a separate literal in tools.py's ranking
 # caveat. Two copies of one figure with nothing keeping them equal, and the
@@ -171,25 +187,80 @@ def classify_intent(text: str) -> QueryKind:
     return QueryKind.UNKNOWN
 
 
-def check(kind: QueryKind, virus: str | None = None) -> Verdict:
-    """Whether a query of this kind, about this virus, may be answered."""
+def _measured_at_chance(temporal) -> str:
+    """The temporal result, from the run that measured it, or no figure."""
+    if temporal is None or not getattr(temporal, "usable", False):
+        return "every scorer performs at chance"
+    evaluable = [c for c in temporal.channels.values() if c.evaluable]
+    if not evaluable:
+        return ("no scorer was even evaluable — each reaches too few of the "
+                "post-cutoff actives for a measured performance")
+    best = max(evaluable, key=lambda c: c.auc)
+    if best.discriminates:
+        # Stated rather than suppressed: if a channel ever clears chance
+        # prospectively, a refusal built on "every scorer is at chance" has
+        # stopped being true and the person is entitled to know that before
+        # being refused.
+        return (f"the strongest scorer reaches AUC {best.auc:.3f} "
+                f"[{best.ci_lo:.3f}, {best.ci_hi:.3f}] under "
+                f"{temporal.protocol}, which clears chance")
+    return (f"every scorer performs at chance — the strongest is "
+            f"{best.name} at AUC {best.auc:.3f} "
+            f"[{best.ci_lo:.3f}, {best.ci_hi:.3f}] under {temporal.protocol}")
+
+
+def _virus_caveat(calibration) -> str:
+    """What is measured for THIS virus, from its own calibration.
+
+    This was a hardcoded sentence asserting things about other viruses --
+    "approximately 0.50 for every metapath on all coronaviruses except
+    SARS-CoV-2, and on four of them a degree-only baseline outperforms every
+    mechanistic route". It is now five, not four (Zika 0.527, HCoV-OC43 0.552,
+    SARS-CoV 0.696, MERS-CoV 0.723, HCoV-229E 0.646), and "all coronaviruses"
+    does not describe a graph containing a flavivirus.
+
+    check() had the virus in hand and never consulted its calibration, while
+    _channel_caveat twenty lines below did exactly that. Same bug, same file.
+    """
+    if calibration is None or not getattr(calibration, "usable", False):
+        return ("no channel performance has been measured for this virus on "
+                "this release, so its reliability is unknown. Paths retrieved "
+                "here are evidence to read, not a ranking to trust.")
+    disc = calibration.discriminating()
+    if disc:
+        return (f"scoring for this virus is measured under "
+                f"{calibration.protocol}: {', '.join(disc)} clear chance and "
+                f"no other channel does. Paths outside those are evidence to "
+                f"read, not a ranking to trust.")
+    return (f"scoring is not validated for this virus: "
+            f"{calibration.why_not()} Paths retrieved here are evidence to "
+            f"read, not a ranking to trust.")
+
+
+def check(kind: QueryKind, virus: str | None = None,
+          calibration=None, temporal=None) -> Verdict:
+    """Whether a query of this kind, about this virus, may be answered.
+
+    `calibration` is this virus's cross-sectional Calibration and `temporal`
+    its post-cutoff one. Both optional: absent, the messages state the limit
+    without a figure, which is weaker than a measurement and true.
+    """
     if kind is QueryKind.PROSPECT:
         return Verdict(
             allowed=False,
             reason=(
                 "This graph cannot support prospective candidate generation, and "
                 "the limit is measured rather than assumed. Under a temporal "
-                f"split — training on evidence published before 2022 and testing "
-                f"on compounds measured after — every scorer performs at chance "
-                # Two decimals, not three. 618 positives against 508
-                # negatives does not support a third decimal place, and
-                # "0.500" reads as a suspiciously round measured value when
-                # the honest claim is simply "chance".
-                f"(AUC {TEMPORAL_AUC:.2f}). The reason is that "
-                f"{ABSENT_FRACTION:.0%} of compounds screened after the cutoff do "
-                "not appear anywhere in the graph built before it: compounds "
-                "enter screening because they are novel chemical matter, which "
-                "is exactly what a prior-evidence graph cannot represent.\n\n"
+                "split — training on evidence published before 2022 and testing "
+                f"on compounds measured after — {_measured_at_chance(temporal)}. "
+                "The reason is that the large majority of compounds screened "
+                "after the cutoff do not appear anywhere in the graph built "
+                "before it, and the fraction differs by virus — which is why "
+                "no figure is quoted here as though it were one number. "
+                "Compounds enter screening because they are novel chemical "
+                "matter, which is exactly what a prior-evidence graph cannot "
+                "represent. temporal_split.py reports the per-virus ceiling "
+                "for the release in hand.\n\n"
                 "What this graph can do: explain the mechanism of a compound "
                 "with known activity, rank a set of compounds you already have, "
                 "and retrieve provenanced evidence for a specific claim."
@@ -198,14 +269,7 @@ def check(kind: QueryKind, virus: str | None = None) -> Verdict:
 
     warnings: list[str] = []
     if virus and virus != SUPPORTED_VIRUS:
-        warnings.append(caveat(
-            "virus_not_validated",
-            "scoring is not validated for this virus. Cross-sectional AUC is "
-            "approximately 0.50 for every metapath on all coronaviruses except "
-            "SARS-CoV-2, and on four of them a degree-only baseline outperforms "
-            "every mechanistic route. Paths retrieved here are evidence to read, "
-            "not a ranking to trust."
-        ))
+        warnings.append(caveat("virus_not_validated", _virus_caveat(calibration)))
     return Verdict(allowed=True, warnings=warnings)
 
 

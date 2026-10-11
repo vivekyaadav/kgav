@@ -45,12 +45,62 @@ def test_supported_questions_are_routed(q, kind):
 
 
 # ----------------------------------------------------------------- refusal
+# REAL Calibration objects, not the _Cal stub further down this file. A stub
+# whose author also writes the expectation cannot falsify the contract it
+# stands for -- which is on record in this repo as the MITAB fixture that
+# encoded the same wrong assumption as the regex it was testing.
+def _real_cal(auc, lo, hi, *, protocol="single-screen", virus="Zika",
+              n_pos=763, coverage_pos=0.025):
+    from kgav.calibration import Calibration, ChannelCalibration
+    cal = Calibration(virus=virus, protocol=protocol)
+    cal.channels["M1"] = ChannelCalibration(
+        name="M1", auc=auc, ci_lo=lo, ci_hi=hi, n_pos=n_pos, n_neg=2604,
+        coverage_pos=coverage_pos, coverage_neg=0.002)
+    return cal
+
+
 def test_prospective_queries_are_refused():
     """The question the graph cannot answer. Answering anyway produces
-    confident, mechanistically coherent, wrong suggestions."""
+    confident, mechanistically coherent, wrong suggestions.
+
+    ASSERTS THE REFUSAL AND ITS MECHANISM, NOT A FIGURE. This read
+    `"0.50" in v.reason and "77%" in v.reason`, pinning two hardcoded measured
+    numbers into a test -- so the module could not stop quoting a stale figure
+    without the suite failing, which is backwards. 77% was also the wrong
+    shape: the post-cutoff absent fraction is 85.3% for SARS-CoV-2 and 99.0%
+    for Zika, so no single constant could be right.
+    """
     v = check(QueryKind.PROSPECT)
     assert v.allowed is False
-    assert "0.50" in v.reason and "77%" in v.reason
+    assert "cannot support prospective" in v.reason
+    assert "novel chemical matter" in v.reason, "the durable reason, not a number"
+
+
+def test_the_refusal_quotes_no_figure_without_a_calibration():
+    """Absent a measured run, the limit is stated without a number. A figure
+    with no run behind it is what _channel_caveat and direct_acting_caveat
+    were each rewritten to remove."""
+    import re
+    reason = check(QueryKind.PROSPECT).reason
+    assert "every scorer performs at chance" in reason
+    assert not re.search(r"AUC \d", reason), \
+        f"quoted an AUC with no calibration supplied:\n{reason}"
+
+
+def test_the_refusal_quotes_the_measured_figure_when_given_one():
+    """Supplied a temporal calibration, it names the run and the number."""
+    cal = _real_cal(0.502, 0.470, 0.534, protocol="post-2021")
+    reason = check(QueryKind.PROSPECT, temporal=cal).reason
+    assert "0.502" in reason and "post-2021" in reason
+
+
+def test_a_prospectively_discriminating_channel_is_not_hidden_by_the_refusal():
+    """If a scorer ever clears chance prospectively, a refusal built on
+    "every scorer is at chance" has stopped being true, and the person is
+    entitled to know that before being refused."""
+    cal = _real_cal(0.70, 0.62, 0.78, protocol="post-2021")
+    reason = check(QueryKind.PROSPECT, temporal=cal).reason
+    assert "clears chance" in reason
 
 
 def test_refusal_explains_and_offers_what_is_supported():
@@ -67,11 +117,47 @@ def test_supported_queries_are_allowed():
 
 
 def test_unsupported_virus_carries_a_warning():
-    """Cross-sectional AUC is ~0.50 for every metapath on every coronavirus
-    except SARS-CoV-2."""
+    """ASSERTS THE LABEL, WHICH IS WHAT IS ENFORCED.
+
+    This checked lowercase "not validated" in the caveat's PROSE, against the
+    module's own contract: "Editing a LABEL is now a visible, deliberate act;
+    editing prose is free." verify.py enforces the label, so the prose was
+    free to change and this test said otherwise -- it broke the moment the
+    caveat started rendering from calibration rather than from a fixed
+    sentence.
+    """
     v = check(QueryKind.EXPLAIN, "NCBITaxon:11137")
     assert v.allowed is True
-    assert any("not validated" in w for w in v.warnings)
+    assert any(getattr(w, "label", "") == "VIRUS NOT VALIDATED"
+               for w in v.warnings)
+
+
+def test_the_virus_caveat_asserts_nothing_about_other_viruses():
+    """It used to read "approximately 0.50 for every metapath on all
+    coronaviruses except SARS-CoV-2, and on four of them a degree-only
+    baseline outperforms every mechanistic route". It is now five, not four
+    (Zika 0.527, HCoV-OC43 0.552, SARS-CoV 0.696, MERS-CoV 0.723,
+    HCoV-229E 0.646), and "all coronaviruses" does not describe a graph
+    containing a flavivirus."""
+    w = " ".join(check(QueryKind.EXPLAIN, "NCBITaxon:64320").warnings)
+    for leaked in ("coronavirus", "four of them", "SARS-CoV-2", "0.50"):
+        assert leaked not in w, f"still asserts {leaked!r} about other viruses:\n{w}"
+
+
+def test_the_virus_caveat_renders_this_virus_own_measurement():
+    """check() had the virus in hand and never consulted its calibration,
+    while _channel_caveat twenty lines below did exactly that."""
+    at_chance = _real_cal(0.511, 0.488, 0.534)
+    w = " ".join(check(QueryKind.EXPLAIN, "NCBITaxon:64320",
+                       calibration=at_chance).warnings)
+    assert "single-screen" in w, f"must name the run:\n{w}"
+    assert "not validated" in w.lower()
+
+    clears = _real_cal(0.675, 0.660, 0.690)
+    w2 = " ".join(check(QueryKind.EXPLAIN, "NCBITaxon:64320",
+                        calibration=clears).warnings)
+    assert "M1" in w2 and "clear chance" in w2, \
+        f"a measured, discriminating channel must be reported as such:\n{w2}"
 
 
 # ---------------------------------------------------------- path warnings

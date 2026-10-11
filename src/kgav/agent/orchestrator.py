@@ -180,7 +180,11 @@ class Orchestrator:
         trace.append(f"resolved={len(resolved)}")
         virus = self._virus_in(resolved) or self.default_virus
 
-        verdict = guards.check(intent, virus)
+        # This virus's own calibration, so the caveat quotes what was
+        # measured on it rather than a sentence asserting things about
+        # other viruses.
+        verdict = guards.check(
+            intent, virus, calibration=self.tools.calibration_for(virus))
         trace.append(f"allowed={verdict.allowed}")
         if not verdict.allowed:
             # The refusal is produced BEFORE retrieval, so no partial answer

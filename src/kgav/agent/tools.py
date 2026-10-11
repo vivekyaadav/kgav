@@ -331,7 +331,8 @@ class GraphTools:
         activity, this returns why it might act, as chains of individually
         sourced facts.
         """
-        verdict = guards.check(guards.QueryKind.EXPLAIN, virus)
+        verdict = guards.check(guards.QueryKind.EXPLAIN, virus,
+                               calibration=self.calibration_for(virus))
         paths = self._find_paths(compound, virus, max_paths)
         if not paths:
             return ToolResult(
@@ -440,7 +441,8 @@ class GraphTools:
         Supported because the recall ceiling does not apply: these compounds
         are in the graph by construction.
         """
-        verdict = guards.check(guards.QueryKind.TRIAGE, virus)
+        verdict = guards.check(guards.QueryKind.TRIAGE, virus,
+                               calibration=self.calibration_for(virus))
         # Report anything that could not be scored. Silently returning three
         # of four requested compounds is a failure a user cannot detect.
         missing = [c for c in compounds if c not in self.nodes]
