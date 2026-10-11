@@ -150,6 +150,16 @@ class GraphTools:
         self._index_calibrations(self._pending_calibration)
         del self._pending_calibration
 
+    def family_of(self, virus: str) -> str | None:
+        """The viral family of a taxon, from the graph's own OrganismTaxon.
+
+        ingest_spine writes `family` from config/viruses.yaml, so this is the
+        register's answer rather than an inference from the name.
+        """
+        n = self.nodes.get(virus) or {}
+        fam = (n.get("properties") or {}).get("family")
+        return str(fam) if fam else None
+
     # --------------------------------------------------- calibration lookup
     def _same_virus(self, a: str, b: str) -> bool:
         """Whether two virus keys name one virus, across CURIE and label.
@@ -408,7 +418,8 @@ class GraphTools:
             return guards.selectivity_note(None, None)
         note = guards.selectivity_note(min(vals), True,
                                        n_studies=len(vals), si_max=max(vals))
-        cl = guards.cell_line_note(self.si_cell.get((compound, virus)))
+        cl = guards.cell_line_note(self.si_cell.get((compound, virus)),
+                                   family=self.family_of(virus))
         return (note + " " + cl).strip() if cl else note
 
     def _find_paths(self, compound: str, virus: str, limit: int
