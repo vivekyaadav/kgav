@@ -200,7 +200,7 @@ def _rec_name(entry: dict) -> str:
     return entry.get("primaryAccession", "?")
 
 
-def _gene_symbol(entry: dict, declared: str | None = None) -> str | None:
+def _gene_symbol(entry: dict, declared: dict | None = None) -> str | None:
     """The gene symbol for an entry, or the register's declared fallback.
 
     WHY A FALLBACK EXISTS. Q32ZE1, the Zika polyprotein, HAS NO `genes` FIELD
@@ -230,7 +230,18 @@ def _gene_symbol(entry: dict, declared: str | None = None) -> str | None:
         for syn in g.get("orfNames") or []:
             if syn.get("value"):
                 return syn["value"]
-    return declared
+    # PER ACCESSION, NOT PER VIRUS. The first version of this took one symbol
+    # for the whole virus and gave it to every entry without a gene name,
+    # which for Zika meant Q32ZE1 AND P0DXN9 both became POLY -- one gene node
+    # for two proteins. P0DXN9 is UniProt's "uORF protein" (reviewed; function
+    # "Plays a role in viral replication"), and a uORF is by definition a
+    # DIFFERENT reading frame from the polyprotein. Merging them asserted that
+    # two genes are one, which is the kind of false identity this project
+    # spends its effort refusing elsewhere.
+    #
+    # UniProt does not state the reading frame outright, so the register says
+    # what it is claiming and on what basis, per accession.
+    return (declared or {}).get(entry.get("primaryAccession"))
 
 
 def _chain_label(feat: dict) -> str:
