@@ -338,3 +338,77 @@ def test_every_key_the_activity_side_can_return_is_one_a_chain_supplies():
     orphans = returnable - emitted
     assert not orphans, (
         f"these keys resolve but no chain supplies them: {sorted(orphans)}")
+
+
+# --------------------------------------------------------------------------
+# the silent-zero bug: zero rows for a real taxon must not look like zero
+# rows for no taxon
+# --------------------------------------------------------------------------
+def test_query_activities_refuses_an_empty_taxon_list():
+    """WHAT ACTUALLY WENT WRONG on 2026-10-11, pinned at the source.
+
+    With no taxa the WHERE clause became `tax_id IN ()`. Standard SQL rejects
+    that; SQLite accepts it as always-false. So the query returned zero rows,
+    and diagnose_flavivirus_targets printed "DENV-2: 0 activity rows, nothing
+    to resolve" for a virus it had itself measured at 8,748 rows an hour
+    earlier. No exception, no warning -- a wrong measurement presented as a
+    finding, which is the worst failure mode a diagnostic has.
+
+    Raising here fixes it for every caller, not just the one that hit it.
+    """
+    from kgav.chembl import query_activities
+
+    with pytest.raises(ValueError, match="no taxa"):
+        query_activities(Path("/nonexistent/never-opened.db"), [])
+
+
+def test_declared_taxa_still_defaults_to_the_built_section():
+    """The fix that was NOT applied, and why.
+
+    Making declared_taxa include `surveyed:` would have fixed the diagnostic
+    in one line and broken the build: ingest_chembl, ingest_vhppi and
+    ingest_selectivity all call it, and widening it makes them query DENV-2
+    and Zika activity and emit edges to taxa with no protein nodes -- the
+    1,881 DANGLING edges of the premature promotion, reached from the other
+    direction. The caller passes the section it means.
+    """
+    import yaml
+
+    from kgav.virus_register import declared_taxa
+
+    cfg = yaml.safe_load((ROOT / "config" / "viruses.yaml").read_text())
+    built = declared_taxa(cfg)
+    assert len(built) == 11, "the ingests' map must stay the built one"
+    for surveyed_taxon in ("11060", "64320", "31634"):
+        assert surveyed_taxon not in built, (
+            f"{surveyed_taxon} is surveyed; in the ingests' map it would "
+            f"produce edges to a taxon with no nodes")
+
+    surveyed = declared_taxa(cfg, "surveyed")
+    assert {"11060", "31634", "64320"} <= set(surveyed)
+
+
+def test_every_flavivirus_in_the_register_resolves_at_least_one_taxon():
+    """The invariant the diagnostic now checks at runtime, checked here too.
+
+    A virus that resolves no taxa cannot be measured, and before this it was
+    reported as having no data. Covers both sections, because the diagnostic
+    reads both.
+    """
+    import yaml
+
+    from kgav.virus_register import declared_taxa
+
+    cfg = yaml.safe_load((ROOT / "config" / "viruses.yaml").read_text())
+    default_family = (cfg.get("defaults") or {}).get("family")
+    maps = {sec: declared_taxa(cfg, sec) for sec in ("viruses", "surveyed")}
+
+    for section in ("viruses", "surveyed"):
+        for v in cfg.get(section) or []:
+            if (v.get("family") or default_family) != "Flaviviridae":
+                continue
+            taxa = [t for t, sp in maps[section].items()
+                    if sp == str(v["taxon"])]
+            assert taxa, (
+                f"{v['name']} ({section}) resolves no taxa, so it would be "
+                f"reported as having no activity data")

@@ -115,15 +115,42 @@ def main() -> int:
         sys.exit(f"no virus in either section has family {args.family!r}; "
                  f"pass --family")
 
-    full_map = declared_taxa(cfg)
+    # ONE MAP PER SECTION, and the default is the trap.
+    #
+    # declared_taxa(doc) reads `viruses:` -- correct for the ingests, which
+    # must not query a taxon the spine has no nodes for, and wrong here. This
+    # script asked the built map for a SURVEYED virus's taxa, got nothing, and
+    # reported "DENV-2: 0 activity rows" for a virus with 8,748 of them.
+    #
+    # Deliberately NOT fixed by making declared_taxa include `surveyed:`:
+    # ingest_chembl, ingest_vhppi and ingest_selectivity all call it, and
+    # widening it would make them query DENV-2 and Zika data and emit edges to
+    # taxa that have no protein nodes -- the 1,881 DANGLING edges of the
+    # premature promotion, arrived at from the other end.
+    taxa_by_section = {sec: declared_taxa(cfg, sec)
+                       for sec in ("viruses", "surveyed")}
     # Say which section each one is in: a surveyed virus's numbers describe
     # what a build WOULD see, not what any release contains.
+    problems = 0
     print(f"{len(wanted)} {args.family} virus(es): "
           + ", ".join(f"{v['name']} ({sec})" for v, sec in wanted) + "\n")
 
     for v, section in wanted:
-        taxa = [t for t, species in full_map.items()
+        taxa = [t for t, species in taxa_by_section[section].items()
                 if species == str(v["taxon"])]
+        if not taxa:
+            # Never fall through to a query. Zero rows from no taxa reads
+            # exactly like zero rows from no data, and this script exists to
+            # produce numbers someone will act on.
+            print("=" * 78)
+            print(f"{v['name']}  [{section}]")
+            print("=" * 78)
+            print(f"  BUG: no taxa resolved for taxon {v['taxon']} in section "
+                  f"{section!r}.\n  Refusing to query -- an empty taxon list "
+                  f"returns zero rows via `IN ()` and would\n  print as "
+                  f"'no activity data' for a virus that may have thousands.\n")
+            problems += 1
+            continue
         rows = query_activities(args.db, sorted(taxa))
 
         # FILTERED THE WAY THE INGEST FILTERS, which the first version of
@@ -366,7 +393,10 @@ def main() -> int:
   to the polyprotein -- which is what happens to NS3 today.
 
   This script measures and recommends nothing.""")
-    return 0
+    if problems:
+        print(f"\n{problems} virus(es) could not be measured at all -- see BUG "
+              f"above.\nExiting non-zero so this is not mistaken for a result.")
+    return 1 if problems else 0
 
 
 if __name__ == "__main__":
