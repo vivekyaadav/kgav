@@ -380,17 +380,30 @@ def main() -> int:
     print("=" * 78)
     print("HOW TO READ THIS")
     print("=" * 78)
-    print("""  A probe with many rows and an UNRESOLVED verdict is a pattern worth
-  writing. A probe with many rows resolving to an nsp name is a row that
-  currently lands somewhere by accident -- check whether the chain it reaches
-  is the right one before changing anything, because NS5 works today only
-  because both sides are wrong in the same direction.
+    print("""  REWRITTEN 2026-10-11, because the previous text described a pipeline that
+  no longer exists. It still said "ingest_spine assigns protein_family =
+  f"nsp{N}" and nothing else" and "which is what happens to NS3 today" after
+  both had stopped being true, which is how a diagnostic starts telling its
+  reader the opposite of what its own numbers say.
 
-  The chain side must move with the description side. ingest_spine assigns
-  protein_family = f"nsp{N}" and nothing else, so until it can emit NS1..NS5
-  a flavivirus-aware resolve_nsp would return names that
-  build_viral_target_index has no key for, and every row would fall through
-  to the polyprotein -- which is what happens to NS3 today.
+  BEFORE vs NOW is the comparison. A row under NOW resolving to a key marked
+  "a chain the spine emits" is one the join will land; one marked "NO CHAIN
+  CARRIES THIS KEY" resolves and then fails silently, which looks like success
+  in the resolve counters and like nothing in the graph. That is why the third
+  block counts them apart.
+
+  An UNRESOLVED row is still a pattern worth writing -- but check the verbatim
+  text first. The last residue measured here was 19 rows across three viruses
+  and all 19 were three phrasings, two of which needed "virus" kept next to
+  the function name so that HOST protease and methyltransferase assays would
+  go on falling through.
+
+  WHICH VIRUS A ROW IS FILED UNDER IS A SEPARATE QUESTION, and this script
+  does not ask it. The taxon comes from ChEMBL target_dictionary.tax_id and
+  the description gets no vote, so a row whose text names another serotype
+  still counts here under the virus it is filed as. Several DENV-2 rows name
+  DENV-1, DENV-3 or DENV-4. scripts/diagnose_serotype_attribution.py
+  measures that.
 
   This script measures and recommends nothing.""")
     if problems:
