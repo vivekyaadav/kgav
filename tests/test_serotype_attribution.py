@@ -146,3 +146,93 @@ def test_the_pattern_labels_match_the_register_names_exactly():
         assert label in names, (
             f"{label!r} is not a register name; the comparison against "
             f"v['name'] would never match")
+
+
+# --------------------------------------------------------------------------
+# every bucket is printed, and the distinct count is of the bucket
+# --------------------------------------------------------------------------
+GENERIC_DESC = ("PUBCHEM_BIOASSAY: Primary and Confirmatory Screening for "
+                "Flavivirus Genomic Capping Enzyme")
+
+
+def _rows(n_generic=5, n_named=3, n_other=1, n_none=1):
+    def row(desc, pmid):
+        return {"description": desc, "target_type": "SINGLE PROTEIN",
+                "target_name": "Genome polyprotein", "target": "CHEMBL5980",
+                "assay_type": "B", "pubmed_id": pmid}
+    return (
+        [row(GENERIC_DESC, None)] * n_generic
+        + [row("Inhibition of Dengue virus type 2 NS5 RNA methyltransferase "
+               "SAM site", 20108931)] * n_named
+        + [row("Inhibition of dengue virus-4 NS2B-NS3 protease", 12345)] * n_other
+        + [row("Inhibition of NS3 protease construct", 999)] * n_none)
+
+
+def _run(monkeypatch, capsys, rows):
+    monkeypatch.setattr(d, "query_activities", lambda db, taxa: rows)
+    d.main(["--db", str(ROOT / "config" / "viruses.yaml"), "--samples", "3"])
+    return capsys.readouterr().out.split("=" * 78)[2]      # DENV-2's section
+
+
+def test_the_largest_bucket_is_printed_verbatim(monkeypatch, capsys):
+    """THE OMISSION THIS FIXES. The first version counted "generic flavivirus
+    name" and "names no virus" and printed neither -- for DENV-2 that was
+    1,045 + 52 of 1,483 rows tallied and never shown, the largest share of the
+    substrate left invisible.
+
+    This project already had that exact bug once: a 1,025-row bucket reported
+    without being printed, then guessed at, and the guess was wrong. A count
+    with no verbatim text behind it is not something a reader can check.
+    """
+    out = _run(monkeypatch, capsys, _rows())
+    assert "[generic flavivirus name]" in out
+    assert GENERIC_DESC[:60] in out, "the biggest bucket must show its text"
+    assert "[names no virus]" in out
+    assert "Inhibition of NS3 protease construct" in out
+
+
+def test_the_distinct_count_covers_the_bucket_not_the_sample(monkeypatch,
+                                                             capsys):
+    """Counting distinct values inside a display loop capped at --samples
+    reports the sample size as the total. Done once in this repo already, with
+    a dedupe on the first 100 characters on top. Here: 8 rows, 4 distinct
+    descriptions, --samples 3.
+    """
+    rows = _rows(n_generic=5, n_named=3, n_other=0, n_none=0)
+    out = _run(monkeypatch, capsys, rows)
+    assert "5 row(s), 1 distinct" in out, out
+    # And with more distinct values than the sample cap:
+    varied = [{"description": f"Inhibition of flavivirus assay variant {i}",
+               "target_type": "SINGLE PROTEIN", "target_name": "Genome polyprotein",
+               "target": "CHEMBL5980", "assay_type": "B", "pubmed_id": None}
+              for i in range(7)]
+    out2 = _run(monkeypatch, capsys, varied)
+    assert "7 row(s), 7 distinct" in out2, out2
+
+
+def test_the_crosstab_separates_naming_from_publication(monkeypatch, capsys):
+    """The cell that decides build order. The two controls are independent:
+    naming the virus makes a row attributable, carrying a pubmed_id makes it
+    withholdable by --publication-disjoint. A row missing either is not
+    defensible evidence, and DENV-2's substrate is mostly rows missing both.
+    """
+    out = _run(monkeypatch, capsys, _rows(n_generic=5, n_named=3, n_other=1,
+                                          n_none=1))
+    assert "ATTRIBUTABLE *AND* WITHHOLDABLE" in out
+    # 3 named rows all carry a PMID; the 5 generic rows carry none.
+    assert "names this virus                   3         0" in out, out
+    assert "3 of 10 rows (30.0%)" in out, out
+
+
+def test_a_virus_whose_rows_all_name_it_reports_cleanly(monkeypatch, capsys):
+    """Zika and West Nile both measured 100% on the real database, so the
+    clean case must read as clean rather than printing empty buckets."""
+    rows = [{"description": "Binding affinity to Zika virus NS2B-NS3 protease",
+             "target_type": "SINGLE PROTEIN", "target_name": "Genome polyprotein",
+             "target": "CHEMBL123", "assay_type": "B", "pubmed_id": 33596380}] * 4
+    monkeypatch.setattr(d, "query_activities", lambda db, taxa: rows)
+    d.main(["--db", str(ROOT / "config" / "viruses.yaml"), "--samples", "3"])
+    zika = capsys.readouterr().out.split("=" * 78)[4]
+    assert "names this virus" in zika
+    assert "WRONG-SPECIES RISK" not in zika
+    assert "4 of 4 rows (100.0%)" in zika, zika

@@ -294,13 +294,32 @@ surveyed:
   # and is 315 of Zika's 355 rows. Nothing about the current release changed:
   # these viruses are surveyed, and ingest_spine reads `viruses:` only.
   #
-  # STILL OPEN, and it is not a naming problem: a row's taxon comes from
-  # ChEMBL target_dictionary.tax_id, so several rows filed under DENV-2 have
-  # descriptions naming DENV-1, DENV-3 or DENV-4, while those three report
-  # zero rows on the protein path. If their evidence is sitting under DENV-2
-  # then DENV-2's substrate advantage is partly theirs.
-  # scripts/diagnose_serotype_attribution.py measures it; do not promote
-  # DENV-2 before reading that output.
+  # ATTRIBUTION, MEASURED 2026-10-11. A row's taxon comes from ChEMBL
+  # target_dictionary.tax_id and the description gets no vote, so what the
+  # description names was counted separately. Of the rows on the protein path:
+  #
+  #                      names its own virus   generic   other sp.   none
+  #   Zika        355         355 (100.0%)           0          0       0
+  #   West Nile   184         184 (100.0%)           0          0       0
+  #   DENV-2    1,483         340  (22.9%)       1,045         46      52
+  #
+  # The wrong-species worry turned out SMALL: 46 rows, 3.1%, and all of them
+  # sit on "Genome polyprotein" targets (CHEMBL5980, CHEMBL3559678), which
+  # makes them coarse target curation rather than misfiling. Five sampled
+  # strings had suggested something much bigger; they did not support it.
+  #
+  # The real finding is the column next to it. 1,045 of DENV-2's 1,483 rows
+  # (70.5%) name no virus more specific than "flavivirus" or "dengue virus" --
+  # overwhelmingly the PubChem capping-enzyme screen, which is also the 1,013
+  # rows carrying no pubmed_id. So DENV-2's substrate is large and mostly
+  # unattributable, and its SPECIES-SPECIFIC share is 340 rows: FEWER than
+  # Zika's 355, every one of which names Zika and carries a publication.
+  #
+  # DENV-2's 4x row advantage does not survive asking whether a row names the
+  # virus it is filed under. Zika first is now the stronger call, not the
+  # cautious one, and West Nile -- 184 rows, 100% named, 0% PMID-less -- is
+  # the better second despite having the fewest rows.
+  # scripts/diagnose_serotype_attribution.py reproduces all of this.
   #
   # ORCS is ready: orcs.VIRUS_PATTERNS now matches dengue serotype 2, Zika,
   # West Nile and yellow fever, and 7 of the 11 flavivirus screens pass
