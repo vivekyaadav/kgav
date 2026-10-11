@@ -36,9 +36,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from kgav.assemble import LAYER_PRECEDENCE
+from kgav.channels import blocked_by, layer_predicates
 from kgav.virus_register import declared_taxa, validate
 
 _CFG_CACHE: dict = {}
+SCHEMA: dict = yaml.safe_load((ROOT / "schema" / "kg_schema.yaml").read_text())
 
 
 def _phase0_targets() -> dict:
@@ -239,25 +241,69 @@ def main() -> int:
               "  assemble_release still writes a release, invalidating every "
               "results file for\n  no new facts. Fetch the proteome(s) "
               "first.")
-        print("\n  The files are UniProt JSON with a top-level \"results\" "
-              "list, which is what\n  ingest_spine.load_proteome parses. "
-              "There is no fetcher in this repo, so\n  whatever produced the "
-              "existing files should produce these; verify the entry\n"
-              "  count against the register's chains before trusting one.")
+        # WAS: "There is no fetcher in this repo, so whatever produced the
+        # existing files should produce these". True when written, false since
+        # scripts/fetch_raw.py landed, and a precondition section telling the
+        # reader there is no way to satisfy the precondition is worse than
+        # silence.
+        print("\n  FETCH THEM WITH:")
+        for e in moving:
+            print(f"    python scripts/fetch_raw.py --virus {e['name']}")
+        print("\n  fetch_raw validates the response shape, checks the entry's "
+              "Chain count\n  against this register's chain_source, and "
+              "refuses to write a file that\n  disagrees -- so a bad download "
+              "cannot reach ingest_spine. `make check-raw`\n  re-validates "
+              "what is already on disk without network.")
     else:
         print("\n  every promoted virus has its proteome cached")
 
     other = []
+    unavailable: set[str] = set()
     if len(os.environ.get("ORCS_KEY", "")) != 32:
         other.append("ORCS_KEY is not a 32-character key: ingest_orcs.py "
                      "exits without writing,\n    so the flavivirus "
                      "screens would not be ingested even once the patterns "
                      "match")
+        unavailable.add("orcs")
+    if not list((ROOT / "data" / "raw" / "vhppi").glob("vhn_*.tab27")):
+        other.append("no vhn_*.tab27 files: ingest_vhppi has nothing to read")
+        unavailable.add("vhppi")
     if not args.db.exists():
         other.append(f"no ChEMBL db at {args.db}: ingest_chembl and "
                      f"ingest_selectivity cannot run")
     for o in other:
         print(f"\n  NOTE: {o}")
+
+    # WHICH CHANNELS EACH MISSING INPUT ACTUALLY BLOCKS.
+    #
+    # The notes above used to be an undifferentiated list, which made
+    # ORCS_KEY and the VirHostNet files read as blockers on the whole
+    # flavivirus effort. They are not: M1 is
+    # SmallMolecule -INHIBITS-> Protein -ENCODED_BY-> Gene -BELONGS_TO->
+    # OrganismTaxon, so it needs chembl and spine and nothing host-mediated.
+    # Derived from the schema's own metapath declarations and from the
+    # predicates each layer release actually emitted -- not a list anyone
+    # maintains, because this is precisely the text that goes stale.
+    print("\n  WHICH CHANNELS THIS BLOCKS (schema metapaths x layers on disk)")
+    layer_preds = layer_predicates(ROOT / "data" / "releases", "v0.1")
+    if not layer_preds:
+        print("    no v0.1-* layer releases on disk; cannot derive")
+    else:
+        blocked_map = blocked_by(SCHEMA.get("metapaths") or {},
+                                 layer_preds, unavailable)
+        for code in sorted(blocked_map):
+            why = blocked_map[code]
+            if why:
+                print(f"    {code:<4} BLOCKED by {'; '.join(sorted(why))}")
+            else:
+                print(f"    {code:<4} evaluable once the proteome lands")
+        clear = [c for c, w in blocked_map.items() if not w]
+        if clear:
+            print(f"\n    So {', '.join(sorted(clear))} need only the "
+                  f"proteome. M1 is the direct-acting\n    channel and the "
+                  f"only one with a defensible result in this project, so a\n"
+                  f"    first flavivirus evaluation is not waiting on ORCS or "
+                  f"VirHostNet.")
 
     # ------------------------------------------------------------- register
     print("\n" + "=" * 78)
