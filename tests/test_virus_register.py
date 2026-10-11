@@ -79,12 +79,32 @@ def test_zika_and_west_nile_are_species_level_and_declare_no_isolate(doc):
 BUILT = (
     "SARS-CoV-2", "SARS-CoV", "MERS-CoV",
     "HCoV-229E", "HCoV-NL63", "HCoV-OC43", "HCoV-HKU1",
-    # DENV-2 and Zika were promoted on 2026-10-11 and moved back the same day:
-    # neither proteome is cached, so both built an OrganismTaxon with zero
-    # proteins. This list is the one place that says what the build contains,
-    # so adding a name here is the deliberate act -- and the entries now sit in
-    # `surveyed:` carrying the measurements for the next attempt.
+    # Zika, promoted 2026-10-12. DENV-2 was promoted alongside it on
+    # 2026-10-11 and both were moved back the same day, because neither
+    # proteome was cached and both built an OrganismTaxon with zero proteins.
+    # This time dryrun_promote reported Section 0 clear first: UP000054557
+    # cached, Q32ZE1 carrying the 13 chains the register claims, and M1 and M7
+    # reaching the taxon. DENV-2 stays surveyed -- at parity on rows that name
+    # the virus they are filed under (392 vs 355) for several times the
+    # handling.
+    "Zika",
 )
+
+# THE FOUR "CANDIDATE" HITS dryrun_promote REPORTS FOR THIS PROMOTION ARE
+# FALSE POSITIVES, checked on 2026-10-12 so the next promotion need not
+# re-derive it. Its scan flags any assertion comparing against the current
+# built count, which is the right heuristic -- it once reported one failure
+# where three followed -- but it cannot read intent:
+#
+#   test_calibration.py:251,261,270  `len(cal.channels) == 7` counts METAPATH
+#       channels from the local MEASURED fixture (M1-M7, with COMBINED and
+#       degree excluded by load()). Keyed to one virus, independent of how
+#       many are built.
+#   test_ncats.py:334  `stats["in_assay"] == 7` counts rows in the fixture's
+#       cpe.tsv assay.
+#
+# Only BUILT above had to change. Editing those four would have made them
+# assert 8 of things there are 7 of.
 
 
 def test_surveyed_viruses_are_not_built(doc):

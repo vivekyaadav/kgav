@@ -168,10 +168,26 @@ def _rows(n_generic=5, n_named=3, n_other=1, n_none=1):
         + [row("Inhibition of NS3 protease construct", 999)] * n_none)
 
 
-def _run(monkeypatch, capsys, rows):
+def _section(out: str, virus: str) -> str:
+    """The block for one virus, found by NAME.
+
+    This used to be out.split("=" * 78)[2] -- a positional index that assumed
+    DENV-2 was the first virus reported. Promoting Zika on 2026-10-12 moved it
+    from `surveyed:` into `viruses:`, the report order changed, and two tests
+    failed for a reason that had nothing to do with what they were testing.
+    A fragile test that breaks on an unrelated change is noise.
+    """
+    blocks = out.split("=" * 78)
+    for i, b in enumerate(blocks):
+        if b.strip().startswith(virus):
+            return blocks[i + 1] if i + 1 < len(blocks) else b
+    raise AssertionError(f"no section for {virus!r} in:\n{out[:400]}")
+
+
+def _run(monkeypatch, capsys, rows, virus="DENV-2"):
     monkeypatch.setattr(d, "query_activities", lambda db, taxa: rows)
     d.main(["--db", str(ROOT / "config" / "viruses.yaml"), "--samples", "3"])
-    return capsys.readouterr().out.split("=" * 78)[2]      # DENV-2's section
+    return _section(capsys.readouterr().out, virus)
 
 
 def test_the_largest_bucket_is_printed_verbatim(monkeypatch, capsys):
@@ -232,7 +248,7 @@ def test_a_virus_whose_rows_all_name_it_reports_cleanly(monkeypatch, capsys):
              "target": "CHEMBL123", "assay_type": "B", "pubmed_id": 33596380}] * 4
     monkeypatch.setattr(d, "query_activities", lambda db, taxa: rows)
     d.main(["--db", str(ROOT / "config" / "viruses.yaml"), "--samples", "3"])
-    zika = capsys.readouterr().out.split("=" * 78)[4]
+    zika = _section(capsys.readouterr().out, "Zika")
     assert "names this virus" in zika
     assert "WRONG-SPECIES RISK" not in zika
     assert "4 of 4 rows (100.0%)" in zika, zika

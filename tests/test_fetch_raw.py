@@ -423,7 +423,13 @@ def test_check_flags_a_missing_proteome_for_a_built_virus_only(
     for v in register["viruses"]:
         assert v["proteome_id"] in out, f"{v['name']} not reported"
 
-    # Surveyed viruses are absent too, and that is not a problem to report:
-    # Zika's proteome is MEANT not to be on disk while Zika is surveyed.
-    assert "UP000054557" not in out, \
-        "a surveyed virus's missing proteome must not be reported as MISSING"
+    # Surveyed viruses are absent too, and that is not a problem to report.
+    # This named Zika's UP000054557 until Zika was promoted on 2026-10-12, at
+    # which point its proteome became a real required input and the assertion
+    # inverted. Taken from the register instead, so it tracks any promotion.
+    surveyed_proteomes = {v["proteome_id"] for v in register["surveyed"]}
+    built_proteomes = {v["proteome_id"] for v in register["viruses"]}
+    for pid in surveyed_proteomes - built_proteomes:
+        assert pid not in out, (
+            f"{pid} belongs to a surveyed virus; a missing proteome there is "
+            f"not a problem to report")
