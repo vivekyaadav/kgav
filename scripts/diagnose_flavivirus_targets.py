@@ -94,26 +94,52 @@ def main() -> int:
                 if species == str(v["taxon"])]
         rows = query_activities(args.db, sorted(taxa))
 
-        # PROTEIN-TARGET ROWS ONLY. assay_readout is the ingest's own
-        # classifier: a cellular readout is reattributed to the organism and
-        # never needs a chain, so it is not M1's substrate and not this
-        # question.
+        # FILTERED THE WAY THE INGEST FILTERS, which the first version of
+        # this script did not do and which made its headline number wrong.
+        #
+        # ingest_activities branches on target_type == "ORGANISM" FIRST: such
+        # a row becomes HAS_ANTIVIRAL_ACTIVITY_AGAINST on the taxon and never
+        # needs a chain. Only after that does the protein path run, and it
+        # also skips a multicomponent target ("/" in target_name).
+        #
+        # assay_readout alone is not that filter. When no pattern matches it
+        # falls through to "trust the code" and a B-coded row returns
+        # "protein" -- so "Antiviral activity against Dengue virus 2", which
+        # names no cell line, no CPE, no plaque and no titer, was counted as
+        # a protein measurement. 1,070 of the 1,531 rows reported as DENV-2's
+        # M1 substrate matched no flavivirus-protein probe at all, which is
+        # what exposed it.
         protein_rows = []
         where_mix: Counter = Counter()
+        target_mix: Counter = Counter()
+        skipped: Counter = Counter()
         for r in rows:
+            ttype = r.get("target_type") or "?"
+            target_mix[ttype] += 1
+            if ttype == "ORGANISM":
+                skipped["organism_target"] += 1
+                continue
+            if "/" in (r.get("target_name") or ""):
+                skipped["multicomponent_target"] += 1
+                continue
             w, _ = assay_readout(r.get("description") or "",
                                  r.get("assay_type") or "")
             where_mix[w] += 1
             if w == "protein":
                 protein_rows.append(r)
+            else:
+                skipped[f"readout_{w}"] += 1
 
         print("=" * 78)
         print(f"{v['name']}  (taxa {', '.join(sorted(taxa))})")
         print("=" * 78)
-        print(f"  {len(rows):,} activity rows | readout "
-              f"{dict(where_mix)}")
-        print(f"  {len(protein_rows):,} measured ON A PROTEIN -- M1's "
-              f"substrate, and the rows that need a chain\n")
+        print(f"  {len(rows):,} activity rows")
+        print(f"  target_type: {dict(target_mix)}")
+        print(f"  reaching the protein path: readout {dict(where_mix)}")
+        for k, n in skipped.most_common():
+            print(f"    skipped {k:<24}{n:>7,}")
+        print(f"\n  {len(protein_rows):,} rows reach the chain lookup -- M1's "
+              f"real substrate\n")
 
         if not protein_rows:
             print("  nothing to resolve\n")
