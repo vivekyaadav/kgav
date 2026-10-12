@@ -180,7 +180,20 @@ class Graph:
         return [n for n, d in self.nodes.items() if d["class"] == "OrganismTaxon"]
 
 
-def _qualifier_ok(edge: dict, predicate: str, constraints: dict | None) -> bool:
+def qualifier_ok(edge: dict, predicate: str, constraints: dict | None) -> bool:
+    """Whether one edge satisfies a metapath's qualifier constraints.
+
+    PUBLIC because the agent needs it too. src/kgav/agent/tools.py enumerates
+    M1 and M2 as its own loops and applied no constraints to M1 and a
+    HAND-COPIED one to M2, so a constraint added to the schema reached the
+    scorer and not the agent -- which is how the agent came to explain routes
+    through edges the ranking refuses to walk. One implementation, read from
+    the schema by both.
+
+    A MISSING QUALIFIER IS A FAILED MATCH. That is why the schema requires
+    target_resolution on INHIBITS: optional, an edge emitted without it would
+    vanish from the direct-acting channel in silence.
+    """
     if not constraints:
         return True
     for key, want in constraints.items():
@@ -244,7 +257,7 @@ def walk_metapath(g: Graph, start: str, path: list, constraints: dict | None,
             for nbr, edge in candidates:
                 if nbr in visited or g.klass(nbr) != want_class:
                     continue
-                if not _qualifier_ok(edge, predicate, constraints):
+                if not qualifier_ok(edge, predicate, constraints):
                     continue
                 # Hub and oversized-pathway exclusion applies to INTERMEDIATE
                 # nodes only. Endpoints are the answer, not a shortcut.

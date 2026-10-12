@@ -44,6 +44,15 @@ def orch(tmp_path):
     ]
 
     def e(s, p, o, q=None):
+        # chembl.py sets target_resolution on EVERY INHIBITS edge, both
+        # branches, and the schema requires it -- so M1 constrains on it and
+        # qualifier_ok reads a missing qualifier as a failed match. A fixture
+        # omitting it is not a simpler fixture; it is an edge the
+        # direct-acting channel refuses to walk, in the scorer and now in the
+        # agent too.
+        if p == "INHIBITS":
+            q = dict(q or {})
+            q.setdefault("target_resolution", "chain_from_assay_description")
         return {"subject": s, "predicate": p, "object": o, "qualifiers": q or {},
                 "primary_knowledge_source": "infores:chembl", "evidence_tier": 1,
                 "first_asserted_date": "2021-03-04"}
