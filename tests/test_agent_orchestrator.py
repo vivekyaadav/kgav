@@ -342,3 +342,44 @@ def test_the_retry_prompt_names_the_specific_label():
     first, again = b.to_prompt(), b.to_prompt(must_include=b.warnings)
     assert "CELL CONTEXT" in again.split("RULES:")[0]      # at the top
     assert "REJECTED" in again and "REJECTED" not in first
+
+
+# ------------------------------------------- an assumed virus is said out loud
+def test_a_question_naming_no_virus_says_which_one_it_assumed(orch):
+    """build_brief reads `self._virus_in(resolved) or self.default_virus`, so
+    a question naming only a compound was answered about SARS-CoV-2 with
+    nothing marking the choice. The virus decides the calibration, the
+    caveats and the cell-context biology, so a question meant about Zika
+    answered about a coronavirus is wrong in all three at once. Latent while
+    the graph held one virus; live since it holds eight across two families.
+    """
+    brief = orch.build_brief("why might nirmatrelvir work?")
+    assert brief.allowed
+    assert any(getattr(w, "key", "") == "virus_assumed" for w in brief.warnings)
+    assumed = next(w for w in brief.warnings
+                   if getattr(w, "key", "") == "virus_assumed")
+    assert "VIRUS ASSUMED" in assumed
+    assert "named no virus" in assumed
+    assert any("(assumed)" in t for t in brief.trace)
+
+
+def test_naming_the_virus_adds_no_assumption_caveat(orch):
+    """So the caveat marks an assumption rather than appearing on every
+    answer -- a warning that always fires is one a reader learns to skip."""
+    brief = orch.build_brief("why might nirmatrelvir work against SARS-CoV-2?")
+    assert brief.allowed
+    assert not any(getattr(w, "key", "") == "virus_assumed"
+                   for w in brief.warnings)
+
+
+def test_the_assumption_caveat_is_enforced_like_every_other(orch):
+    """It is in CAVEAT_LABELS, so verify.dropped_warnings requires its label
+    in the answer. A caveat the model may drop for brevity is not a caveat."""
+    from kgav.agent.verify import caveat_labels, dropped_warnings
+    brief = orch.build_brief("why might nirmatrelvir work?")
+    assert "VIRUS ASSUMED" in caveat_labels(brief.warnings)
+    assert dropped_warnings("an answer that mentions nothing", brief.warnings)
+    kept = "VIRUS ASSUMED: this is about SARS-CoV-2. " + " ".join(
+        str(w) for w in brief.warnings)
+    assert not any(getattr(w, "key", "") == "virus_assumed"
+                   for w in dropped_warnings(kept, brief.warnings))

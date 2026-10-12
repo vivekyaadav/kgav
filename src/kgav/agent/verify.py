@@ -34,6 +34,22 @@ from kgav.agent.guards import CAVEAT_LABELS
 EDGE_ID_RE = re.compile(
     r"\[([A-Za-z]?E[0-9a-f]+(?:\s*,\s*[A-Za-z]?E[0-9a-f]+)*)\]")
 NUMBER_RE = re.compile(r"\d+(?:[.,]\d+)*")
+
+# A NUMBER CARRYING A UNIT IS A MAGNITUDE CLAIM, whatever its size. The two
+# exclusions below it -- years, and integers at or under ten -- exist to stop
+# "the 2021 study" and "Route 1" being read as claims about quantity, and they
+# were applied to EVERY number. So a fabricated "Ki of 3 nM" verified clean
+# against facts reading 190 nM, and so would "1960 nM", dropped as a year.
+# Measured: claimed Ki of 3 and 9 nM both passed; 11 and 750 were caught.
+#
+# Single-digit potencies are not hypothetical here. nirmatrelvir's own Ki on
+# v0.1 is 3 nM, so the exempted range is exactly where the most potent
+# compounds live -- and a 100-fold error in a potency is the kind of plausible
+# wrong number this module's docstring says is hardest to catch.
+UNIT_RE = re.compile(
+    r"\s*(?:nm|µm|um|mm|pm|molar|m\b|%|percent|fold|x\b|×|nmol|µmol|umol"
+    r"|mg|µg|ug|kg|ml|µl|ul|l\b|kda|da\b|hours?|hrs?|h\b|days?|min)",
+    re.IGNORECASE)
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
 
 # Sentences that make no factual claim and need no citation.
@@ -180,19 +196,31 @@ def _caveat_name(warning) -> str:
     return getattr(warning, "key", None) or str(warning)[:70]
 
 
-def _numbers(text: str) -> set[str]:
+def _numbers(text: str, exclude_ordinals: bool = True) -> set[str]:
     """Numeric tokens, normalised so 1,560 and 1560 compare equal.
 
     Years and small ordinals are excluded: "the 2021 study" and "Route 1" are
-    not claims about magnitude.
+    not claims about magnitude. A number carrying a unit is always kept.
+
+    EXCLUDE_ORDINALS=FALSE FOR THE FACTS SIDE. The check is "every number in
+    the ANSWER appears in the facts", so filtering the facts can only invent
+    findings. It was symmetric while both sides dropped the same tokens; once
+    the answer side became unit-aware it was not, and an answer reading
+    "5 nM" against a fact reading "ic50_nm=5" was reported as an ungrounded
+    figure. The facts are the ground truth here and are taken whole.
     """
     out = set()
-    for raw in NUMBER_RE.findall(text or ""):
-        norm = raw.replace(",", "")
-        if norm.isdigit() and (len(norm) == 4 and norm.startswith(("19", "20"))):
-            continue          # a year
-        if norm.isdigit() and int(norm) <= 10:
-            continue          # an ordinal or list index
+    t = text or ""
+    for m in NUMBER_RE.finditer(t):
+        norm = m.group(0).replace(",", "")
+        # A unit immediately after the number makes it a magnitude claim, so
+        # neither exclusion applies: "3 nM" is checked, "Route 1" is not.
+        united = bool(UNIT_RE.match(t, m.end()))
+        if exclude_ordinals and not united:
+            if norm.isdigit() and len(norm) == 4 and norm.startswith(("19", "20")):
+                continue      # a year
+            if norm.isdigit() and int(norm) <= 10:
+                continue      # an ordinal or list index
         out.add(norm)
     return out
 
@@ -284,7 +312,8 @@ def verify(answer: str, facts: list[str], citable_edge_ids: list[str],
 
     # 4. Every number in the answer must appear in the facts. A transposed
     #    digit in a potency value is harder to notice than a wrong sentence.
-    fact_numbers = _numbers(" ".join(facts) + " " + " ".join(required_warnings))
+    fact_numbers = _numbers(" ".join(facts) + " " + " ".join(required_warnings),
+                            exclude_ordinals=False)
     # Strip citation brackets first: the digits inside [E999999] are already
     # reported by the citation check, and repeating them as a numeric finding
     # adds noise to a report a human has to read.

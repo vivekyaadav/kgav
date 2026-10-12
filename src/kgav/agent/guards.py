@@ -133,6 +133,7 @@ CAVEAT_LABELS: dict[str, str] = {
     "proximity_evidence":    "PROXIMITY EVIDENCE",
     "evidence_tier":         "EVIDENCE",
     "virus_not_validated":   "VIRUS NOT VALIDATED",
+    "virus_assumed":         "VIRUS ASSUMED",
     "ranking":               "RANKING",
 }
 
@@ -281,6 +282,29 @@ def check(kind: QueryKind, virus: str | None = None,
     if virus and virus != SUPPORTED_VIRUS:
         warnings.append(caveat("virus_not_validated", _virus_caveat(calibration)))
     return Verdict(allowed=True, warnings=warnings)
+
+
+def virus_assumed_caveat(label: str, others: list[str]) -> str:
+    """Said out loud when no virus was named and one was assumed.
+
+    Orchestrator.build_brief reads `self._virus_in(resolved) or
+    self.default_virus`, so a question naming only a compound -- "is
+    chloroquine useful?" -- was answered about SARS-CoV-2 with nothing
+    marking the choice as an assumption. Harmless while the graph held one
+    virus. The graph now holds eight taxa across TWO FAMILIES, so a question
+    a user meant about Zika was answered about a coronavirus silently, and
+    the virus decides the calibration, the caveats and the cell-context
+    biology.
+
+    The default itself is not wrong: SARS-CoV-2 is the only virus any
+    protocol here evaluated. Defaulting without saying so is.
+    """
+    tail = (f" The graph also holds {', '.join(others[:6])}"
+            + (f" and {len(others) - 6} more" if len(others) > 6 else "")
+            + ".") if others else ""
+    return (f"the question named no virus, so this answer is about {label}, "
+            f"which is the only virus any protocol in this project "
+            f"evaluated.{tail} Name a virus to ask about another.")
 
 
 HOST_DIRECTED_CODES = frozenset({"M2", "M3", "M4", "M5", "M6"})

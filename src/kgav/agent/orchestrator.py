@@ -178,13 +178,28 @@ class Orchestrator:
 
         resolved, problem = self._resolve_mentions(question)
         trace.append(f"resolved={len(resolved)}")
-        virus = self._virus_in(resolved) or self.default_virus
+        named = self._virus_in(resolved)
+        virus = named or self.default_virus
+        trace.append(f"virus={virus}{'' if named else ' (assumed)'}")
 
         # This virus's own calibration, so the caveat quotes what was
         # measured on it rather than a sentence asserting things about
         # other viruses.
         verdict = guards.check(
             intent, virus, calibration=self.tools.calibration_for(virus))
+
+        # AN ASSUMED VIRUS IS SAID OUT LOUD. The fallback above is silent,
+        # and the virus decides the calibration, the caveats and the
+        # cell-context biology -- so a question meaning Zika answered about
+        # SARS-CoV-2 is wrong in every one of those at once. Latent while the
+        # graph held one virus; live since it holds eight across two families.
+        if named is None and verdict.allowed:
+            others = sorted(
+                self.tools._label(nid) for nid, d in self.tools.nodes.items()
+                if d.get("class") == "OrganismTaxon" and nid != virus)
+            verdict.warnings.append(guards.caveat(
+                "virus_assumed",
+                guards.virus_assumed_caveat(self.tools._label(virus), others)))
         trace.append(f"allowed={verdict.allowed}")
         if not verdict.allowed:
             # The refusal is produced BEFORE retrieval, so no partial answer

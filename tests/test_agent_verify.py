@@ -320,3 +320,49 @@ def test_an_empty_answer_is_not_reported_as_truncated():
     """Nothing to truncate. The refusal and no-model paths both arrive here."""
     v = verify("", facts=[], citable_edge_ids=[])
     assert "truncated_answer" not in [f.code for f in v.findings]
+
+
+# ------------------------------------------- a number with a unit is a claim
+def test_a_fabricated_single_digit_potency_is_caught():
+    """THE HOLE THIS CLOSES. _numbers dropped every integer at or under ten
+    as "an ordinal or list index", so a claimed "Ki of 3 nM" verified clean
+    against facts reading 190 nM -- in the check this module's own docstring
+    calls the one that matters most. Single-digit potencies are not
+    hypothetical here: nirmatrelvir's own Ki on v0.1 is 3 nM, so the exempted
+    range is exactly where the most potent compounds live.
+    """
+    facts = ["nirmatrelvir INHIBITS nsp5, ic50_nm=75, ki_nm=190 [Eabc123]"]
+    for claimed in ("3", "9", "11", "750"):
+        v = verify(f"Nirmatrelvir inhibits nsp5 with a Ki of {claimed} nM "
+                   f"[Eabc123].", facts, ["Eabc123"])
+        assert not v.passed, f"{claimed} nM passed"
+        assert any(f.code == "ungrounded_number" for f in v.findings)
+
+
+def test_a_year_with_a_unit_after_it_is_still_a_claim():
+    """The year rule had the same hole: "1960 nM" was dropped as a year."""
+    v = verify("The compound was measured at 1960 nM [Eabc123].",
+               ["compound INHIBITS target, ic50_nm=75 [Eabc123]"], ["Eabc123"])
+    assert any(f.code == "ungrounded_number" for f in v.findings)
+
+
+def test_ordinals_and_years_without_units_are_still_exempt():
+    """So the fix is targeted and does not turn every list marker into a
+    finding. A number is a magnitude claim when it carries a unit."""
+    v = verify("Route 1 of 3 comes from the 2021 study and is sound here "
+               "[Eabc123].",
+               ["compound INHIBITS target, ic50_nm=75 [Eabc123]"], ["Eabc123"])
+    assert not any(f.code == "ungrounded_number" for f in v.findings)
+
+
+def test_the_facts_are_taken_whole_not_filtered():
+    """The check is "every number in the ANSWER appears in the facts", so
+    filtering the FACTS can only invent findings. It was symmetric while both
+    sides dropped the same tokens; once the answer side became unit-aware it
+    was not, and an answer reading "5 nM" against a fact reading "ic50_nm=5"
+    was reported as an ungrounded figure."""
+    v = verify("Nirmatrelvir has a best potency of 5 nM across its routes "
+               "[Eabc123].",
+               ["nirmatrelvir: 5 routes, best ic50_nm=5 [Eabc123]"],
+               ["Eabc123"])
+    assert v.passed, [f.detail for f in v.findings]
