@@ -62,7 +62,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from kgav.baselines import Graph, channel_percentiles, combine, degree_ranking, dwpc_scores, rank
+from kgav.baselines import (
+    Graph,
+    channel_percentiles,
+    combine,
+    degree_ranking,
+    dwpc_scores,
+    hits_at_k_range,
+    rank,
+)
 from kgav.labels import build_labels
 from kgav.schema import load_schema
 
@@ -80,42 +88,6 @@ def _run_baselines():
     sys.modules[spec.name] = m
     spec.loader.exec_module(m)
     return m
-
-
-def hits_range(scores: dict[str, float], positives: set[str], k: int):
-    """The range Hits@k can take over tie orderings, and the tie at the cut.
-
-    rank() is `sorted(scores.items(), key=lambda kv: -kv[1])` with NO
-    tiebreak, and Python's sort is stable, so equal scores come out in dict
-    insertion order. hits_at_k then reads ranked[:k]. When a tie block
-    STRADDLES position k, which of its members fall inside the cut is decided
-    by insertion order rather than by any score -- so Hits@k, MRR and lift
-    are reproducible for one dict and not a property of the graph.
-
-    Returned as (low, high, contested, contested_positives): low is the count
-    if every tied non-positive is placed first, high if every tied positive
-    is. low == high means the cut lands in no tie and the metric is a
-    measurement. A wide interval means the published number is one draw from
-    it.
-    """
-    ordered = sorted(scores.items(), key=lambda kv: -kv[1])
-    if len(ordered) <= k:
-        n = sum(1 for d, _v in ordered if d in positives)
-        return n, n, 0, 0
-    cut = ordered[k - 1][1]
-    inside = [d for d, v in ordered if v > cut]
-    contested = [d for d, v in ordered if v == cut]
-    c_pos = sum(1 for d in contested if d in positives)
-    fixed = sum(1 for d in inside if d in positives)
-    slots = k - len(inside)
-    low = fixed + max(0, slots - (len(contested) - c_pos))
-    high = fixed + min(slots, c_pos)
-    # A block of ONE is not a tie: the drug at the cut is simply the kth. It
-    # is reported as 0 contested so the column does not imply an ambiguity
-    # that is not there.
-    if len(contested) == 1:
-        return low, high, 0, 0
-    return low, high, len(contested), c_pos
 
 
 def main(argv=None) -> int:
@@ -291,6 +263,10 @@ def main(argv=None) -> int:
   below is what Hits@k could be over tie orderings: low places every tied
   NON-positive first, high every tied positive. low == high means the cut
   lands in no tie and the number is real.
+
+  baselines.hits_at_k_range computes this, and lift_row now reports it on
+  every evaluated row, so the ranges below are the same arithmetic the
+  results files carry rather than a second copy of it.
 """)
     labels = build_labels(args.release)
     positives = labels.positives.get(args.virus, set())
@@ -302,7 +278,7 @@ def main(argv=None) -> int:
         rankings[name] = pools[name]
     for rname, sc in rankings.items():
         for k in (10, 50, 100):
-            lo, hi, nc, npos = hits_range(sc, positives, k)
+            lo, hi, nc, npos = hits_at_k_range(rank(sc), positives, k)
             flag = "" if lo == hi else "   <- NOT DETERMINED"
             print(f"  {rname:<10}{k:>5}{f'{lo} - {hi}':>16}{nc:>13,}"
                   f"{npos:>14,}{flag}")
