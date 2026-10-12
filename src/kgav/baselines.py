@@ -632,6 +632,53 @@ def confound_warning(per: dict[str, dict], degree_key: str = DEGREE_KEY,
     return None
 
 
+def hits_at_k_range(ranked: list[tuple[str, float]], positives: set[str],
+                    k: int) -> tuple[int, int, int, int]:
+    """The range Hits@k can take over tie orderings, and the tie at the cut.
+
+    rank() is `sorted(scores.items(), key=lambda kv: -kv[1])` with NO
+    tiebreak, and Python's sort is stable, so equal scores come out in dict
+    insertion order. hits_at_k then reads ranked[:k]. Where a tie block
+    STRADDLES position k, which of its members fall inside the cut is decided
+    by insertion order rather than by any score -- so Hits@k, MRR and lift
+    are reproducible for one dict and are not properties of the graph.
+
+    Measured on v0.1 for SARS-CoV-2, M1, with 2,020 measured actives:
+
+        k     Hits@k range   tied at cut   of which positive
+        10         1 -  2              4                   1
+        50         2 - 12             98                  10
+       100         2 - 12             98                  10
+
+    A 98-wide block of identical raw DWPC spans positions ~30 to ~128 and
+    holds 10 positives, so both cuts land inside it and the published figure
+    is one draw from [2, 12]. COMBINED is determined at all three k on the
+    same release, because the blocks at its cuts hold no positives -- so this
+    is not a reason to distrust every number, which is exactly why it is
+    measured per row rather than asserted.
+
+    Returns (low, high, contested, contested_positives). low is the count if
+    every tied non-positive is placed first, high if every tied positive is.
+    low == high means the cut lands in no tie and the figure is a
+    measurement. A block of ONE is not a tie and reports 0 contested: that
+    drug is simply the kth.
+    """
+    if len(ranked) <= k:
+        n = sum(1 for d, _v in ranked if d in positives)
+        return n, n, 0, 0
+    cut = ranked[k - 1][1]
+    inside = [d for d, v in ranked if v > cut]
+    contested = [d for d, v in ranked if v == cut]
+    c_pos = sum(1 for d in contested if d in positives)
+    fixed = sum(1 for d in inside if d in positives)
+    slots = k - len(inside)
+    low = fixed + max(0, slots - (len(contested) - c_pos))
+    high = fixed + min(slots, c_pos)
+    if len(contested) == 1:
+        return low, high, 0, 0
+    return low, high, len(contested), c_pos
+
+
 def lift_row(scores: dict[str, float], pos: set[str], k: int = 100) -> dict:
     """Hits@k against the pool's own random expectation.
 
@@ -654,8 +701,20 @@ def lift_row(scores: dict[str, float], pos: set[str], k: int = 100) -> dict:
     p = len(pos & set(scores))
     exp = k * p / pool if pool else 0.0
     h = hits_at_k(r, pos, k)
+    # THE RANGE, REPORTED THE SAME WAY `lift_is_pool_artifact` IS: alongside
+    # the figure rather than folded into it, because the figure is still the
+    # one that was computed and the range says whether it was determined.
+    # Where a tie block straddles k the published hit count is one draw from
+    # [lo, hi] -- on v0.1 M1 that is [2, 12] at both k=50 and k=100 -- and a
+    # lift computed from it inherits the same spread.
+    lo, hi, n_tied, n_tied_pos = hits_at_k_range(r, pos, k)
     return {"pool": pool, "pos": p, "hits": h, "expected": exp,
             "lift": (h / exp) if exp else 0.0, "mrr": mrr(r, pos),
+            "hits_lo": lo, "hits_hi": hi,
+            "hits_determined": lo == hi,
+            "tied_at_cut": n_tied, "tied_at_cut_positives": n_tied_pos,
+            "lift_lo": (lo / exp) if exp else 0.0,
+            "lift_hi": (hi / exp) if exp else 0.0,
             # BOTH conditions. Expectation >= 1 says the hit count is not a
             # coin flip; pool > k says the ranking was actually exercised.
             "trustworthy": exp >= MIN_TRUSTWORTHY_EXPECTATION and pool > k,
@@ -664,6 +723,25 @@ def lift_row(scores: dict[str, float], pos: set[str], k: int = 100) -> dict:
             # heuristic says whether the figure is readable, the p-value says
             # whether it is surprising, and collapsing them hid MERS M4.
             "p_value": lift_pvalue(pool, p, k, h)}
+
+
+def hits_cell(m: dict, width: int = 7) -> str:
+    """The hits column for an evaluated row: the figure, or the range.
+
+    Lives here rather than in each script because this project has twice now
+    had one calculation in two files and watched them drift -- the percentile
+    arithmetic in combine and diagnose_controls, and `trustworthy` in
+    baselines and temporal_split (whose own header still records the two
+    definitions that once disagreed).
+
+    A determined row prints its hit count. An undetermined one prints
+    "lo-hi", because there is no single number to print: the figure that was
+    computed is one draw from that interval, decided by dict insertion order
+    rather than by any score.
+    """
+    if m.get("hits_determined", True):
+        return f"{m['hits']:>{width}}"
+    return f"{m['hits_lo']}-{m['hits_hi']}".rjust(width)
 
 
 def degree_ranking(g: Graph) -> dict[str, float]:

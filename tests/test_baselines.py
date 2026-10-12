@@ -13,7 +13,10 @@ from kgav.baselines import (
     degree_ranking,
     dwpc_scores,
     hits_at_k,
+    hits_at_k_range,
+    hits_cell,
     label_publication_index,
+    lift_row,
     mrr,
     network_proximity,
     rank,
@@ -384,6 +387,65 @@ def test_hits_at_k_is_decided_by_dict_order_when_a_tie_straddles_k():
     assert hits_at_k(rank(scores_b), pos, 1) == 0
     assert mrr(rank(scores_a), pos) == pytest.approx(1.0)
     assert mrr(rank(scores_b), pos) == pytest.approx(1 / 3)
+
+
+def test_hits_at_k_range_brackets_every_tie_ordering():
+    """Checked against brute force over every permutation of the tie block,
+    because an interval that is merely plausible is worse than no interval:
+    it would license the figure it was meant to qualify."""
+    import itertools
+    scores = {"top": 9.0, "t1": 5.0, "t2": 5.0, "t3": 5.0, "t4": 5.0,
+              "low": 1.0}
+    pos = {"t4"}
+    lo, hi, n_tied, n_pos = hits_at_k_range(rank(scores), pos, 4)
+    seen = set()
+    for perm in itertools.permutations(["t1", "t2", "t3", "t4"]):
+        d = {"top": 9.0}
+        for t in perm:
+            d[t] = 5.0
+        d["low"] = 1.0
+        seen.add(hits_at_k(rank(d), pos, 4))
+    assert (lo, hi) == (min(seen), max(seen))
+    assert (n_tied, n_pos) == (4, 1)
+
+
+def test_a_cut_in_no_tie_is_determined():
+    """So the interval is a measurement and not a blanket disclaimer. On v0.1
+    COMBINED is determined at k=10, 50 and 100 while M1 is not at any of
+    them -- the reason this is reported per row."""
+    scores = {"a": 5.0, "b": 4.0, "c": 3.0, "d": 2.0}
+    lo, hi, n_tied, _p = hits_at_k_range(rank(scores), {"a"}, 2)
+    assert lo == hi == 1
+    assert n_tied == 0, "a block of one is not a tie"
+
+
+def test_a_pool_no_larger_than_k_has_nothing_to_contest():
+    """ranked[:k] is then the whole pool, so every positive in it is counted
+    whatever the order -- the same condition lift_row already flags as
+    lift_is_pool_artifact."""
+    scores = {"a": 1.0, "b": 1.0, "c": 1.0}
+    assert hits_at_k_range(rank(scores), {"a", "b"}, 10) == (2, 2, 0, 0)
+
+
+def test_lift_row_carries_the_range_beside_the_figure():
+    """Reported the way lift_is_pool_artifact is: alongside, not folded in.
+    The figure is still the one computed; the range says whether it was
+    determined, and the lift inherits the same spread."""
+    scores = {"top": 9.0, "t1": 5.0, "t2": 5.0, "t3": 5.0, "t4": 5.0,
+              "low": 1.0}
+    m = lift_row(scores, {"t1", "t4"}, k=2)
+    assert m["hits_determined"] is False
+    assert m["hits_lo"] <= m["hits"] <= m["hits_hi"]
+    assert m["lift_lo"] <= m["lift"] <= m["lift_hi"]
+    assert m["tied_at_cut"] == 4 and m["tied_at_cut_positives"] == 2
+
+
+def test_hits_cell_prints_a_range_only_when_undetermined():
+    """One formatter, imported by both evaluation scripts. This project has
+    twice had one calculation in two files and watched them drift."""
+    assert hits_cell({"hits": 6, "hits_determined": True}, 5).strip() == "6"
+    undet = {"hits": 7, "hits_determined": False, "hits_lo": 2, "hits_hi": 12}
+    assert hits_cell(undet, 5).strip() == "2-12"
 
 
 def test_ties_are_merged_only_when_exactly_equal():

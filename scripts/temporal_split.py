@@ -15,6 +15,7 @@ from kgav.baselines import (
     degree_ranking,
     degree_relative,
     dwpc_scores,
+    hits_cell,
     lift_row,
 )
 from kgav.calibration import MIN_REACHED_POSITIVES
@@ -202,7 +203,13 @@ def main() -> int:
               f"{'exp':>7} {'lift':>7} {'p':>7} {'vs deg':>7} {'mrr':>7}")
         for name, m in per.items():
             flag = "" if m["trustworthy"] else " (!)"
-            print(f"    {name:<10} {m['pool']:>7,} {m['pos']:>5,} {m['hits']:>5} "
+            # The hits column carries the RANGE where a tie block straddles
+            # k, because the single figure there is one draw from it. On
+            # v0.1 M1 that range is 2-12 at both k=50 and k=100.
+            if not m.get("hits_determined", True):
+                flag += " ~tied"
+            print(f"    {name:<10} {m['pool']:>7,} {m['pos']:>5,} "
+                  f"{hits_cell(m, 5)} "
                   f"{m['expected']:>7.1f} {m['lift']:>7.2f} {_p(m)} "
                   f"{_vs(m)} {m['mrr']:>7.4f}{flag}")
         if (warn := confound_warning(per)):
