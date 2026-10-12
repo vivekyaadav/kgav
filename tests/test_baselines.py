@@ -11,6 +11,7 @@ from kgav.baselines import (
     Graph,
     channel_percentiles,
     combine,
+    confound_warning,
     degree_ranking,
     dwpc_scores,
     hits_at_k,
@@ -366,6 +367,58 @@ def test_channel_percentiles_handles_the_degenerate_shapes():
     assert channel_percentiles({"only": 4.0}) == {"only": 1.0}
     flat = channel_percentiles({c: 7.0 for c in "abcd"})
     assert all(v == pytest.approx(0.5) for v in flat.values())
+
+
+# ------------------------------------ the baseline comparison needs determinacy
+def _cw_row(lift, p, det=True, lo=0, hi=0, **kw):
+    return {"lift": lift, "p_value": p, "trustworthy": True,
+            "hits": hi, "hits_lo": lo, "hits_hi": hi,
+            "hits_determined": det, "tied_at_cut": 0,
+            "tied_at_cut_positives": 0, **kw}
+
+
+def test_an_undetermined_baseline_cannot_license_a_channel():
+    """THE REAL SARS-CoV-2 train2021 SHAPE. confound_warning printed
+    "BASELINE AT CHANCE: degree lift 0.97 (p=0.5909) is indistinguishable
+    from random here, so M1's lift 2.49 (p=0.0033) is not explained by study
+    volume" -- where M1's Hits@100 was 0-8 of 8 positives and degree's was
+    3-5. A sentence comparing two intervals as though they were points, and
+    it licensed the only non-null in the project.
+    """
+    per = {"M1": _cw_row(2.49, 0.0033, det=False, lo=0, hi=8),
+           "degree": _cw_row(0.97, 0.5909, det=False, lo=3, hi=5,
+                          vs_degree_readable=True)}
+    msg = confound_warning(per)
+    assert msg is not None
+    assert "BASELINE NOT DETERMINED" in msg
+    assert "AT CHANCE" not in msg
+
+
+def test_a_determined_baseline_still_licenses_a_determined_channel():
+    """So the guard is a condition and not a blanket refusal -- the good case
+    must still be sayable."""
+    per = {"M1": _cw_row(2.49, 0.0033),
+           "degree": _cw_row(0.97, 0.5909, vs_degree_readable=True)}
+    msg = confound_warning(per)
+    assert msg is not None and "BASELINE AT CHANCE" in msg
+
+
+def test_an_undetermined_channel_is_not_promoted():
+    """Third time this function has read one field and ignored the one beside
+    it: it read p and ignored `trustworthy`, promoting HCoV-OC43 M4 on a
+    single positive; then read both and ignored `hits_determined`."""
+    per = {"M1": _cw_row(2.49, 0.0033, det=False, lo=0, hi=8),
+           "degree": _cw_row(0.97, 0.5909, vs_degree_readable=True)}
+    assert confound_warning(per) is None
+
+
+def test_an_undetermined_exceedance_is_flagged_in_the_confounded_branch():
+    """When degree is itself significant, a channel said to exceed it must
+    not be reported as a clean exceedance if its own hits are an interval."""
+    per = {"M4": _cw_row(16.09, 0.0005, det=False, lo=0, hi=5),
+           "degree": _cw_row(4.84, 0.0231, vs_degree_readable=True)}
+    msg = confound_warning(per)
+    assert "CONFOUNDED" in msg and "flagged (!)" in msg
 
 
 # ------------------------------------------------- potency as a tie-break

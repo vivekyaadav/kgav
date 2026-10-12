@@ -19,17 +19,22 @@ So a calibrated ranking returns nothing, and that is the correct output. The
 graph can report evidence for a compound it is asked about; it has no measured
 basis for a shortlist.
 
-**The temporal protocol is a different story, and it is the first non-null
-this project has produced.** It was blocked until 2026-10-11 and is reported
-in its own section below.
+**The temporal protocol was the first non-null this project produced, and on
+2026-10-12 it was found NOT DETERMINED.** M1's Hits@100 on the SARS-CoV-2
+train2021 split can take any value from 0 to 8 of its 8 positives depending
+on the order drugs were inserted into a dict, so the lift and p-value
+computed from it are one draw from that interval. The section below reports
+the figure, the interval, and how it was found.
 
 The one-line version of every table here:
 
 > **In every cross-sectional virus where a reasoning channel cleared p<0.05,
 > the degree baseline cleared it too -- 4 of 4, no exception. Exactly one
-> virus and channel in the project has a trustworthy significant result while
-> degree is at chance: SARS-CoV-2 M1 under the temporal protocol, lift 2.22
-> at p=0.020 on six hits.**
+> virus and channel in the project ever had a trustworthy significant result
+> while degree was at chance -- SARS-CoV-2 M1 under the temporal protocol --
+> and its Hits@k is NOT DETERMINED: all 8 positives sit inside one tie block
+> at the cut, so the hit count ranges over 0 to 8 and the lift over 0.00 to
+> 2.86. There is now no measured non-null in this project.**
 
 Five earlier figures for M1 -- 0.823, 0.726, 0.660, 0.499, 0.513 -- are
 reported below rather than withdrawn, because the sequence is the result. Each
@@ -138,9 +143,13 @@ does. `confound_warning()` prints the verdict under every table, both ways:
                           HCoV-229E, HCoV-NL63 cross-sectionally, and
                           MERS-CoV and SARS-CoV temporally
     BASELINE AT CHANCE    degree is indistinguishable from random AND a
-                          TRUSTWORTHY channel is significant -- SARS-CoV-2
-                          temporal, the only virus and channel in the project
-                          where this holds
+                          TRUSTWORTHY channel is significant -- held for
+                          SARS-CoV-2 temporal alone, and no longer holds
+                          anywhere, because both rows are ~tied
+    BASELINE NOT          the degree row's own Hits@k is an interval, so no
+    DETERMINED            comparison against it can be read -- including
+                          every ratio in the vs-deg column, which divides
+                          by it. SARS-CoV-2 temporal, both policies
     (nothing)             neither, so there is nothing to report
 
 Stating the good case out loud matters: printed only as an *absence* of
@@ -152,11 +161,22 @@ only `p` and promoted HCoV-OC43 temporal M4: pool 2,545, **one** positive,
 lift 25.45, p=0.0393 -- and 100/2,545 = 0.0393 exactly, so that p *is* the
 sampling fraction for a single compound. The row already carried `(!)`.
 
+**`hits_determined` is required too, and this function has now read one
+field while ignoring the one beside it three times.** Having learned to read
+`trustworthy` alongside `p`, it went on to read both while ignoring whether
+the hit count was determined -- and printed "BASELINE AT CHANCE: degree lift
+0.97 (p=0.5909) is indistinguishable from random here, so M1's lift 2.49
+(p=0.0033) is not explained by study volume" for a split where M1's Hits@100
+was 0–8 and degree's was 3–5. The one sentence in this project that promoted
+a result was comparing two intervals as though they were points.
+
 **It appears under both undated policies, and that is not a replication.** M1
-reads pool 296, 8 positives, 6 hits, lift 2.22, p=0.0196 in `include` and
-`computed_only` alike, because M1 traverses `INHIBITS`, which is fully dated,
-so the undated policy never touches its pool. Only degree moves (0.93 ->
-1.10). Two identical numbers from one pool are one observation.
+reads pool 284, 8 positives, lift 2.49, p=0.0033 in `include` and `exclude`
+alike, because M1 traverses `INHIBITS`, which is fully dated, so the undated
+policy never touches its pool. Only degree moves (0.97 -> 2.72). Two
+identical numbers from one pool are one observation -- and here they are two
+identical UNDETERMINED numbers, since the same tie block straddles the cut
+either way.
 
 Both tables also carry a `vs deg` column, with `(~)` marking a ratio whose
 denominator is itself at chance. SARS-CoV-2 cross-sectional is why: M4 reads
@@ -190,21 +210,51 @@ prospective cases -- and `--overlap-policy keep` reproduces the refusal.
 ceiling on recall**. `p` is the exact hypergeometric tail, P(hits >= observed)
 under random ranking -- the lift equivalent of the AUC intervals above.
 
+The figures below are from 2026-10-12, after M1 was constrained to resolved
+targets (`INHIBITS.target_resolution = chain_from_assay_description`), which
+moved its pool from 296 to 284. The superseded run read M1 at lift 2.22,
+p=0.020 on 6 hits; it is kept here rather than withdrawn, as the five earlier
+AUCs are, because the sequence is the result.
+
 | scorer | pool | pos | hits | exp | lift | p | |
 |---|---|---|---|---|---|---|---|
-| **M1** | 296 | 8 | 6 | 2.7 | **2.22** | **0.020** | |
+| **M1** | 284 | 8 | **0–8** | 2.8 | 2.49 | 0.0033 | **~tied** |
 | M2 | 855 | 7 | 2 | 0.8 | 2.44 | 0.193 | (!) |
 | M4 | 2,701 | 13 | 2 | 0.5 | 4.16 | 0.081 | (!) |
 | M6 | 186 | 4 | 3 | 2.2 | 1.40 | 0.369 | |
-| M7 | 91 | 29 | 29 | 31.9 | 0.91 | — | (!) |
-| COMBINED | 3,246 | 50 | 4 | 1.5 | 2.60 | 0.066 | |
-| degree | 4,316 | 231 | 5 | 5.4 | 0.93 | 0.628 | |
+| M7 | 85 | 26 | 26 | 30.6 | 0.85 | — | (!) |
+| COMBINED | 3,229 | 48 | 5 | 1.5 | 3.36 | 0.0154 | |
+| degree | 4,514 | 232 | **3–5** | 5.1 | 0.97 | 0.5909 | **~tied** |
 
-**M1 is the first scorer in this project to beat the degree baseline on a
-protocol that controls its confound.** Degree is at chance here (0.93,
-p=0.63); M1 is at 2.22, p=0.020. By the test set out above -- channel
-significant, degree not -- this is the only such row anywhere in the project,
-cross-sectional or temporal.
+**M1'S RESULT IS NOT DETERMINED, AND NEITHER IS THE BASELINE IT BEAT.**
+`rank()` sorts by score with no tiebreak and Python's sort is stable, so
+equal scores emerge in dict insertion order, and `hits_at_k` reads
+`ranked[:k]`. On this split not one of M1's 8 positives scores strictly
+above the cut at k=100: all 8 sit inside a single tie block that straddles
+position 100, together with at least 8 non-positives. So Hits@100 ranges
+over the full 0 to 8, and the lift over 0.00 to 2.86 against an expectation
+of 2.8. The reported 2.49 at p=0.0033 is one draw from that interval.
+
+The degree baseline is undetermined too, at 3–5. So the comparison that
+licensed the result -- channel significant, degree at chance -- was a
+comparison of two intervals written as though they were points.
+`confound_warning` printed exactly that sentence, and it now refuses: a
+baseline whose own Hits@k is an interval cannot license anything, and that
+includes every ratio in the `vs deg` column, which divides by it.
+
+This is a property of M1 rather than of the protocol. M2, M4, M6, M7 and
+COMBINED are all determined on the same split, and COMBINED reaches lift
+3.36 at p=0.0154 with a determined hit count -- the strongest surviving row,
+though the baseline it would have to beat is still undetermined.
+
+WHY M1 AND NOT THE OTHERS. On the full release M1 resolves **12 distinct
+scores across 3,020 drugs**, with 2,441 of them (80.8%) sharing one value,
+because `walk_metapath` multiplies node degrees and nothing drug-specific
+ever enters: M1's score is a property of the TARGET, so every drug whose
+only route is nsp5 earns the identical number. M4 and M5 resolve 1,835 and
+1,202 distinct values over comparable pools. Letting measured potency break
+those ties was pre-registered, implemented, measured and NOT ADOPTED --
+`docs/prereg_m1_potency.md` carries the predictions and the verdict.
 
 The same table's MERS-CoV rows do NOT qualify: M4 reaches p=0.0005 there, but
 degree reaches p=0.026 on the same labels, so that virus is still inside the
@@ -259,9 +309,11 @@ it.
 - **Not** that the host-directed hypothesis is refuted. M4 and M5 are the
   channels that *were* tested, and both at chance on 15 compounds is weak
   evidence either way.
-- **Not** that M1 works. Its temporal lift of 2.22 is nominally p=0.020 on
-  six hits and does not survive correction for the 28 rows evaluated
-  alongside it.
+- **Not** that M1 works. Its temporal lift reads 2.49 at a nominal p=0.0033,
+  and the hit count behind it is NOT DETERMINED -- 0 to 8 of 8 positives,
+  all of them inside one tie block at the cut -- so there is no figure for
+  multiple-comparison correction to be applied to. It also did not survive
+  correction for the 28 rows evaluated alongside it when it read 2.22.
 - **Not** that the significant cross-sectional rows are results. Degree is
   significant in every one of them, which is the signature of a protocol
   measuring study volume.

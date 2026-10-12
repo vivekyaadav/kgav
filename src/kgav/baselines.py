@@ -727,12 +727,39 @@ def confound_warning(per: dict[str, dict], degree_key: str = DEGREE_KEY,
     # returns None whenever a row has no positives or k covers the pool.
     if dl is None or dp is None:
         return None
-    others = [(m["lift"], m.get("p_value"), n, m.get("trustworthy"))
+
+    # THE BASELINE'S OWN HITS MUST BE DETERMINED, because every verdict below
+    # is a comparison against it -- and so is the lift_vs_degree ratio in the
+    # `vs deg` column, which divides by this row.
+    #
+    # THIS IS THE THIRD TIME THIS FUNCTION HAS READ ONE FIELD AND IGNORED THE
+    # ONE BESIDE IT. It once read p and ignored `trustworthy`, and promoted
+    # HCoV-OC43 M4 on a single positive; the comment below records that. It
+    # then read p and `trustworthy` and ignored `hits_determined`, which is
+    # how it came to print "BASELINE AT CHANCE: degree lift 0.97 (p=0.5909)
+    # is indistinguishable from random here, so M1's lift 2.49 (p=0.0033) is
+    # not explained by study volume" for SARS-CoV-2 train2021 -- where M1's
+    # Hits@100 was 0-8 of 8 positives and degree's was 3-5. A sentence
+    # comparing two intervals as though they were points.
+    if deg.get("hits_determined") is False:
+        return (f"BASELINE NOT DETERMINED: the degree row's Hits@k is one "
+                f"draw from [{deg.get('hits_lo')}, {deg.get('hits_hi')}] "
+                f"because a tie block straddles the cut "
+                f"({deg.get('tied_at_cut')} tied, "
+                f"{deg.get('tied_at_cut_positives')} of them positive). Its "
+                f"lift {dl:.2f} and p={dp:.4f} are not measurements, so no "
+                f"comparison against this baseline can be read -- including "
+                f"every ratio in the vs-deg column, which divides by it.")
+
+    others = [(m["lift"], m.get("p_value"), n, m.get("trustworthy"),
+               m.get("hits_determined", True))
               for n, m in per.items()
               if n != degree_key and m.get("lift") is not None]
     better = sorted(x for x in others if x[0] > dl)
     if better:
-        lift, _p, name, tw = better[-1]
+        lift, _p, name, tw, det = better[-1]
+        if det is False:
+            tw = False          # an undetermined row is not a clean exceedance
         mark = "" if tw else " -- but that row is flagged (!)"
         tail = f"{name} exceeds it at {lift:.2f}{mark}"
     else:
@@ -756,8 +783,11 @@ def confound_warning(per: dict[str, dict], degree_key: str = DEGREE_KEY,
     # row already carried (!) for expectation < 1. Requiring True explicitly
     # rather than `is not False`, because a row with no verdict has not earned
     # a promotion either.
-    sig = sorted((p_, lift, n) for lift, p_, n, tw in others
-                 if p_ is not None and p_ < alpha and tw is True)
+    # hits_determined IS REQUIRED HERE TOO, for the same reason `trustworthy`
+    # is: a channel whose Hits@k is an interval has no p-value to promote.
+    sig = sorted((p_, lift, n) for lift, p_, n, tw, det in others
+                 if p_ is not None and p_ < alpha and tw is True
+                 and det is True)
     if sig:
         p_, lift, n = sig[0]
         return (f"BASELINE AT CHANCE: degree lift {dl:.2f} (p={dp:.4f}) is "
