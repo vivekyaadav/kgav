@@ -2,6 +2,7 @@
 down-weights promiscuous intermediates, proximity is degree-corrected.
 """
 import json
+import math
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,8 @@ from kgav.baselines import (
     lift_row,
     mrr,
     network_proximity,
+    potency_key,
+    potency_tiebreak,
     rank,
     walk_metapath,
 )
@@ -363,6 +366,166 @@ def test_channel_percentiles_handles_the_degenerate_shapes():
     assert channel_percentiles({"only": 4.0}) == {"only": 1.0}
     flat = channel_percentiles({c: 7.0 for c in "abcd"})
     assert all(v == pytest.approx(0.5) for v in flat.values())
+
+
+# ------------------------------------------------- potency as a tie-break
+def _blocky():
+    """A pool shaped like the real M1: one big tie block with groups above
+    and below it. 13 entries, so the block holds positions 1..10 of n=12 and
+    its span is 1/12 .. 10/12."""
+    return {"lo": 0.1, **{f"t{i}": 0.5 for i in range(10)},
+            "hi1": 0.9, "hi2": 1.5}
+
+
+def test_nothing_outside_a_tie_block_moves():
+    """The design's central promise, per docs/prereg_m1_potency.md Amendment
+    1: block boundaries come from the untouched raw DWPC sort, so every
+    cross-target ordering -- remdesivir above the nsp5 group included -- is
+    preserved exactly, and COMBINED does not change."""
+    pool = _blocky()
+    before = channel_percentiles(pool)
+    after = channel_percentiles(pool, {f"t{i}": 5.0 + i for i in range(6)})
+    for d in ("lo", "hi1", "hi2"):
+        assert before[d] == after[d]
+
+
+def test_the_block_keeps_its_own_span():
+    """The keyed drugs spread across i..j and no further, so the block
+    occupies the same percentile range it did. On v0.1 that range is roughly
+    0.002 to 0.806 -- which is why Amendment 1 states that nirmatrelvir
+    cannot exceed ~0.81 by construction."""
+    pool = _blocky()
+    n = len(pool) - 1
+    after = channel_percentiles(pool, {f"t{i}": 5.0 + i for i in range(6)})
+    blk = [after[f"t{i}"] for i in range(10)]
+    assert min(blk) == pytest.approx(1 / n)
+    assert max(blk) == pytest.approx(10 / n)
+
+
+def test_an_unmeasured_drug_keeps_the_score_it_already_has():
+    """A strict refinement: no imputation decides anything, and "unmeasured"
+    is never read as "weak" -- the error chembl.py refuses when it declines
+    to coerce a censored bound into a number."""
+    pool = _blocky()
+    mid = channel_percentiles(pool)["t0"]
+    after = channel_percentiles(pool, {f"t{i}": 5.0 + i for i in range(6)})
+    for i in range(6, 10):
+        assert after[f"t{i}"] == mid
+
+
+def test_the_block_mean_is_unchanged_so_it_neither_gains_nor_loses():
+    """Spreading a block must redistribute it, not shift it. If the mean
+    moved, tie-breaking would be smuggling in a score change."""
+    pool = _blocky()
+    before = channel_percentiles(pool)
+    after = channel_percentiles(pool, {f"t{i}": 5.0 + i for i in range(6)})
+    b = sum(before[f"t{i}"] for i in range(10)) / 10
+    a = sum(after[f"t{i}"] for i in range(10)) / 10
+    assert a == pytest.approx(b)
+
+
+def test_keyed_drugs_come_out_monotone_in_potency():
+    pool = _blocky()
+    after = channel_percentiles(pool, {f"t{i}": 5.0 + i for i in range(6)})
+    seq = [after[f"t{i}"] for i in range(6)]
+    assert seq == sorted(seq)
+
+
+def test_a_single_keyed_drug_cannot_rank_a_block():
+    """One value is not an ordering. Everyone keeps the midrank rather than
+    one drug being promoted for being the only one measured."""
+    pool = _blocky()
+    before = channel_percentiles(pool)
+    after = channel_percentiles(pool, {"t3": 9.0})
+    assert after == before
+
+
+def test_ties_in_the_key_itself_take_their_own_midrank():
+    """The same rule one level up. Equal potency is equal evidence."""
+    pool = _blocky()
+    after = channel_percentiles(pool, {f"t{i}": 5.0 for i in range(6)})
+    assert len({round(after[f"t{i}"], 9) for i in range(6)}) == 1
+
+
+def test_potency_key_reads_the_declared_precedence_not_the_best_value():
+    """nirmatrelvir on v0.1 carries ic50_nm=75, ki_nm=3 and kd_nm=190. Taking
+    the most flattering would read 3; taking the worst would read 190. The
+    FIELD is fixed in advance -- ic50, then ki, then kd -- because
+    selectivity.py records both of those as "the same error: selecting a
+    study by its answer"."""
+    e = _e("INCHIKEY:N", "INHIBITS", "UniProtKB:V",
+           {"assay_type": "biochemical", "ic50_nm": 75.0, "ki_nm": 3.0,
+            "kd_nm": 190.0})
+    px, field = potency_key(e)
+    assert field == "ic50_nm"
+    assert px == pytest.approx(9 - math.log10(75.0))
+
+
+def test_a_censored_bound_is_not_a_measurement():
+    """chembl.py: "IC50 > 10000 nM is a NEGATIVE result ... coercing it to a
+    potency number inverts its meaning." A bound cannot break a tie."""
+    for rel in (">", "<", ">=", "<=", "~"):
+        e = _e("INCHIKEY:N", "INHIBITS", "UniProtKB:V",
+               {"assay_type": "biochemical", "ic50_nm": 10000.0,
+                "relation": rel})
+        assert potency_key(e) is None
+
+
+def test_an_edge_with_no_potency_field_yields_no_key():
+    assert potency_key(_e("INCHIKEY:N", "INHIBITS", "UniProtKB:V",
+                          {"assay_type": "biochemical"})) is None
+
+
+def test_a_zero_potency_is_skipped_rather_than_logged():
+    """The schema permits ic50_nm >= 0 and log10(0) does not exist. Skipped,
+    not crashed and not clamped to a number that would outrank everything."""
+    assert potency_key(_e("INCHIKEY:N", "INHIBITS", "UniProtKB:V",
+                          {"assay_type": "biochemical",
+                           "ic50_nm": 0.0})) is None
+
+
+def test_potency_tiebreak_keeps_the_worst_of_several_measurements(g, schema):
+    """selectivity.py's rule for the same situation: "among several exact
+    measurements the WORST is kept, since a compound shown cytotoxic in a
+    real measurement is cytotoxic." The direction that cannot flatter."""
+    keys, fields = potency_tiebreak(
+        g, V, schema.metapaths["M1"]["path"],
+        schema.metapaths["M1"].get("constraints"))
+    # the fixture's D1 inhibits NSP5 with ic50_nm 25.0
+    assert keys[D1] == pytest.approx(9 - math.log10(25.0))
+    assert fields["ic50_nm"] == 1
+
+
+def test_potency_tiebreak_ignores_edges_the_channel_cannot_walk(g, schema):
+    """Keyed on the evidence the channel uses, not on every INHIBITS edge in
+    the graph: a protein with no onward route to this virus is not part of
+    M1 whatever its qualifiers say."""
+    keys, _f = potency_tiebreak(
+        g, "NCBITaxon:99999", schema.metapaths["M1"]["path"],
+        schema.metapaths["M1"].get("constraints"))
+    assert keys == {}
+
+
+def test_combine_applies_a_tiebreak_per_channel_not_globally(schema):
+    """A tiebreak is a claim about one kind of evidence. Potency against a
+    viral protein orders M1; it says nothing about the host channels, and
+    nothing about M7, which borrows a NEIGHBOUR's target."""
+    d = {"M1": {f"t{i}": {V: 0.5} for i in range(4)},
+         "M2": {f"t{i}": {V: 0.5} for i in range(4)}}
+    keys = {f"t{i}": 5.0 + i for i in range(4)}
+    out = combine(d, V, tiebreak={"M1": keys})
+    # M1 ordered -> t3 strictly above t0; M2 still a flat tie at 0.5, and
+    # combine takes the MAX, so t0 keeps M2's midrank
+    assert out["t3"] > out["t0"]
+    assert out["t0"] == pytest.approx(0.5)
+
+
+def test_omitting_the_tiebreak_reproduces_every_published_number(g, schema):
+    """The default path must be untouched, or the change would silently move
+    figures it was never argued to move."""
+    d = dwpc_scores(g, schema.metapaths, schema.retrieval_limits)
+    assert combine(d, V) == combine(d, V, tiebreak=None)
+    assert combine(d, V) == combine(d, V, tiebreak={})
 
 
 # ------------------------------------------- ties the midrank does NOT reach
