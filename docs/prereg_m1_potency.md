@@ -153,3 +153,123 @@ lift was determined. Nothing about discrimination.
 Abandon if the precondition fails. Revert if P3 fails. Keep only if P1 and
 P2 both hold, and in that case claim the control separation and the tie
 structure, and claim nothing about AUC or about a shortlist.
+
+---
+
+# Amendment 1 — the design, and a corrected P2
+
+2026-10-12, after the precondition and **before any implementation or any
+measurement of P1, P2 or P3.** The original text above is unedited; this is
+appended, dated and reasoned, because a pre-registration that gets quietly
+rewritten is not one.
+
+## The precondition was met
+
+    LARGEST TIE BLOCK (2,441 drugs)
+                     edges   % edges     drugs   % drugs
+      exact          2,084     85.4%     2,084     85.4%
+      censored         349     14.3%       349     14.3%
+      none               8      0.3%         8      0.3%
+
+85.4% against the 50% the text above required. The controls carry usable
+numbers on the same node, `UniProtKB:PRO_0000449623`:
+
+    nirmatrelvir   ic50_nm=75    ki_nm=3   kd_nm=190
+    chloroquine    ic50_nm=7280
+    remdesivir     ic50_nm=1640  (nsp12, a different group)
+
+A 97-fold potency ratio between the approved antiviral and the artifact,
+both currently scoring 0.4041.
+
+## P2 AS WRITTEN IS UNREACHABLE, and the reason is arithmetic
+
+P2 required nirmatrelvir's M1 percentile above 0.90. To pass 90% of 3,020
+drugs it must leave its own 2,441-drug block AND overtake roughly 277 drugs
+in higher-scoring groups. The nearest of those is the nsp12 group, whose
+DWPC is **3.15x** nirmatrelvir's on the degree term alone — confirmed
+against the release, 0.000762 / 0.000242 = 3.149.
+
+Potency in log space does not span that. With the standard pX = 9 -
+log10(nM), nirmatrelvir is 7.125 and remdesivir 5.785: a factor of 1.232.
+Closing 3.15x from 1.232x requires **pX ** 5.5**, an exponent chosen to
+produce the wanted answer — a fitted parameter in a baseline whose entire
+claim is that it has none.
+
+So P2's threshold was mis-specified, and it was mis-specified in a
+particular direction: it demanded that potency overrule the degree
+correction ACROSS targets, which is a different proposition from the defect
+being fixed and one this change does not argue for. Nothing in the
+measurement caused this correction; the arithmetic above was available when
+the original was written, and was not done.
+
+## The design, chosen before the numbers exist
+
+**Potency breaks exact ties within M1 and does nothing else.** The M1 score
+remains a function of the target; a second key orders drugs inside a block
+of identical raw DWPC.
+
+- **Nothing outside a tie block moves.** Block boundaries come from the raw
+  DWPC sort, which is untouched, so the block occupies the same span of
+  percentiles and every cross-target ordering — remdesivir above the nsp5
+  group included — is preserved exactly. COMBINED does not change.
+- **Path specificity and measured affinity stay separate quantities.** This
+  repo refuses such collapses elsewhere: `domain` is recorded rather than
+  folded into nsp3, and `unquantified`'s three coexisting definitions are
+  documented as a defect. Multiplying a degree penalty by a binding constant
+  would make one number out of two different claims.
+- **The quantity is chosen by a FIXED PRECEDENCE, never by value:**
+  `ic50_nm`, then `ki_nm`, then `kd_nm`. `selectivity.py` records what
+  choosing by value costs — "Taking the worst ratio defamed nirmatrelvir (SI
+  1.8) ... Taking the best exonerated chloroquine (17.7). Both were the same
+  error -- selecting a study by its answer." Where several exact values of
+  the selected field exist, the WORST (least potent) is kept, which is that
+  module's own rule.
+- **Censored bounds are not coverage.** A relation of >, <, >=, <= or ~ is a
+  bound, and on this project's rule a bound in the wrong direction is a
+  measurement of inactivity. Censored and absent edges are not ordered.
+- **An unmeasured drug keeps the score it has today**: the block's midrank.
+  That is its current value, so the change is a strict refinement — no
+  imputation decides anything, and "unmeasured" is never read as "weak".
+- **M1 only.** M7 borrows a neighbour's target, so its drug's own potency is
+  not what that path asserts, and its largest tie is 14 drugs (6% of pool).
+  M2–M6 are host channels where potency against a viral protein is
+  irrelevant.
+
+## P2, corrected
+
+**P2' — the controls separate within the block.** nirmatrelvir lands in the
+**top decile of the tie block** by potency rank and chloroquine in the
+**bottom half**, and their M1 percentiles differ by **at least 0.30**. They
+currently differ by 0.0000.
+
+The ceiling is stated so it cannot be mistaken for a shortfall later: the
+block spans roughly percentile 0.002 to 0.806, so **nirmatrelvir cannot
+exceed ~0.81 by construction** and no result above that should be expected
+or believed.
+
+If 75 nM against 7,280 nM does not place those two in those regions, the
+potency data is internally inconsistent and the change has failed.
+
+## P1 and P3 are unchanged, with one clarification
+
+P1's "distinct values past 1,000" now refers to M1's distinct values after
+tie-breaking, which is the same quantity. P3's degree-correlation bound of
+0.1 is unchanged and is the condition most likely to bite: potency exists
+preferentially for well-studied compounds, and 14.3% of the block is
+censored while 0.3% has nothing — both populations skew.
+
+## A new caveat, stated with P4
+
+**P5 — mixed quantity types are not strictly comparable.** A drug ordered on
+its Ki is being compared against one ordered on its IC50, and an IC50 is
+assay-dependent in a way a Ki is not. The precedence makes the choice
+reproducible, not commensurable. The implementation must therefore report
+how many drugs were ordered on each field, so the size of this problem is
+visible rather than assumed small.
+
+## Decision rule, restated
+
+Keep only if P1 and P2' both hold and P3 does not trip. Claim the control
+separation and the tie structure. Claim nothing about AUC, nothing about a
+shortlist, and nothing about M1 having become evaluable — it reaches 3 of 89
+measured actives before this change and will reach 3 after.
