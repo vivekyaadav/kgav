@@ -8,6 +8,7 @@ import pytest
 
 from kgav.baselines import (
     Graph,
+    channel_percentiles,
     combine,
     degree_ranking,
     dwpc_scores,
@@ -333,6 +334,56 @@ def test_a_wholly_degenerate_pool_hands_nobody_a_perfect_score():
     assert len(out) == 6
     assert all(v == pytest.approx(0.5) for v in out.values())
     assert 1.0 not in out.values() and 0.0 not in out.values()
+
+
+def test_combine_cannot_diverge_from_channel_percentiles():
+    """THE DIVERGENCE THIS EXISTS TO PREVENT. The percentile arithmetic once
+    lived inside combine while scripts/diagnose_controls.py carried a second
+    copy so it could print the percentile beside the combined score. combine
+    moved to midranks; the copy did not. The diagnostic then reported a
+    percentile of 0.0182 next to a combined score of 0.4041 for a drug whose
+    only route is a single channel -- two numbers that cannot both be right,
+    printed by the script written to make the scoring checkable.
+
+    On one channel with no weighting, the combined score IS the channel
+    percentile. Asserting equality here fails the moment either side grows
+    its own arithmetic again.
+    """
+    pool = {"a": 1.0, "b": 2.0, "c": 2.0, "d": 2.0, "e": 9.0, "f": 0.5}
+    assert combine(_one_channel(pool), V) == channel_percentiles(pool)
+
+
+def test_channel_percentiles_handles_the_degenerate_shapes():
+    """Empty, single-occupant, and all-identical, since each one used to be a
+    special case written separately in each copy."""
+    assert channel_percentiles({}) == {}
+    assert channel_percentiles({"only": 4.0}) == {"only": 1.0}
+    flat = channel_percentiles({c: 7.0 for c in "abcd"})
+    assert all(v == pytest.approx(0.5) for v in flat.values())
+
+
+# ------------------------------------------- ties the midrank does NOT reach
+def test_hits_at_k_is_decided_by_dict_order_when_a_tie_straddles_k():
+    """A SEPARATE DEFECT FROM THE PERCENTILE ONE, one level up and still open.
+
+    rank() is `sorted(scores.items(), key=lambda kv: -kv[1])` with no
+    tiebreak, and Python's sort is stable, so equal scores come out in
+    insertion order. hits_at_k reads ranked[:k]. Where a tie block straddles
+    k, which members land inside the cut is decided by insertion order rather
+    than by any score -- so Hits@k, MRR and lift are reproducible for one
+    dict and not properties of the graph.
+
+    This test documents the defect rather than fixing it: the fix is to
+    report Hits@k as the range it could take, and that changes every
+    published metric, so it waits on the measurement.
+    """
+    scores_a = {"hit": 5.0, "miss1": 5.0, "miss2": 5.0, "low": 1.0}
+    scores_b = {"miss1": 5.0, "miss2": 5.0, "hit": 5.0, "low": 1.0}
+    pos = {"hit"}
+    assert hits_at_k(rank(scores_a), pos, 1) == 1
+    assert hits_at_k(rank(scores_b), pos, 1) == 0
+    assert mrr(rank(scores_a), pos) == pytest.approx(1.0)
+    assert mrr(rank(scores_b), pos) == pytest.approx(1 / 3)
 
 
 def test_ties_are_merged_only_when_exactly_equal():

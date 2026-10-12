@@ -250,10 +250,15 @@ def load(results: Path, virus: str, section: str = "cross_sectional",
     """
     doc = json.loads(Path(results).read_text())
     sec = doc.get(SECTION_ALIASES.get(section, section)) or {}
-    # hard_negatives.run keys its output by the virus's DISPLAY LABEL, taken
-    # from node properties -- not by the taxon CURIE. Accept either, because a
-    # caller holding "NCBITaxon:2697049" is not wrong and a silent empty
-    # result is the worst possible answer to a key mismatch.
+    # A STALE PARAGRAPH ONCE STOOD HERE saying "Accept either, because a
+    # caller holding a CURIE is not wrong and a silent empty result is the
+    # worst possible answer to a key mismatch." It described an intention,
+    # not this function: the paragraph below is the behaviour, and the two
+    # read as one until you traced the code. run_baselines then passed a
+    # CURIE without node_labels, got an empty calibration, and reported it as
+    # "NO channel was evaluable ... Not evaluated: ." -- a verdict on
+    # measurements it had never read. Callers must translate; the miss is
+    # theirs to report with available_viruses().
     # hard_negatives.run keys its output by the virus's DISPLAY LABEL, taken
     # from node properties -- not by the taxon CURIE. A CURIE cannot be
     # translated by string surgery, because "NCBITaxon:2697049" and
