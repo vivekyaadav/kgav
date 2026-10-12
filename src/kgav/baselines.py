@@ -323,7 +323,104 @@ def metapath_reach(g: Graph, metapaths: dict,
     return out
 
 
-def channel_percentiles(pool: dict[str, float]) -> dict[str, float]:
+# Potency fields in FIXED PRECEDENCE, never chosen by value. selectivity.py
+# records what choosing by value costs: "Taking the worst ratio defamed
+# nirmatrelvir (SI 1.8) and remdesivir (0.9). Taking the best exonerated
+# chloroquine (17.7) and hydroxychloroquine (21.2). Both were the same error
+# -- selecting a study by its answer." So the FIELD is picked by this order
+# and only then is a value read. ec50_nm is absent deliberately: it is a
+# cellular readout, and chembl.py files cellular rows on the organism rather
+# than the protein.
+POTENCY_PRECEDENCE = ("ic50_nm", "ki_nm", "kd_nm")
+
+# A relation in this set is a BOUND, not a measurement. chembl.py's rule:
+# "IC50 > 10000 nM is a NEGATIVE result -- the compound was measured and
+# found inactive -- and coercing it to a potency number inverts its meaning."
+CENSORED_RELATIONS = frozenset({">", "<", ">=", "<=", "~"})
+
+
+def potency_key(edge: dict) -> tuple[float, str] | None:
+    """(pX, field) for one INHIBITS edge, or None if it carries no measurement.
+
+    pX is the standard 9 - log10(nM), a unit conversion rather than a fitted
+    constant: 75 nM becomes 7.125, 7,280 nM becomes 5.138. Higher is more
+    potent.
+
+    None is returned for a censored bound and for an edge with no potency
+    field at all, and the two are NOT distinguished here because neither can
+    order anything. A caller that needs the difference counts the relations
+    itself.
+    """
+    q = edge.get("qualifiers") or {}
+    if q.get("relation") in CENSORED_RELATIONS:
+        return None
+    for field in POTENCY_PRECEDENCE:
+        v = q.get(field)
+        if v is None:
+            continue
+        try:
+            v = float(v)
+        except (TypeError, ValueError):
+            continue
+        if v <= 0:                      # the schema permits 0; log10 does not
+            continue
+        return 9.0 - math.log10(v), field
+    return None
+
+
+def potency_tiebreak(g: Graph, virus: str, path: list,
+                     constraints: dict | None = None
+                     ) -> tuple[dict[str, float], Counter]:
+    """{drug: pX} over the INHIBITS edges this metapath actually walks.
+
+    Only edges to a protein with an onward route to `virus` count, and the
+    metapath's own qualifier constraints are honoured, so this keys on the
+    evidence the channel uses rather than on every INHIBITS edge in the
+    graph.
+
+    WHERE SEVERAL EXACT VALUES EXIST THE WORST IS KEPT -- the least potent,
+    the lowest pX. That is selectivity.py's rule for the same situation ("among
+    several exact measurements the WORST is kept, since a compound shown
+    cytotoxic in a real measurement is cytotoxic"), and it is the direction
+    that cannot flatter a candidate.
+
+    Returns the map and a Counter of which field each drug was keyed on, so
+    prediction P5 -- that a drug ordered on its Ki is not strictly comparable
+    to one ordered on its IC50 -- can be sized rather than assumed small.
+    """
+    want = (constraints or {}).get("INHIBITS.target_resolution")
+    reaching = set()
+    for prot in g.nodes:
+        if g.klass(prot) != "Protein" or not g.is_viral(prot):
+            continue
+        for gene, _e in g.neighbours("ENCODED_BY", prot):
+            for tax, _e2 in g.neighbours("BELONGS_TO", gene):
+                if tax == virus:
+                    reaching.add(prot)
+    keys: dict[str, float] = {}
+    fields: Counter = Counter()
+    for drug in g.drugs():
+        best: tuple[float, str] | None = None
+        for nbr, edge in g.neighbours("INHIBITS", drug):
+            if nbr not in reaching:
+                continue
+            if want is not None and (edge.get("qualifiers") or {}).get(
+                    "target_resolution") != want:
+                continue
+            got = potency_key(edge)
+            if got is None:
+                continue
+            if best is None or got[0] < best[0]:   # worst = least potent
+                best = got
+        if best is not None:
+            keys[drug] = best[0]
+            fields[best[1]] += 1
+    return keys, fields
+
+
+def channel_percentiles(pool: dict[str, float],
+                        tiebreak: dict[str, float] | None = None
+                        ) -> dict[str, float]:
     """Percentile rank within one channel's pool, ties taking their midrank.
 
     THE ONE IMPLEMENTATION. This arithmetic used to live inside combine, and
@@ -373,15 +470,47 @@ def channel_percentiles(pool: dict[str, float]) -> dict[str, float]:
         j = i
         while j + 1 < len(ordered) and ordered[j + 1][1] == ordered[i][1]:
             j += 1
-        pct = ((i + j) / 2) / n              # midrank of positions i..j
-        for drug, _v in ordered[i:j + 1]:
-            out[drug] = pct
+        mid = ((i + j) / 2) / n              # midrank of positions i..j
+        block = [d for d, _v in ordered[i:j + 1]]
+        keyed = [d for d in block if tiebreak and d in tiebreak]
+        if len(keyed) < 2:
+            # Nothing to order by -- one value cannot rank a block, and no
+            # value certainly cannot. Everyone keeps the midrank.
+            for drug in block:
+                out[drug] = mid
+        else:
+            # A DRUG WITH NO KEY KEEPS THE SCORE IT ALREADY HAS: the block's
+            # midrank. So this is a strict refinement -- no imputation
+            # decides anything, and "unmeasured" is never read as "weak",
+            # which is the error chembl.py refuses when it declines to
+            # coerce a censored bound into a number.
+            keyed_set = set(keyed)
+            for drug in block:
+                if drug not in keyed_set:
+                    out[drug] = mid
+            # The keyed drugs spread across THE BLOCK'S OWN SPAN, i..j, so
+            # the block occupies exactly the percentile range it did before
+            # and nothing outside it moves. Ties in the key itself take their
+            # own midrank, by the same rule one level up.
+            keyed.sort(key=lambda d: tiebreak[d])
+            span, last = j - i, len(keyed) - 1
+            r = 0
+            while r <= last:
+                t = r
+                while t + 1 <= last and tiebreak[keyed[t + 1]] == tiebreak[keyed[r]]:
+                    t += 1
+                pos = i + span * ((r + t) / 2) / last
+                for drug in keyed[r:t + 1]:
+                    out[drug] = pos / n
+                r = t + 1
         i = j + 1
     return out
 
 
 def combine(dwpc: dict[str, dict[str, dict[str, float]]], virus: str,
-            normalize: bool = True, calibration=None) -> dict[str, float]:
+            normalize: bool = True, calibration=None,
+            tiebreak: dict[str, dict[str, float]] | None = None
+            ) -> dict[str, float]:
     """Combine DWPC across metapaths for one virus.
 
     RAW SUMMATION IS WRONG and was the first version of this function. The
@@ -450,7 +579,13 @@ def combine(dwpc: dict[str, dict[str, dict[str, float]]], virus: str,
         # 1.0 for it: that drug IS the top of its pool, and dropping it would
         # silently discard every drug whose only route is a rare metapath.
         w = weights[name] if weights is not None else 1.0
-        for drug, pct in channel_percentiles(pool).items():
+        # PER CHANNEL, because a tiebreak is a claim about one kind of
+        # evidence. Potency against a viral protein orders M1; it says
+        # nothing about M2-M6, which are host channels, and nothing about M7,
+        # which borrows a NEIGHBOUR's target so the drug's own potency is not
+        # what that path asserts.
+        keys = (tiebreak or {}).get(name)
+        for drug, pct in channel_percentiles(pool, keys).items():
             best[drug] = max(best[drug], pct * w)
     return dict(best)
 
