@@ -25,6 +25,8 @@ from pathlib import Path
 from typing import Any
 
 from kgav.agent import guards
+from kgav.baselines import qualifier_ok
+from kgav.schema import load_schema
 
 MAX_NEIGHBOURS = 50
 MAX_PATHS = 20
@@ -81,6 +83,21 @@ class GraphTools:
         # never to another virus's numbers.
         self._calibrations: dict[str, object] = {}
         self._pending_calibration = calibration
+        # METAPATH CONSTRAINTS, READ FROM THE SCHEMA RATHER THAN RESTATED.
+        #
+        # _find_paths enumerates M1 and M2 as its own loops. M1 applied NO
+        # constraints and M2 a hand-copied one, so a constraint added to the
+        # schema reached dwpc_scores -- which passes mp.get("constraints") --
+        # and never reached here. When M1 gained
+        # INHIBITS.target_resolution=chain_from_assay_description, the scorer
+        # stopped walking parent_unresolved edges and the agent carried on
+        # explaining routes through them: it could narrate a mechanism the
+        # ranking refuses. Same shape as the agent holding one calibration
+        # for every virus -- a fact declared in one place and consumed in
+        # one of two.
+        self._constraints: dict[str, dict] = {
+            name: (mp.get("constraints") or {})
+            for name, mp in load_schema().metapaths.items()}
         self.nodes: dict[str, dict] = {}
         self.edges: list[dict] = []
         self.out: dict[tuple[str, str], list[dict]] = defaultdict(list)
@@ -427,23 +444,41 @@ class GraphTools:
         """Enumerate metapath instances. Bounded and non-revisiting."""
         found: list[tuple[str, list[dict]]] = []
 
+        # The constraints come from the SCHEMA, via baselines.qualifier_ok --
+        # the same function dwpc_scores applies -- so a constraint declared
+        # once is honoured by both the scorer and the agent. M2's dependency
+        # check used to be written out here by hand; it is the schema's
+        # HOST_FACTOR_FOR.direction=dependency and is now read from there.
+        c1, c2 = self._constraints.get("M1"), self._constraints.get("M2")
+
         # M1: compound -> viral protein -> gene -> virus
         for e1 in self.out.get(("INHIBITS", compound), []):
+            if not qualifier_ok(e1, "INHIBITS", c1):
+                continue
             for e2 in self.out.get(("ENCODED_BY", e1["object"]), []):
+                if not qualifier_ok(e2, "ENCODED_BY", c1):
+                    continue
                 for e3 in self.out.get(("BELONGS_TO", e2["object"]), []):
-                    if e3["object"] == virus:
-                        found.append(("M1 direct-acting", [e1, e2, e3]))
-                        if len(found) >= limit:
-                            return found
+                    if e3["object"] != virus:
+                        continue
+                    if not qualifier_ok(e3, "BELONGS_TO", c1):
+                        continue
+                    found.append(("M1 direct-acting", [e1, e2, e3]))
+                    if len(found) >= limit:
+                        return found
 
         # M2: compound -> host protein -> virus (dependency only)
         for e1 in self.out.get(("TARGETS", compound), []):
+            if not qualifier_ok(e1, "TARGETS", c2):
+                continue
             for e2 in self.out.get(("HOST_FACTOR_FOR", e1["object"]), []):
-                q = e2.get("qualifiers") or {}
-                if e2["object"] == virus and q.get("direction") == "dependency":
-                    found.append(("M2 host-directed", [e1, e2]))
-                    if len(found) >= limit:
-                        return found
+                if e2["object"] != virus:
+                    continue
+                if not qualifier_ok(e2, "HOST_FACTOR_FOR", c2):
+                    continue
+                found.append(("M2 host-directed", [e1, e2]))
+                if len(found) >= limit:
+                    return found
         return found
 
     def triage(self, compounds: list[str], virus: str) -> ToolResult:

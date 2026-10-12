@@ -44,6 +44,15 @@ def graph(tmp_path):
     ]
 
     def e(s, p, o, q=None, pmids=None):
+        # chembl.py sets target_resolution on EVERY INHIBITS edge, both
+        # branches, and the schema requires it -- so M1 constrains on it and
+        # qualifier_ok reads a missing qualifier as a failed match. A fixture
+        # omitting it is not a simpler fixture; it is an edge the
+        # direct-acting channel refuses to walk, in the scorer and now in the
+        # agent too.
+        if p == "INHIBITS":
+            q = dict(q or {})
+            q.setdefault("target_resolution", "chain_from_assay_description")
         d = {"subject": s, "predicate": p, "object": o, "qualifiers": q or {},
              "primary_knowledge_source": "infores:chembl", "evidence_tier": 1,
              "first_asserted_date": "2021-03-04"}
@@ -254,6 +263,101 @@ def test_triage_reports_compounds_it_could_not_rank(real_tools):
     assert any("not in this graph" in w for w in r.warnings)
 
 
+# ------------------------------- the agent and the scorer must walk one graph
+@pytest.fixture
+def resolution_release(tmp_path):
+    """One resolved edge and one unresolved, both reaching the virus.
+
+    The real asymmetry on v0.1: nirmatrelvir's activity resolved to the
+    mature nsp5 chain, pomotrelvir's stayed on the parent polyprotein as
+    parent_unresolved. M1 requires the former.
+    """
+    V = "NCBITaxon:2697049"
+    nodes = [
+        {"id": V, "class": "OrganismTaxon",
+         "properties": {"label": "SARS-CoV-2", "family": "Coronaviridae",
+                        "baltimore_class": "IV", "is_enveloped": True}},
+        {"id": "UniProtKB:CHAIN", "class": "Protein",
+         "properties": {"taxon_id": V, "is_viral": True,
+                        "protein_family": "nsp5", "sequence_hash": "h",
+                        "reviewed": True}},
+        {"id": "UniProtKB:PARENT", "class": "Protein",
+         "properties": {"taxon_id": V, "is_viral": True,
+                        "protein_family": "pp1ab", "sequence_hash": "h2",
+                        "reviewed": True}},
+        {"id": "KGAV:GENE_rep", "class": "Gene",
+         "properties": {"symbol": "rep", "taxon_id": V, "is_viral": True}},
+    ]
+    for d in ("INCHIKEY:RESOLVED", "INCHIKEY:VAGUE"):
+        nodes.append({"id": d, "class": "SmallMolecule",
+                      "properties": {"smiles": "C", "inchikey_skel": d[-6:],
+                                     "chembl_id": "CH" + d[-3:],
+                                     "salt_collapsed": False,
+                                     "stereo_collapsed": False}})
+
+    def e(s_, p_, o_, q=None):
+        return {"subject": s_, "predicate": p_, "object": o_,
+                "qualifiers": dict(q or {}),
+                "primary_knowledge_source": "infores:chembl",
+                "evidence_tier": 1, "first_asserted_date": "2021-03-04"}
+
+    edges = [
+        e("INCHIKEY:RESOLVED", "INHIBITS", "UniProtKB:CHAIN",
+          {"assay_type": "biochemical", "ic50_nm": 25.0,
+           "target_resolution": "chain_from_assay_description"}),
+        e("INCHIKEY:VAGUE", "INHIBITS", "UniProtKB:PARENT",
+          {"assay_type": "biochemical", "ic50_nm": 25.0,
+           "target_resolution": "parent_unresolved"}),
+        e("UniProtKB:CHAIN", "ENCODED_BY", "KGAV:GENE_rep"),
+        e("UniProtKB:PARENT", "ENCODED_BY", "KGAV:GENE_rep"),
+        e("KGAV:GENE_rep", "BELONGS_TO", V),
+    ]
+    (tmp_path / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text(
+        "\n".join(json.dumps(x) for x in edges))
+    return tmp_path
+
+
+def test_the_agent_refuses_the_route_the_scorer_refuses(resolution_release):
+    """THE DIVERGENCE THIS CLOSES. _find_paths enumerated M1 as its own loop
+    and applied no constraints, so when M1 gained
+    INHIBITS.target_resolution=chain_from_assay_description the scorer
+    stopped walking parent_unresolved edges and the agent carried on
+    explaining routes through them -- able to narrate a mechanism the ranking
+    refuses. Same shape as the agent holding one calibration for every virus:
+    a fact declared in one place and consumed in one of two.
+    """
+    from kgav.baselines import Graph, walk_metapath
+    from kgav.schema import load_schema
+    schema = load_schema()
+    m1 = schema.metapaths["M1"]
+    g = Graph.load(resolution_release,
+                   skip_predicates=schema.held_out_predicates(),
+                   symmetry=schema.symmetry())
+    t = GraphTools(resolution_release)
+    V = "NCBITaxon:2697049"
+    for drug, expected in (("INCHIKEY:RESOLVED", True),
+                           ("INCHIKEY:VAGUE", False)):
+        scorer = bool(walk_metapath(g, drug, m1["path"],
+                                    m1.get("constraints"), set()))
+        agent = any(r.startswith("M1")
+                    for r, _es in t._find_paths(drug, V, 10))
+        assert scorer is expected, f"scorer disagrees for {drug}"
+        assert agent is expected, f"agent disagrees for {drug}"
+        assert scorer == agent, f"agent and scorer diverge on {drug}"
+
+
+def test_m2s_constraint_comes_from_the_schema_not_a_hand_copy(real_tools):
+    """It was written out here as `q.get("direction") == "dependency"`. A
+    hand-copied constraint is a second copy: it happened to match, and it is
+    the mechanism by which M1's did not."""
+    t = real_tools
+    assert t._constraints["M2"] == {"HOST_FACTOR_FOR.direction": "dependency"}
+    assert t._constraints["M1"] == {
+        "INHIBITS.target_resolution": "chain_from_assay_description"}
+
+
 # -------------------------------------------- citations that hold still
 def _edges_of(release: Path) -> list[dict]:
     return [json.loads(l) for l in
@@ -359,6 +463,15 @@ def two_virus_graph(tmp_path):
     ]
 
     def e(s, p, o, q=None):
+        # chembl.py sets target_resolution on EVERY INHIBITS edge, both
+        # branches, and the schema requires it -- so M1 constrains on it and
+        # qualifier_ok reads a missing qualifier as a failed match. A fixture
+        # omitting it is not a simpler fixture; it is an edge the
+        # direct-acting channel refuses to walk, in the scorer and now in the
+        # agent too.
+        if p == "INHIBITS":
+            q = dict(q or {})
+            q.setdefault("target_resolution", "chain_from_assay_description")
         return {"subject": s, "predicate": p, "object": o, "qualifiers": q or {},
                 "primary_knowledge_source": "infores:chembl",
                 "evidence_tier": 1, "first_asserted_date": "2021-03-04"}
