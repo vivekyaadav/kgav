@@ -273,3 +273,115 @@ Keep only if P1 and P2' both hold and P3 does not trip. Claim the control
 separation and the tie structure. Claim nothing about AUC, nothing about a
 shortlist, and nothing about M1 having become evaluable — it reaches 3 of 89
 measured actives before this change and will reach 3 after.
+
+---
+
+# Verdict — NOT ADOPTED
+
+2026-10-12, measured by `scripts/diagnose_m1_potency.py` on v0.1,
+NCBITaxon:2697049. The decision rule above requires P1 and P2' both to hold.
+Both fail, so **the tie-break is not adopted**: it stays implemented and
+off, `combine` is called without it, and no published figure moves.
+
+    P1 FAILS | P2' FAILS | P3 HOLDS
+
+    distinct M1 scores        12  ->   1,385      predicted past 1,000   MET
+    largest tie block      80.8%  ->    11.8%     predicted under 5%     NOT MET
+
+    nirmatrelvir   pct 0.4041 -> 0.5855   potency rank 72.4th pctile of block
+    chloroquine    pct 0.4041 -> 0.0295   potency rank  3.6th pctile of block
+    gap +0.5560
+
+    rank corr with degree  -0.0048 -> +0.0785   delta +0.0833  (bound 0.10)
+
+    ordered on ic50_nm  2,489  93.5%
+    ordered on ki_nm      172   6.5%
+    ordered on kd_nm        1   0.0%
+
+## P1 failed on a threshold that was impossible, and that is my error
+
+The residual largest block is 356 drugs. The block holds 349 censored edges
+and 8 with no potency field: 357 drugs, 11.8% of the pool. **The residual
+block IS the unkeyed population.** By the design fixed in Amendment 1 an
+unmeasured drug keeps the block's midrank, so those 357 must stay tied and
+the largest block cannot fall below 11.8% — while P1 demanded under 5%.
+
+P1 was written before the design existed. Amendment 1 then carried it
+forward with the single remark that it "now refers to M1's distinct values
+after tie-breaking, which is the same quantity", and did not check its second
+clause against the design being adopted in the same document. That is the
+same failure as the original P2: a threshold asserted without the arithmetic.
+Twice, in two consecutive amendments.
+
+The mechanism did what it was built to do — 12 distinct values became 1,385,
+and every drug that remains tied is one the graph has no exact measurement
+for. That is not a pass. P1 as written is failed, and a threshold corrected
+after seeing the number it scores is not a threshold.
+
+## P2' failed on one of its three criteria
+
+    gap >= 0.30                     +0.5560         PASS
+    chloroquine in the bottom half  3.6th pctile    PASS
+    nirmatrelvir in the top decile  72.4th pctile   FAIL
+
+The separation is large and in the right direction: chloroquine moves from
+0.4041 to 0.0295, near the bottom of the nsp5 block, and the gap is 0.5560
+against a required 0.30. What fails is the claim that nirmatrelvir should sit
+in the top decile of nsp5 inhibitors by potency.
+
+**It does not, and it probably should not.** Its chosen field is ic50_nm = 75
+nM, and roughly 580 of the 2,084 exactly-measured nsp5 binders in ChEMBL are
+more potent than that. Nirmatrelvir did not reach the clinic by being the
+most potent Mpro inhibitor ever measured; it reached it on oral
+bioavailability and a ritonavir boost that compensates for rapid CYP3A4
+metabolism. The top-decile criterion encoded an assumption — that clinical
+success implies top-decile biochemical potency — which this measurement
+gives no reason to believe and some reason to doubt.
+
+That is an explanation, not a pass. The prediction was mine, it was wrong
+about the world, and the rule it feeds says do not adopt.
+
+## The precedence question, raised with its timing declared
+
+nirmatrelvir carries `ic50_nm=75`, `ki_nm=3` and `kd_nm=190`. The fixed
+precedence reads ic50 and lands at the 72.4th percentile. Reading Ki would
+read 3 nM and rank it far higher, and there is a real pharmacological
+argument for Ki: for a competitive inhibitor it is a concentration-
+independent constant, while an IC50 depends on substrate concentration and
+assay conditions and is therefore less comparable across sources.
+
+**That argument is being raised after seeing that it would flip the
+verdict**, which is exactly the position Amendment 1 quoted selectivity.py
+against — "selecting a study by its answer". It is recorded here and not
+acted on. P5 also shows the question is narrow: 93.5% of keyed drugs are
+ordered on ic50 and 6.5% on ki, so the precedence changes almost nothing
+except for the one compound whose number has now been seen.
+
+If the precedence is to change it must be decided on pharmacological grounds
+and then tested against evidence this run has not already shown.
+
+## P3 held, with 83% of its budget spent
+
+Rank correlation with node degree moved from -0.0048 to +0.0785, a delta of
++0.0833 against a bound of 0.10. It held, and it nearly did not. Potency
+exists preferentially for well-studied compounds and this is that effect,
+measured: four fifths of the allowance, from a change that only reorders
+within blocks. Any future design that reorders ACROSS blocks should expect
+to breach it.
+
+## What would be evidence, if this is pursued
+
+Not a re-score of this run. The controls in the block are n=2, and both
+their numbers have now been seen, so nothing further can be concluded from
+them.
+
+The available independent test uses the held-out labels: within the
+2,441-drug block, do the measured ACTIVES sit higher by potency rank than
+the measured INACTIVES? There are 2,020 compounds measured active against
+this virus and 10,956 measured inactive, so the n is large, the comparison
+does not depend on anyone's beliefs about two compounds, and it asks the
+question that matters — whether potency rank carries information about
+antiviral activity at all, inside the population the tie-break reorders.
+
+That test must be pre-registered before it is run, in a new section, with
+its own threshold and the arithmetic done first.
