@@ -62,7 +62,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from kgav.baselines import Graph, combine, degree_ranking, dwpc_scores, rank
+from kgav.baselines import Graph, channel_percentiles, combine, degree_ranking, dwpc_scores, rank
+from kgav.labels import build_labels
 from kgav.schema import load_schema
 
 
@@ -79,6 +80,42 @@ def _run_baselines():
     sys.modules[spec.name] = m
     spec.loader.exec_module(m)
     return m
+
+
+def hits_range(scores: dict[str, float], positives: set[str], k: int):
+    """The range Hits@k can take over tie orderings, and the tie at the cut.
+
+    rank() is `sorted(scores.items(), key=lambda kv: -kv[1])` with NO
+    tiebreak, and Python's sort is stable, so equal scores come out in dict
+    insertion order. hits_at_k then reads ranked[:k]. When a tie block
+    STRADDLES position k, which of its members fall inside the cut is decided
+    by insertion order rather than by any score -- so Hits@k, MRR and lift
+    are reproducible for one dict and not a property of the graph.
+
+    Returned as (low, high, contested, contested_positives): low is the count
+    if every tied non-positive is placed first, high if every tied positive
+    is. low == high means the cut lands in no tie and the metric is a
+    measurement. A wide interval means the published number is one draw from
+    it.
+    """
+    ordered = sorted(scores.items(), key=lambda kv: -kv[1])
+    if len(ordered) <= k:
+        n = sum(1 for d, _v in ordered if d in positives)
+        return n, n, 0, 0
+    cut = ordered[k - 1][1]
+    inside = [d for d, v in ordered if v > cut]
+    contested = [d for d, v in ordered if v == cut]
+    c_pos = sum(1 for d in contested if d in positives)
+    fixed = sum(1 for d in inside if d in positives)
+    slots = k - len(inside)
+    low = fixed + max(0, slots - (len(contested) - c_pos))
+    high = fixed + min(slots, c_pos)
+    # A block of ONE is not a tie: the drug at the cut is simply the kth. It
+    # is reported as 0 contested so the column does not imply an ambiguity
+    # that is not there.
+    if len(contested) == 1:
+        return low, high, 0, 0
+    return low, high, len(contested), c_pos
 
 
 def main(argv=None) -> int:
@@ -110,10 +147,12 @@ def main(argv=None) -> int:
     deg = degree_ranking(g)
     deg_rank = {d: i for i, (d, _v) in enumerate(rank(deg), 1)}
 
-    # Percentile exactly as combine computes it: pool sorted ASCENDING, so the
-    # lowest-scoring drug in a pool gets 0.0 and the highest gets 1.0. A drug
-    # whose only route is a heavily-penalised one therefore scores near zero,
-    # and `best` starts at 0.0 -- nothing lifts it.
+    # baselines.channel_percentiles, NOT a second copy of its arithmetic.
+    # This script used to reimplement it, and when combine moved to midranks
+    # the copy did not: it printed a percentile of 0.0182 beside a combined
+    # score of 0.4041 for a drug whose only route is one channel -- two
+    # numbers that cannot both be right, from the script written to make the
+    # scoring checkable. There is now one implementation and nothing to sync.
     pools: dict[str, dict[str, float]] = {}
     pcts: dict[str, dict[str, float]] = {}
     for name, per_drug in dwpc.items():
@@ -122,14 +161,24 @@ def main(argv=None) -> int:
         if not pool:
             continue
         pools[name] = pool
-        ordered = sorted(pool.items(), key=lambda kv: kv[1])
-        n = len(ordered) - 1
-        pcts[name] = ({ordered[0][0]: 1.0} if n <= 0 else
-                      {d: i / n for i, (d, _v) in enumerate(ordered)})
+        pcts[name] = channel_percentiles(pool)
 
+    # HOW MUCH OF EACH CHANNEL IS ONE NUMBER. DWPC is topology only, so every
+    # drug whose sole route is the same single node earns the same product of
+    # the same degrees. If most of a pool is one value the channel is not
+    # ranking, it is grouping -- and the midrank every member then shares is
+    # the honest score, not a defect. This is the measurement that decides
+    # whether potency has to enter the direct-acting channel.
     print(f"channel pools for {args.virus}")
+    print(f"  {'chan':<6}{'drugs':>8}{'distinct':>10}{'largest tie':>13}"
+          f"{'% of pool':>11}{'% in any tie':>14}")
     for name in sorted(pools):
-        print(f"  {name:<6} {len(pools[name]):>6,} drugs reach this virus")
+        vals = Counter(pools[name].values())
+        _big_val, big_n = vals.most_common(1)[0]
+        tied = sum(c for c in vals.values() if c > 1)
+        size = len(pools[name])
+        print(f"  {name:<6}{size:>8,}{len(vals):>10,}{big_n:>13,}"
+              f"{100 * big_n / size:>10.1f}%{100 * tied / size:>13.1f}%")
 
     names = rb.name_index(g, args.db)
     if not names:
@@ -229,6 +278,34 @@ def main(argv=None) -> int:
     for c in sorted(by_count):
         rs = sorted(by_count[c])
         print(f"  {c:>9}{len(rs):>9,}{rs[0]:>11,}{rs[len(rs) // 2]:>13,}")
+
+    # ------------------------------------- is the metric a measurement?
+    print()
+    print("=" * 78)
+    print("IS Hits@k A MEASUREMENT, OR AN ARTIFACT OF TIE ORDER?")
+    print("=" * 78)
+    print("""  rank() sorts by score with NO tiebreak and Python's sort is stable, so
+  equal scores emerge in dict insertion order; hits_at_k then takes
+  ranked[:k]. Where a tie block straddles the cut at k, which members fall
+  inside it is decided by insertion order and not by any score. The range
+  below is what Hits@k could be over tie orderings: low places every tied
+  NON-positive first, high every tied positive. low == high means the cut
+  lands in no tie and the number is real.
+""")
+    labels = build_labels(args.release)
+    positives = labels.positives.get(args.virus, set())
+    print(f"  {len(positives):,} compounds measured active against this virus")
+    print(f"\n  {'ranking':<10}{'k':>5}{'Hits@k range':>16}{'tied at cut':>13}"
+          f"{'of which pos':>14}")
+    rankings = {"COMBINED": scores}
+    for name in sorted(pools):
+        rankings[name] = pools[name]
+    for rname, sc in rankings.items():
+        for k in (10, 50, 100):
+            lo, hi, nc, npos = hits_range(sc, positives, k)
+            flag = "" if lo == hi else "   <- NOT DETERMINED"
+            print(f"  {rname:<10}{k:>5}{f'{lo} - {hi}':>16}{nc:>13,}"
+                  f"{npos:>14,}{flag}")
 
     print("""
   HOW TO READ THIS

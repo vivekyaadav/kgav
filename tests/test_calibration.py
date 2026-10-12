@@ -368,3 +368,66 @@ def test_the_three_modes_are_the_declared_ones(tmp_path):
                               "cross_sectional")
     for m in (rb.dwpc_mode(None), rb.dwpc_mode(cal)):
         assert m in rb.DWPC_MODES
+
+
+# ------------------------------- a key miss is not a measured refusal
+class _FakeGraph:
+    """Only what virus_labels reads: nodes with a label property."""
+    def __init__(self, mapping):
+        self.nodes = {curie: {"class": "OrganismTaxon",
+                              "properties": {"label": lab}}
+                      for curie, lab in mapping.items()}
+
+    def viruses(self):
+        return list(self.nodes)
+
+
+def test_virus_labels_reproduces_the_key_hard_negatives_writes():
+    """hard_negatives.run writes out[label] where label comes from the node's
+    own `label` property. A second rule for deriving the same key would be a
+    second chance to get it wrong."""
+    rb = _run_baselines()
+    g = _FakeGraph({V: LABEL, "NCBITaxon:694009": "SARS-CoV"})
+    assert rb.virus_labels(g) == {V: LABEL, "NCBITaxon:694009": "SARS-CoV"}
+
+
+def test_a_curie_resolves_once_the_labels_are_supplied(tmp_path):
+    """calibration.load says a CURIE "cannot be translated by string
+    surgery", so the lookup misses unless node_labels is supplied. The first
+    version of run_baselines' wiring passed the CURIE alone."""
+    rb = _run_baselines()
+    path = _results(tmp_path, MEASURED)
+    cal = rb.load_calibration(True, path, V, "cross_sectional",
+                              {V: LABEL})
+    assert cal.channels, "the CURIE should resolve via node_labels"
+    assert rb.dwpc_mode(cal) == "refused"       # measured, and now earned
+
+
+def test_a_key_miss_is_raised_rather_than_reported_as_a_refusal(tmp_path):
+    """THE BUG THIS PINS. Passing the CURIE with no translation returned a
+    calibration with ZERO channels, can_rank() was false because there was
+    nothing to rank with, and the script printed "NO channel was evaluable
+    ... Not evaluated: ." -- a verdict on every channel having been measured
+    and failed, with an empty list where the channels should be, from a file
+    never read for that key. It agreed with the truth on this release, which
+    is what made it look right.
+    """
+    rb = _run_baselines()
+    path = _results(tmp_path, MEASURED)
+    with pytest.raises(LookupError) as exc:
+        rb.load_calibration(True, path, V, "cross_sectional", node_labels=None)
+    assert "KEY MISS" in str(exc.value)
+    assert LABEL in str(exc.value), "must say what the file does hold"
+
+
+def test_an_empty_calibration_would_otherwise_look_like_a_verdict(tmp_path):
+    """Why the guard is needed rather than relying on can_rank(): with no
+    channels, why_not() produces a sentence about all of them failing and an
+    empty list of what was not evaluated. The two lists partition the
+    channels, so both being empty means nothing was read."""
+    cal = C.load(_results(tmp_path, MEASURED), V)   # CURIE, no node_labels
+    assert cal.channels == {}
+    assert cal.evaluable() == [] and cal.not_evaluable() == []
+    assert not cal.can_rank()
+    assert "NO channel was evaluable" in cal.why_not()
+    assert "Not evaluated: ." in cal.why_not()      # the empty list, verbatim

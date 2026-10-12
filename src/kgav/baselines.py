@@ -323,6 +323,63 @@ def metapath_reach(g: Graph, metapaths: dict,
     return out
 
 
+def channel_percentiles(pool: dict[str, float]) -> dict[str, float]:
+    """Percentile rank within one channel's pool, ties taking their midrank.
+
+    THE ONE IMPLEMENTATION. This arithmetic used to live inside combine, and
+    scripts/diagnose_controls.py carried a second copy so it could show the
+    percentile beside the combined score. When combine moved to midranks the
+    copy did not, and the diagnostic printed a percentile of 0.0182 next to a
+    combined score of 0.4041 for the same drug on a single-channel route --
+    two numbers that cannot both be right, from a script written to make the
+    scoring checkable. Exported here so there is nothing to keep in sync.
+
+    TIES TAKE THEIR MIDRANK. `pct = i / n` read the POSITIONAL index, so
+    drugs holding the identical raw DWPC received different percentiles
+    according to where sorted() happened to place them -- which, for equal
+    keys, is dict insertion order. Measured on v0.1 M1 for SARS-CoV-2:
+    nirmatrelvir and chloroquine both score 0.000242, both by the one path
+    through nsp5, and were handed 0.0180 and 0.0020. nirmatrelvir's reported
+    rank of 6,432 was therefore not a measurement of anything; reinserting
+    the same drugs in another order would have moved it.
+
+    The blocks are wide because DWPC is TOPOLOGY ONLY: every drug whose sole
+    route to this virus is nsp5 traverses the same nodes and so earns the
+    same number, potency notwithstanding. That is a separate question from
+    this one; what is fixed here is that the arithmetic must not invent an
+    order it did not measure.
+
+    A single-occupant pool has no defined spread, but the drug IS the top of
+    it -- returning 0.0 would silently discard every drug whose only route is
+    a rare metapath.
+
+    Equality is exact, not within a tolerance. These ties arise from
+    identical topology -- the same product of the same degrees -- so they are
+    bit-identical by construction, and a tolerance would instead merge scores
+    that genuinely differ while adding a fitted parameter to a no-training
+    baseline. Scores separated only by floating-point association are left
+    separate, which is the conservative direction: this never merges what is
+    not identical.
+    """
+    if not pool:
+        return {}
+    ordered = sorted(pool.items(), key=lambda kv: kv[1])
+    n = len(ordered) - 1
+    if n <= 0:
+        return {ordered[0][0]: 1.0}
+    out: dict[str, float] = {}
+    i = 0
+    while i < len(ordered):
+        j = i
+        while j + 1 < len(ordered) and ordered[j + 1][1] == ordered[i][1]:
+            j += 1
+        pct = ((i + j) / 2) / n              # midrank of positions i..j
+        for drug, _v in ordered[i:j + 1]:
+            out[drug] = pct
+        i = j + 1
+    return out
+
+
 def combine(dwpc: dict[str, dict[str, dict[str, float]]], virus: str,
             normalize: bool = True, calibration=None) -> dict[str, float]:
     """Combine DWPC across metapaths for one virus.
@@ -389,48 +446,12 @@ def combine(dwpc: dict[str, dict[str, dict[str, float]]], virus: str,
         pool = {drug: by[virus] for drug, by in per_drug.items() if virus in by}
         if not pool:
             continue
-        # A single-occupant pool has no defined percentile spread, but the drug
-        # IS the top of that pool -- dropping it would silently discard every
-        # drug whose only route is a rare metapath.
+        # The single-occupant case lives in channel_percentiles, which returns
+        # 1.0 for it: that drug IS the top of its pool, and dropping it would
+        # silently discard every drug whose only route is a rare metapath.
         w = weights[name] if weights is not None else 1.0
-        if len(pool) == 1:
-            drug = next(iter(pool))
-            best[drug] = max(best[drug], 1.0 * w)
-            continue
-        ordered = sorted(pool.items(), key=lambda kv: kv[1])
-        n = len(ordered) - 1
-        # TIES GET THEIR MIDRANK. `pct = i / n` read the POSITIONAL index, so
-        # drugs holding the identical raw DWPC received different percentiles
-        # according to where sorted() happened to place them -- which, for
-        # equal keys, is dict insertion order. Measured on v0.1 M1 for
-        # SARS-CoV-2: nirmatrelvir and chloroquine both score 0.000242, both
-        # by the one path through nsp5, and were handed 0.0180 and 0.0020 --
-        # positions 55 and 6 of the same 49-wide tie block. nirmatrelvir's
-        # reported rank of 6,432 was therefore not a measurement of anything;
-        # reinserting the same drugs in another order would have moved it.
-        #
-        # The block is wide because DWPC is TOPOLOGY ONLY: every drug whose
-        # sole route to this virus is nsp5 traverses the same nodes and so
-        # earns the same number, potency notwithstanding. That is a separate
-        # question from this one; what is fixed here is that the arithmetic
-        # must not invent an order it did not measure.
-        #
-        # Equality is exact, not within a tolerance. These ties arise from
-        # identical topology -- the same product of the same degrees -- so
-        # they are bit-identical by construction, and a tolerance would
-        # instead merge scores that genuinely differ while adding a fitted
-        # parameter to a no-training baseline. Scores separated only by
-        # floating-point association are left separate, which is the
-        # conservative direction: this never merges what is not identical.
-        i = 0
-        while i < len(ordered):
-            j = i
-            while j + 1 < len(ordered) and ordered[j + 1][1] == ordered[i][1]:
-                j += 1
-            pct = ((i + j) / 2) / n          # midrank of positions i..j
-            for drug, _v in ordered[i:j + 1]:
-                best[drug] = max(best[drug], pct * w)
-            i = j + 1
+        for drug, pct in channel_percentiles(pool).items():
+            best[drug] = max(best[drug], pct * w)
     return dict(best)
 
 

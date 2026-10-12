@@ -70,14 +70,51 @@ def name_index(g: Graph, db: Path | None) -> dict[str, str]:
 DWPC_MODES = ("uncalibrated", "calibrated", "refused")
 
 
-def load_calibration(calibrated: bool, path: Path, virus: str, section: str):
+def virus_labels(g) -> dict[str, str]:
+    """taxon CURIE -> the display label hard_negatives keys its output by.
+
+    Derived exactly as hard_negatives.run derives it, from the node's own
+    `label` property, because that is the key its results file holds. A
+    second rule for producing the same key would be a second chance to get
+    it wrong.
+    """
+    return {v: ((g.nodes.get(v, {}).get("properties") or {}).get("label") or v)
+            for v in g.viruses()}
+
+
+def load_calibration(calibrated: bool, path: Path, virus: str, section: str,
+                     node_labels: dict[str, str] | None = None):
     """The Calibration to score with, or None to score uncalibrated.
 
-    Refuses rather than falling back. Asking for calibration and being handed
-    an uncalibrated order under the same column heading is the exact failure
-    the flag exists to prevent, so a missing file is fatal -- the file
-    describes one specific evaluation run and there is no default to stand in
-    for it.
+    Refuses rather than falling back, in two different ways.
+
+    A MISSING FILE is fatal: asking for calibration and being handed an
+    uncalibrated order under the same column heading is the exact failure the
+    flag exists to prevent, and the file describes one specific evaluation
+    run with no default to stand in for it.
+
+    A KEY MISS is fatal too, and this is the one the first version of this
+    function got wrong. hard_negatives keys its results by DISPLAY LABEL,
+    not by taxon CURIE, and calibration.load says plainly that a CURIE
+    "cannot be translated by string surgery" so the lookup "simply misses"
+    unless node_labels is supplied -- available_viruses() existing "so the
+    miss can be reported with what the file does hold, rather than as an
+    empty calibration that reads like an empty evaluation."
+
+    Passing the CURIE with no node_labels did exactly that. The calibration
+    came back with ZERO channels, can_rank() was false because there was
+    nothing to rank with, and run_baselines printed
+
+        DWPC RANKING REFUSED. NO channel was evaluable for NCBITaxon:2697049
+        ... every one reaches fewer than 10 of the measured actives
+        ... Not evaluated: .
+
+    -- a sentence about every channel having been measured and failed, with
+    an empty list where the channels should be, from a file that had never
+    been read for that key. The refusal happened to agree with the truth on
+    this release, which is what made it look right. So node_labels is
+    supplied, and an empty channel set is now a reported miss rather than a
+    verdict.
     """
     if not calibrated:
         return None
@@ -86,7 +123,18 @@ def load_calibration(calibrated: bool, path: Path, virus: str, section: str):
             f"--calibrated needs {path}, which does not exist. Run "
             f"scripts/hard_negatives.py first; this file describes one "
             f"specific evaluation run and there is no default to fall back on.")
-    return C.load(path, virus, section=section)
+    cal = C.load(path, virus, section=section, node_labels=node_labels)
+    if not cal.channels and not cal.refused_reason:
+        have = C.available_viruses(path, section)
+        raise LookupError(
+            f"no channels recorded for {virus!r} in {section} of "
+            f"{path.name}.\n  that file holds: "
+            f"{', '.join(have) if have else '(nothing)'}\n  protocol it "
+            f"records: {cal.protocol}\n  This is a KEY MISS, not a refusal: "
+            f"nothing was measured for this virus in this section, which is "
+            f"a different statement from every channel having been measured "
+            f"and failed.")
+    return cal
 
 
 def dwpc_mode(cal) -> str:
@@ -169,8 +217,8 @@ def main() -> int:
     # would have said.
     try:
         cal = load_calibration(args.calibrated, args.calibration,
-                               args.virus, args.section)
-    except FileNotFoundError as exc:
+                               args.virus, args.section, virus_labels(g))
+    except (FileNotFoundError, LookupError) as exc:
         sys.exit(str(exc))
     mode = dwpc_mode(cal)
 
@@ -181,8 +229,13 @@ def main() -> int:
               "channel that\n  reaches this virus, whether or not it was "
               "measured above chance.")
         if args.calibration.exists():
-            peek = C.load(args.calibration, args.virus, section=args.section)
-            if not peek.can_rank():
+            peek = C.load(args.calibration, args.virus, section=args.section,
+                          node_labels=virus_labels(g))
+            if not peek.channels:
+                print(f"  calibration on {args.calibration.name} records "
+                      f"nothing for this virus in {args.section}, so it says "
+                      f"nothing either way.")
+            elif not peek.can_rank():
                 print(f"  calibration on {args.calibration.name} would refuse "
                       f"to rank: {peek.why_not()}")
             else:
@@ -248,7 +301,11 @@ def main() -> int:
         label = next((k for k, v in names.items() if v == drug), None)
         mark = " *" if drug in positives else "  "
         print(f"{i:>3}{mark} {(label or drug)[:34]:<36} {score:.4f}  {routes}")
-    print("  * = has measured activity (was held out of traversal)")
+    # Inside the branch: on the refusal path there is no starred list for the
+    # legend to describe, and printing it under "no top-N by DWPC" claims a
+    # table that is not there.
+    if "dwpc" in ranked_all:
+        print("  * = has measured activity (was held out of traversal)")
 
     args.out.mkdir(parents=True, exist_ok=True)
     # HOW THE DWPC COLUMN WAS PRODUCED IS PART OF THE RESULT. A calibrated
