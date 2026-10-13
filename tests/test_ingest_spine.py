@@ -507,3 +507,34 @@ def test_the_register_declares_a_symbol_for_every_zika_entry_it_needs():
     assert declared == {"Q32ZE1": "POLY", "P0DXN9": "uORF"}
     assert len(set(declared.values())) == len(declared), \
         "distinct accessions must not share a symbol"
+
+
+def test_no_script_defines_its_own_emit():
+    """ONE ACCUMULATOR. ingest_spine.py carried its own `class Emit`,
+    identical to src/kgav/emit.py except that the shared one had since
+    gained a `score` parameter -- and the comment explaining why that field
+    is not called confidence. The fork missed it in silence.
+
+    Emit.node merges with `properties.update(props)`: last write wins, with
+    only a node_merged counter. That semantics decides what a repeated node
+    assignment means, and a second copy of it is a second place the rule can
+    diverge. It is not hypothetical -- the same merge is how a TargetClass
+    holding a cysteine protease and a serine protease came to take whichever
+    member was emitted last.
+
+    This is the fifth instance in this repository of one thing living in two
+    files: the percentile arithmetic, `trustworthy`, hits_range, the
+    metapath constraints, and now the accumulator itself.
+    """
+    import ast
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    offenders = []
+    for p in list((root / "scripts").glob("*.py")) + list(
+            (root / "src/kgav").rglob("*.py")):
+        if p == root / "src/kgav/emit.py":
+            continue
+        for n in ast.walk(ast.parse(p.read_text())):
+            if isinstance(n, ast.ClassDef) and n.name == "Emit":
+                offenders.append(str(p.relative_to(root)))
+    assert not offenders, f"Emit redefined outside src/kgav/emit.py: {offenders}"
