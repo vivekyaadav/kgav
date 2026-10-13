@@ -357,19 +357,50 @@ def emit_classes(em, chains: list[ResolvedChain], source: str,
     similarity layer.
     """
     stats: Counter = Counter()
+
+    def _cid(c: dict) -> str:
+        return (f"INTERPRO:{c['accession']}" if c["accession"].startswith("IPR")
+                else f"KGAV:{c['accession']}")
+
+    # RESOLVED BEFORE ANYTHING IS EMITTED, because Emit.node merges with
+    # `properties.update(props)` -- last write wins, silently, recording only
+    # a node_merged counter. So the comment below USED TO BE FALSE: a class
+    # holding a cysteine protease and a serine protease took whichever chain
+    # happened to be written last, and reversing the chain order flipped it
+    # from "serine" to "cysteine".
+    #
+    # That is the fifth insertion-order dependence found in this project, and
+    # the worst placed: catalytic_type is the field M8's gate reads. The
+    # schema warns that without that gate M8 "traverses from SARS-CoV-2 Mpro
+    # to HCV NS3 -- same superfamily, opposite nucleophile -- and recommends
+    # nirmatrelvir for hepatitis C", and those two land in the same InterPro
+    # superfamily. A gate whose value depends on emission order is not a gate.
+    #
+    # "unknown" is a declared value of the catalytic_type enum, so a mixed
+    # class is sayable rather than guessable.
+    seen: dict[str, set[str]] = {}
+    for r in chains:
+        if r.ok:
+            for c in r.classes:
+                seen.setdefault(_cid(c), set()).add(r.catalytic_type)
+    resolved = {cid: (next(iter(ts)) if len(ts) == 1 else "unknown")
+                for cid, ts in seen.items()}
+    stats["classes_mixed_catalytic_type"] = sum(
+        1 for ts in seen.values() if len(ts) > 1)
+
     for r in chains:
         if not r.ok:
             stats["chain_unresolved"] += 1
             continue
         for c in r.classes:
-            cid = f"INTERPRO:{c['accession']}" if c["accession"].startswith("IPR") \
-                else f"KGAV:{c['accession']}"
+            cid = _cid(c)
             em.node(cid, "TargetClass",
                     label=c["label"], source="interpro", level=c["level"],
-                    # A class inherits the catalytic type of its members. Where
-                    # members disagree the class is not a usable gate target
-                    # and is marked unknown rather than guessed.
-                    catalytic_type=r.catalytic_type,
+                    # A class inherits the catalytic type of its members.
+                    # Where members disagree the class is not a usable gate
+                    # target and is marked unknown rather than guessed. This
+                    # now reflects the code, which it did not before.
+                    catalytic_type=resolved[cid],
                     interpro_id=c["accession"] if c["accession"].startswith("IPR") else None)
             em.edge(r.node_id, "MEMBER_OF_CLASS", cid,
                     source=source, date=date, tier=3,
