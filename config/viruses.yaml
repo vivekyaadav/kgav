@@ -261,36 +261,44 @@ viruses:
     # the source consulted does not state either way. Replacing one unchecked
     # claim with another is not a correction.
     #
-    # WHAT IS STILL UNVERIFIED, stated rather than argued around: that
-    # P0DXN9 is specifically one of the uORFs that paper describes, and what
-    # its frame is. The Lefevre abstract names no accession and does not give
-    # the frame, and UniProt does not state the frame outright. So the
-    # accession-level identification still rests on UniProt's protein name
-    # and nothing more.
+    # AND THE SEPARATE GENE NODE WAS WRONG. Read from UniProt's own record
+    # for P0DXN9 in data/raw/proteomes/UP000054557.json.gz on 2026-10-14,
+    # every annotation evidenced ECO:0000269 against PubMed:39394194:
     #
-    # It is settleable from a file already on disk, without the network:
+    #   MISCELLANEOUS         "Product of an upstream open reading frame of
+    #                          the genome polyprotein GENE"
+    #   ALTERNATIVE PRODUCTS   events: ["Alternative initiation"]
+    #                          isoforms: P0DXN9-1 "uORF protein" (Displayed)
+    #                                    Q32ZE1-1 "Genome polyprotein"
+    #                                             (External)
+    #   MISCELLANEOUS         "The initiator methionine is coded by an
+    #                          unusual start codon CTG"
+    #   MISCELLANEOUS         "Belongs to the Zika virus African lineage
+    #                          encoding for a single uORF"
     #
-    #   python - <<'EOF'
-    #   import gzip, json
-    #   d = json.loads(gzip.open(
-    #       "data/raw/proteomes/UP000054557.json.gz").read())
-    #   for e in d["results"]:
-    #       if e["primaryAccession"] == "P0DXN9":
-    #           print(json.dumps({k: e.get(k) for k in (
-    #               "proteinDescription", "genes", "comments", "features",
-    #               "sequence")}, indent=2)[:4000])
-    #   EOF
+    # UniProt says in two independent ways that this is ONE gene: the uORF is
+    # an ORF *of the genome polyprotein gene*, and the two accessions are
+    # listed as isoforms of each other related by ALTERNATIVE INITIATION.
+    # That is a single-gene, two-products model, and the start codon comment
+    # says how -- initiation at an upstream CTG rather than at the
+    # polyprotein's AUG.
     #
-    # IF IT TURNS OUT TO BE A MAIN-ORF PRODUCT, uORF is wrong and should be
-    # REMOVED rather than merged back into POLY -- a protein with no gene is
-    # unreachable by M1, which is honest, whereas a protein on the wrong gene
-    # is a false path. Separate genes remains the right call meanwhile: a
-    # distinct ORF with its own start codon and its own product is a distinct
-    # unit whether or not the frames coincide, and merging asserts an
-    # identity nothing supports.
+    # So BOTH accessions take POLY and share one Gene node. The build will
+    # report genes=2 with Gene one lower and node_merged:Gene one higher, and
+    # that merge is now the CORRECT outcome rather than the defect an earlier
+    # commit took it for.
+    #
+    # The per-accession MECHANISM is kept, because it is what allows this to
+    # be stated explicitly rather than inferred from a single virus-wide
+    # string -- and a second flavivirus may genuinely need two symbols.
+    #
+    # STILL NOT ESTABLISHED, and not needed by anything here: the uORF's
+    # reading frame relative to the polyprotein. UniProt does not give it and
+    # the frame does not bear on the gene question, which the two annotations
+    # above settle on their own.
     gene_symbol:
       Q32ZE1: POLY
-      P0DXN9: uORF
+      P0DXN9: POLY
     # Curated AT THE SPECIES TAXON, like five of the seven coronaviruses
     # above: no isolate mapping is needed and none is declared, so the
     # validator can tell "not needed" from "forgotten". (It was one of

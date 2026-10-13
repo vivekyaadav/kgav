@@ -462,27 +462,27 @@ def test_the_chembl_join_can_reach_the_flavivirus_protease():
         f"keyed as {key}, a coronavirus protein's name"
 
 
-def test_the_declared_gene_symbol_is_per_accession_not_per_virus():
-    """REGRESSION. The first fix for Zika's genes=0 declared ONE symbol for
-    the virus and handed it to every entry lacking a gene name, so Q32ZE1 (the
-    genome polyprotein) and P0DXN9 both became POLY and shared a single Gene
-    node -- the build printed "genes=2" while Gene rose by one and
-    node_merged:Gene went 2 -> 3.
+def test_the_declared_gene_symbol_is_looked_up_per_accession():
+    """The MECHANISM, tested on a synthetic map rather than on Zika's.
 
-    P0DXN9 is UniProt's reviewed "uORF protein", function "Plays a role in
-    viral replication", and a uORF is by definition a different reading frame
-    from the polyprotein. Merging them asserted two genes are one, which is
-    the false identity this project refuses everywhere else -- it is the same
-    mistake as keying a flavivirus protease as nsp5.
+    The first fix for Zika's genes=0 declared ONE symbol for the virus and
+    handed it to every entry lacking a gene name, so the register could not
+    say different things about different accessions even where it should.
+    Per-accession lookup is what makes the claim explicit and auditable.
+
+    Zika's own two accessions now BOTH map to POLY, on UniProt's evidence --
+    see test_the_register_declares_one_gene_for_zikas_two_accessions. That is
+    a fact about Zika, not about the lookup, so it is tested there and the
+    mechanism is tested here with symbols that do differ.
     """
     from ingest_spine import _gene_symbol
 
-    declared = {"Q32ZE1": "POLY", "P0DXN9": "uORF"}
-    assert _gene_symbol({"primaryAccession": "Q32ZE1"}, declared) == "POLY"
-    assert _gene_symbol({"primaryAccession": "P0DXN9"}, declared) == "uORF"
-    assert _gene_symbol({"primaryAccession": "Q32ZE1"}, declared) \
-        != _gene_symbol({"primaryAccession": "P0DXN9"}, declared), \
-        "two reading frames must not collapse onto one gene node"
+    declared = {"ACC_A": "GENE_A", "ACC_B": "GENE_B"}
+    assert _gene_symbol({"primaryAccession": "ACC_A"}, declared) == "GENE_A"
+    assert _gene_symbol({"primaryAccession": "ACC_B"}, declared) == "GENE_B"
+    assert _gene_symbol({"primaryAccession": "ACC_A"}, declared) \
+        != _gene_symbol({"primaryAccession": "ACC_B"}, declared), \
+        "the register must be able to distinguish two accessions"
 
     # An accession the register does not name gets nothing. A protein with no
     # gene is unreachable by M1, which is honest; a protein on the wrong gene
@@ -490,23 +490,41 @@ def test_the_declared_gene_symbol_is_per_accession_not_per_virus():
     assert _gene_symbol({"primaryAccession": "P0DTG0"}, declared) is None
     # And a real UniProt gene name always wins over any declaration.
     assert _gene_symbol(
-        {"primaryAccession": "Q32ZE1",
+        {"primaryAccession": "ACC_A",
          "genes": [{"geneName": {"value": "rep"}}]}, declared) == "rep"
 
 
-def test_the_register_declares_a_symbol_for_every_zika_entry_it_needs():
-    """Both Zika accessions are named, so neither silently loses its gene.
-    Read from the register rather than hardcoded, so adding an entry to the
-    map is enough and this test does not need editing."""
+def test_the_register_declares_one_gene_for_zikas_two_accessions():
+    """ONE GENE, TWO PRODUCTS, on UniProt's own evidence.
+
+    This test used to assert the opposite -- that the two accessions must
+    NOT share a symbol -- on the reasoning that "a uORF is by definition a
+    different reading frame from the polyprotein". That reasoning was wrong
+    twice over: a uORF is defined positionally and the definition says
+    nothing about frame, and UniProt states the gene relationship outright.
+
+    Read from data/raw/proteomes/UP000054557.json.gz, every annotation
+    evidenced ECO:0000269 against PubMed:39394194:
+
+      MISCELLANEOUS        "Product of an upstream open reading frame of the
+                            genome polyprotein GENE"
+      ALTERNATIVE PRODUCTS  events ["Alternative initiation"], isoforms
+                            P0DXN9-1 "uORF protein" and Q32ZE1-1 "Genome
+                            polyprotein"
+
+    Two independent statements that this is one gene. So they share a Gene
+    node, and the node_merged:Gene an earlier commit read as a defect is the
+    correct outcome.
+    """
     import yaml
 
     cfg = yaml.safe_load(CONFIG.read_text())
     zika = next(v for v in cfg["viruses"] if v["name"] == "Zika")
     declared = zika["gene_symbol"]
     assert isinstance(declared, dict), "per accession, not one string"
-    assert declared == {"Q32ZE1": "POLY", "P0DXN9": "uORF"}
-    assert len(set(declared.values())) == len(declared), \
-        "distinct accessions must not share a symbol"
+    assert declared == {"Q32ZE1": "POLY", "P0DXN9": "POLY"}
+    assert len(set(declared.values())) == 1, \
+        "UniProt lists these as alternative-initiation isoforms of one gene"
 
 
 def test_no_script_defines_its_own_emit():
