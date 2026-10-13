@@ -385,3 +385,40 @@ antiviral activity at all, inside the population the tie-break reorders.
 
 That test must be pre-registered before it is run, in a new section, with
 its own threshold and the arithmetic done first.
+
+---
+
+# Addendum — the design cited a stale comment
+
+2026-10-14, after the verdict above. Recorded because the design was
+pre-registered and the ground under part of it moved.
+
+Amendment 1 justified keeping the WORST of several exact values like this:
+
+> The quantity is chosen by a FIXED PRECEDENCE, never by value.
+> `selectivity.py` records what choosing by value costs [...] Where several
+> exact values of the selected field exist, the WORST is kept, which is that
+> module's own rule.
+
+**It is not that module's rule.** `selectivity.py` takes the MEDIAN of its
+exact measurements, and has since a fix recorded in its own emit loop: the
+worst of 34 remdesivir measurements is an outlier that reported a licensed
+antiviral as cytotoxic at SI 0.9. `tests/test_selectivity.py` pins the
+median. What I quoted was a selection comment that had been superseded in
+the same function and never corrected, with "collect all; median chosen
+below" on the line directly beneath it.
+
+The fixed-precedence half of the rule stands, and it is the half that
+mattered: choosing the FIELD by value is the error that module documents,
+and the precedence avoids it.
+
+The aggregation half is now stated as this project's own choice rather than
+as an inherited one. The situations differ: assembly merges edges on
+(subject, predicate, object), so repeated measurements against one protein
+are already one edge, and what `potency_tiebreak` aggregates is a drug's
+DISTINCT viral targets. Taking the weakest is conservative; it is not
+selectivity.py's median rule and should not have claimed to be.
+
+Nothing is re-measured, because the verdict is unchanged: fix 3 was not
+adopted, and `combine` is still called without a tiebreak. The stale comment
+is corrected at its source and a test refuses its return.

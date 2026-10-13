@@ -391,11 +391,23 @@ def potency_tiebreak(g: Graph, virus: str, path: list,
     evidence the channel uses rather than on every INHIBITS edge in the
     graph.
 
-    WHERE SEVERAL EXACT VALUES EXIST THE WORST IS KEPT -- the least potent,
-    the lowest pX. That is selectivity.py's rule for the same situation ("among
-    several exact measurements the WORST is kept, since a compound shown
-    cytotoxic in a real measurement is cytotoxic"), and it is the direction
-    that cannot flatter a candidate.
+    WHERE A DRUG REACHES SEVERAL TARGETS THE WORST IS KEPT -- the least
+    potent, the lowest pX -- because it is the direction that cannot flatter
+    a candidate.
+
+    THAT IS THIS FUNCTION'S OWN CHOICE AND NOT AN INHERITED RULE. It was
+    written citing selectivity.py's "among several exact measurements the
+    WORST is kept", which was a stale comment: that module takes the MEDIAN,
+    because the worst of 34 remdesivir measurements is an outlier that
+    reported a licensed antiviral as cytotoxic at SI 0.9.
+
+    The two situations differ, which is why the median is not simply copied
+    here. Assembly merges edges on (subject, predicate, object), so repeated
+    measurements against ONE protein are already one edge by the time this
+    runs; what is aggregated here is a drug's DISTINCT viral targets. "Which
+    of a drug's targets should order it" is a modelling choice with no
+    precedent in this repo, and taking the weakest is the conservative one.
+    Stated as a choice rather than borrowed as authority.
 
     Returns the map and a Counter of which field each drug was keyed on, so
     prediction P5 -- that a drug ordered on its Ki is not strictly comparable
