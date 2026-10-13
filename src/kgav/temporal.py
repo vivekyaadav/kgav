@@ -42,6 +42,7 @@ from kgav.labels import (
     DEFAULT_INACTIVE_ABOVE_NM,
     classify,
 )
+from kgav.provenance import write_derived
 
 PLACEHOLDER_DATE = "1970-01-01"
 COMPUTED_SOURCES = {"infores:kgav-computed"}
@@ -292,10 +293,22 @@ def audit(split: Split, release: Path, held_out: set[str]) -> list[str]:
     return problems
 
 
-def write_split(split: Split, release: Path, out: Path) -> None:
-    """Write the training graph, keeping only nodes its edges reach."""
+def write_split(split: Split, release: Path, out: Path,
+                schema_version: str | None = None,
+                policy: dict | None = None) -> None:
+    """Write the training graph, keeping only nodes its edges reach.
+
+    STAMPED, because this directory is a release that another script reads.
+    hard_negatives.py loads it whenever it exists, and until the stamp landed
+    nothing recorded which v0.1 it was cut from -- so a rebuild of v0.1 left
+    a training graph that still looked usable, produced a temporal number
+    from a graph that no longer existed, and had that number stamped against
+    the NEW v0.1 and reported current. See provenance.write_derived.
+    """
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
+    write_derived(out, release, schema_version,
+                  cutoff=split.cutoff, **(policy or {}))
     keep = {e["subject"] for e in split.train_edges} | \
            {e["object"] for e in split.train_edges}
     nodes = []

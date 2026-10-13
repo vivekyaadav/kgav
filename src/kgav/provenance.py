@@ -185,3 +185,66 @@ def check_dir(results_dir: Path, release: Path) -> list[tuple[str, str, str]]:
         status, msg = check_file(p, release)
         out.append((p.name, status, msg))
     return out
+
+
+# --------------------------------------------------------- derived releases
+# THE HOLE THIS CLOSES. check_file compares a RESULT against a RELEASE, which
+# is the whole audit -- and temporal_split.py cuts a second release,
+# v0.1-train2021, that hard_negatives.py then reads. That derived graph
+# carried no stamp and nothing checked it, so after v0.1 was rebuilt the
+# sequence was:
+#
+#   rebuild v0.1 -> hard_negatives.py loads the OLD v0.1-train2021 (it
+#   exists, so it is used) -> write_results stamps the output against the NEW
+#   v0.1 -> check_results reports "current".
+#
+# A number computed from a graph that no longer exists, certified current by
+# the tool whose only job is to catch exactly that. Worse than the original
+# bug, which at least left the file readable as old.
+#
+# The derived release now carries a results-shaped stamp of its own, written
+# and checked through the same two functions as everything else rather than a
+# second fingerprint implementation. docs/evaluation.md calls that the fifth
+# time one calculation lived in two files; it is not becoming the sixth.
+DERIVED_STAMP_NAME = "DERIVED_FROM.json"
+
+
+def write_derived(derived_dir: Path, release: Path,
+                  schema_version: str | None = None, **policy: Any) -> None:
+    """Stamp a derived release with the release and policy that produced it.
+
+    `policy` is recorded because the three --undated protocols write to one
+    output directory, so the stamp is also the only record of WHICH split is
+    currently on disk. A consumer that reports a temporal number can now say
+    which protocol produced the graph it read.
+    """
+    write_results(Path(derived_dir) / DERIVED_STAMP_NAME, dict(policy),
+                  release, schema_version)
+
+
+def check_derived(derived_dir: Path, release: Path) -> tuple[str, str]:
+    """(status, message) for a derived release against its parent release.
+
+    Adds 'absent' to check_file's statuses. A derived release that was never
+    built is a different situation from one cut off a graph that has since
+    moved: the first needs a first run, the second needs a re-run, and a
+    caller that conflates them prints the wrong instruction.
+    """
+    derived_dir = Path(derived_dir)
+    if not derived_dir.exists():
+        return "absent", f"{derived_dir} does not exist"
+    stamp_path = derived_dir / DERIVED_STAMP_NAME
+    if not stamp_path.exists():
+        return "unstamped", (
+            f"{derived_dir} carries no {DERIVED_STAMP_NAME}, so there is no "
+            "way to tell which release it was cut from; rebuild it")
+    return check_file(stamp_path, release)
+
+
+def derived_policy(derived_dir: Path) -> dict[str, Any]:
+    """The policy recorded in a derived release's stamp, or {} if unreadable."""
+    try:
+        doc = json.loads((Path(derived_dir) / DERIVED_STAMP_NAME).read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return {k: v for k, v in doc.items() if k != PROVENANCE_KEY}

@@ -179,8 +179,12 @@ def main() -> int:
               "older graph)")
         return 1
 
-    write_split(split, args.release, args.out)
+    write_split(split, args.release, args.out, schema_version=s.version,
+                policy={"undated": args.undated,
+                        "overlap_policy": args.overlap_policy})
     print(f"\nwrote training graph -> {args.out}")
+    print(f"  stamped against {args.release.name}; "
+          f"policy undated={args.undated}, overlap={args.overlap_policy}")
 
     g = Graph.load(args.out, skip_predicates=held, symmetry=s.symmetry())
     print(f"loaded {len(g.nodes):,} nodes | {len(g.drugs()):,} drugs")
