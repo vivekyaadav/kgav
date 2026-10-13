@@ -22,10 +22,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from kgav.provenance import check_dir
+from kgav.provenance import check_derived, check_dir
 
 MARK = {"ok": "ok      ", "stale": "STALE   ",
-        "unstamped": "unstamped", "refused": "REFUSED "}
+        "unstamped": "unstamped", "refused": "REFUSED ",
+        "absent": "absent  "}
 
 
 def main() -> int:
@@ -33,6 +34,14 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("results_dir", type=Path)
     ap.add_argument("--release", type=Path, default=root / "data/releases/v0.1")
+    # AUDIT THE DERIVED RELEASE TOO. temporal_split.py cuts v0.1-train2021
+    # from v0.1 and hard_negatives.py reads it, so it sits in the dependency
+    # chain of a results file while being invisible to an audit that only
+    # walked data/results. A stale derived release produces a fresh-looking
+    # result: see provenance.write_derived.
+    ap.add_argument("--derived", type=Path, action="append", default=None,
+                    help="a release cut from --release (repeatable). "
+                         "Defaults to data/releases/v0.1-train2021.")
     ap.add_argument("--strict", action="store_true",
                     help="treat an unstamped file as a failure; a file with no "
                          "provenance is the case that went undetected")
@@ -45,6 +54,9 @@ def main() -> int:
         print(f"no release at {args.release}", file=sys.stderr)
         return 2
 
+    derived = args.derived if args.derived is not None \
+        else [root / "data/releases/v0.1-train2021"]
+
     rows = check_dir(args.results_dir, args.release)
     if not rows:
         print(f"no results files in {args.results_dir}")
@@ -55,6 +67,19 @@ def main() -> int:
         print(f"  {MARK[status]}  {name}")
         if status != "ok":
             print(f"            {msg}")
+
+    # Reported separately and counted separately: a derived release is not a
+    # result, and folding it into the results tally would change a number
+    # that docs/evaluation.md quotes.
+    derived_rows = [(Path(d).name, *check_derived(d, args.release))
+                    for d in derived]
+    if derived_rows:
+        print(f"\nderived releases cut from {args.release.name}:")
+        for name, status, msg in derived_rows:
+            print(f"  {MARK[status]}  {name}")
+            if status != "ok":
+                print(f"            {msg}")
+    stale_derived = [r for r in derived_rows if r[1] in ("stale", "unstamped")]
 
     stale = [r for r in rows if r[1] == "stale"]
     unstamped = [r for r in rows if r[1] == "unstamped"]
@@ -77,7 +102,18 @@ def main() -> int:
         print("\nUnstamped files predate provenance recording. They cannot be "
               "verified either\nway; regenerate them to make them checkable. "
               "Pass --strict to fail on these.")
-    return 1 if (stale or (unstamped and args.strict)) else 0
+    if stale_derived:
+        # A FAILURE even when every results file matched, because this is the
+        # state that produces a fresh-looking stale number next time
+        # hard_negatives.py runs. It is caught here instead of after the
+        # number is written.
+        print("\nA derived release that cannot be shown to match this graph "
+              "is read by\nhard_negatives.py, whose output is then stamped "
+              "against the CURRENT release --\nso the unverifiable input "
+              "would be certified current. Re-cut it with\ntemporal_split.py. "
+              "(unstamped means it predates the stamp, not that it is known "
+              "wrong;\neither way nothing can attribute it to a graph.)")
+    return 1 if (stale or stale_derived or (unstamped and args.strict)) else 0
 
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@ from kgav.baselines import (
     metapath_reach,
 )
 from kgav.labels import build_labels, evaluate_against_negatives
-from kgav.provenance import write_results
+from kgav.provenance import check_derived, derived_policy, write_results
 from kgav.schema import load_schema
 
 MIN_CLASS_SIZE = 10
@@ -243,7 +243,22 @@ def main() -> int:
     # it, so the cross-sectional metapath reach never reached the results file.
     temporal: dict = {}
     temporal_reach: dict = {}
-    if args.train.exists():
+    # THE TRAINING GRAPH IS A RELEASE, AND IT WAS NEVER CHECKED. `exists()`
+    # was the whole test, so after v0.1 was rebuilt this branch read a split
+    # cut from the previous v0.1, computed a temporal AUC from it, and handed
+    # the number to write_results -- which stamped it against the NEW v0.1.
+    # check_results then reported the file current. The one audit built to
+    # catch a result computed from a vanished graph certified this one.
+    #
+    # SKIPPED, NOT REFUSED. The cross-sectional column above is already
+    # computed and is unaffected by the training graph, so refusing the whole
+    # run would discard a valid result over an optional second column. The
+    # file records WHY the column is missing, which is the same principle as
+    # write_refusal: absent numbers with a stated reason, never numbers from
+    # a graph nobody can name.
+    train_status, train_msg = check_derived(args.train, args.release)
+    temporal_skipped = None
+    if train_status == "ok":
         print("\n" + "=" * 66)
         print(f"TEMPORAL: pre-{args.cutoff} graph, post-{args.cutoff} measurements")
         print("=" * 66)
@@ -274,7 +289,20 @@ def main() -> int:
         temporal, temporal_reach = run(g_train, schema, test_labels,
                                        f"post-{args.cutoff}")
     else:
-        print(f"\n{args.train} not found -- run temporal_split.py first")
+        temporal_skipped = {"status": train_status, "reason": train_msg,
+                            "train": str(args.train)}
+        print("\n" + "=" * 66)
+        print("TEMPORAL: SKIPPED -- no training graph this release can vouch for")
+        print("=" * 66)
+        print(f"  {train_msg}")
+        if train_status == "absent":
+            print("  run: python scripts/temporal_split.py "
+                  f"--cutoff {args.cutoff} --undated include")
+        else:
+            print("  the split on disk was cut from another graph. Re-cut it:")
+            print("  run: python scripts/temporal_split.py "
+                  f"--cutoff {args.cutoff} --undated include")
+        print("  (the cross-sectional column above is unaffected and stands)")
 
     args.results.mkdir(parents=True, exist_ok=True)
     write_results(args.results / "hard_negatives.json",
@@ -292,6 +320,14 @@ def main() -> int:
                    "publication_disjoint": bool(args.publication_disjoint),
                    "label_source": sorted(label_sources) if label_sources else None,
                    "label_stats": dict(all_labels.stats),
+                   # WHICH SPLIT THE TEMPORAL COLUMN CAME FROM, or why there
+                   # is no temporal column. Both were previously unrecorded:
+                   # a file with an empty "temporal" was indistinguishable
+                   # from one where the protocol had no training graph, and a
+                   # file WITH one did not say which of the three --undated
+                   # protocols cut it.
+                   "train_split": derived_policy(args.train) or None,
+                   "temporal_skipped": temporal_skipped,
                    "cross_sectional": cross, "temporal": temporal,
                    "metapath_reach": {"cross_sectional": cross_reach,
                                       "temporal": temporal_reach}},

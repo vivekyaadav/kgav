@@ -400,11 +400,39 @@ source as unverified.
 
 ## Reproducing
 
+**Order matters, for two reasons.** `temporal_split.py` cuts the training
+graph that `hard_negatives.py` reads, so the split comes first — and the
+three `--undated` protocols write to *one* output directory, so the last one
+run is the split that stays on disk. Every `hard_negatives.py` variant
+likewise writes to one `hard_negatives.json`, so the last one run is the row
+that stays. Both lists below therefore end on the run whose numbers the rest
+of this document quotes.
+
 ```bash
-# row 5 -- the current protocol
-python scripts/hard_negatives.py --selectivity all --publication-disjoint \
-    --label-source infores:ncats-opendata
-python scripts/calibrate.py          # which channels were evaluable, and why not
+# ---- after any rebuild of data/releases/v0.1, everything below is required.
+# Each block regenerates files that `make check-results` audits; a block
+# skipped leaves a file describing a graph that no longer exists.
+
+# 1. the temporal split, which is also an input to step 3
+python scripts/temporal_split.py --cutoff 2021 --undated exclude
+python scripts/temporal_split.py --cutoff 2021 --undated computed_only
+python scripts/temporal_split.py --cutoff 2021 --undated include   # LAST: the
+                                                                   # split the
+                                                                   # rest reads
+
+# control: must refuse, naming the 19 already-known compounds. Writes a
+# refusal record and exits 1 -- expected, and it writes no split, so it
+# cannot disturb the one above.
+python scripts/temporal_split.py --cutoff 2021 --undated include \
+    --overlap-policy keep || true
+
+# 2. per-virus baselines -- one file each, all eight taxa in config/viruses.yaml
+for t in 2697049 694009 1335626 11137 277944 31631 290028 64320; do
+    python scripts/run_baselines.py --virus "NCBITaxon:$t"
+done
+
+# 3. metapath comparison, and the hard-negative protocols
+python scripts/compare_metapaths.py
 
 # rows 1-4, in order
 python scripts/hard_negatives.py --selectivity selective-only
@@ -416,17 +444,23 @@ python scripts/hard_negatives.py --selectivity verified-only \
 # no-op control: must reproduce row 2 exactly
 python scripts/hard_negatives.py --selectivity all --selectivity-applies both
 
-# the temporal protocol
-python scripts/temporal_split.py --cutoff 2021 --undated include
-python scripts/temporal_split.py --cutoff 2021 --undated computed_only
+# row 5 -- the current protocol, run LAST so its numbers are the ones left
+# on disk. Running it first, as this block used to, meant the no-op control
+# overwrote it and hard_negatives.json held row 2 while being read as row 5.
+python scripts/hard_negatives.py --selectivity all --publication-disjoint \
+    --label-source infores:ncats-opendata
+python scripts/calibrate.py          # which channels were evaluable, and why not
 
-# control: must refuse, naming the 19 already-known compounds
-python scripts/temporal_split.py --cutoff 2021 --undated include \
-    --overlap-policy keep
-
-# every results file must describe the graph on disk
+# 4. every results file, AND the derived release they depend on, must
+#    describe the graph on disk
 make check-results
 ```
+
+`hard_negatives.py` will **skip** its temporal column, rather than compute
+one, if `data/releases/v0.1-train2021` was cut from a different graph or
+carries no stamp — which is why step 1 precedes step 3. The skip and its
+reason are recorded in `hard_negatives.json` under `temporal_skipped`, and
+the split's own policy under `train_split`.
 
 Diagnostics behind the causes: `diagnose_hop_attrition.py` (hop-by-hop
 survivors), `diagnose_label_overlap.py` (population overlap, shared PMIDs),
