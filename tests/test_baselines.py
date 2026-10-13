@@ -369,6 +369,65 @@ def test_channel_percentiles_handles_the_degenerate_shapes():
     assert all(v == pytest.approx(0.5) for v in flat.values())
 
 
+# --------------------------------- the expected value under random tie-breaking
+def test_a_determined_cut_leaves_the_expected_value_equal_to_the_figure():
+    """Prediction P4 of docs/prereg_temporal_auc.md. Where the cut lands in
+    no tie there is nothing to average over, so every determined figure in
+    every results file keeps its value. A change that moved determined
+    numbers would be changing the measurement rather than the handling of
+    ties."""
+    clean = {f"d{i}": float(100 - i) for i in range(50)}
+    m = lift_row(clean, {"d0", "d1", "d2"}, k=10)
+    assert m["hits_determined"] is True
+    assert m["hits_expected"] == m["hits"]
+    assert m["lift_expected"] == pytest.approx(m["lift"])
+
+
+def test_the_expected_value_is_the_hypergeometric_mean_and_sits_in_range():
+    """fixed + slots * c_pos / contested. It is the honest centre of the
+    interval, and it is a deterministic function of the data -- unlike
+    `hits`, it does not move when a dict is rebuilt."""
+    scores = {"above": 9.0, **{f"p{i}": 5.0 for i in range(8)},
+              **{f"n{i}": 5.0 for i in range(40)}, "below": 1.0}
+    pos = {f"p{i}" for i in range(8)}
+    m = lift_row(scores, pos, k=10)
+    # 1 strictly above the cut, 9 slots among 48 tied of which 8 positive
+    assert m["hits_expected"] == pytest.approx(9 * 8 / 48)
+    assert m["hits_lo"] <= m["hits_expected"] <= m["hits_hi"]
+
+
+def test_the_expected_value_does_not_move_with_insertion_order():
+    """The property `hits` lacks. Reinserting the same scores in another
+    order changes Hits@k and must not change this."""
+    block = [f"p{i}" for i in range(8)] + [f"n{i}" for i in range(40)]
+    pos = {f"p{i}" for i in range(8)}
+
+    def build(order):
+        return {"above": 9.0, **{d: 5.0 for d in order}, "below": 1.0}
+
+    fwd, rev = build(block), build(list(reversed(block)))
+    assert hits_at_k(rank(fwd), pos, 10) != hits_at_k(rank(rev), pos, 10)
+    assert (lift_row(fwd, pos, k=10)["hits_expected"]
+            == lift_row(rev, pos, k=10)["hits_expected"])
+
+
+def test_a_lucky_tie_order_inflates_the_lift_while_the_auc_reads_chance():
+    """WHY THE AUC IS THE METRIC AND Hits@k IS NOT. On a pool that is one
+    undifferentiated tie block the scorer separates nothing, and the
+    tie-safe AUC says so exactly. Hits@k reads a cut, so a fortunate
+    insertion order hands it every positive."""
+    from kgav.labels import evaluate_against_negatives
+    pos = {f"p{i}" for i in range(8)}
+    neg = {f"n{i}" for i in range(40)}
+    lucky = {"above": 9.0,
+             **{d: 5.0 for d in list(pos) + sorted(neg)}, "below": 1.0}
+    m = lift_row(lucky, pos, k=10)
+    auc = evaluate_against_negatives(lucky, pos, neg)["auc"]
+    assert auc == pytest.approx(0.5), "the block separates nothing"
+    assert m["lift"] > 4.0, "yet the lift reads high"
+    assert m["lift_expected"] < 1.2, "and the expected lift does not"
+
+
 # ------------------------------------ the baseline comparison needs determinacy
 def _cw_row(lift, p, det=True, lo=0, hi=0, **kw):
     return {"lift": lift, "p_value": p, "trustworthy": True,
@@ -613,7 +672,7 @@ def test_hits_at_k_range_brackets_every_tie_ordering():
     scores = {"top": 9.0, "t1": 5.0, "t2": 5.0, "t3": 5.0, "t4": 5.0,
               "low": 1.0}
     pos = {"t4"}
-    lo, hi, n_tied, n_pos = hits_at_k_range(rank(scores), pos, 4)
+    lo, hi, n_tied, n_pos, e = hits_at_k_range(rank(scores), pos, 4)
     seen = set()
     for perm in itertools.permutations(["t1", "t2", "t3", "t4"]):
         d = {"top": 9.0}
@@ -623,6 +682,9 @@ def test_hits_at_k_range_brackets_every_tie_ordering():
         seen.add(hits_at_k(rank(d), pos, 4))
     assert (lo, hi) == (min(seen), max(seen))
     assert (n_tied, n_pos) == (4, 1)
+    # the expected value is the hypergeometric mean and sits inside the range
+    assert lo <= e <= hi
+    assert e == pytest.approx(0 + 3 * 1 / 4)
 
 
 def test_a_cut_in_no_tie_is_determined():
@@ -630,7 +692,7 @@ def test_a_cut_in_no_tie_is_determined():
     COMBINED is determined at k=10, 50 and 100 while M1 is not at any of
     them -- the reason this is reported per row."""
     scores = {"a": 5.0, "b": 4.0, "c": 3.0, "d": 2.0}
-    lo, hi, n_tied, _p = hits_at_k_range(rank(scores), {"a"}, 2)
+    lo, hi, n_tied, _p, _e = hits_at_k_range(rank(scores), {"a"}, 2)
     assert lo == hi == 1
     assert n_tied == 0, "a block of one is not a tie"
 
@@ -640,7 +702,7 @@ def test_a_pool_no_larger_than_k_has_nothing_to_contest():
     whatever the order -- the same condition lift_row already flags as
     lift_is_pool_artifact."""
     scores = {"a": 1.0, "b": 1.0, "c": 1.0}
-    assert hits_at_k_range(rank(scores), {"a", "b"}, 10) == (2, 2, 0, 0)
+    assert hits_at_k_range(rank(scores), {"a", "b"}, 10) == (2, 2, 0, 0, 2.0)
 
 
 def test_lift_row_carries_the_range_beside_the_figure():
