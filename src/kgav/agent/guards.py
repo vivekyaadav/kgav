@@ -81,6 +81,70 @@ SI_THRESHOLD = 10.0
 # describe one viral family's biology while answering about another, which is
 # what they did until this patch.
 #
+# AND THEY CARRY SOURCES NOW. Every performance figure in this module is
+# traceable to the evaluation that produced it, while the biology was asserted
+# in bare prose -- four specific, falsifiable claims about deleted gene loci,
+# entry routes and interferon restriction, with nothing a reader could check.
+# A graph whose whole argument is provenance should not make its most
+# confident statements the only unsourced ones. BIOLOGY_SOURCES holds the
+# reference; cite() renders the short form into the prose, so the two cannot
+# drift apart and an unknown key raises rather than rendering nothing.
+#
+# key -> (short id rendered inline, full reference)
+#
+# DOIs throughout rather than a mix: a DOI was verified for all four, a PMID
+# for one, and a citation style that varies by what happened to be findable
+# invites the reader to wonder what the difference means.
+# Fragments joined with an explicit + rather than by adjacency: inside a
+# collection literal a MISSING COMMA silently concatenates two entries,
+# and in a citation registry that would merge one reference into another
+# without a word. With +, the same slip is a syntax error.
+BIOLOGY_SOURCES: dict[str, tuple[str, str]] = {
+    "vero_ifn_deletion": (
+        "doi:10.1093/dnares/dsu029",
+        "Osada N, Kohara A, Yamaji T, Hirayama N, Kasai F, Sekizuka T, "
+        + "Kuroda M, Hanada K (2014). The genome landscape of the African "
+        + "green monkey kidney-derived Vero cell line. DNA Research "
+        + "21(6):673-683. doi:10.1093/dnares/dsu029. PMID:25267831. "
+        + "Reports a homozygous ~9 Mb deletion on chromosome 12 removing the "
+        + "type I interferon gene cluster, along with CDKN2A and CDKN2B."),
+    "chloroquine_not_in_airway": (
+        "doi:10.1038/s41586-020-2575-3",
+        "Hoffmann M, Mosbauer K, Hofmann-Winkler H, Kaul A, Kleine-Weber H, "
+        + "Kruger N, et al. (2020). Chloroquine does not inhibit infection of "
+        + "human lung cells with SARS-CoV-2. Nature 585(7826):588-590. "
+        + "doi:10.1038/s41586-020-2575-3. Chloroquine blocks entry in Vero "
+        + "and not in TMPRSS2-expressing Calu-3 lung cells."),
+    "flavivirus_entry": (
+        "doi:10.1371/journal.ppat.1000244",
+        "van der Schaar HM, Rust MJ, Chen C, van der Ende-Metselaar H, "
+        + "Wilschut J, Zhuang X, Smit JM (2008). Dissecting the cell entry "
+        + "pathway of dengue virus by single-particle tracking in living "
+        + "cells. PLoS Pathogens 4(12):e1000244. "
+        + "doi:10.1371/journal.ppat.1000244. Dengue enters by clathrin-"
+        + "mediated endocytosis and fuses from within acidified endosomes."),
+    "flavivirus_ifn_restriction": (
+        "doi:10.1016/j.chom.2016.03.010",
+        "Lazear HM, Govero J, Smith AM, Platt DJ, Fernandez E, Miner JJ, "
+        + "Diamond MS (2016). A mouse model of Zika virus pathogenesis. Cell "
+        + "Host & Microbe 19(5):720-730. doi:10.1016/j.chom.2016.03.010. "
+        + "Zika produces lethal neurological disease in mice lacking the type "
+        + "I interferon receptor (Ifnar1-/-), which is why an "
+        + "interferon-deficient background is needed to model it. The claim "
+        + "supported is that restriction, not a wild-type comparison the "
+        + "abstract does not report."),
+}
+
+
+def cite(key: str) -> str:
+    """The short reference to render inline. Raises on an unknown key.
+
+    Raising is the point: a claim whose source has been removed must break
+    the render rather than quietly lose its citation.
+    """
+    return f"({BIOLOGY_SOURCES[key][0]})"
+
+
 # Host factors whose route is known to be cell-context dependent. Chloroquine
 # and hydroxychloroquine act through the first two; the endosomal machinery is
 # the route that made them look effective in Vero E6 and useless in airway
@@ -433,15 +497,20 @@ def _cell_context_text(hits: list[str], family: str | None) -> str:
                 "routes are prominent in Vero E6 cells and largely absent in "
                 "TMPRSS2-expressing airway cells. Chloroquine's apparent "
                 "SARS-CoV-2 activity in 2020 came from exactly this route and "
-                "did not translate to patients.")
+                f"did not translate to patients "
+                f"{cite('chloroquine_not_in_airway')}.")
     if family == "Flaviviridae":
         return (f"this path runs through {genes}. Flavivirus entry is "
-                "clathrin-mediated and depends on endosomal acidification, so "
+                "clathrin-mediated and depends on endosomal acidification "
+                f"{cite('flavivirus_entry')}, so "
                 "this route is genuine rather than a cell-line artifact -- but "
                 "whether acting on it helps depends on the system. Vero, the "
                 "standard flavivirus line, carries a deletion of the type I "
-                "interferon locus, and flaviviruses are strongly restricted by "
-                "type I interferon, so neither an effect nor its absence in "
+                f"interferon locus {cite('vero_ifn_deletion')}, and Zika is "
+                "restricted by type I interferon to the point that modelling "
+                "it needs an interferon-deficient host "
+                f"{cite('flavivirus_ifn_restriction')}, so neither an effect "
+                "nor its absence in "
                 "Vero transfers to interferon-competent cells. Vero is also "
                 "monkey kidney epithelium rather than the neural progenitor or "
                 "placental tissue that determines Zika pathology.")
@@ -525,7 +594,8 @@ def cell_line_note(cell_line: str | None, family: str | None = None) -> str:
             f"measured in {cell_line}, which lacks meaningful TMPRSS2 "
             "expression. SARS-CoV-2 enters such cells by the endosomal route, so "
             "compounds acting on endosomal acidification score well here and fail "
-            "in TMPRSS2-expressing airway cells. A selectivity index from this "
+            "in TMPRSS2-expressing airway cells "
+            f"{cite('chloroquine_not_in_airway')}. A selectivity index from this "
             "system does not transfer."
         )
     if family == "Flaviviridae":
@@ -533,8 +603,11 @@ def cell_line_note(cell_line: str | None, family: str | None = None) -> str:
             return caveat(
                 "cell_line",
                 f"measured in {cell_line}, which carries a deletion of the "
-                "type I interferon locus. Flaviviruses are strongly restricted "
-                "by type I interferon, so a selectivity index from this system "
+                f"type I interferon locus {cite('vero_ifn_deletion')}. Zika is "
+                "restricted by type I interferon to the point that modelling "
+                "it needs an interferon-deficient host "
+                f"{cite('flavivirus_ifn_restriction')}, so a selectivity index "
+                "from this system "
                 "captures neither interferon-dependent activity nor its "
                 "absence, and does not transfer to interferon-competent cells."
             )

@@ -462,3 +462,65 @@ def test_the_ranking_caveat_also_refuses_an_unevaluated_figure():
     assert "0.513" not in w
     assert "NOT been evaluated" in w
     assert "rather than a demonstrated ability to rank" in w
+
+
+# ------------------------------------------------ the biology carries sources
+def test_every_biology_claim_renders_a_source():
+    """Every performance figure in this module is traceable to the evaluation
+    that produced it, while the biology was asserted in bare prose -- four
+    specific, falsifiable claims about deleted gene loci, entry routes and
+    interferon restriction, with nothing a reader could check. A graph whose
+    whole argument is provenance should not make its most confident
+    statements the only unsourced ones.
+    """
+    rendered = [
+        guards._cell_context_text(["NPC1"], "Flaviviridae"),
+        guards._cell_context_text(["CTSL"], "Coronaviridae"),
+        guards.cell_line_note("Vero E6", family="Flaviviridae"),
+        guards.cell_line_note("Vero E6", family="Coronaviridae"),
+    ]
+    for text in rendered:
+        assert "doi:" in text, f"no source in: {text[:70]}"
+
+
+def test_the_four_claims_cite_the_four_sources():
+    """Named individually, so removing a citation fails here rather than
+    leaving a claim quietly bare."""
+    flavi = guards._cell_context_text(["NPC1"], "Flaviviridae")
+    for key in ("flavivirus_entry", "vero_ifn_deletion",
+                "flavivirus_ifn_restriction"):
+        assert guards.BIOLOGY_SOURCES[key][0] in flavi, key
+    corona = guards._cell_context_text(["CTSL"], "Coronaviridae")
+    assert guards.BIOLOGY_SOURCES["chloroquine_not_in_airway"][0] in corona
+
+
+def test_cite_raises_on_an_unknown_key():
+    """A claim whose source has been removed must break the render rather
+    than quietly lose its citation."""
+    with pytest.raises(KeyError):
+        guards.cite("no_such_source")
+
+
+def test_every_source_carries_a_resolvable_identifier():
+    """A reference without a DOI is a sentence, not a citation. DOIs
+    throughout rather than a mix: a citation style that varies by what
+    happened to be findable invites the reader to wonder what the difference
+    means."""
+    for key, (short, full) in guards.BIOLOGY_SOURCES.items():
+        assert short.startswith("doi:"), key
+        assert short[4:] in full, f"{key}: short id absent from the reference"
+        assert len(full) > 120, f"{key}: reference too thin to check"
+
+
+def test_a_cited_caveat_still_passes_number_provenance():
+    """THE INTERACTION. verify checks that every number in an answer appears
+    in the facts, and a DOI is full of digits. Caveats are passed to verify
+    as required_warnings, which are part of that corpus -- so a cited caveat
+    reproduced in an answer must not read as a fabricated figure."""
+    from kgav.agent.verify import verify
+    warning = guards.cell_line_note("Vero E6", family="Flaviviridae")
+    answer = f"{warning} The route is therefore not transferable [Eabc123]."
+    v = verify(answer, ["compound INHIBITS target [Eabc123]"], ["Eabc123"],
+               required_warnings=[warning])
+    assert not [f for f in v.findings if f.code == "ungrounded_number"], \
+        [f.detail for f in v.findings]
