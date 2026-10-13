@@ -278,7 +278,7 @@ def main(argv=None) -> int:
         rankings[name] = pools[name]
     for rname, sc in rankings.items():
         for k in (10, 50, 100):
-            lo, hi, nc, npos = hits_at_k_range(rank(sc), positives, k)
+            lo, hi, nc, npos, _e = hits_at_k_range(rank(sc), positives, k)
             flag = "" if lo == hi else "   <- NOT DETERMINED"
             print(f"  {rname:<10}{k:>5}{f'{lo} - {hi}':>16}{nc:>13,}"
                   f"{npos:>14,}{flag}")

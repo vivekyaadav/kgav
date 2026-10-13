@@ -475,7 +475,13 @@ def test_the_temporal_driver_defines_no_scoring_rules_of_its_own():
     tree = ast.parse(src.read_text())
 
     for module, wanted in (("kgav.calibration", "MIN_REACHED_POSITIVES"),
-                           ("kgav.baselines", "lift_row")):
+                           ("kgav.baselines", "lift_row"),
+                           # The tie-safe AUC is imported, never reimplemented.
+                           # Its tie handling -- pairs counted as half -- is the
+                           # whole reason it survives DWPC's exact ties, and a
+                           # local copy would be the fourth instance of one
+                           # calculation living in two files.
+                           ("kgav.labels", "evaluate_against_negatives")):
         assert any(isinstance(n, ast.ImportFrom) and n.module == module
                    and any(a.name == wanted for a in n.names)
                    for n in ast.walk(tree)), \
@@ -536,3 +542,44 @@ def test_a_control_run_does_not_overwrite_the_result_it_controls():
     assert mod._results_name(control) != mod._results_name(default), \
         "the control must not land on the real run's path"
     assert "keep" in mod._results_name(control)
+
+
+# ------------------------------- the temporal protocol reports a tie-safe AUC
+def test_the_temporal_protocol_reports_an_auc_gated_on_reached_positives():
+    """docs/prereg_temporal_auc.md P2 and P3. The protocol held both halves
+    and used neither: split.test_negatives is populated and only test_pos
+    was passed to lift_row, so a tie-SENSITIVE lift was computed against
+    positives alone while the measured negatives sat unused.
+
+    The gate is the same MIN_REACHED_POSITIVES the virus-level check uses,
+    applied per channel to the positives that channel actually reaches --
+    which is why M1, reaching 8 post-2021 positives, is refused while
+    COMBINED is not.
+    """
+    import ast
+    from pathlib import Path
+    src = Path(__file__).resolve().parents[1] / "scripts/temporal_split.py"
+    text = src.read_text()
+    ast.parse(text)
+    for needed in ("auc_evaluable", "auc_reached_pos", "auc_ci_lo",
+                   "test_negatives", "MIN_REACHED_POSITIVES"):
+        assert needed in text, f"temporal_split does not mention {needed}"
+
+
+def test_the_auc_describes_the_same_scorer_the_lift_describes():
+    """The scorers are kept as they are built rather than reconstructed for
+    the AUC pass. A second expression producing "the same" score dict is the
+    two-copies failure this project has hit four times, and here it would
+    report an AUC for one scorer beside a lift for another."""
+    import ast
+    from pathlib import Path
+    src = Path(__file__).resolve().parents[1] / "scripts/temporal_split.py"
+    tree = ast.parse(src.read_text())
+    calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)
+             and isinstance(n.func, ast.Name)
+             and n.func.id == "evaluate_against_negatives"]
+    assert calls, "the tie-safe AUC is never called"
+    for c in calls:
+        first = c.args[0]
+        assert isinstance(first, ast.Subscript), \
+            "the AUC must be handed a kept scorer, not a rebuilt expression"

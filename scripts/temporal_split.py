@@ -19,6 +19,7 @@ from kgav.baselines import (
     lift_row,
 )
 from kgav.calibration import MIN_REACHED_POSITIVES
+from kgav.labels import evaluate_against_negatives
 from kgav.provenance import write_refusal, write_results
 from kgav.schema import load_schema
 from kgav.temporal import audit, build_split, write_split
@@ -63,6 +64,22 @@ def _vs(m: dict) -> str:
         return "   >deg" if m.get("beats_degree") else "  <=deg"
     return f"{v:>6.2f}~" if m.get("vs_degree_readable") is False \
         else f"{v:>7.2f}"
+
+
+def _auc(m: dict) -> str:
+    """The tie-safe AUC with its interval, or why it is not reported.
+
+    A channel reaching fewer than MIN_REACHED_POSITIVES measured actives has
+    an AUC describing the imputed floor rather than the channel, which is
+    the same rule docs/evaluation.md applies cross-sectionally. Printed as
+    "not evaluable (n)" rather than blank, because an empty cell reads as a
+    missing value instead of a refusal.
+    """
+    if m.get("auc") is None:
+        return "—"
+    if not m.get("auc_evaluable"):
+        return f"not evaluable ({m.get('auc_reached_pos', 0)})"
+    return (f"{m['auc']:.3f} [{m['auc_ci_lo']:.2f},{m['auc_ci_hi']:.2f}]")
 
 
 def _p(m: dict) -> str:
@@ -192,15 +209,53 @@ def main() -> int:
                 "floor": MIN_REACHED_POSITIVES}}
             continue
         per: dict[str, dict] = {}
+        # KEPT, NOT REBUILT. The AUC below must describe the SAME scorer the
+        # lift describes, and a second expression producing "the same" score
+        # dict is the two-copies failure this project has hit four times.
+        scorers: dict[str, dict[str, float]] = {}
         for name in sorted(dwpc):
             sc = {d: by[virus] for d, by in dwpc[name].items() if virus in by}
             if sc:
+                scorers[name] = sc
                 per[name] = evaluate(sc, test_pos, args.k)
-        per["COMBINED"] = evaluate(combine(dwpc, virus), test_pos, args.k)
-        per["degree"] = evaluate(deg, test_pos, args.k)
+        scorers["COMBINED"] = combine(dwpc, virus)
+        scorers["degree"] = deg
+        per["COMBINED"] = evaluate(scorers["COMBINED"], test_pos, args.k)
+        per["degree"] = evaluate(scorers["degree"], test_pos, args.k)
+
+        # THE TIE-SAFE METRIC, FINALLY CALLED. Hits@k reads a cut, so where a
+        # tie block straddles k the figure is decided by dict insertion
+        # order: M1 here returns 0-8 of its 8 positives. The AUC does not
+        # read a cut -- labels.evaluate_against_negatives counts tied pairs
+        # as half, "which matters because DWPC produces many exact ties at
+        # percentile boundaries" -- so it is invariant to that order.
+        #
+        # This protocol already held both halves and used neither:
+        # split.test_negatives is populated (3,630 inactives on v0.1) and
+        # only test_pos was ever passed. A tie-sensitive lift was computed
+        # against positives alone while the measured negatives sat unused.
+        test_neg = split.test_negatives.get(virus, set())
+        for name, row in per.items():
+            a = evaluate_against_negatives(scorers[name], test_pos, test_neg)
+            # The per-channel gate is the SAME constant the virus-level gate
+            # above uses, applied to the positives this channel actually
+            # reaches rather than to the virus's total. M1 reaches 8 and is
+            # refused; COMBINED reaches enough and is not.
+            reached = round(a.get("coverage_pos", 0.0) * (a.get("n_pos") or 0))
+            row.update({
+                "auc": a.get("auc"),
+                "auc_ci_lo": a.get("auc_ci_lo"), "auc_ci_hi": a.get("auc_ci_hi"),
+                "auc_n_pos": a.get("n_pos"), "auc_n_neg": a.get("n_neg"),
+                "auc_reached_pos": reached,
+                "auc_coverage_pos": a.get("coverage_pos"),
+                "auc_coverage_neg": a.get("coverage_neg"),
+                "auc_evaluable": bool(a.get("evaluable")
+                                      and reached >= MIN_REACHED_POSITIVES),
+            })
         degree_relative(per)
         print(f"    {'scorer':<10} {'pool':>7} {'pos':>5} {'hits':>5} "
-              f"{'exp':>7} {'lift':>7} {'p':>7} {'vs deg':>7} {'mrr':>7}")
+              f"{'exp':>7} {'lift':>7} {'p':>7} {'vs deg':>7} {'mrr':>7} "
+              f"{'AUC [95% CI]':>22}")
         for name, m in per.items():
             flag = "" if m["trustworthy"] else " (!)"
             # The hits column carries the RANGE where a tie block straddles
@@ -211,7 +266,7 @@ def main() -> int:
             print(f"    {name:<10} {m['pool']:>7,} {m['pos']:>5,} "
                   f"{hits_cell(m, 5)} "
                   f"{m['expected']:>7.1f} {m['lift']:>7.2f} {_p(m)} "
-                  f"{_vs(m)} {m['mrr']:>7.4f}{flag}")
+                  f"{_vs(m)} {m['mrr']:>7.4f} {_auc(m):>22}{flag}")
         if (warn := confound_warning(per)):
             print(f"    ! {warn}")
         results[label] = per

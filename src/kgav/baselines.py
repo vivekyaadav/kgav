@@ -835,15 +835,28 @@ def hits_at_k_range(ranked: list[tuple[str, float]], positives: set[str],
     is not a reason to distrust every number, which is exactly why it is
     measured per row rather than asserted.
 
-    Returns (low, high, contested, contested_positives). low is the count if
-    every tied non-positive is placed first, high if every tied positive is.
-    low == high means the cut lands in no tie and the figure is a
-    measurement. A block of ONE is not a tie and reports 0 contested: that
-    drug is simply the kth.
+    Returns (low, high, contested, contested_positives, expected).
+
+    low is the count if every tied non-positive is placed first, high if
+    every tied positive is. low == high means the cut lands in no tie and
+    the figure is a measurement. A block of ONE is not a tie and reports 0
+    contested: that drug is simply the kth.
+
+    `expected` is the hit count under RANDOM tie-breaking -- the
+    hypergeometric mean, fixed + slots * c_pos / contested. It is a
+    deterministic function of the data, so unlike `hits` it does not move
+    when a dict is rebuilt, and it is the honest centre of [low, high]. It
+    is computed HERE rather than in a second function because the geometry
+    is the same geometry, and this project has four times now had one
+    calculation living in two places.
+
+    IT MUST NEVER BE REPORTED WITHOUT low AND high BESIDE IT. A point
+    estimate at the centre of [0, 8] reads as a measurement, and that is the
+    error the interval exists to prevent.
     """
     if len(ranked) <= k:
         n = sum(1 for d, _v in ranked if d in positives)
-        return n, n, 0, 0
+        return n, n, 0, 0, float(n)
     cut = ranked[k - 1][1]
     inside = [d for d, v in ranked if v > cut]
     contested = [d for d, v in ranked if v == cut]
@@ -852,9 +865,10 @@ def hits_at_k_range(ranked: list[tuple[str, float]], positives: set[str],
     slots = k - len(inside)
     low = fixed + max(0, slots - (len(contested) - c_pos))
     high = fixed + min(slots, c_pos)
+    expected = fixed + (slots * c_pos / len(contested) if contested else 0.0)
     if len(contested) == 1:
-        return low, high, 0, 0
-    return low, high, len(contested), c_pos
+        return low, high, 0, 0, float(expected)
+    return low, high, len(contested), c_pos, float(expected)
 
 
 def lift_row(scores: dict[str, float], pos: set[str], k: int = 100) -> dict:
@@ -885,10 +899,12 @@ def lift_row(scores: dict[str, float], pos: set[str], k: int = 100) -> dict:
     # Where a tie block straddles k the published hit count is one draw from
     # [lo, hi] -- on v0.1 M1 that is [2, 12] at both k=50 and k=100 -- and a
     # lift computed from it inherits the same spread.
-    lo, hi, n_tied, n_tied_pos = hits_at_k_range(r, pos, k)
+    lo, hi, n_tied, n_tied_pos, e_hits = hits_at_k_range(r, pos, k)
     return {"pool": pool, "pos": p, "hits": h, "expected": exp,
             "lift": (h / exp) if exp else 0.0, "mrr": mrr(r, pos),
             "hits_lo": lo, "hits_hi": hi,
+            "hits_expected": e_hits,
+            "lift_expected": (e_hits / exp) if exp else 0.0,
             "hits_determined": lo == hi,
             "tied_at_cut": n_tied, "tied_at_cut_positives": n_tied_pos,
             "lift_lo": (lo / exp) if exp else 0.0,
