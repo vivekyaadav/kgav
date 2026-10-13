@@ -678,7 +678,21 @@ def degree_relative(per: dict[str, dict], degree_key: str = DEGREE_KEY) -> None:
     """
     deg = per.get(degree_key)
     base = (deg or {}).get("lift")
+    # A RATIO AGAINST AN UNDETERMINED DENOMINATOR IS NOT A NUMBER. When the
+    # degree row's own Hits@k is an interval, confound_warning already says
+    # no comparison against it can be read "including every ratio in the
+    # vs-deg column, which divides by it" -- and the column went on printing
+    # 2.55, 2.51, 4.27 directly above that sentence. Printing a figure and
+    # then telling the reader to ignore it is the defect, not the fix: the
+    # cell now says so itself.
+    base_undetermined = (deg or {}).get("hits_determined") is False
     for name, m in per.items():
+        if base_undetermined and name != degree_key:
+            m["lift_vs_degree"] = None
+            m["beats_degree"] = None
+            m["vs_degree_readable"] = False
+            m["vs_degree_undetermined"] = True
+            continue
         if name == degree_key:
             m["lift_vs_degree"] = None
             m["beats_degree"] = None

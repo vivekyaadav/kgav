@@ -13,6 +13,7 @@ from kgav.baselines import (
     combine,
     confound_warning,
     degree_ranking,
+    degree_relative,
     dwpc_scores,
     hits_at_k,
     hits_at_k_range,
@@ -367,6 +368,28 @@ def test_channel_percentiles_handles_the_degenerate_shapes():
     assert channel_percentiles({"only": 4.0}) == {"only": 1.0}
     flat = channel_percentiles({c: 7.0 for c in "abcd"})
     assert all(v == pytest.approx(0.5) for v in flat.values())
+
+
+def test_no_ratio_is_offered_against_an_undetermined_baseline():
+    """The vs-deg column printed 2.55, 2.51 and 4.27 directly above a
+    warning reading "no comparison against this baseline can be read --
+    including every ratio in the vs-deg column, which divides by it".
+    Printing a figure and then telling the reader to ignore it is the defect
+    rather than the fix."""
+    per = {"M1": {"lift": 2.49, "hits_determined": False},
+           "degree": {"lift": 0.97, "hits_determined": False}}
+    degree_relative(per)
+    assert per["M1"]["vs_degree_undetermined"] is True
+    assert per["M1"]["lift_vs_degree"] is None
+
+
+def test_a_determined_baseline_still_yields_a_ratio():
+    """So the marker reports a state rather than suppressing the column."""
+    per = {"M1": {"lift": 2.49, "hits_determined": True},
+           "degree": {"lift": 1.20, "hits_determined": True}}
+    degree_relative(per)
+    assert not per["M1"].get("vs_degree_undetermined")
+    assert per["M1"]["lift_vs_degree"] == pytest.approx(2.49 / 1.20)
 
 
 # --------------------------------- the expected value under random tie-breaking
