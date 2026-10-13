@@ -19,22 +19,34 @@ So a calibrated ranking returns nothing, and that is the correct output. The
 graph can report evidence for a compound it is asked about; it has no measured
 basis for a shortlist.
 
-**The temporal protocol was the first non-null this project produced, and on
-2026-10-12 it was found NOT DETERMINED.** M1's Hits@100 on the SARS-CoV-2
-train2021 split can take any value from 0 to 8 of its 8 positives depending
-on the order drugs were inserted into a dict, so the lift and p-value
-computed from it are one draw from that interval. The section below reports
-the figure, the interval, and how it was found.
+**The temporal protocol was the first non-null this project produced. On
+2026-10-12 it was found NOT DETERMINED, and on 2026-10-14 a tie-safe metric
+found no result in it either.** M1's Hits@100 on the SARS-CoV-2 train2021
+split can take any value from 0 to 8 of its 8 positives depending on the
+order drugs were inserted into a dict. The ROC AUC does not read a cut and
+is invariant to that order, and on the same split it reads **0.512
+[0.49, 0.54] for COMBINED and 0.504 [0.48, 0.53] for degree** — both
+containing chance. The section below reports all three numbers.
 
 The one-line version of every table here:
 
-> **In every cross-sectional virus where a reasoning channel cleared p<0.05,
+> **No channel, on any protocol, on any virus, has an AUC whose interval
+> excludes chance. The only scorer that ever did is degree, the null
+> hypothesis, and only cross-sectionally.**
+>
+> In every cross-sectional virus where a reasoning channel cleared p<0.05,
 > the degree baseline cleared it too -- 4 of 4, no exception. Exactly one
-> virus and channel in the project ever had a trustworthy significant result
-> while degree was at chance -- SARS-CoV-2 M1 under the temporal protocol --
-> and its Hits@k is NOT DETERMINED: all 8 positives sit inside one tie block
-> at the cut, so the hit count ranges over 0 to 8 and the lift over 0.00 to
-> 2.86. There is now no measured non-null in this project.**
+> virus and channel ever had a trustworthy significant result while degree
+> was at chance -- SARS-CoV-2 M1 under the temporal protocol -- and its
+> Hits@k is NOT DETERMINED: all 8 positives sit inside one tie block at the
+> cut, so the hit count ranges over 0 to 8 and the lift over 0.00 to 2.86.
+> The tie-safe AUC on the same split reads 0.512 [0.49, 0.54] for COMBINED
+> against 0.504 [0.48, 0.53] for degree.
+>
+> **The temporal protocol therefore works and the signal is not there.** It
+> removes the study-volume confound -- degree is at chance on it -- and
+> under that clean condition no channel separates either. That is a
+> different and better-supported statement than "everything is confounded".
 
 Five earlier figures for M1 -- 0.823, 0.726, 0.660, 0.499, 0.513 -- are
 reported below rather than withdrawn, because the sequence is the result. Each
@@ -244,8 +256,35 @@ includes every ratio in the `vs deg` column, which divides by it.
 
 This is a property of M1 rather than of the protocol. M2, M4, M6, M7 and
 COMBINED are all determined on the same split, and COMBINED reaches lift
-3.36 at p=0.0154 with a determined hit count -- the strongest surviving row,
-though the baseline it would have to beat is still undetermined.
+3.36 at p=0.0154 with a determined hit count -- which made it the strongest
+surviving row until the tie-safe metric was applied to it.
+
+**THE TIE-SAFE AUC, ADDED 2026-10-14.** `labels.evaluate_against_negatives`
+counts tied pairs as half, so it does not read a cut and is invariant to
+insertion order. This protocol already held it, and held 3,630 measured
+test inactives, and passed only `test_pos` to `lift_row`. Calling it:
+
+| scorer | lift | p | AUC [95% CI] | |
+|---|---|---|---|---|
+| M1 | 2.49 | 0.0033 | not evaluable (8) | ~tied |
+| M4 | 4.16 | 0.081 | 0.504 [0.48, 0.53] | (!) |
+| M7 | 0.85 | — | 0.506 [0.48, 0.53] | (!) |
+| **COMBINED** | 3.36 | 0.0154 | **0.512 [0.49, 0.54]** | |
+| degree | 0.97 | 0.5909 | 0.504 [0.48, 0.53] | ~tied |
+
+The bar was computed and written down before the run, in
+`docs/prereg_m1_potency.md`'s successor `docs/prereg_temporal_auc.md`: at
+COMBINED's 48 reached positives a Hanley-McNeil interval excludes 0.5 only
+from **0.586** upward. COMBINED came in at 0.512 and missed by 0.074. Under
+`undated=exclude` it reads 0.505 against degree's 0.506.
+
+The same scorer reads lift 3.36 at p=0.0154 and AUC 0.512, and the two are
+not in tension: the lift reads a cut and the AUC does not.
+
+**Degree reads 0.504 on the same split, which is the point.** The temporal
+protocol removes the confound it was built to remove -- degree is at chance
+here, where cross-sectionally it was 0.582 and significant in four of four
+viruses. Under that clean condition no channel separates either.
 
 WHY M1 AND NOT THE OTHERS. On the full release M1 resolves **12 distinct
 scores across 3,020 drugs**, with 2,441 of them (80.8%) sharing one value,

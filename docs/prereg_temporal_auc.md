@@ -142,3 +142,73 @@ tie-sensitive one is correct independently of what it reads. Keep
 `hits_expected` only if P4 holds exactly. Claim a result for COMBINED only
 if its interval clears 0.5 AND the degree baseline on the same split does
 not.
+
+---
+
+# Verdict — the tie-safe metric finds no result either
+
+2026-10-14, measured on v0.1-train2021, both undated policies.
+
+    SARS-CoV-2, undated=include
+      scorer       hits        lift        p              AUC [95% CI]
+      M1            0-8        2.49   0.0033       not evaluable (8)  ~tied
+      M4              2        4.16   0.0812       0.504 [0.48, 0.53]
+      M7             26        0.85      —         0.506 [0.48, 0.53]
+      COMBINED        5        3.36   0.0154       0.512 [0.49, 0.54]
+      degree        3-5        0.97   0.5909       0.504 [0.48, 0.53]  ~tied
+
+    undated=exclude
+      COMBINED        2        2.99   0.1428       0.505 [0.48, 0.53]
+      degree          2        2.72   0.1667       0.506 [0.48, 0.53]
+
+**P1 held** — the AUC is invariant to edge order by construction and the
+implementation reproduces it.
+
+**P2 held, as written in advance.** M1 reports "not evaluable (8)" under
+both policies. The headline was not rescued and nothing here tried to.
+
+**P3 held.** COMBINED became evaluable at 48 reached positives.
+
+**The question that was deliberately not predicted has an answer: 0.512,
+interval [0.49, 0.54], against a bar of 0.586.** It does not clear, and it
+misses by 0.074. Under `exclude` it reads 0.505. No result is claimed.
+
+## What this settles, and it is more than a null
+
+The same scorer, on the same split, reads lift 3.36 at p=0.0154 and AUC
+0.512. Those are not in tension: the lift reads a cut and the AUC does not.
+**COMBINED's lift was the strongest surviving row after the determinacy
+finding, and the tie-safe metric says it separates nothing.**
+
+And the condition written in so it could not be skipped is satisfied in the
+cleanest possible way. **Degree on the same split reads 0.504 [0.48, 0.53]
+— at chance.** So the temporal protocol does what it was built to do: it
+removes the study-volume confound that `docs/evaluation.md` records in four
+of four cross-sectional viruses. Under that clean condition, no channel
+separates either.
+
+That is a better negative than "everything is confounded". It says the
+protocol works and the signal is not there, which is a finding about the
+graph rather than about the evaluation.
+
+Across every virus in the run: either too few reached positives to
+evaluate, or an interval containing 0.5, or a degree baseline at or above
+the channel — SARS-CoV COMBINED 0.616 against degree 0.779, MERS COMBINED
+0.548 against degree 0.660. **No channel on any protocol on any virus has
+an AUC whose interval excludes chance.** The only scorer that ever did is
+degree, cross-sectionally, and degree is the null hypothesis.
+
+## Decision
+
+Per the rule above: the AUC reporting is kept unconditionally, because a
+tie-safe metric replacing a tie-sensitive one is correct regardless of what
+it reads. `hits_expected` is kept, P4 having held exactly. **No result is
+claimed for COMBINED.**
+
+## One defect this run exposed
+
+The `vs deg` column printed 2.55, 2.51 and 4.27 directly above a warning
+reading "no comparison against this baseline can be read -- including every
+ratio in the vs-deg column, which divides by it". Printing a figure and then
+telling the reader to ignore it is the defect rather than the fix. The cell
+now reads `n/d` when the degree row's own Hits@k is an interval.

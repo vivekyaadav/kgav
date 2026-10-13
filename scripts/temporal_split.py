@@ -57,6 +57,10 @@ def _vs(m: dict) -> str:
                denominator therefore inflates it
           -    no baseline to compare against
     """
+    # Checked BEFORE the base/absent branch, which would otherwise read an
+    # undetermined row's two Nones as "this is the baseline".
+    if m.get("vs_degree_undetermined"):
+        return "    n/d"
     if m.get("beats_degree") is None and m.get("lift_vs_degree") is None:
         return "   base" if "vs_degree_readable" in m else "      -"
     v = m.get("lift_vs_degree")
