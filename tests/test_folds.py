@@ -2,7 +2,11 @@
 does not license transfer across a different nucleophile.
 """
 
-from kgav.folds import NUCLEOPHILES, ChainSpec, ResolvedChain, gate, motif_c_present
+from dataclasses import dataclass
+from dataclasses import field as dc_field
+
+from kgav.emit import Emit
+from kgav.folds import NUCLEOPHILES, ChainSpec, ResolvedChain, emit_classes, gate, motif_c_present
 
 
 def _chain(label, family, role, cat_type, nucleophile, classes):
@@ -122,3 +126,72 @@ def test_every_phase0_protease_pair_behaves_as_measured():
     for a in cys:
         for b in ser:
             assert not gate(a, b).allowed, f"{a.chain_name} vs {b.chain_name}"
+
+
+# ------------------------------- a class whose members disagree is not a gate
+@dataclass
+class _Chain:
+    node_id: str
+    catalytic_type: str
+    ok: bool = True
+    classes: list = dc_field(default_factory=list)
+
+
+_SHARED = [{"accession": "IPR009003", "label": "Peptidase S1, PA clan",
+            "level": "homologous_superfamily", "start": 1, "end": 200}]
+
+
+def _emit(order):
+    em = Emit()
+    stats = emit_classes(em, order, "infores:interpro")
+    return em.nodes["INTERPRO:IPR009003"]["properties"], stats
+
+
+def test_a_mixed_nucleophile_class_is_marked_unknown_not_guessed():
+    """Emit.node merges with properties.update -- last write wins, silently,
+    recording only a node_merged counter. So a class holding a cysteine
+    protease and a serine protease took whichever chain was written last,
+    and reversing the order flipped it from serine to cysteine.
+
+    That is the field M8's gate reads. The schema warns that without the
+    gate M8 "traverses from SARS-CoV-2 Mpro to HCV NS3 -- same superfamily,
+    opposite nucleophile -- and recommends nirmatrelvir for hepatitis C",
+    and those two land in the same InterPro superfamily. A gate whose value
+    depends on emission order is not a gate.
+    """
+    mpro = _Chain("UniProtKB:MPRO", "cysteine", classes=list(_SHARED))
+    ns3 = _Chain("UniProtKB:NS3", "serine", classes=list(_SHARED))
+    fwd, s1 = _emit([mpro, ns3])
+    rev, s2 = _emit([ns3, mpro])
+    assert fwd["catalytic_type"] == "unknown"
+    assert rev["catalytic_type"] == "unknown"
+    assert s1["classes_mixed_catalytic_type"] == 1
+    assert s2["classes_mixed_catalytic_type"] == 1
+
+
+def test_emission_order_cannot_change_a_class_catalytic_type():
+    """The property the previous code lacked, stated directly."""
+    a = _Chain("UniProtKB:A", "cysteine", classes=list(_SHARED))
+    b = _Chain("UniProtKB:B", "serine", classes=list(_SHARED))
+    c = _Chain("UniProtKB:C", "metallo", classes=list(_SHARED))
+    assert _emit([a, b, c])[0] == _emit([c, b, a])[0]
+
+
+def test_an_agreeing_class_keeps_its_catalytic_type():
+    """So "unknown" marks disagreement rather than being a blanket refusal --
+    a gate that never opens is as useless as one that never closes."""
+    props, stats = _emit([_Chain("UniProtKB:A", "cysteine", classes=list(_SHARED)),
+                          _Chain("UniProtKB:B", "cysteine", classes=list(_SHARED))])
+    assert props["catalytic_type"] == "cysteine"
+    assert stats["classes_mixed_catalytic_type"] == 0
+
+
+def test_unknown_is_a_declared_value_of_the_enum():
+    """Marking a class unknown must be sayable in the schema, not a string
+    the validator will reject the moment the folds layer is assembled."""
+    from pathlib import Path
+
+    import yaml
+    root = Path(__file__).resolve().parents[1]
+    d = yaml.safe_load((root / "schema/kg_schema.yaml").read_text())
+    assert "unknown" in d["enums"]["catalytic_type"]
