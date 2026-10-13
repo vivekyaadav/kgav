@@ -395,6 +395,11 @@ class GraphTools:
             # test_agent_verify hands verify() a hand-built caveat directly.
             route_warnings = guards.path_warnings(
                 nodes, route, calibration=self.calibration_for(virus))
+            # A ROUTE WHOSE OWN EDGE IS CONTRADICTED SAYS SO. Attached per
+            # route, like the cell-context caveat above and for the same
+            # reason: a contradiction naming one protein printed against a
+            # route through another discredits every warning on the page.
+            route_warnings = list(route_warnings) + self._contradictions(edges)
             for w in route_warnings:
                 lines.append(f"  ! {w}")
             warns.extend(route_warnings)
@@ -405,6 +410,34 @@ class GraphTools:
                           verbalised=lines,
                           warnings=list(dict.fromkeys(w for w in warns if w)),
                           edge_ids=ids)
+
+    def _contradictions(self, edges: list[dict]) -> list[str]:
+        """Caveats for any INHIBITS edge on this route with an inactive twin.
+
+        The agent loads EVERY edge, held-out predicates included, so the
+        contradicting measurement is already in hand -- this reads it rather
+        than fetching anything. Scoring correctly never walks it; explaining
+        correctly cannot ignore it.
+        """
+        out: list[str] = []
+        for e in edges:
+            if e.get("predicate") != "INHIBITS":
+                continue
+            twins = [t for t in self.out.get(
+                ("MEASURED_INACTIVE_AGAINST", e["subject"]), [])
+                if t.get("object") == e["object"]]
+            if not twins:
+                continue
+            q = twins[0].get("qualifiers") or {}
+            bits = [f"{k}={q[k]:g}" for k in ("ic50_nm", "ec50_nm", "ki_nm")
+                    if q.get(k) is not None]
+            rel = q.get("relation")
+            detail = ((rel or "") + " " + ", ".join(bits)).strip()
+            out.append(guards.caveat(
+                "contradicted",
+                guards.contradicted_caveat(self._label(e["subject"]),
+                                           self._label(e["object"]), detail)))
+        return out
 
     def _best_direct_potency(self, compound: str) -> float | None:
         """Most potent INHIBITS measurement, in nM."""

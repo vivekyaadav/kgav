@@ -544,3 +544,100 @@ def test_triage_on_the_calibrated_virus_still_quotes_its_auc(two_virus_graph):
     out = t.triage([DRUG], V)
     text = (out.note or "") + " " + " ".join(out.warnings or [])
     assert "0.675" in text, f"the measured virus lost its figure:\n{text}"
+
+
+# --------------------------- a route contradicted by its own source says so
+@pytest.fixture
+def contradicted_release(tmp_path):
+    """One drug, one nsp5 chain, and BOTH verdicts on the same pair.
+
+    INHIBITS and MEASURED_INACTIVE_AGAINST come from the same ChEMBL rows
+    with opposite verdicts, and assembly keys edges on subject, predicate
+    and object -- so both survive as separate edges on one pair.
+    """
+    V = "NCBITaxon:2697049"
+    nodes = [
+        {"id": V, "class": "OrganismTaxon",
+         "properties": {"label": "SARS-CoV-2", "family": "Coronaviridae",
+                        "baltimore_class": "IV", "is_enveloped": True}},
+        {"id": "UniProtKB:NSP5", "class": "Protein",
+         "properties": {"taxon_id": V, "is_viral": True,
+                        "protein_family": "nsp5", "sequence_hash": "h",
+                        "reviewed": True}},
+        {"id": "KGAV:GENE_rep", "class": "Gene",
+         "properties": {"symbol": "rep", "taxon_id": V, "is_viral": True}},
+        {"id": "INCHIKEY:TWOFACED", "class": "SmallMolecule",
+         "properties": {"smiles": "C", "inchikey_skel": "TWOFAC",
+                        "chembl_id": "CHEMBL9", "salt_collapsed": False,
+                        "stereo_collapsed": False}},
+    ]
+
+    def e(s_, p_, o_, q=None):
+        q = dict(q or {})
+        if p_ == "INHIBITS":
+            q.setdefault("target_resolution", "chain_from_assay_description")
+        return {"subject": s_, "predicate": p_, "object": o_, "qualifiers": q,
+                "primary_knowledge_source": "infores:chembl",
+                "evidence_tier": 1, "first_asserted_date": "2021-03-04"}
+
+    edges = [
+        e("INCHIKEY:TWOFACED", "INHIBITS", "UniProtKB:NSP5",
+          {"assay_type": "biochemical", "ic50_nm": 25.0}),
+        e("INCHIKEY:TWOFACED", "MEASURED_INACTIVE_AGAINST", "UniProtKB:NSP5",
+          {"assay_type": "biochemical", "ic50_nm": 50000.0, "relation": ">"}),
+        e("UniProtKB:NSP5", "ENCODED_BY", "KGAV:GENE_rep"),
+        e("KGAV:GENE_rep", "BELONGS_TO", V),
+    ]
+    (tmp_path / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text(
+        "\n".join(json.dumps(x) for x in edges))
+    return tmp_path
+
+
+def test_a_contradicted_route_carries_the_caveat(contradicted_release):
+    """The agent loads EVERY edge, held-out predicates included, so the
+    contradicting measurement was already in hand. It reported "X inhibits
+    nsp5" from a graph that also records "X was measured not to inhibit
+    nsp5", and said nothing."""
+    t = GraphTools(contradicted_release)
+    r = t.explain("INCHIKEY:TWOFACED", "NCBITaxon:2697049")
+    assert r.ok
+    assert any("CONTRADICTED" in w for w in r.warnings)
+    said = next(w for w in r.warnings if "CONTRADICTED" in w)
+    assert "MEASURED INACTIVE" in said
+    assert "50000" in said or "50,000" in said or "> 50000" in said
+
+
+def test_the_caveat_lands_in_the_route_block_that_triggered_it(
+        contradicted_release):
+    """Per route, like the cell-context caveat: a contradiction naming one
+    protein printed against a route through another discredits every warning
+    on the page."""
+    t = GraphTools(contradicted_release)
+    r = t.explain("INCHIKEY:TWOFACED", "NCBITaxon:2697049")
+    text = "\n".join(r.verbalised)
+    assert "CONTRADICTED" in text
+
+
+def test_an_uncontradicted_route_carries_no_such_caveat(two_virus_graph):
+    """So the caveat marks a contradiction rather than appearing on every
+    direct-acting route."""
+    t = GraphTools(two_virus_graph)
+    for virus in ("NCBITaxon:2697049", "NCBITaxon:64320"):
+        r = t.explain(DRUG, virus)
+        if r.ok:
+            assert not any("CONTRADICTED" in w for w in r.warnings)
+
+
+def test_the_contradiction_is_enforced_like_every_other_caveat(
+        contradicted_release):
+    """It is in CAVEAT_LABELS, so verify.dropped_warnings requires its label
+    in the answer. A caveat the model may drop for brevity is not a caveat."""
+    from kgav.agent.verify import caveat_labels, dropped_warnings
+    t = GraphTools(contradicted_release)
+    r = t.explain("INCHIKEY:TWOFACED", "NCBITaxon:2697049")
+    assert "CONTRADICTED" in caveat_labels(r.warnings)
+    assert any(getattr(w, "key", "") == "contradicted"
+               for w in dropped_warnings("an answer mentioning nothing",
+                                         r.warnings))
