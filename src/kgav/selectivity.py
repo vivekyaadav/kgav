@@ -202,9 +202,21 @@ def ingest_selectivity(em, rows: list[dict], taxon_map: dict[str, str],
         # Taking the worst ratio defamed nirmatrelvir (SI 1.8) and remdesivir
         # (0.9). Taking the best exonerated chloroquine (17.7) and
         # hydroxychloroquine (21.2). Both were the same error -- selecting a
-        # study by its answer -- so exact measurements decide, and among
-        # several exact measurements the WORST is kept, since a compound shown
-        # cytotoxic in a real measurement is cytotoxic.
+        # study by its answer -- so exact measurements decide.
+        #
+        # THIS COMMENT USED TO END "and among several exact measurements the
+        # WORST is kept, since a compound shown cytotoxic in a real
+        # measurement is cytotoxic." That was superseded in the same function
+        # and never corrected here: the emit loop below takes the MEDIAN of
+        # the exact values, for the reason stated there -- the worst of 34
+        # remdesivir measurements is itself an outlier. The line immediately
+        # under this one has said "collect all; median chosen below" the
+        # whole time, and tests/test_selectivity.py pins the median.
+        #
+        # It is corrected rather than deleted because the stale clause was
+        # CITED as authority elsewhere -- baselines.potency_tiebreak took
+        # "keep the worst" from it -- and a comment that outlived its code
+        # does its damage by being quoted.
         # all_exact must be present. Defaulting a missing value to "censored"
         # silently discards the row; defaulting to "exact" silently trusts a
         # bound as a measurement. Both are the same class of error that

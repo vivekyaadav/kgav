@@ -221,3 +221,26 @@ def test_vero_lines_are_the_dominant_evidence_base():
     from kgav.selectivity import extract_cell_line
     assert extract_cell_line("Vero E6") == "Vero E6"
     assert extract_cell_line("Calu-3") == "Calu-3"
+
+
+def test_no_comment_in_this_module_still_claims_the_worst_is_kept():
+    """A COMMENT THAT OUTLIVED ITS CODE DOES ITS DAMAGE BY BEING QUOTED.
+
+    This module's selection comment ended "among several exact measurements
+    the WORST is kept" long after the emit loop had moved to the median --
+    with "collect all; median chosen below" on the very next line and
+    test_median_of_exact_measurements_is_used pinning the behaviour.
+
+    It was not harmless. baselines.potency_tiebreak took "keep the worst"
+    from it as an inherited rule, citing it verbatim, and fix 3 of
+    docs/prereg_m1_potency.md was designed on that citation.
+    """
+    from pathlib import Path
+    src = (Path(__file__).resolve().parents[1]
+           / "src/kgav/selectivity.py").read_text()
+    # The phrase may appear only where it is explicitly marked as superseded.
+    for i, line in enumerate(src.splitlines()):
+        if "WORST is kept" in line:
+            window = "\n".join(src.splitlines()[max(0, i - 8):i + 2])
+            assert "USED TO END" in window or "superseded" in window, \
+                f"line {i + 1} claims the worst is kept without marking it stale"
