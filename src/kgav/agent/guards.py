@@ -198,6 +198,7 @@ CAVEAT_LABELS: dict[str, str] = {
     "evidence_tier":         "EVIDENCE",
     "virus_not_validated":   "VIRUS NOT VALIDATED",
     "virus_assumed":         "VIRUS ASSUMED",
+    "contradicted":          "CONTRADICTED",
     "ranking":               "RANKING",
 }
 
@@ -346,6 +347,37 @@ def check(kind: QueryKind, virus: str | None = None,
     if virus and virus != SUPPORTED_VIRUS:
         warnings.append(caveat("virus_not_validated", _virus_caveat(calibration)))
     return Verdict(allowed=True, warnings=warnings)
+
+
+def contradicted_caveat(drug: str, protein: str, detail: str = "") -> str:
+    """Said when the SAME pair carries an inactive measurement.
+
+    INHIBITS and MEASURED_INACTIVE_AGAINST come from the same ChEMBL rows
+    with opposite verdicts -- the schema says so where it declares the
+    second: "Same ChEMBL rows as INHIBITS, opposite verdict". Both can
+    therefore exist for one (compound, protein) pair, because assembly keys
+    edges on subject, predicate and object, and a different predicate is a
+    different edge.
+
+    MEASURED_INACTIVE_AGAINST is held out, so no metapath walks it and the
+    scorer never sees it. That is correct for scoring: the polarity of a
+    measurement decides the predicate and the predicate decides whether it
+    is walked. It is NOT correct for explaining. The agent loads every edge,
+    contradicting ones included, and was reporting "X inhibits P" from a
+    graph that also records "X was measured not to inhibit P" -- with the
+    disagreement in hand and unmentioned.
+
+    Assays disagree for real reasons and the contradiction is not a defect
+    in the data. Presenting one side of it as the evidence is a defect in
+    the answer.
+    """
+    tail = f" ({detail})" if detail else ""
+    return (f"the graph also records {drug} as MEASURED INACTIVE against "
+            f"{protein}{tail}. Both come from the same ChEMBL rows with "
+            f"opposite verdicts, so this route rests on evidence that is "
+            f"contradicted elsewhere in the same source. The inactive "
+            f"measurement is held out of scoring by design and does not "
+            f"reduce the route's score; it belongs in the answer anyway.")
 
 
 def virus_assumed_caveat(label: str, others: list[str]) -> str:
