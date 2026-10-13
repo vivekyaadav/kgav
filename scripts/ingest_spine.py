@@ -22,12 +22,25 @@ import gzip
 import hashlib
 import json
 import re
+import sys
 from collections import Counter
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+# THE SHARED ACCUMULATOR, not a local copy. This script carried its own
+# `class Emit` -- identical to src/kgav/emit.py except that the shared
+# one had since gained a `score` parameter, with a comment explaining
+# why the field is not called confidence. The fork missed it silently.
+#
+# Emit.node merges with `properties.update(props)`, last write wins, and
+# that semantics decides what a repeated node assignment means. A second
+# copy of it is a second place that rule can diverge -- which is how a
+# TargetClass holding a cysteine and a serine protease came to take
+# whichever member was written last.
+from kgav.emit import Emit
 
 PRO_RE = re.compile(r"^PRO_\d+$")
 # nsp11 is a short peptide with no known enzymatic role; kept for completeness.
@@ -149,34 +162,6 @@ def chain_family(label: str, family: str | None) -> str | None:
 
 
 
-@dataclass
-class Emit:
-    """Accumulates nodes and edges, deduping node ids."""
-    nodes: dict[str, dict] = field(default_factory=dict)
-    edges: list[dict] = field(default_factory=list)
-    notes: Counter = field(default_factory=Counter)
-
-    def node(self, nid: str, cls: str, **props: Any) -> str:
-        props = {k: v for k, v in props.items() if v is not None}
-        if nid in self.nodes:
-            self.nodes[nid]["properties"].update(props)
-            self.notes[f"node_merged:{cls}"] += 1
-        else:
-            self.nodes[nid] = {"id": nid, "class": cls, "properties": props}
-        return nid
-
-    def edge(self, subj: str, pred: str, obj: str, *, source: str, date: str,
-             tier: int = 1, quals: dict | None = None, pmids: list | None = None) -> None:
-        e = {
-            "subject": subj, "predicate": pred, "object": obj,
-            "qualifiers": quals or {},
-            "primary_knowledge_source": source,
-            "evidence_tier": tier,
-            "first_asserted_date": date,
-        }
-        if pmids:
-            e["publications"] = pmids
-        self.edges.append(e)
 
 
 def _sha(s: str) -> str:
