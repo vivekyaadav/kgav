@@ -236,16 +236,58 @@ viruses:
     # PER ACCESSION, because the two entries are NOT one gene. A first version
     # declared a single symbol for the virus and gave it to both, making
     # Q32ZE1 and P0DXN9 share one Gene node. P0DXN9 is UniProt's reviewed
-    # "uORF protein" (function: "Plays a role in viral replication"), and a
-    # uORF is by definition a different reading frame from the polyprotein, so
-    # that merge asserted two genes are one.
+    # "uORF protein" (function: "Plays a role in viral replication").
     #
-    # BASIS, since UniProt does not state the frame outright: the claim here
-    # rests on UniProt's own protein name for P0DXN9 and nothing more. If that
-    # protein turns out to be a product of the main ORF, uORF is wrong and
-    # should be removed rather than merged back into POLY -- a protein with no
-    # gene is unreachable by M1, which is honest, whereas a protein on the
-    # wrong gene is a false path.
+    # THE uORF IS REAL BIOLOGY, which is the part that was worth checking and
+    # is now checked. Lefevre C, Cook GM, Dinan AM, et al. (2024). Zika
+    # viruses encode 5' upstream open reading frames affecting infection of
+    # human brain cells. Nature Communications 15:1-19.
+    # doi:10.1038/s41467-024-53085-9. Ribosome profiling finds translated
+    # uORFs in the 5' genomic region -- two (uORF1, uORF2) in Asian/American
+    # strains, fused into one in African strains -- and reverse genetics
+    # shows they affect growth and tropism in human cortical neurons and
+    # cerebral organoids. So "uORF protein" names something that exists and
+    # is translated, not a UniProt filing convention.
+    #
+    # AN EARLIER VERSION OF THIS NOTE ARGUED THE WRONG THING. It said "a uORF
+    # is by definition a different reading frame from the polyprotein". That
+    # does not follow. The definition is POSITIONAL -- "an open reading frame
+    # within the 5' untranslated region of an mRNA" -- and says nothing about
+    # reading frame at all, so it cannot establish a different one.
+    #
+    # Note what that does and does not license. It licenses "the definition
+    # settles nothing about the frame". It does NOT license "uORFs may be
+    # in-frame", which an earlier draft of this correction asserted and which
+    # the source consulted does not state either way. Replacing one unchecked
+    # claim with another is not a correction.
+    #
+    # WHAT IS STILL UNVERIFIED, stated rather than argued around: that
+    # P0DXN9 is specifically one of the uORFs that paper describes, and what
+    # its frame is. The Lefevre abstract names no accession and does not give
+    # the frame, and UniProt does not state the frame outright. So the
+    # accession-level identification still rests on UniProt's protein name
+    # and nothing more.
+    #
+    # It is settleable from a file already on disk, without the network:
+    #
+    #   python - <<'EOF'
+    #   import gzip, json
+    #   d = json.loads(gzip.open(
+    #       "data/raw/proteomes/UP000054557.json.gz").read())
+    #   for e in d["results"]:
+    #       if e["primaryAccession"] == "P0DXN9":
+    #           print(json.dumps({k: e.get(k) for k in (
+    #               "proteinDescription", "genes", "comments", "features",
+    #               "sequence")}, indent=2)[:4000])
+    #   EOF
+    #
+    # IF IT TURNS OUT TO BE A MAIN-ORF PRODUCT, uORF is wrong and should be
+    # REMOVED rather than merged back into POLY -- a protein with no gene is
+    # unreachable by M1, which is honest, whereas a protein on the wrong gene
+    # is a false path. Separate genes remains the right call meanwhile: a
+    # distinct ORF with its own start codon and its own product is a distinct
+    # unit whether or not the frames coincide, and merging asserts an
+    # identity nothing supports.
     gene_symbol:
       Q32ZE1: POLY
       P0DXN9: uORF
