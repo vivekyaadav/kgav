@@ -258,6 +258,22 @@ edge_classes:
   # direct-acting channel asserted inhibition about compounds measured not to
   # inhibit, and M1, M7 and M8 traversed them as evidence.
   #
+  # A PAIR MAY CARRY BOTH VERDICTS, because edges are keyed on subject,
+  # predicate and object, so a different predicate is a different edge.
+  # Measured on v0.1, 2026-10-14: 95 of 4,714 pairs holding either predicate
+  # carry both, which is 2.0%. Assays disagree for real reasons and this is
+  # not a defect in the data.
+  #
+  # It was a defect in the ANSWER. Scoring never walks the inactive edge, by
+  # the rule below, but src/kgav/agent/tools.py loads every edge including
+  # held-out ones -- so explain() reported "X inhibits P, IC50 25 nM, potent"
+  # from a graph that also recorded X measured inactive against P above
+  # 50,000 nM, with the disagreement indexed and unmentioned. A CONTRADICTED
+  # caveat now names it.
+  #
+  # The 95 is counted rather than recalled: a figure of 133 sat in a working
+  # note and was wrong by 40%.
+  #
   # DECLARED RATHER THAN DROPPED. This project's hard-negative result (88074a6)
   # rests on separating MEASURED INACTIVE from NEVER TESTED, and dropping these
   # rows would delete that distinction exactly where M1/M7/M8 operate. The
