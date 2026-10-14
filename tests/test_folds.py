@@ -281,3 +281,36 @@ def test_a_matched_chain_with_no_pro_id_is_reported_not_keyed():
         folds._get = real
     assert (s, e, pro) == (1, 9, "")
     assert "no PRO_ id" in note
+
+
+def test_role_decides_mixed_mode_not_whether_a_nucleophile_resolved():
+    """THE GATE HELD BY LUCK. MIXED was decided by a_nuc != b_nuc -- whether
+    a nucleophile was FOUND, a property of the sequence scan. SARS-CoV-2
+    PLpro resolves catalytic_type "none" because its spec matches UniProt's
+    "Papain-like protease nsp3", the whole 1,945-residue multi-domain chain
+    rather than the protease domain. So a PROTEASE reached MOTIF mode beside
+    the polymerases, where an allowed weak transfer protease->polymerase was
+    possible -- the one comparison the docstring calls an artifact.
+
+    It never fired on v0.1 only because PLpro shares no catalytic-domain
+    entry with any cross-family polymerase.
+    """
+    plpro = _chain("SARS-CoV-2 PLpro", "Coronaviridae", "protease",
+                   "none", "", SHARED_RDRP)      # same classes as an RdRp
+    g = gate(plpro, PICO_3D)
+    assert not g.allowed, "a protease must not transfer to a polymerase"
+    assert g.mode == "refused"
+    assert "different target roles" in g.reason
+
+    # And the old rule alone would have let it through: both lack a
+    # nucleophile, and they share catalytic-domain entries.
+    assert plpro.catalytic_type == PICO_3D.catalytic_type == "none"
+    assert set(c["accession"] for c in plpro.classes) & \
+           set(c["accession"] for c in PICO_3D.classes)
+
+
+def test_matching_roles_are_still_compared():
+    """The role check must not refuse everything: a gate that never opens is
+    as useless as one that never closes."""
+    assert gate(COV_MPRO, PICO_3C).allowed
+    assert gate(COV_RDRP, PICO_3D).mode == "motif"
