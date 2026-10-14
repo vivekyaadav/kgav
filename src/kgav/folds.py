@@ -112,6 +112,23 @@ class ChainSpec:
     virus_taxon: str
 
 
+#: Fields of ResolvedChain that are DERIVED by `decide_machinery` from
+#: `active_sites`, rather than fetched. They are never written to the chain
+#: cache and always recomputed on load.
+#:
+#: WHY: `--offline` rebuilt ResolvedChain straight from JSON, so
+#: `catalytic_machinery` ran only on the network path. Widening the
+#: composition rule therefore changed nothing offline -- the run reported
+#: "composition 14, none 9, annotated 1" identically before and after,
+#: because it was replaying the verdicts of the run before it. A cached
+#: verdict looks exactly like a computed one, which is the same failure the
+#: cache-completeness guard below already names for defaulted fields, one
+#: level up: that guard catches a field that is ABSENT, not one that is
+#: present and stale.
+DERIVED_FIELDS = frozenset({"catalytic_residues", "nucleophile",
+                            "catalytic_type", "catalytic_basis"})
+
+
 @dataclass
 class ResolvedChain:
     spec: ChainSpec
@@ -130,6 +147,25 @@ class ResolvedChain:
     #: The chain's UniProt featureId, e.g. PRO_0000449623. THE JOIN to the
     #: spine, which keys the same protein on it. Empty means unresolvable.
     chain_pro_id: str = ""
+    #: THE INPUT the catalytic rule reads: [(position, residue, description)],
+    #: straight off UniProt. Stored so the four DERIVED_FIELDS above can be
+    #: recomputed instead of replayed -- see DERIVED_FIELDS.
+    #:
+    #: None and [] are different and must stay different: None means the
+    #: fetch never happened or failed (catalytic_type "unknown"), [] means it
+    #: happened and the chain has no annotated active site ("none").
+    active_sites: list | None = None
+
+    def redecide(self) -> None:
+        """Re-run the rule over `active_sites`, discarding any stored verdict.
+
+        Called on every cache load. A cached verdict is indistinguishable
+        from a freshly computed one, so the only safe thing to do with one
+        is not keep it.
+        """
+        (self.catalytic_residues, self.nucleophile,
+         self.catalytic_type, self.catalytic_basis) = \
+            decide_machinery(self.active_sites)
 
     @property
     def ok(self) -> bool:
@@ -204,16 +240,50 @@ def find_chain(acc: str,
     return "", 0, 0, f"no chain matched {patterns}; entry has: {have}", ""
 
 
-def catalytic_machinery(acc: str, lo: int,
-                        hi: int) -> tuple[list[str], str, str, str]:
-    """Catalytic residues, nucleophile, and catalytic type — from SEQUENCE.
+def fetch_sites(acc: str, lo: int,
+                hi: int) -> list[tuple[int, str, str]] | None:
+    """NETWORK HALF. The active sites in [lo, hi] as (position, residue,
+    description).
 
-    UniProt's active-site annotation names the ROLE ("Nucleophile; for 3CL-PRO
-    activity@3408") but not the residue. The residue is in the sequence at that
-    position, and that is the only unambiguous source: InterPro calls the
-    CORONAVIRUS protease superfamily "trypsin-like serine protease" because
-    that is the architecture, not the chemistry, so a classifier reading entry
-    names returns "ambiguous" for every cysteine protease.
+    UniProt's active-site annotation names the ROLE ("Nucleophile; for
+    3CL-PRO activity@3408") but not the residue. The residue is in the
+    sequence at that position, and that is the only unambiguous source:
+    InterPro calls the CORONAVIRUS protease superfamily "trypsin-like serine
+    protease" because that is the architecture, not the chemistry, so a
+    classifier reading entry names returns "ambiguous" for every cysteine
+    protease. So the sequence lookup happens here, and what comes out is a
+    payload the rule can be re-run over without the network.
+
+    Returns None if the fetch failed, [] if it succeeded and found nothing.
+    """
+    data = _get(f"{UNIPROT}/{acc}?fields=ft_act_site,sequence")
+    if not data:
+        return None
+    seq = data.get("sequence", {}).get("value", "")
+    sites: list[tuple[int, str, str]] = []
+    for f in data.get("features", []):
+        pos = ((f.get("location", {}) or {}).get("start", {}) or {}).get("value")
+        if pos and lo <= pos <= hi and pos <= len(seq):
+            sites.append((pos, seq[pos - 1], f.get("description", "")))
+    sites.sort()
+    return sites
+
+
+def decide_machinery(
+        sites: list | None) -> tuple[list[str], str, str, str]:
+    """PURE HALF — the rule. No network, so it can be re-run over a cache.
+
+    THE SPLIT EXISTS BECAUSE this function's verdict used to be what got
+    cached. `--offline` then replayed decisions made by whatever version of
+    this rule happened to be installed when the cache was written, and a
+    change here had no effect until someone ran against the network. The
+    cache now holds `sites`, this runs on every load, and the rule in force
+    is always the rule in the file.
+
+    `sites` is [(position, residue, description)]; None means the fetch
+    failed. The two produce different types -- "unknown" against "none" --
+    and conflating them would report a network outage as a chain with no
+    catalytic machinery.
 
     THIS PARAGRAPH USED TO SAY "the nucleophile is taken as the LAST
     catalytic residue in sequence order", and the code below stopped doing
@@ -233,18 +303,12 @@ def catalytic_machinery(acc: str, lo: int,
     Without it the per-chain report cannot distinguish a type nobody
     annotated from one nobody could infer.
     """
-    data = _get(f"{UNIPROT}/{acc}?fields=ft_act_site,sequence")
-    if not data:
+    if sites is None:
         return [], "", "unknown", "none"
-    seq = data.get("sequence", {}).get("value", "")
-    sites: list[tuple[int, str, str]] = []
-    for f in data.get("features", []):
-        pos = ((f.get("location", {}) or {}).get("start", {}) or {}).get("value")
-        if pos and lo <= pos <= hi and pos <= len(seq):
-            sites.append((pos, seq[pos - 1], f.get("description", "")))
     if not sites:
         return [], "", "none", "none"
-    sites.sort()
+    # JSON round-trips a tuple as a list, so a cache load hands this lists.
+    sites = sorted(tuple(s) for s in sites)
     residues = [f"{aa}{pos}" for pos, aa, _d in sites]
 
     # ONLY an explicitly annotated nucleophile counts. The earlier rule --
@@ -297,6 +361,17 @@ def catalytic_machinery(acc: str, lo: int,
     return residues, "", "none", "none"
 
 
+def catalytic_machinery(acc: str, lo: int,
+                        hi: int) -> tuple[list[str], str, str, str]:
+    """Fetch then decide. The whole operation, for callers with a network.
+
+    Kept so there is still one name for "work out this chain's catalytic
+    machinery", but it is now composition, not implementation: the rule
+    lives in `decide_machinery` alone and nothing may copy it.
+    """
+    return decide_machinery(fetch_sites(acc, lo, hi))
+
+
 def fetch_classes(acc: str, lo: int, hi: int) -> list[dict]:
     """EVERY InterPro entry overlapping the chain, at every level.
 
@@ -341,8 +416,10 @@ def resolve(spec: ChainSpec) -> ResolvedChain:
     r.chain_name, r.start, r.end, r.note, r.chain_pro_id = name, s, e, note, pro
     if not r.ok:
         return r
-    r.catalytic_residues, r.nucleophile, r.catalytic_type, r.catalytic_basis = \
-        catalytic_machinery(spec.accession, s, e)
+    # Fetch the sites, store them, then decide from the stored copy -- the
+    # same call the cache path makes, so offline and online cannot diverge.
+    r.active_sites = fetch_sites(spec.accession, s, e)
+    r.redecide()
     r.classes = fetch_classes(spec.accession, s, e)
     return r
 
