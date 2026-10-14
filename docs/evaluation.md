@@ -190,6 +190,27 @@ identical numbers from one pool are one observation -- and here they are two
 identical UNDETERMINED numbers, since the same tie block straddles the cut
 either way.
 
+**The tables kept printing those points for another four commits.** The
+paragraph above is right, and the fix it describes reached `confound_warning`
+and the `hits` column (`hits_cell` prints `0-8` rather than a draw) — but
+`lift` and `p` sat in the next two columns as point values the whole time,
+because `lift_row` computes both from the same `hits_at_k` draw that
+`hits_cell` refuses to print. So a row could read
+
+    M1   206   19   7-19    9.2    1.95  < .0001
+
+with its own hits column saying the count is unknown within [7, 19] and the
+two columns beside it quoting a lift and a p computed from one number inside
+it. On v0.1 that is Zika M1, and its real lift interval is
+[7/9.2, 19/9.2] = **[0.76, 2.07]** — it contains 1.00, so the row is
+consistent with no enrichment while reading, as printed, as the strongest
+result in the regeneration: `p < .0001` against a Zika degree baseline that
+is itself at chance (lift 0.85, p=0.6887), which is exactly the clean
+non-null this project has been looking for. `COMBINED` is the same tie block:
+[0.82, 2.24]. Both now print the interval, `p` prints `n/d`, and a note under
+the table says when an interval spans 1.00. The M6-vs-M7 verdict refuses
+rather than comparing two draws.
+
 Both tables also carry a `vs deg` column, with `(~)` marking a ratio whose
 denominator is itself at chance. SARS-CoV-2 cross-sectional is why: M4 reads
 4.44x a degree lift of **0.45**, which is M4 lift 1.99 at p=0.14. A ratio

@@ -18,6 +18,9 @@ from kgav.baselines import (
     hits_at_k,
     hits_at_k_range,
     hits_cell,
+    lift_cell,
+    p_cell,
+    undetermined_note,
     label_publication_index,
     lift_row,
     mrr,
@@ -749,6 +752,59 @@ def test_hits_cell_prints_a_range_only_when_undetermined():
     assert hits_cell(undet, 5).strip() == "2-12"
 
 
+def test_lift_and_p_are_withheld_on_the_row_whose_hits_are_undetermined():
+    """THE COLUMNS BESIDE hits_cell WERE STILL THE SAME DRAW. lift is h/exp
+    and p is lift_pvalue(..., h) for the same h that hits_cell refuses to
+    print, so a row read
+
+        M1   206   19   7-19    9.2    1.95  < .0001
+
+    -- hits unknown within [7, 19], and the next two columns quoting a point
+    lift and a p computed from one draw out of that interval. On v0.1 Zika
+    that interval is [0.76, 2.07]: it contains 1.00, so the row is consistent
+    with no enrichment while reading as the strongest result in the table.
+    """
+    det = {"hits": 6, "hits_determined": True, "lift": 1.95, "p_value": 0.03,
+           "lift_lo": 1.0, "lift_hi": 2.0}
+    assert lift_cell(det).strip() == "1.95"
+    assert p_cell(det).strip() == "0.0300"
+
+    undet = {"hits": 18, "hits_determined": False, "hits_lo": 7, "hits_hi": 19,
+             "lift": 1.95, "lift_lo": 0.76, "lift_hi": 2.07,
+             "lift_expected": 1.41, "p_value": 0.00001}
+    assert lift_cell(undet).strip() == "0.76-2.07", "the interval, not a draw"
+    assert p_cell(undet).strip() == "n/d", (
+        "a p-value computed from an undetermined hit count is not a "
+        "measurement and must not print as one")
+
+
+def test_p_cell_still_distinguishes_an_empty_question_from_an_undetermined_one():
+    """'-' means there was nothing to ask (no positives, or k covering the
+    whole pool). 'n/d' means the question was real and the input to it was
+    not determined. Collapsing them would hide which."""
+    assert p_cell({"hits_determined": True, "p_value": None}).strip() == "-"
+    assert p_cell({"hits_determined": False, "p_value": None}).strip() == "n/d"
+
+
+def test_the_undetermined_note_says_when_the_interval_contains_no_enrichment():
+    """`~tied` on the row says a tie straddles the cut. It does not say the
+    consequence, which is the part a reader acts on: whether the lift
+    interval includes 1.00."""
+    spans = {"hits_determined": False, "lift_lo": 0.76, "lift_hi": 2.07,
+             "lift_expected": 1.41}
+    clear = {"hits_determined": False, "lift_lo": 2.10, "lift_hi": 3.40,
+             "lift_expected": 2.80}
+    done = {"hits_determined": True}
+
+    note = undetermined_note({"M1": spans, "degree": done})
+    assert "M1" in note and "[0.76, 2.07]" in note and "spans 1.00" in note
+    assert "degree" not in note, "a determined row must not be named"
+
+    assert "spans 1.00" not in undetermined_note({"M4": clear})
+    assert undetermined_note({"degree": done}) == "", \
+        "no undetermined row, no note"
+
+
 def test_ties_are_merged_only_when_exactly_equal():
     """Exact equality, not a tolerance: identical topology yields
     bit-identical products, while a tolerance would merge genuinely
@@ -1401,3 +1457,26 @@ def test_the_confounded_tail_marks_an_untrustworthy_challenger():
     warn = confound_warning(per)
     assert "M4 exceeds it at 16.09" in warn
     assert "flagged (!)" in warn, warn
+
+
+def test_neither_evaluation_script_formats_lift_or_p_itself():
+    """_p was byte-identical in compare_metapaths.py and temporal_split.py --
+    the sixth instance in this project of one calculation living in two
+    files, and the change that added 'n/d' would have landed in only one of
+    them. Same reason hits_cell and channel_percentiles live here.
+
+    Checked by source because the drift is textual: a script that formats
+    the column inline passes every behavioural test while disagreeing with
+    the other script.
+    """
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    for script in ("compare_metapaths", "temporal_split"):
+        src = (root / "scripts" / f"{script}.py").read_text()
+        assert "def _p(" not in src, (
+            f"{script}.py defines its own p formatter again")
+        assert "m['lift']:" not in src and 'm["lift"]:' not in src, (
+            f"{script}.py formats lift inline, bypassing lift_cell -- which "
+            "is what printed a point lift beside an undetermined hit count")
+        for fn in ("lift_cell", "p_cell", "undetermined_note"):
+            assert fn in src, f"{script}.py does not use {fn}"

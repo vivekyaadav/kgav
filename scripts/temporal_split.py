@@ -16,7 +16,10 @@ from kgav.baselines import (
     degree_relative,
     dwpc_scores,
     hits_cell,
+    lift_cell,
     lift_row,
+    p_cell,
+    undetermined_note,
 )
 from kgav.calibration import MIN_REACHED_POSITIVES
 from kgav.labels import evaluate_against_negatives
@@ -84,14 +87,6 @@ def _auc(m: dict) -> str:
     if not m.get("auc_evaluable"):
         return f"not evaluable ({m.get('auc_reached_pos', 0)})"
     return (f"{m['auc']:.3f} [{m['auc_ci_lo']:.2f},{m['auc_ci_hi']:.2f}]")
-
-
-def _p(m: dict) -> str:
-    """p shown only where it answers something: None means the question was
-    empty (no positives, or k covering the whole pool)."""
-    v = m.get("p_value")
-    return "      -" if v is None else (f"{v:>7.4f}" if v >= 0.0001
-                                        else "< .0001")
 
 
 def _results_name(args) -> str:
@@ -262,7 +257,7 @@ def main() -> int:
             })
         degree_relative(per)
         print(f"    {'scorer':<10} {'pool':>7} {'pos':>5} {'hits':>5} "
-              f"{'exp':>7} {'lift':>7} {'p':>7} {'vs deg':>7} {'mrr':>7} "
+              f"{'exp':>7} {'lift':>11} {'p':>7} {'vs deg':>7} {'mrr':>7} "
               f"{'AUC [95% CI]':>22}")
         for name, m in per.items():
             flag = "" if m["trustworthy"] else " (!)"
@@ -273,10 +268,12 @@ def main() -> int:
                 flag += " ~tied"
             print(f"    {name:<10} {m['pool']:>7,} {m['pos']:>5,} "
                   f"{hits_cell(m, 5)} "
-                  f"{m['expected']:>7.1f} {m['lift']:>7.2f} {_p(m)} "
+                  f"{m['expected']:>7.1f} {lift_cell(m)} {p_cell(m)} "
                   f"{_vs(m)} {m['mrr']:>7.4f} {_auc(m):>22}{flag}")
         if (warn := confound_warning(per)):
             print(f"    ! {warn}")
+        if (note := undetermined_note(per)):
+            print(f"    ! {note}")
         results[label] = per
 
     args.results.mkdir(parents=True, exist_ok=True)
