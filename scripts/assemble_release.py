@@ -76,8 +76,21 @@ def main() -> int:
     derived = {p: d for p, d in derived.items() if d}
     if derived:
         print(f"  derived at assembly (never ingested): {derived}")
+    # SPELLING IS NOT DISAGREEMENT. Supplied here rather than inside
+    # assemble because deciding it needs rdkit, the optional `chem` extra;
+    # without it the comparator is simply absent and every difference is
+    # reported as a conflict, which is the previous behaviour.
+    equivalent = {}
+    try:
+        from kgav.normalize_chem import same_structure
+        same_structure("C", "C")     # import rdkit NOW, not mid-assembly
+    except ImportError:
+        print("  rdkit absent: two spellings of one SMILES will be counted "
+              "as a conflict")
+    else:
+        equivalent["smiles"] = same_structure
     a = assemble(layers, identity, schema_early.derive_qualifiers,
-                 schema_early.source_identity_predicates())
+                 schema_early.source_identity_predicates(), equivalent)
 
     print(f"\n{len(a.nodes):,} nodes, {len(a.edges):,} edges")
     for c, n in a.by_class().most_common():

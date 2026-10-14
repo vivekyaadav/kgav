@@ -37,6 +37,9 @@ from typing import Any
 # recomputed. Schema.derive_qualifiers satisfies it; passed as a callable so
 # this module keeps knowing nothing about the schema file.
 DeriveFn = Callable[[str, Mapping[str, Any]], dict]
+#: Are these two values for one property the same thing, spelled
+#: differently? Supplied per property by the caller; see Assembly.
+EquivalenceFn = Callable[[Any, Any], bool]
 
 # Later layers do not overwrite earlier ones on conflict. The spine is
 # hand-curated and authoritative for viral entities; the host layer is derived
@@ -176,9 +179,22 @@ def merge_edges(a: dict, b: dict, derive: DeriveFn | None = None) -> dict:
 class Assembly:
     def __init__(self, identity: dict[str, list[str]] | None = None,
                  derive: DeriveFn | None = None,
-                 source_identity: set[str] | None = None) -> None:
+                 source_identity: set[str] | None = None,
+                 equivalent: dict[str, EquivalenceFn] | None = None) -> None:
         self.identity = identity or {}
         self.source_identity = source_identity or set()
+        # TWO LAYERS SPELLING ONE VALUE DIFFERENTLY IS NOT A CONFLICT, and
+        # counting it as one trains the reader to ignore the counter. All 7
+        # of `property_conflict:smiles` on v0.1 are this: every pair
+        # canonicalises to one molecule and both members match the node's
+        # own InChIKey (diagnose_property_conflicts.py).
+        #
+        # INJECTED, NOT BUILT IN. Deciding that two SMILES are one molecule
+        # needs rdkit, which is the optional `chem` extra; importing it here
+        # would make assembly fail where it currently works. The caller
+        # supplies a comparator per property if it can, and without one the
+        # behaviour is exactly as before.
+        self.equivalent = equivalent or {}
         # Without a derive function the assembled graph carries whatever the
         # layers wrote. That is why the driver always passes one: a derived
         # qualifier stated by a layer is a claim no layer can substantiate.
@@ -245,6 +261,19 @@ class Assembly:
             if k not in ep or ep[k] is None:
                 ep[k] = v
             elif ep[k] != v:
+                eq = self.equivalent.get(k)
+                # A comparator that raises is not allowed to abort an
+                # assembly: an unparseable value is a difference like any
+                # other, and gets reported as the conflict it is.
+                same = False
+                if eq is not None:
+                    try:
+                        same = bool(eq(ep[k], v))
+                    except Exception:            # noqa: BLE001 - see above
+                        same = False
+                if same:
+                    self.stats[f"property_equivalent:{k}"] += 1
+                    continue
                 self.stats[f"property_conflict:{k}"] += 1
                 if len(self.conflicts) < 40:
                     self.conflicts.append(
@@ -311,9 +340,10 @@ class Assembly:
 def assemble(layers: dict[str, Path],
              identity: dict[str, list[str]] | None = None,
              derive: DeriveFn | None = None,
-             source_identity: set[str] | None = None) -> Assembly:
+             source_identity: set[str] | None = None,
+             equivalent: dict[str, EquivalenceFn] | None = None) -> Assembly:
     """Layers are added in LAYER_PRECEDENCE order regardless of dict order."""
-    a = Assembly(identity, derive, source_identity)
+    a = Assembly(identity, derive, source_identity, equivalent)
     for name in LAYER_PRECEDENCE:
         if name in layers:
             a.add_layer(name, layers[name])
