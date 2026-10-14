@@ -41,7 +41,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.emit import Emit
-from kgav.folds import ChainSpec, ResolvedChain, gate, resolve
+from kgav.folds import (DERIVED_FIELDS, ChainSpec, ResolvedChain, gate,
+                        resolve)
 from kgav.schema import load_schema
 
 # Roles whose comparisons may enter a score. Others are ingested and stored but
@@ -164,6 +165,63 @@ SPECS: list[ChainSpec] = [
 ]
 
 
+# --------------------------------------------------------------- the cache
+# THE CACHE HOLDS NETWORK PAYLOAD, NEVER A VERDICT.
+#
+# It used to hold the whole ResolvedChain, derived fields included, and
+# `--offline` rebuilt the object straight from JSON. `catalytic_machinery`
+# ran only on the network path, so a change to the rule had no effect
+# offline: the run that was supposed to show the widened composition rule
+# printed "composition 14, none 9, annotated 1" -- identical to the run
+# before it, because it WAS the run before it, replayed.
+#
+# The guard below catches a field the cache LACKS. Nothing caught a field
+# the cache HAD and should not have, which is the worse of the two: a
+# missing field at least defaults to something visibly wrong, while a stale
+# verdict reads as a fresh one.
+#
+# Writer and reader are module-level so a test can round-trip through the
+# code the script actually runs, rather than a copy of it.
+def cache_payload(chains: list) -> list[dict]:
+    """What gets written: inputs only, verdicts dropped."""
+    return [{**{k: v for k, v in c.__dict__.items()
+                if k != "spec" and k not in DERIVED_FIELDS},
+             "spec": c.spec.__dict__} for c in chains]
+
+
+def missing_inputs(raw: list[dict]) -> list[str]:
+    """Input fields ResolvedChain carries that this cache file lacks.
+
+    Derived from the dataclass, not from a list someone has to remember to
+    extend: adding an input field invalidates an old cache automatically.
+    DERIVED_FIELDS are excluded because they are no longer stored, so their
+    absence is correct rather than stale.
+    """
+    if not raw:
+        return []
+    required = ({f.name for f in dataclasses.fields(ResolvedChain)}
+                - {"spec"} - DERIVED_FIELDS)
+    return sorted(required - set().union(*(set(d) for d in raw)))
+
+
+def load_cache(raw: list[dict]) -> list:
+    """Rebuild chains, recomputing every derived field.
+
+    A stored verdict is dropped rather than trusted, so a cache written by
+    an older rule cannot survive into a run of the newer one.
+    """
+    chains = []
+    for d in raw:
+        d = dict(d)
+        spec = ChainSpec(**d.pop("spec"))
+        c = ResolvedChain(spec=spec,
+                          **{k: v for k, v in d.items()
+                             if k not in DERIVED_FIELDS})
+        c.redecide()
+        chains.append(c)
+    return chains
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
@@ -179,23 +237,7 @@ def main() -> int:
     # ------------------------------------------------------------- resolve
     if args.offline and args.cache.exists():
         raw = json.loads(args.cache.read_text())
-        # A CACHE MISSING ANY FIELD ResolvedChain NOW CARRIES IS NOT USABLE.
-        # ResolvedChain(**d) silently defaults what the file lacks, and the
-        # default is indistinguishable from a measured value.
-        #
-        # THE FIRST VERSION OF THIS GUARD NAMED ONE FIELD, chain_pro_id, and
-        # the very next field added walked straight past it:
-        # catalytic_basis defaulted to "none" for all 24 chains, so the run
-        # reported "none 24" and listed every 3CLpro under "no rule could
-        # read them" WHILE the table above it said cysteine. A report
-        # contradicting itself one screen apart.
-        #
-        # So the check is now derived from the dataclass instead of from a
-        # list someone has to remember to extend. Adding a field invalidates
-        # an old cache automatically, which is the only version of this that
-        # stays true.
-        required = {f.name for f in dataclasses.fields(ResolvedChain)} - {"spec"}
-        missing = sorted(required - set().union(*(set(d) for d in raw))) if raw else []
+        missing = missing_inputs(raw)
         if missing:
             print(f"{args.cache} predates {', '.join(missing)}.\n"
                   f"  ResolvedChain would default those, and a default is "
@@ -204,10 +246,7 @@ def main() -> int:
                   f"'cysteine 4'. Re-run without --offline to refresh it.",
                   file=sys.stderr)
             return 2
-        chains = []
-        for d in raw:
-            spec = ChainSpec(**d.pop("spec"))
-            chains.append(ResolvedChain(spec=spec, **d))
+        chains = load_cache(raw)
         print(f"loaded {len(chains)} chains from cache")
     else:
         chains = []
@@ -222,9 +261,7 @@ def main() -> int:
             chains.append(r)
             time.sleep(0.4)
         args.cache.parent.mkdir(parents=True, exist_ok=True)
-        args.cache.write_text(json.dumps(
-            [{**{k: v for k, v in c.__dict__.items() if k != "spec"},
-              "spec": c.spec.__dict__} for c in chains], indent=2))
+        args.cache.write_text(json.dumps(cache_payload(chains), indent=2))
         print(f"\ncached -> {args.cache}")
 
     usable = [c for c in chains if c.ok]

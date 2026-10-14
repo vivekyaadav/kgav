@@ -4,6 +4,7 @@ does not license transfer across a different nucleophile.
 
 from dataclasses import dataclass
 from dataclasses import field as dc_field
+from pathlib import Path
 
 from kgav.emit import Emit
 from kgav.folds import NUCLEOPHILES, ChainSpec, ResolvedChain, emit_classes, gate, motif_c_present
@@ -431,3 +432,119 @@ def test_the_widened_rule_moves_only_plpro():
 
 def test_no_active_sites_at_all_is_distinguishable():
     assert _machinery([])[3] == "none"
+
+
+# ------------------------------------------- the cache stores input, not verdict
+def _ingest():
+    import sys
+    from importlib import import_module
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    return import_module("ingest_folds")
+
+
+#: SARS-CoV-2 PLpro, exactly as the 2026-10-15 run printed it. None of the
+#: five sites is annotated as a nucleophile, so only the composition rule
+#: can read it -- which makes it the chain that moves when that rule moves.
+PLPRO_SITES = [(1062, "N", "For ADP-ribosylhydrolase activity"),
+               (1070, "G", "For ADP-ribosylhydrolase activity"),
+               (1674, "C", "For PL-PRO activity"),
+               (1835, "H", "For PL-PRO activity"),
+               (1849, "D", "For PL-PRO activity")]
+
+
+def test_a_cached_verdict_is_recomputed_not_replayed():
+    """THE BUG, stated as a test.
+
+    The widened composition rule shipped, the suite went green, and the
+    `--offline` run printed "composition 14, none 9, annotated 1" --
+    character-identical to the run before it, PLpro still listed under "no
+    rule could read them". The rule was never executed: the cache held the
+    whole ResolvedChain, derived fields included, and the offline branch
+    rebuilt the object from JSON without calling catalytic_machinery.
+
+    So a cache carrying the OLD verdict for PLpro must come back carrying
+    the NEW one.
+    """
+    from kgav.folds import ChainSpec, ResolvedChain
+
+    stale = {"spec": ChainSpec(label="SARS-CoV-2 PLpro", accession="P0DTD1",
+                               patterns=("Papain-like proteinase",),
+                               family="Coronaviridae", role="protease",
+                               virus_taxon="NCBITaxon:2697049").__dict__,
+             "chain_name": "Papain-like proteinase", "start": 819, "end": 2763,
+             "chain_pro_id": "PRO_0000449623",
+             "active_sites": [list(s) for s in PLPRO_SITES],
+             # what the previous rule decided, written into the file
+             "catalytic_type": "none", "nucleophile": "", "catalytic_basis": "none",
+             "catalytic_residues": []}
+
+    loaded, = _ingest().load_cache([stale])
+    assert isinstance(loaded, ResolvedChain)
+    assert loaded.catalytic_type == "cysteine"
+    assert loaded.nucleophile == "C1674"
+    assert loaded.catalytic_basis == "composition"
+
+
+def test_the_cache_file_does_not_contain_a_verdict_to_go_stale():
+    """Belt to the braces above: nothing derived is written in the first
+    place, so there is no stale value even for code that forgets to
+    recompute."""
+    from kgav.folds import DERIVED_FIELDS, ChainSpec, ResolvedChain
+
+    c = ResolvedChain(spec=ChainSpec("L", "P1", ("p",), "F", "protease", "T:1"),
+                      chain_name="x", start=1, end=9, chain_pro_id="PRO_1",
+                      active_sites=[list(s) for s in PLPRO_SITES])
+    c.redecide()
+    assert c.catalytic_type == "cysteine"          # it IS decided in memory
+    written, = _ingest().cache_payload([c])
+    assert DERIVED_FIELDS.isdisjoint(written)      # and not on disk
+    assert written["active_sites"]                 # the input is
+
+
+def test_the_completeness_guard_does_not_demand_the_fields_it_dropped():
+    """The two halves have to agree: a cache the writer just produced must
+    satisfy the reader's guard. They were separate expressions, and this is
+    the assertion that keeps them one."""
+    from kgav.folds import ChainSpec, ResolvedChain
+
+    ing = _ingest()
+    c = ResolvedChain(spec=ChainSpec("L", "P1", ("p",), "F", "protease", "T:1"),
+                      chain_name="x", start=1, end=9, chain_pro_id="PRO_1",
+                      active_sites=[])
+    assert ing.missing_inputs(ing.cache_payload([c])) == []
+
+
+def test_a_cache_predating_active_sites_is_refused_not_defaulted():
+    """An old cache has no sites to re-decide from, so it cannot be
+    corrected -- it must be refused rather than silently read as a chain
+    with no catalytic machinery."""
+    ing = _ingest()
+    old = {"spec": {"label": "L", "accession": "P1", "patterns": ["p"],
+                    "family": "F", "role": "protease", "virus_taxon": "T:1"},
+           "chain_name": "x", "start": 1, "end": 9, "chain_pro_id": "PRO_1",
+           "classes": [], "note": ""}
+    assert ing.missing_inputs([old]) == ["active_sites"]
+
+
+def test_a_failed_fetch_and_an_empty_fetch_stay_different():
+    """None is "the network did not answer", [] is "it answered, there are
+    no active sites". Collapsing them would report an outage as biology."""
+    from kgav.folds import decide_machinery
+
+    assert decide_machinery(None)[2] == "unknown"
+    assert decide_machinery([])[2] == "none"
+
+
+def test_the_rule_is_reachable_without_the_network():
+    """decide_machinery must not touch _get -- if it does, the cache path
+    is making network calls and the split has quietly undone itself."""
+    from kgav import folds
+
+    def _boom(_u):
+        raise AssertionError("decide_machinery reached the network")
+
+    real, folds._get = folds._get, _boom
+    try:
+        assert folds.decide_machinery(PLPRO_SITES)[1] == "C1674"
+    finally:
+        folds._get = real
