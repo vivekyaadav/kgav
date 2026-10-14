@@ -652,3 +652,68 @@ def test_the_docstring_no_longer_claims_a_split_that_does_not_exist():
     head = src.split('"""')[1]
     assert "Both are declared\nseparately below" not in head
     assert "Neither\nclause was ever true" in head
+
+
+# --------------------------------------- the declared windows, pinned to data
+#: Chain -> the UniProt Domain its window narrows to, and the catalytic
+#: residues the 2026-10-15 run read. Every entry is from that run's output,
+#: not from recall. The residues are here so a wrong domain name cannot be
+#: adopted quietly: a window that excludes a chain's own catalytic residues
+#: is the wrong window whatever it is called.
+DECLARED_WINDOWS = {
+    "SARS-CoV-2 PLpro":    ("Peptidase C16",  [1674, 1835, 1849]),
+    "Dengue 2 NS3pro":     ("Peptidase S7",   [1526, 1550, 1610]),
+    "Zika NS3pro":         ("Peptidase S7",   [1549, 1573, 1633]),
+    "West Nile NS3pro":    ("Peptidase S7",   [1552, 1576, 1636]),
+    "HCV NS3pro":          ("Peptidase S29",  [1083, 1107, 1165]),
+    "Yellow fever NS3pro": ("Peptidase S7",   [1537, 1561, 1622]),
+    "JEV NS3pro":          ("Peptidase S7",   [1555, 1579, 1639]),
+}
+
+
+def test_every_narrowed_spec_narrows_to_the_domain_it_was_measured_for():
+    """A BULK EDIT PUT "Peptidase S7" ON A PICORNAVIRUS.
+
+    Six specs needed the same two-token addition, so I did it with a regex.
+    It matched the wrong lines: two NS3pro specs were skipped, JEV got HCV's
+    S29, and EV-A71 3C -- a picornavirus 3C protease with no S7 domain
+    anywhere in its entry -- was given domain="Peptidase S7". pick_domain
+    would have refused it at runtime and printed WINDOW NOT NARROWED, so it
+    would not have corrupted a result; but it would have reached the user.
+
+    The table is the record of what each window was MEASURED to be. Nothing
+    may carry a domain that is not in it, and nothing in it may lose one.
+    """
+    specs = {s.label: s for s in _ingest().SPECS}
+    for label, spec in specs.items():
+        want = DECLARED_WINDOWS.get(label, ("", None))[0]
+        assert spec.domain == want, (
+            f"{label}: domain={spec.domain!r}, measured {want!r}")
+
+
+def test_no_narrowed_window_excludes_its_own_catalytic_residues():
+    """The name alone is not enough: "Peptidase S7" on the wrong entry
+    resolves to nothing, but on a near-miss entry it could resolve to a
+    region that does not hold the enzyme's triad. That window is wrong even
+    though the narrowing "worked"."""
+    spans = {"Peptidase C16": (1634, 1898), "Peptidase S7": None,
+             "Peptidase S29": (1027, 1208)}
+    measured = {"Dengue 2 NS3pro": (1476, 1653), "Zika NS3pro": (1499, 1676),
+                "West Nile NS3pro": (1502, 1679),
+                "Yellow fever NS3pro": (1485, 1665),
+                "JEV NS3pro": (1505, 1682)}
+    for label, (dom, residues) in DECLARED_WINDOWS.items():
+        lo, hi = measured.get(label) or spans[dom]
+        outside = [p for p in residues if not lo <= p <= hi]
+        assert not outside, f"{label}: {outside} fall outside {dom} {lo}-{hi}"
+
+
+def test_a_spec_cannot_request_a_domain_no_chain_of_its_family_has():
+    """EV-A71 3C with domain="Peptidase S7" is the shape of the bug: a
+    plausible name from the wrong family. Nothing outside the measured table
+    requests a narrowing at all."""
+    for s in _ingest().SPECS:
+        if s.domain:
+            assert s.label in DECLARED_WINDOWS, (
+                f"{s.label} requests domain={s.domain!r} but no run has "
+                f"measured that domain on its entry")
