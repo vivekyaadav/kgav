@@ -12,7 +12,11 @@ from kgav.folds import NUCLEOPHILES, ChainSpec, ResolvedChain, emit_classes, gat
 def _chain(label, family, role, cat_type, nucleophile, classes):
     spec = ChainSpec(label=label, accession="X", patterns=("x",), family=family,
                      role=role, virus_taxon="NCBITaxon:1")
+    # chain_pro_id is part of being resolved: without it .ok is False and a
+    # fixture would silently stop being usable by anything that filters on
+    # it. A made-up but well-formed PRO_ id keeps these realistic.
     return ResolvedChain(spec=spec, chain_name=label, start=1, end=100,
+                         chain_pro_id=f"PRO_{abs(hash(label)) % 10**7:07d}",
                          catalytic_type=cat_type, nucleophile=nucleophile,
                          classes=[{"accession": a, "label": n, "db": "interpro",
                                    "level": "homologous_superfamily",
@@ -195,3 +199,85 @@ def test_unknown_is_a_declared_value_of_the_enum():
     root = Path(__file__).resolve().parents[1]
     d = yaml.safe_load((root / "schema/kg_schema.yaml").read_text())
     assert "unknown" in d["enums"]["catalytic_type"]
+
+
+# ------------------------------------------------- the id that joins the spine
+def test_node_id_is_the_spine_s_pro_id_not_a_coordinate_key():
+    """THE REASON THIS LAYER NEVER REACHED THE GRAPH. node_id was
+    UniProtKB:{accession}_{start}_{end} while ingest_spine keys the same
+    chain on its PRO_ id. Two schemes for one protein, so every
+    MEMBER_OF_CLASS edge pointed at a node that does not exist -- and
+    assemble_release returns 1 on a dangling edge, which is why `folds` is
+    absent from LAYER_PRECEDENCE.
+    """
+    spec = ChainSpec(label="Mpro", accession="P0DTD1", patterns=("3C-like",),
+                     family="Coronaviridae", role="protease",
+                     virus_taxon="NCBITaxon:2697049")
+    r = ResolvedChain(spec=spec, chain_name="3C-like proteinase",
+                      start=3264, end=3569, chain_pro_id="PRO_0000449623")
+    assert r.ok
+    assert r.node_id == "UniProtKB:PRO_0000449623"
+    assert "3264" not in r.node_id, "coordinates must not appear in the key"
+
+
+def test_a_chain_without_a_pro_id_is_not_resolved():
+    """Same rule the spine applies: no PRO_ id, no stable node key. Being
+    part of `ok` matters because `ok` is what every caller filters on -- a
+    chain that is merely 'not emitted later' would still be compared,
+    counted and reported as usable."""
+    spec = ChainSpec(label="X", accession="Q1", patterns=("x",),
+                     family="Flaviviridae", role="protease",
+                     virus_taxon="NCBITaxon:64320")
+    r = ResolvedChain(spec=spec, chain_name="x", start=1, end=50)
+    assert not r.ok
+
+
+def test_reading_node_id_without_a_pro_id_raises_rather_than_inventing_one():
+    """Returning a coordinate key here is what the previous version did, and
+    it failed silently all the way through to a dangling edge."""
+    import pytest as _pytest
+
+    spec = ChainSpec(label="X", accession="Q1", patterns=("x",),
+                     family="Flaviviridae", role="protease",
+                     virus_taxon="NCBITaxon:64320")
+    r = ResolvedChain(spec=spec, chain_name="x", start=1, end=50)
+    with _pytest.raises(ValueError, match="no PRO_ id"):
+        _ = r.node_id
+
+
+def test_find_chain_keeps_the_feature_id_uniprot_returns():
+    """Verified against rest.uniprot.org for P0DTD1 on 2026-10-15 with this
+    exact field selection -- a field present in a proteome download is not
+    evidence about a single-entry query, so it was checked separately."""
+    from kgav import folds
+
+    payload = {"features": [
+        {"type": "Chain", "featureId": "PRO_0000449618",
+         "description": "Replicase polyprotein 1ab",
+         "location": {"start": {"value": 1}, "end": {"value": 7096}}},
+        {"type": "Chain", "featureId": "PRO_0000449623",
+         "description": "3C-like proteinase nsp5",
+         "location": {"start": {"value": 3264}, "end": {"value": 3569}}},
+    ]}
+    real, folds._get = folds._get, lambda _u: payload
+    try:
+        name, s, e, note, pro = folds.find_chain("P0DTD1", ("3C-like",))
+    finally:
+        folds._get = real
+    assert (s, e, note, pro) == (3264, 3569, "", "PRO_0000449623")
+    assert "3C-like" in name
+
+
+def test_a_matched_chain_with_no_pro_id_is_reported_not_keyed():
+    from kgav import folds
+
+    payload = {"features": [
+        {"type": "Chain", "description": "mystery chain",
+         "location": {"start": {"value": 1}, "end": {"value": 9}}}]}
+    real, folds._get = folds._get, lambda _u: payload
+    try:
+        _name, s, e, note, pro = folds.find_chain("Q1", ("mystery",))
+    finally:
+        folds._get = real
+    assert (s, e, pro) == (1, 9, "")
+    assert "no PRO_ id" in note

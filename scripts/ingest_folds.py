@@ -169,12 +169,30 @@ def main() -> int:
     ap.add_argument("--out", type=Path, default=root / "data/releases/v0.2-folds")
     ap.add_argument("--cache", type=Path,
                     default=root / "data/raw/folds/phase2_chains.json")
+    ap.add_argument("--spine", type=Path,
+                    default=root / "data/releases/v0.1-spine",
+                    help="checked for the Protein nodes this layer references")
     ap.add_argument("--offline", action="store_true")
     args = ap.parse_args()
 
     # ------------------------------------------------------------- resolve
     if args.offline and args.cache.exists():
         raw = json.loads(args.cache.read_text())
+        # A CACHE WRITTEN BEFORE chain_pro_id EXISTED IS NOT USABLE OFFLINE.
+        # ResolvedChain(**d) would default the field to "", every chain would
+        # read .ok == False, and the run would report "0/N chains resolved"
+        # as though UniProt had failed -- a wrong diagnosis of a stale file.
+        # Refused loudly instead, because the only fix is a network refresh.
+        stale = [d for d in raw
+                 if d.get("end", 0) > d.get("start", 0) > 0
+                 and not d.get("chain_pro_id")]
+        if stale:
+            print(f"{args.cache} predates chain_pro_id: {len(stale)} of "
+                  f"{len(raw)} resolved chains carry no PRO_ id.\n"
+                  f"  The node key changed from coordinates to the spine's "
+                  f"PRO_ id, so this cache\n  cannot be used. Re-run without "
+                  f"--offline to refresh it.", file=sys.stderr)
+            return 2
         from kgav.folds import ResolvedChain
         chains = []
         for d in raw:
@@ -201,6 +219,40 @@ def main() -> int:
 
     usable = [c for c in chains if c.ok]
     print(f"\n{len(usable)}/{len(chains)} chains resolved")
+    unkeyed = [c for c in chains
+               if c.end > c.start > 0 and not c.chain_pro_id]
+    if unkeyed:
+        print(f"  {len(unkeyed)} matched a chain but carry no PRO_ id, so "
+              f"they have no stable node key:")
+        for c in unkeyed[:6]:
+            print(f"    {c.spec.label:<22} {c.note[:60]}")
+
+    # DOES THIS LAYER JOIN THE SPINE? Until now it could not: node_id was
+    # built from coordinates while the spine keys the same chain on its PRO_
+    # id, so every MEMBER_OF_CLASS edge referenced a node that does not
+    # exist. That is almost certainly why `folds` is absent from
+    # LAYER_PRECEDENCE -- assemble_release returns 1 on a dangling edge.
+    #
+    # Reported rather than assumed, because the ids matching in form does
+    # not mean the spine built the chain: a virus outside the register, or a
+    # chain the spine skipped, still dangles.
+    if args.spine and (args.spine / "nodes.jsonl").exists():
+        spine_ids = {json.loads(line)["id"]
+                     for line in (args.spine / "nodes.jsonl").read_text().splitlines()
+                     if line.strip()}
+        hit = [c for c in usable if c.node_id in spine_ids]
+        miss = [c for c in usable if c.node_id not in spine_ids]
+        print(f"\njoin against {args.spine.name}: {len(hit)}/{len(usable)} "
+              f"resolved chains exist as Protein nodes")
+        for c in miss[:10]:
+            print(f"    MISSING  {c.node_id:<30} {c.spec.label} "
+                  f"({c.spec.family}, taxon {c.spec.virus_taxon})")
+        if miss:
+            print(f"  {len(miss)} chain(s) would produce DANGLING edges. The "
+                  f"layer must not be added to\n  LAYER_PRECEDENCE until this "
+                  f"is zero, or until those chains are dropped.")
+    else:
+        print(f"\nno spine release at {args.spine}, so the join is unchecked")
 
     # --------------------------------------------------- catalytic summary
     print("\ncatalytic type by family and role:")

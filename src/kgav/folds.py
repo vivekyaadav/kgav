@@ -61,6 +61,9 @@ from dataclasses import dataclass, field
 
 INTERPRO = "https://www.ebi.ac.uk/interpro/api"
 UNIPROT = "https://rest.uniprot.org/uniprotkb"
+# The same pattern ingest_spine._chain_id applies, for the same reason:
+# a chain without a PRO_ id cannot be given a stable node key.
+PRO_RE = re.compile(r"^PRO_\d+$")
 
 # Residues that can act as a catalytic nucleophile, mapped to the class name
 # the schema's catalytic_type enum uses.
@@ -120,32 +123,61 @@ class ResolvedChain:
     catalytic_type: str = "unknown"
     classes: list[dict] = field(default_factory=list)
     note: str = ""
+    #: The chain's UniProt featureId, e.g. PRO_0000449623. THE JOIN to the
+    #: spine, which keys the same protein on it. Empty means unresolvable.
+    chain_pro_id: str = ""
 
     @property
     def ok(self) -> bool:
-        return self.end > self.start > 0
+        # The PRO_ id is part of being resolved, not an extra. A chain with
+        # coordinates but no id produced a node_id that joined to nothing,
+        # which is the failure this field exists to end -- and `ok` is what
+        # every caller filters on.
+        return self.end > self.start > 0 and bool(self.chain_pro_id)
 
     @property
     def node_id(self) -> str:
-        return f"UniProtKB:{self.spec.accession}_{self.start}_{self.end}"
+        """The spine's id for this chain, not a coordinate-derived one."""
+        if not self.chain_pro_id:
+            raise ValueError(
+                f"{self.spec.label}: no PRO_ id, so no stable node key. "
+                "Callers must filter on .ok before reading node_id.")
+        return f"UniProtKB:{self.chain_pro_id}"
 
 
-def find_chain(acc: str, patterns: tuple[str, ...]) -> tuple[str, int, int, str]:
-    """Locate a PRO_ chain by description.
+def find_chain(acc: str,
+               patterns: tuple[str, ...]) -> tuple[str, int, int, str, str]:
+    """Locate a PRO_ chain by description. Returns its featureId too.
 
     Patterns are tried in the order given, which must be most-specific first:
     "NS3" is a substring of "Serine protease/helicase NS3". Sixth instance of
     the substring hazard in this project, after SARS-CoV/SARS-CoV-2,
     Vero/Vero E6, chloroquine/hydroxychloroquine, SELECT/SELECTIVITY and
     nsp1/nsp1x.
+
+    THE featureId IS THE JOIN, and dropping it is why this layer has never
+    reached the graph. ResolvedChain.node_id was built from coordinates --
+    UniProtKB:P0DTD1_3264_3569 -- while ingest_spine keys the same chain on
+    its PRO_ id, UniProtKB:PRO_0000449623 (see its _chain_id, which reads
+    exactly this field). Two id schemes for one protein, so every
+    MEMBER_OF_CLASS edge pointed at a node that does not exist, assembling
+    the layer would have produced dangling edges, and assemble_release
+    returns 1 on dangling. The response already carried the key:
+
+        {'type': 'Chain', 'featureId': 'PRO_0000449618',
+         'description': 'Replicase polyprotein 1ab'}
+
+    verified against rest.uniprot.org for P0DTD1 on 2026-10-15 with this
+    exact field selection, because a field present in a proteome download is
+    not evidence about a single-entry query.
     """
     data = _get(f"{UNIPROT}/{acc}?fields=ft_chain,ft_peptide")
     if not data:
-        return "", 0, 0, "accession not found"
+        return "", 0, 0, "accession not found", ""
     feats = [f for f in data.get("features", [])
              if f.get("type") in ("Chain", "Peptide")]
     if not feats:
-        return "", 0, 0, "no chain features (TrEMBL-only entry?)"
+        return "", 0, 0, "no chain features (TrEMBL-only entry?)", ""
     lowered = [(f, (f.get("description") or "").lower()) for f in feats]
     for pat in patterns:
         p = pat.lower()
@@ -155,9 +187,17 @@ def find_chain(acc: str, patterns: tuple[str, ...]) -> tuple[str, int, int, str]
                 s = (loc.get("start") or {}).get("value")
                 e = (loc.get("end") or {}).get("value")
                 if s and e:
-                    return f.get("description", pat), int(s), int(e), ""
+                    # Same rule as the spine: a chain with no PRO_ id has no
+                    # stable key, so it is reported rather than given a
+                    # coordinate-based one that joins to nothing.
+                    fid = f.get("featureId") or ""
+                    if not PRO_RE.match(fid):
+                        return (f.get("description", pat), int(s), int(e),
+                                f"chain matched but carries no PRO_ id "
+                                f"(featureId {fid!r}); no stable node key", "")
+                    return f.get("description", pat), int(s), int(e), "", fid
     have = "; ".join(sorted({d for _f, d in lowered})[:6])
-    return "", 0, 0, f"no chain matched {patterns}; entry has: {have}"
+    return "", 0, 0, f"no chain matched {patterns}; entry has: {have}", ""
 
 
 def catalytic_machinery(acc: str, lo: int, hi: int) -> tuple[list[str], str, str]:
@@ -251,8 +291,8 @@ def fetch_classes(acc: str, lo: int, hi: int) -> list[dict]:
 
 def resolve(spec: ChainSpec) -> ResolvedChain:
     r = ResolvedChain(spec=spec)
-    name, s, e, note = find_chain(spec.accession, spec.patterns)
-    r.chain_name, r.start, r.end, r.note = name, s, e, note
+    name, s, e, note, pro = find_chain(spec.accession, spec.patterns)
+    r.chain_name, r.start, r.end, r.note, r.chain_pro_id = name, s, e, note, pro
     if not r.ok:
         return r
     r.catalytic_residues, r.nucleophile, r.catalytic_type = \
