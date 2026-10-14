@@ -86,6 +86,9 @@ def main() -> int:
     id_rows: Counter = Counter()
     both_sides = 0
     chain_ids = 0
+    unparseable = 0
+    unparseable_tax: Counter = Counter()
+    unparseable_ex: dict[str, list[str]] = defaultdict(list)
 
     for path in files:
         for line in path.read_text(errors="replace").splitlines():
@@ -94,6 +97,16 @@ def main() -> int:
             rows += 1
             v = classify_row(line, index, taxon_map)
             gates[v.gate or "EMITTED (before dedupe)"] += 1
+            if v.gate == "unparseable":
+                unparseable += 1
+                f = line.rstrip("\n").split("\t")
+                ta = (v.row or {}).get("taxid_a") or "?"
+                tb = (v.row or {}).get("taxid_b") or "?"
+                pair = f"{ta} / {tb}"
+                unparseable_tax[pair] += 1
+                if len(unparseable_ex[pair]) < 2 and len(f) >= 2:
+                    unparseable_ex[pair].append(f"{f[0]}  {f[1]}")
+                continue
             if v.gate != "unresolved_id":
                 continue
             if len(v.unresolved) == 2:
@@ -110,6 +123,28 @@ def main() -> int:
     print("gate reached (first failure wins):")
     for gate, n in gates.most_common():
         print(f"  {gate:<28} {n:>8,}")
+
+    if unparseable:
+        # THE GATE BEFORE THIS ONE, broken down the same way, because the
+        # register asserts a row count at `unresolved_id` that this script
+        # can check -- and the two gates are adjacent, so a claim naming the
+        # wrong one is exactly the error diagnose_flavivirus_join.py was
+        # corrected for.
+        #
+        # The raw identifier columns are split out here rather than in
+        # parse_row: a row counted `unparseable` is one parse_identifier
+        # returned None for, so the verbatim column is the only thing left
+        # to look at. No gate logic is repeated -- classify_row still
+        # decided which rows these are.
+        print(f"\n{'=' * 74}\nUNPARSEABLE: {unparseable:,} rows "
+              f"({unparseable / rows:.1%})\n{'=' * 74}")
+        print("  parse_identifier recognises a UniProt accession or a PRO_ "
+              "chain and nothing\n  else, so a row in another namespace dies "
+              "HERE, one gate before unresolved_id.")
+        print(f"\n    {'taxid pair':<22} {'rows':>7}  example identifier columns")
+        for pair, n in unparseable_tax.most_common(12):
+            ex = "  |  ".join(s[:34] for s in unparseable_ex[pair][:2])
+            print(f"    {pair:<22} {n:>7,}  {ex}")
 
     unresolved_rows = gates.get("unresolved_id", 0)
     if not unresolved_rows:
