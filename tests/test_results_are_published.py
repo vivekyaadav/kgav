@@ -26,11 +26,22 @@ RESULTS = ROOT / "data" / "results"
 
 
 def _tracked() -> set[str] | None:
-    """Filenames git has under data/results, or None if this is not a repo."""
+    """Filenames COMMITTED under data/results, or None if this is not a repo.
+
+    ls-tree HEAD, not ls-files. The first version used ls-files, which
+    reports the INDEX -- so `git add data/results` alone satisfied it while
+    nothing was published, and that is precisely what happened: the commit
+    that was meant to follow aborted on an empty message, the staged files
+    made this test pass, and only the provenance test (which already read
+    HEAD) still said the repository was wrong.
+
+    A test about what a reader of the repository gets must read what a
+    reader of the repository gets.
+    """
     try:
-        out = subprocess.run(("git", "ls-files", "data/results"),
-                             cwd=ROOT, capture_output=True, text=True,
-                             timeout=10, check=False)
+        out = subprocess.run(
+            ("git", "ls-tree", "-r", "--name-only", "HEAD", "data/results"),
+            cwd=ROOT, capture_output=True, text=True, timeout=10, check=False)
     except (OSError, subprocess.SubprocessError):      # pragma: no cover
         return None
     if out.returncode != 0:
@@ -53,18 +64,18 @@ def test_every_results_file_is_in_the_repository():
     tracked = _tracked()
     untracked = sorted(on_disk - tracked)
     assert not untracked, (
-        "these results are audited by check_results.py but are not in git:\n  "
-        + "\n  ".join(untracked)
+        "these results are audited by check_results.py but are not committed:"
+        "\n  " + "\n  ".join(untracked)
         + "\n\ndata/results is tracked on purpose -- it is what docs/"
-          "evaluation.md cites. Commit them, or they are evidence only you "
-          "can see.")
+          "evaluation.md cites.\nStaging is not publishing: commit them, or "
+          "they are evidence only you can see.")
 
 
 @needs_git
 @needs_results
 def test_no_results_file_is_tracked_but_gone():
-    """The reverse: a file in git that nothing regenerates is a figure with
-    no way left to check it."""
+    """The reverse: a file committed that nothing regenerates is a figure
+    with no way left to check it."""
     on_disk = {p.name for p in RESULTS.glob("*.json")}
     missing = sorted(_tracked() - on_disk)
     assert not missing, (
