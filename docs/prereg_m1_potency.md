@@ -106,7 +106,7 @@ be a popularity term in disguise. Well-studied compounds have more
 measurements, more of them exact, and better-characterised potency. If M1's
 improvement tracks the degree baseline, we have re-derived degree. The
 degree baseline is already the only scorer on this release whose interval
-clears chance (0.582 [0.520, 0.644]) and it is the null hypothesis.
+clears chance (0.582 [0.520, 0.645]) and it is the null hypothesis.
 **Required: the rank correlation between the new M1 score and node degree
 must not exceed that between the old M1 score and node degree by more than
 0.1.** If it does, the change is reverted regardless of P1 and P2.

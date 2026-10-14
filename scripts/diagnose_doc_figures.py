@@ -122,7 +122,13 @@ def main() -> int:
   superseded figures deliberately -- the value that was wrong, and why --
   and those SHOULD be absent from the current results. A figure here is a
   finding only if the sentence around it presents it as what the graph
-  says now.""")
+  says now.
+
+  KNOWN AND EXPECTED on evaluation.md: the four protocol rows in "The
+  sequence" (selective-only, all, verified-only, +publication-disjoint).
+  hard_negatives.json holds ONE protocol at a time and currently holds
+  row 5, so rows 1-4 cannot be present however current the document is.
+  That table is a record of five separate runs, not of one file.""")
 
     print("""
 WHAT THIS DOES NOT DECIDE
