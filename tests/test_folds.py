@@ -314,3 +314,65 @@ def test_matching_roles_are_still_compared():
     as useless as one that never closes."""
     assert gate(COV_MPRO, PICO_3C).allowed
     assert gate(COV_RDRP, PICO_3D).mode == "motif"
+
+
+# ------------------------------------------- which rule read the active sites
+def _machinery(sites, seq_len=2000):
+    """catalytic_machinery against a stubbed UniProt response.
+
+    `sites` is [(position, residue, description)]; the sequence is built so
+    each position holds its residue.
+    """
+    from kgav import folds
+
+    seq = ["A"] * seq_len
+    for pos, aa, _d in sites:
+        seq[pos - 1] = aa
+    payload = {"sequence": {"value": "".join(seq)},
+               "features": [{"location": {"start": {"value": p}},
+                             "description": d} for p, _aa, d in sites]}
+    real, folds._get = folds._get, lambda _u: payload
+    try:
+        return folds.catalytic_machinery("X", 1, seq_len)
+    finally:
+        folds._get = real
+
+
+def test_an_annotated_nucleophile_decides_and_says_so():
+    _res, nuc, typ, basis = _machinery(
+        [(100, "H", "Proton acceptor; for 3CL-PRO activity"),
+         (200, "C", "Nucleophile; for 3CL-PRO activity")])
+    assert (nuc, typ, basis) == ("C200", "cysteine", "annotated")
+
+
+def test_composition_decides_a_chymotrypsin_like_triad():
+    """No annotation, but His-...-Cys with the nucleophile last is still
+    readable."""
+    _res, nuc, typ, basis = _machinery(
+        [(100, "H", "For protease activity"),
+         (200, "C", "For protease activity")])
+    assert (nuc, typ, basis) == ("C200", "cysteine", "composition")
+
+
+def test_a_papain_like_triad_is_not_read_by_either_rule():
+    """THE PLPRO CASE, pinned. SARS-CoV-2 PLpro's active sites are C1674,
+    H1835, D1849, all described "For PL-PRO activity" with no nucleophile
+    annotation. A papain-like protease runs Cys-His-Asp with the
+    nucleophile FIRST, and the composition fallback tests the LAST residue
+    -- the chymotrypsin-like assumption the annotated path was already
+    fixed to stop making.
+
+    So the type is "none" for a cysteine protease, and basis says nobody
+    could read it rather than nobody annotated it. Recorded as a known
+    limitation, not fixed here: widening the fallback re-decides every
+    chain reaching it, and the ingest now reports which those are.
+    """
+    _res, nuc, typ, basis = _machinery(
+        [(1674, "C", "For PL-PRO activity"),
+         (1835, "H", "For PL-PRO activity"),
+         (1849, "D", "For PL-PRO activity")])
+    assert (nuc, typ, basis) == ("", "none", "none")
+
+
+def test_no_active_sites_at_all_is_distinguishable():
+    assert _machinery([])[3] == "none"

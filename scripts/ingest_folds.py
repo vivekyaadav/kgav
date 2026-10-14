@@ -245,6 +245,30 @@ def main() -> int:
               "is the chain match\n    being wrong, not the enzyme. Such a "
               "chain cannot be gated on its nucleophile\n    and contributes "
               "nothing to M8.")
+
+    # WHICH RULE DECIDED EACH TYPE. catalytic_machinery has two paths: an
+    # explicitly annotated nucleophile, and a composition fallback whose
+    # test is "the LAST active site is C or S" -- the chymotrypsin-like
+    # assumption the annotated path was already fixed to stop making.
+    # Widening the fallback would re-decide every chain that reaches it,
+    # and until now nothing said which chains those are.
+    by_basis: Counter = Counter(c.catalytic_basis for c in usable)
+    print(f"\n  how each catalytic type was decided: "
+          + ", ".join(f"{k} {v}" for k, v in by_basis.most_common()))
+    fallback = [c for c in usable if c.catalytic_basis == "composition"]
+    if fallback:
+        print("    decided by composition, so a change to that rule would "
+              "move these:")
+        for c in fallback:
+            print(f"      {c.spec.label:<22} {c.catalytic_type:<9} "
+                  f"{', '.join(c.catalytic_residues[:4])}")
+    unread = [c for c in usable
+              if c.catalytic_basis == "none" and c.catalytic_residues]
+    if unread:
+        print("    HAVE active sites but no rule could read them:")
+        for c in unread:
+            print(f"      {c.spec.label:<22} {c.spec.role:<10} "
+                  f"{', '.join(c.catalytic_residues[:5])}")
     unkeyed = [c for c in chains
                if c.end > c.start > 0 and not c.chain_pro_id]
     if unkeyed:
