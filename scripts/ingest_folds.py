@@ -31,6 +31,7 @@ than assumed.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import sys
 import time
@@ -40,7 +41,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.emit import Emit
-from kgav.folds import ChainSpec, gate, resolve
+from kgav.folds import ChainSpec, ResolvedChain, gate, resolve
 from kgav.schema import load_schema
 
 # Roles whose comparisons may enter a score. Others are ingested and stored but
@@ -178,22 +179,31 @@ def main() -> int:
     # ------------------------------------------------------------- resolve
     if args.offline and args.cache.exists():
         raw = json.loads(args.cache.read_text())
-        # A CACHE WRITTEN BEFORE chain_pro_id EXISTED IS NOT USABLE OFFLINE.
-        # ResolvedChain(**d) would default the field to "", every chain would
-        # read .ok == False, and the run would report "0/N chains resolved"
-        # as though UniProt had failed -- a wrong diagnosis of a stale file.
-        # Refused loudly instead, because the only fix is a network refresh.
-        stale = [d for d in raw
-                 if d.get("end", 0) > d.get("start", 0) > 0
-                 and not d.get("chain_pro_id")]
-        if stale:
-            print(f"{args.cache} predates chain_pro_id: {len(stale)} of "
-                  f"{len(raw)} resolved chains carry no PRO_ id.\n"
-                  f"  The node key changed from coordinates to the spine's "
-                  f"PRO_ id, so this cache\n  cannot be used. Re-run without "
-                  f"--offline to refresh it.", file=sys.stderr)
+        # A CACHE MISSING ANY FIELD ResolvedChain NOW CARRIES IS NOT USABLE.
+        # ResolvedChain(**d) silently defaults what the file lacks, and the
+        # default is indistinguishable from a measured value.
+        #
+        # THE FIRST VERSION OF THIS GUARD NAMED ONE FIELD, chain_pro_id, and
+        # the very next field added walked straight past it:
+        # catalytic_basis defaulted to "none" for all 24 chains, so the run
+        # reported "none 24" and listed every 3CLpro under "no rule could
+        # read them" WHILE the table above it said cysteine. A report
+        # contradicting itself one screen apart.
+        #
+        # So the check is now derived from the dataclass instead of from a
+        # list someone has to remember to extend. Adding a field invalidates
+        # an old cache automatically, which is the only version of this that
+        # stays true.
+        required = {f.name for f in dataclasses.fields(ResolvedChain)} - {"spec"}
+        missing = sorted(required - set().union(*(set(d) for d in raw))) if raw else []
+        if missing:
+            print(f"{args.cache} predates {', '.join(missing)}.\n"
+                  f"  ResolvedChain would default those, and a default is "
+                  f"not a measurement -- the\n  last time this happened the "
+                  f"report said 'none 24' beside a table saying\n  "
+                  f"'cysteine 4'. Re-run without --offline to refresh it.",
+                  file=sys.stderr)
             return 2
-        from kgav.folds import ResolvedChain
         chains = []
         for d in raw:
             spec = ChainSpec(**d.pop("spec"))
