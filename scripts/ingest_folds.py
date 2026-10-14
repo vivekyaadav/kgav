@@ -137,27 +137,45 @@ SPECS: list[ChainSpec] = [
               "NCBITaxon:2697049"),
 
     # ----------------------------------------------------- Flaviviridae
-    # NS3 is split: the protease occupies the N-terminal region, the helicase
-    # the remainder. Declared separately so the protease comparison does not
-    # inherit helicase fold matches.
+    # NS3 IS ONE CHAIN HOLDING TWO OR THREE ENZYMES, and the spec matched all
+    # of it: 617-631 residues and 22-26 InterPro classes, against 7-12 for a
+    # chain that is one enzyme. The comment here used to say the protease and
+    # helicase were "declared separately"; there is one spec per flavivirus,
+    # below, and there always was.
+    #
+    # The WINDOW narrows instead, so the chain's PRO_ id stays the node
+    # identity. Domain names are UniProt's, read off the 2026-10-15 run:
+    #
+    #   Dengue 2      Peptidase S7   1476-1653   + Helicase ATP-binding, C-terminal
+    #   Zika          Peptidase S7   1499-1676   + Helicase ATP-binding, C-terminal
+    #   West Nile     Peptidase S7   1502-1679   + Helicase ATP-binding, C-terminal
+    #   HCV           Peptidase S29  1027-1208   + Helicase ATP-binding
+    #   Yellow fever  Peptidase S7   1485-1665   + Helicase ATP-binding, C-terminal
+    #   JEV           Peptidase S7   1505-1682   + Helicase ATP-binding, C-terminal
+    #
+    # CHECKED BEFORE CHANGING: all 18 catalytic residues -- six triads -- lie
+    # inside the protease domain, so no catalytic type can move. What moves is
+    # the class list, which is the point: the gate compares on classes.
     ChainSpec("Dengue 2 NS3pro", "P29990",
               ("Serine protease NS3", "NS3"), "Flaviviridae", "protease",
-              "NCBITaxon:11060"),
+              "NCBITaxon:11060", domain="Peptidase S7"),
     ChainSpec("Zika NS3pro", "Q32ZE1",
               ("Serine protease NS3", "NS3"), "Flaviviridae", "protease",
-              "NCBITaxon:64320"),
+              "NCBITaxon:64320", domain="Peptidase S7"),
     ChainSpec("West Nile NS3pro", "P06935",
               ("Serine protease/Helicase NS3", "NS3"), "Flaviviridae",
-              "protease", "NCBITaxon:11082"),
+              "protease", "NCBITaxon:11082", domain="Peptidase S7"),
+    # HCV is MEROPS S29, the five flaviviruses are S7. Different families,
+    # both chymotrypsin-fold serine proteases -- not a typo to normalise.
     ChainSpec("HCV NS3pro", "P26664",
               ("Serine protease/helicase NS3", "NS3"), "Flaviviridae",
-              "protease", "NCBITaxon:11103"),
+              "protease", "NCBITaxon:11103", domain="Peptidase S29"),
     ChainSpec("Yellow fever NS3pro", "P03314",
               ("Serine protease NS3", "NS3"), "Flaviviridae", "protease",
-              "NCBITaxon:11089"),
+              "NCBITaxon:11089", domain="Peptidase S7"),
     ChainSpec("JEV NS3pro", "P27395",
               ("Serine protease NS3", "NS3"), "Flaviviridae", "protease",
-              "NCBITaxon:11072"),
+              "NCBITaxon:11072", domain="Peptidase S7"),
     ChainSpec("HCV NS5B", "P26664",
               ("RNA-directed RNA polymerase", "NS5B"), "Flaviviridae",
               "polymerase", "NCBITaxon:11103"),
@@ -342,6 +360,42 @@ def main() -> int:
             for ds, de, dd in c.domains:
                 if ds >= lo and de <= hi:
                     print(f"      {ds:>6}-{de:<6} {de - ds + 1:>4} aa  {dd}")
+
+    # WHICH DOMAIN EACH ACTIVE SITE IS IN. A chain's catalytic type is read
+    # from its active sites, and over an un-narrowed window those sites can
+    # belong to a different enzyme. PLpro's did: N1062 and G1070 are the
+    # macrodomain's, 600 residues from the protease.
+    #
+    # No heuristic here, just the fact, because the last heuristic in this
+    # report fired on nothing. A chain labelled polymerase whose every site
+    # sits in a methyltransferase is visible without being flagged.
+    sited = [c for c in usable
+             if c.spec.role in SCORE_ELIGIBLE_ROLES and c.active_sites
+             and (c.domains or [])]
+    rows = []
+    for c in sited:
+        lo, hi = c.window
+        for pos, aa, _d in sorted(tuple(x) for x in c.active_sites):
+            # ALL matches, not the first: UniProt nests domains, and
+            # SARS-CoV-2 RdRp's S5151 is in both "Nsp12 RNA-dependent RNA
+            # polymerase" (4757-5324) and "RdRp catalytic" (5004-5166).
+            # Printing one would hide which narrowing is available.
+            where = [dd for ds, de, dd in c.domains if ds <= pos <= de]
+            rows.append((c.spec.label, c.spec.role, f"{aa}{pos}",
+                         " + ".join(where) if where
+                         else "(no annotated domain)"))
+    off = [r for r in rows if r[3] == "(no annotated domain)"]
+    if rows:
+        print("\nactive sites by annotated domain — the catalytic type is "
+              "read from these:")
+        last = None
+        for label, role, res, dom in rows:
+            head = (f"  {label:<22} {role:<11}" if label != last
+                    else " " * 36)
+            print(f"{head} {res:<8} {dom}")
+            last = label
+        if off:
+            print(f"\n  {len(off)} site(s) lie in no annotated domain.")
 
     refused_narrowing = [c for c in chains
                          if c.spec.domain and c.window_is_chain]
