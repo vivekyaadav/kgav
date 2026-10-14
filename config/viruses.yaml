@@ -94,11 +94,24 @@ viruses:
     # `viral_viral`. Neither reaches the layer.
     #
     # So extra_accessions would recover ZERO of the 73, and the real loss
-    # elsewhere is unrelated to these two entries: on the same run, 484-odd
-    # id-slots are genuine host-viral rows missing one identifier, almost
-    # all of them one SARS-CoV-2 accession (A0A6B9W2G5, 342 rows) and one
-    # HCoV-NL63 accession (H9EJ66, 114 rows), neither filed under an
-    # isolate taxon.
+    # elsewhere is unrelated to these two entries. Measured on the same
+    # run, 514 unresolved id-slots split:
+    #
+    #   host-viral          498   a bridge edge missing one identifier
+    #   host not modelled     8   rat (10116); absent by design
+    #   viral-viral           8   dropped at the next gate regardless
+    #
+    # and 456 of the 498 are two accessions -- A0A6B9W2G5 (SARS-CoV-2,
+    # 342 rows) and H9EJ66 (HCoV-NL63, 114) -- neither filed under an
+    # isolate taxon. H9EJ66 alone is 36% of HCoV-NL63's 313 PPI edges.
+    #
+    # The first version of this paragraph said "484-odd". That figure came
+    # from the summary line this same commit was fixing, which tested
+    # whether the PARTNER was viral instead of whether the PAIR straddled
+    # the host/viral line -- so it mislabelled every row whose unresolved
+    # identifier was the HOST one. Carrying a number out of a calculation
+    # while correcting that calculation is how a wrong figure outlives the
+    # bug that produced it.
     #
     # THE ENTRIES STAY. They are true -- VirHostNet does file rows under
     # these taxa -- and declaring an observed taxon is this register's
