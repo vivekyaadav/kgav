@@ -964,6 +964,73 @@ def hits_cell(m: dict, width: int = 7) -> str:
     return f"{m['hits_lo']}-{m['hits_hi']}".rjust(width)
 
 
+# THE COLUMNS BESIDE hits_cell WERE STILL POINT ESTIMATES OF THE SAME DRAW.
+# lift_row computes lift as h/exp and p as lift_pvalue(..., h), where h is
+# hits_at_k -- the one number hits_cell refuses to print on an undetermined
+# row, because it is decided by dict insertion order. So a row could read
+#
+#     M1   206   19   7-19    9.2    1.95  < .0001
+#
+# with the hits column saying the count is unknown within [7, 19] and the two
+# columns next to it quoting a lift and a p computed from a single draw. That
+# lift's real range is [7/9.2, 19/9.2] = [0.76, 2.07], which contains 1.00 --
+# the row is consistent with no enrichment at all, and read as printed it is
+# the strongest result in the table.
+#
+# Third time in this project: the fix for the BASELINE row's undetermined
+# Hits@k did not reach the CHANNEL rows, exactly as the fix for percentile
+# arithmetic in combine did not reach diagnose_controls.
+def lift_cell(m: dict, width: int = 11) -> str:
+    """The lift column: the figure, or the interval it is one draw from."""
+    if m.get("hits_determined", True):
+        return f"{m['lift']:>{width}.2f}"
+    return f"{m['lift_lo']:.2f}-{m['lift_hi']:.2f}".rjust(width)
+
+
+def p_cell(m: dict, width: int = 7) -> str:
+    """p shown only where it answers something.
+
+    None means the question was empty (no positives, or k covering the whole
+    pool). 'n/d' means the hit count the p-value is computed from was not
+    determined, so neither is the p-value -- the same vocabulary the vs-deg
+    column uses for an undetermined denominator.
+
+    Lives here because this function was byte-identical in compare_metapaths
+    and temporal_split, and this change would have made them disagree.
+    """
+    if not m.get("hits_determined", True):
+        return "n/d".rjust(width)
+    v = m.get("p_value")
+    if v is None:
+        return "-".rjust(width)
+    return f"{v:>{width}.4f}" if v >= 0.0001 else "< .0001".rjust(width)
+
+
+def undetermined_note(per: dict[str, dict]) -> str:
+    """One line naming every row in a table whose Hits@k was not determined.
+
+    `~tied` on the row says a tie block straddles k. This says what follows
+    from it: the lift interval, and whether that interval contains 1.00 --
+    the case where the row is consistent with no enrichment and reads, as a
+    point figure, like the opposite.
+    """
+    bad = [(n, m) for n, m in per.items()
+           if not m.get("hits_determined", True)]
+    if not bad:
+        return ""
+    parts = []
+    for n, m in bad:
+        lo, hi = m["lift_lo"], m["lift_hi"]
+        span = " spans 1.00" if lo <= 1.0 <= hi else ""
+        parts.append(f"{n} lift [{lo:.2f}, {hi:.2f}]"
+                     f" (expected {m['lift_expected']:.2f}){span}")
+    return ("UNDETERMINED: " + "; ".join(parts)
+            + ". A tie block straddles the cut, so the hit count is one draw "
+              "from the printed range and the lift inherits its spread; a "
+              "p-value computed from that draw is not a measurement. A range "
+              "containing 1.00 is consistent with no enrichment.")
+
+
 def degree_ranking(g: Graph) -> dict[str, float]:
     """The null hypothesis: rank drugs by degree, ignoring the virus entirely."""
     return {d: float(g.degree.get(d, 0)) for d in g.drugs()}

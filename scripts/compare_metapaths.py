@@ -23,10 +23,13 @@ from kgav.baselines import (
     dwpc_scores,
     hits_at_k,
     hits_cell,
+    lift_cell,
     lift_row,
     metapath_reach,
     mrr,
+    p_cell,
     rank,
+    undetermined_note,
 )
 from kgav.labels import build_labels
 from kgav.provenance import write_results
@@ -76,14 +79,6 @@ def _vs(m: dict) -> str:
         else f"{v:>7.2f}"
 
 
-def _p(m: dict) -> str:
-    """p shown only where it answers something: None means the question was
-    empty (no positives, or k covering the whole pool)."""
-    v = m.get("p_value")
-    return "      -" if v is None else (f"{v:>7.4f}" if v >= 0.0001
-                                        else "< .0001")
-
-
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
@@ -116,7 +111,7 @@ def main() -> int:
             print("    unevaluable: no measured activity\n")
             continue
         print(f"    {'scorer':<10} {'pool':>7} {'pos':>5} {'hits':>5} "
-                f"{'exp':>7} {'lift':>7} {'p':>7} {'vs deg':>7} {'mrr':>7}")
+                f"{'exp':>7} {'lift':>11} {'p':>7} {'vs deg':>7} {'mrr':>7}")
         per: dict[str, dict] = {}
         for name in sorted(dwpc):
             sc = {d: by[virus] for d, by in dwpc[name].items() if virus in by}
@@ -136,17 +131,19 @@ def main() -> int:
                 flag += " ~tied"
             print(f"    {name:<10} {m['pool']:>7,} {m['pos']:>5,} "
                   f"{hits_cell(m, 5)} "
-                  f"{m['expected']:>7.1f} {m['lift']:>7.2f} {_p(m)} "
+                  f"{m['expected']:>7.1f} {lift_cell(m)} {p_cell(m)} "
                   f"{_vs(m)} {m['mrr']:>7.4f}{flag}")
         if (warn := confound_warning(per)):
             print(f"    ! {warn}")
+        if (note := undetermined_note(per)):
+            print(f"    ! {note}")
         results[label] = per
         print()
 
     # M6 vs M7 head to head: the reason this script exists.
     print("=== M6 vs M7 (cold-start routes)")
-    print(f"    {'virus':<14} {'M6 pool':>8} {'M6 lift':>8} {'M7 pool':>8} "
-          f"{'M7 lift':>8}  verdict")
+    print(f"    {'virus':<14} {'M6 pool':>8} {'M6 lift':>11} {'M7 pool':>8} "
+          f"{'M7 lift':>11}  verdict")
     for label, per in results.items():
         m6, m7 = per.get("M6"), per.get("M7")
         if not m6 and not m7:
@@ -154,15 +151,31 @@ def main() -> int:
         def cell(m, key, fmt):
             return format(m[key], fmt) if m else "-"
         if m6 and m7:
-            verdict = ("M7 better" if m7["lift"] > m6["lift"] * 1.2
-                       else "M6 better" if m6["lift"] > m7["lift"] * 1.2
-                       else "comparable")
-            if not (m6["trustworthy"] or m7["trustworthy"]):
-                verdict += " (both noise)"
+            # UNDETERMINED BEATS EVERY OTHER VERDICT. m["lift"] on a row
+            # whose hit count is one draw from a tie block is that draw's
+            # lift, so comparing two of them -- or one of them against a
+            # determined row -- compares insertion order. The docstring of
+            # lift_row records this verdict getting it wrong once already,
+            # when "MERS-CoV: M6 0.88 vs M7 0.14, M6 better" compared a real
+            # lift against a pool-size artifact. Same column, second cause.
+            undet = [n for n, m in (("M6", m6), ("M7", m7))
+                     if not m.get("hits_determined", True)]
+            if undet:
+                verdict = f"undetermined ({', '.join(undet)} tied at the cut)"
+            else:
+                verdict = ("M7 better" if m7["lift"] > m6["lift"] * 1.2
+                           else "M6 better" if m6["lift"] > m7["lift"] * 1.2
+                           else "comparable")
+                if not (m6["trustworthy"] or m7["trustworthy"]):
+                    verdict += " (both noise)"
         else:
             verdict = "M7 only" if m7 else "M6 only"
-        print(f"    {label:<14} {cell(m6,'pool','>8,'):>8} {cell(m6,'lift','>8.2f'):>8} "
-              f"{cell(m7,'pool','>8,'):>8} {cell(m7,'lift','>8.2f'):>8}  {verdict}")
+        # Through lift_cell, so this table cannot show 1.95 for the same row
+        # the table above shows as 0.76-2.07.
+        def lcell(m):
+            return lift_cell(m, 11) if m else "-".rjust(11)
+        print(f"    {label:<14} {cell(m6,'pool','>8,'):>8} {lcell(m6):>11} "
+              f"{cell(m7,'pool','>8,'):>8} {lcell(m7):>11}  {verdict}")
 
     # A metapath that reaches nothing was previously printed to stdout and
     # then omitted from this file, so the record could not distinguish "scored
