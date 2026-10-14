@@ -123,6 +123,10 @@ class ResolvedChain:
     catalytic_type: str = "unknown"
     classes: list[dict] = field(default_factory=list)
     note: str = ""
+    #: Which rule decided catalytic_type: "annotated", "composition" or
+    #: "none". A type nobody annotated and one nobody could infer are
+    #: different situations and the value alone cannot tell them apart.
+    catalytic_basis: str = "none"
     #: The chain's UniProt featureId, e.g. PRO_0000449623. THE JOIN to the
     #: spine, which keys the same protein on it. Empty means unresolvable.
     chain_pro_id: str = ""
@@ -200,7 +204,8 @@ def find_chain(acc: str,
     return "", 0, 0, f"no chain matched {patterns}; entry has: {have}", ""
 
 
-def catalytic_machinery(acc: str, lo: int, hi: int) -> tuple[list[str], str, str]:
+def catalytic_machinery(acc: str, lo: int,
+                        hi: int) -> tuple[list[str], str, str, str]:
     """Catalytic residues, nucleophile, and catalytic type — from SEQUENCE.
 
     UniProt's active-site annotation names the ROLE ("Nucleophile; for 3CL-PRO
@@ -210,13 +215,27 @@ def catalytic_machinery(acc: str, lo: int, hi: int) -> tuple[list[str], str, str
     that is the architecture, not the chemistry, so a classifier reading entry
     names returns "ambiguous" for every cysteine protease.
 
-    The nucleophile is taken as the LAST catalytic residue in sequence order.
-    In every chymotrypsin-like triad measured in phase 0 -- His-Cys,
-    His-Glu-Cys, His-Asp-Ser -- the nucleophile is last.
+    THIS PARAGRAPH USED TO SAY "the nucleophile is taken as the LAST
+    catalytic residue in sequence order", and the code below stopped doing
+    that -- see the comment on `explicit`, which records reading SARS-CoV-2
+    RdRp as "aspartic D5153" because of it. The rule was removed from the
+    code and left in the docstring, where it described behaviour that no
+    longer existed. Second time in this project after selectivity.py's
+    "WORST is kept"; a comment that outlives its code is a claim nobody can
+    check against anything.
+
+    What the code does: an explicitly annotated nucleophile decides, and
+    nothing else does. Failing that, composition is consulted -- see the
+    fallback, whose own assumption is narrower than it looks.
+
+    Returns (residues, nucleophile, catalytic_type, basis), where basis is
+    "annotated", "composition" or "none" and says WHICH of those decided.
+    Without it the per-chain report cannot distinguish a type nobody
+    annotated from one nobody could infer.
     """
     data = _get(f"{UNIPROT}/{acc}?fields=ft_act_site,sequence")
     if not data:
-        return [], "", "unknown"
+        return [], "", "unknown", "none"
     seq = data.get("sequence", {}).get("value", "")
     sites: list[tuple[int, str, str]] = []
     for f in data.get("features", []):
@@ -224,7 +243,7 @@ def catalytic_machinery(acc: str, lo: int, hi: int) -> tuple[list[str], str, str
         if pos and lo <= pos <= hi and pos <= len(seq):
             sites.append((pos, seq[pos - 1], f.get("description", "")))
     if not sites:
-        return [], "", "none"
+        return [], "", "none", "none"
     sites.sort()
     residues = [f"{aa}{pos}" for pos, aa, _d in sites]
 
@@ -239,16 +258,28 @@ def catalytic_machinery(acc: str, lo: int, hi: int) -> tuple[list[str], str, str
     explicit = [(p, aa) for p, aa, d in sites if "nucleophile" in d.lower()]
     if explicit:
         pos, aa = explicit[-1]
-        return residues, f"{aa}{pos}", NUCLEOPHILES.get(aa, "unknown")
+        return (residues, f"{aa}{pos}",
+                NUCLEOPHILES.get(aa, "unknown"), "annotated")
 
     # No annotated nucleophile. A His-...-Cys or His-...-Ser triad in a
     # protease is still recognisable by composition; anything else is
     # metal-coordinating or structural and gets "none".
     aas = [aa for _p, aa, _d in sites]
+    # NARROWER THAN IT LOOKS, and this is where PLpro dies. The test is
+    # "the LAST residue is C or S" -- the chymotrypsin-like assumption the
+    # explicit branch above was fixed to stop making, still in force here.
+    # A papain-like protease runs Cys-His-Asp with the nucleophile FIRST,
+    # so SARS-CoV-2 PLpro (C1674, H1835, D1849, none of them annotated as a
+    # nucleophile) falls through to "none" and the gate cannot read it.
+    #
+    # NOT WIDENED HERE. Changing it would re-decide every chain that
+    # reaches this branch, and nothing currently reports which chains those
+    # are. The basis returned below is what makes that measurable; widen it
+    # once the measurement says what it would move.
     if "H" in aas and aas[-1] in ("C", "S"):
         pos, aa = sites[-1][0], sites[-1][1]
-        return residues, f"{aa}{pos}", NUCLEOPHILES[aa]
-    return residues, "", "none"
+        return residues, f"{aa}{pos}", NUCLEOPHILES[aa], "composition"
+    return residues, "", "none", "none"
 
 
 def fetch_classes(acc: str, lo: int, hi: int) -> list[dict]:
@@ -295,7 +326,7 @@ def resolve(spec: ChainSpec) -> ResolvedChain:
     r.chain_name, r.start, r.end, r.note, r.chain_pro_id = name, s, e, note, pro
     if not r.ok:
         return r
-    r.catalytic_residues, r.nucleophile, r.catalytic_type = \
+    r.catalytic_residues, r.nucleophile, r.catalytic_type, r.catalytic_basis = \
         catalytic_machinery(spec.accession, s, e)
     r.classes = fetch_classes(spec.accession, s, e)
     return r
