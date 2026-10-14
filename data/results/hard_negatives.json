@@ -7,22 +7,28 @@
     "infores:ncats-opendata"
   ],
   "label_stats": {
-    "other_source": 8478,
+    "other_source": 11879,
     "inactive": 7343,
     "active": 89
   },
+  "train_split": {
+    "cutoff": 2021,
+    "undated": "include",
+    "overlap_policy": "drop-from-test"
+  },
+  "temporal_skipped": null,
   "cross_sectional": {
     "SARS-CoV-2": {
       "M1": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5134692216235901,
+        "auc": 0.5135396089220491,
         "evaluable": true,
-        "auc_ci_lo": 0.45262814844946364,
-        "auc_ci_hi": 0.5743102947977166,
+        "auc_ci_lo": 0.45269607851820665,
+        "auc_ci_hi": 0.5743831393258916,
         "imputed": true,
         "coverage_pos": 0.033707865168539325,
-        "coverage_neg": 0.0068092060465749695
+        "coverage_neg": 0.00667302192564347
       },
       "M2": {
         "n_pos": 89,
@@ -93,10 +99,10 @@
       "COMBINED": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5155846659740149,
+        "auc": 0.5163237326078342,
         "evaluable": true,
-        "auc_ci_lo": 0.4546704427034788,
-        "auc_ci_hi": 0.576498889244551,
+        "auc_ci_lo": 0.4553842948634319,
+        "auc_ci_hi": 0.5772631703522364,
         "imputed": true,
         "coverage_pos": 0.20224719101123595,
         "coverage_neg": 0.17377093830859322
@@ -104,10 +110,10 @@
       "degree": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5824242915747934,
+        "auc": 0.5844372152948539,
         "evaluable": true,
-        "auc_ci_lo": 0.5199602909708431,
-        "auc_ci_hi": 0.6448882921787437,
+        "auc_ci_lo": 0.5219499999086692,
+        "auc_ci_hi": 0.6469244306810387,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0
@@ -118,11 +124,12 @@
   "metapath_reach": {
     "cross_sectional": {
       "M1": {
-        "drugs_reached": 2285,
+        "drugs_reached": 2420,
         "viruses_reached": [
           "NCBITaxon:11137",
           "NCBITaxon:1335626",
           "NCBITaxon:2697049",
+          "NCBITaxon:64320",
           "NCBITaxon:694009"
         ],
         "predicates": [
@@ -216,11 +223,12 @@
         "missing_predicates": []
       },
       "M7": {
-        "drugs_reached": 148,
+        "drugs_reached": 152,
         "viruses_reached": [
           "NCBITaxon:11137",
           "NCBITaxon:1335626",
           "NCBITaxon:2697049",
+          "NCBITaxon:64320",
           "NCBITaxon:694009"
         ],
         "predicates": [
@@ -250,10 +258,11 @@
     },
     "temporal": {
       "M1": {
-        "drugs_reached": 353,
+        "drugs_reached": 506,
         "viruses_reached": [
           "NCBITaxon:1335626",
           "NCBITaxon:2697049",
+          "NCBITaxon:64320",
           "NCBITaxon:694009"
         ],
         "predicates": [
@@ -337,10 +346,11 @@
         "missing_predicates": []
       },
       "M7": {
-        "drugs_reached": 58,
+        "drugs_reached": 69,
         "viruses_reached": [
           "NCBITaxon:1335626",
           "NCBITaxon:2697049",
+          "NCBITaxon:64320",
           "NCBITaxon:694009"
         ],
         "predicates": [
@@ -372,14 +382,14 @@
   "provenance": {
     "release": {
       "id": "v0.1",
-      "nodes_sha": "1c0698e3ede99ad5",
-      "edges_sha": "b234bc07ee745cfd"
+      "nodes_sha": "8c9de2dabfcf7aee",
+      "edges_sha": "e110053c19e9c983"
     },
     "code": {
-      "commit": "25ef3b979ed0b2b4ceecc0be2264aa38fb311c6a",
+      "commit": "5601ba56e2d91d5e1e7fbd131889ea671d670300",
       "dirty": true
     },
     "schema_version": "0.12.0",
-    "generated_utc": "2026-10-10T21:05:26+00:00"
+    "generated_utc": "2026-10-14T00:08:07+00:00"
   }
 }
