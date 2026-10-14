@@ -219,3 +219,59 @@ def test_real_bridge_resolves_nearly_everything(tmp_path):
     assert stats["edges"] > 3_000, f"only {stats['edges']} bridge edges"
     # Unresolved ids are the silent-failure mode this layer exists to avoid.
     assert stats["unresolved_id"] / max(stats["rows"], 1) < 0.25
+
+
+# --------------------------------------------- one gate order, one implementation
+def test_the_classifier_and_the_ingest_count_the_same_gates(world):
+    """A ROW IS COUNTED AT THE FIRST GATE IT FAILS, which is why `which gate`
+    cannot be re-derived by re-testing one condition: a row that would also
+    fail `unresolved_id` may have died at `unparseable` first and been
+    counted there. diagnose_flavivirus_join.py carries a paragraph about
+    this, written after an earlier version asserted rows were lost at a gate
+    they never reached.
+
+    So the order lives in classify_row and ingest_mitab consumes it. This
+    pins the two together on a fixture that exercises every gate.
+    """
+    from collections import Counter
+
+    from kgav.vhppi import classify_row
+
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    taxon_map = {"2697049": "2697049"}
+    lines = [x for x in (world / "vhn_test.tab27").read_text().splitlines()
+             if x.strip()]
+
+    em = Emit()
+    stats = ingest_mitab(em, [world / "vhn_test.tab27"], index, taxon_map,
+                         "infores:virhostnet", "2024-01-01")
+
+    by_gate = Counter(classify_row(x, index, taxon_map).gate for x in lines)
+    assert by_gate["unparseable"] == 0, "fixture sanity: none are unparseable"
+    for gate in ("no_detection_method", "unresolved_id", "self_interaction",
+                 "not_a_protein", "host_host", "viral_viral",
+                 "unmapped_viral_taxon"):
+        assert stats[gate] == by_gate[gate], (
+            f"{gate}: ingest counted {stats[gate]}, classifier {by_gate[gate]}")
+
+    # Deduplication is deliberately NOT a gate -- it needs state across rows
+    # -- so survivors exceed edges by exactly the duplicates.
+    assert by_gate[None] == stats["edges"] + stats["duplicate"]
+
+
+def test_an_unresolved_row_records_which_side_failed_and_its_taxid(world):
+    """The counter alone cannot answer the question the counter raises. An
+    unresolved HOST id is interactome this build is missing; an unresolved
+    VIRAL id is a virus it does not carry. 513 of either reads identically
+    as `unresolved_id 513`.
+    """
+    from kgav.vhppi import classify_row
+
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    line = _row("uniprotkb:NOPE9", f"uniprotkb:{ACE2.split(':')[1]}",
+                "MI:0400", "1236", 2697049, 9606, "MI:0915", "0.3")
+
+    v = classify_row(line, index, {"2697049": "2697049"})
+    assert v.gate == "unresolved_id"
+    assert v.unresolved == (("UniProtKB:NOPE9", "2697049", "a"),), \
+        "only the failing side, with its taxid column verbatim"

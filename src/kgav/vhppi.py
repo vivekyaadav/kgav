@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 
 MI_RE = re.compile(r'psi-mi:"?(MI:\d+)"?')
@@ -88,6 +89,73 @@ def parse_row(line: str) -> dict | None:
     }
 
 
+@dataclass(frozen=True)
+class RowVerdict:
+    """Where one MITAB row dies, or that it survives to be emitted.
+
+    WHY THIS IS A FUNCTION RATHER THAN A COMMENT. The gates run in a fixed
+    order and a row is counted at the FIRST one it fails, so a reader who
+    wants to know what `unresolved_id` contains cannot simply re-test
+    resolution: rows that would also fail it may have died at `unparseable`
+    or `no_detection_method` first and been counted there.
+
+    diagnose_flavivirus_join.py already carries a paragraph about this --
+    "ingest_mitab checks the taxon map LAST, after unparseable,
+    no_detection_method, unresolved_id, self_interaction and viral_viral" --
+    written after an earlier version of that script asserted rows were lost
+    at a gate they never reached. A second implementation of this order is
+    how that claim became wrong; there is one implementation now.
+
+    `gate` is None for a row that survives every gate here. Deduplication is
+    NOT a gate: it needs state across rows, so ingest_mitab keeps it.
+    """
+    gate: str | None
+    row: dict | None = None
+    a: str | None = None
+    b: str | None = None
+    host: str | None = None
+    viral: str | None = None
+    viral_tax: str | None = None
+    #: For an unresolved_id row: which side(s) failed to resolve, and the
+    #: taxid column of each, verbatim from the file.
+    unresolved: tuple[tuple[str, str | None, str | None], ...] = ()
+
+
+def classify_row(line: str, index, taxon_map: dict[str, str]) -> RowVerdict:
+    """Run one MITAB line through the ingest's gates, in the ingest's order."""
+    r = parse_row(line)
+    if not r or not r["a"] or not r["b"]:
+        return RowVerdict("unparseable", r)
+    if not r["detection_method"]:
+        return RowVerdict("no_detection_method", r)
+
+    a, b = index.resolve(r["a"]), index.resolve(r["b"])
+    if a is None or b is None:
+        # Recorded per side, because "which endpoint failed" is the question
+        # the counter alone cannot answer: an unresolved HOST id is lost
+        # interactome, an unresolved VIRAL id is a virus this build does not
+        # carry, and the single tally reads the same either way.
+        bad = tuple((raw, tax, side)
+                    for raw, tax, side, got in
+                    ((r["a"], r["taxid_a"], "a", a), (r["b"], r["taxid_b"], "b", b))
+                    if got is None)
+        return RowVerdict("unresolved_id", r, a, b, unresolved=bad)
+    if a == b:
+        return RowVerdict("self_interaction", r, a, b)
+
+    va, vb = index.is_viral(a), index.is_viral(b)
+    if va is None or vb is None:
+        return RowVerdict("not_a_protein", r, a, b)
+    if va == vb:
+        return RowVerdict("viral_viral" if va else "host_host", r, a, b)
+
+    host, viral = (b, a) if va else (a, b)
+    viral_tax = r["taxid_a"] if va else r["taxid_b"]
+    if viral_tax not in taxon_map:
+        return RowVerdict("unmapped_viral_taxon", r, a, b, host, viral, viral_tax)
+    return RowVerdict(None, r, a, b, host, viral, viral_tax)
+
+
 def ingest_mitab(em, paths: list[Path], index, taxon_map: dict[str, str],
                  source: str, default_date: str) -> Counter:
     """Emit host<->viral PHYSICALLY_INTERACTS_WITH edges.
@@ -105,40 +173,17 @@ def ingest_mitab(em, paths: list[Path], index, taxon_map: dict[str, str],
             if not line.strip() or line.startswith("#"):
                 continue
             stats["rows"] += 1
-            r = parse_row(line)
-            if not r or not r["a"] or not r["b"]:
-                stats["unparseable"] += 1
+            # Every gate, in order, lives in classify_row -- including the
+            # ones whose comments used to live here: detection_method is a
+            # required qualifier, so an edge without it is dropped rather
+            # than defaulted; and viral-viral and host-host pairs are real
+            # but out of scope for a BRIDGE layer (host-host belongs to the
+            # STRING pass).
+            v = classify_row(line, index, taxon_map)
+            if v.gate:
+                stats[v.gate] += 1
                 continue
-            if not r["detection_method"]:
-                # Required qualifier; an edge without it cannot be filtered
-                # later, so it is dropped rather than defaulted.
-                stats["no_detection_method"] += 1
-                continue
-
-            a, b = index.resolve(r["a"]), index.resolve(r["b"])
-            if a is None or b is None:
-                stats["unresolved_id"] += 1
-                continue
-            if a == b:
-                stats["self_interaction"] += 1
-                continue
-
-            va, vb = index.is_viral(a), index.is_viral(b)
-            if va is None or vb is None:
-                stats["not_a_protein"] += 1
-                continue
-            if va == vb:
-                # Viral-viral and host-host pairs are real, but this ingest is
-                # the BRIDGE layer. Host-host belongs to the STRING pass;
-                # viral-viral is out of scope for v1.
-                stats["viral_viral" if va else "host_host"] += 1
-                continue
-
-            host, viral = (b, a) if va else (a, b)
-            viral_tax = r["taxid_a"] if va else r["taxid_b"]
-            if viral_tax not in taxon_map:
-                stats["unmapped_viral_taxon"] += 1
-                continue
+            r, host, viral = v.row, v.host, v.viral
 
             key = (host, viral, r["detection_method"], r["pmid"])
             if key in seen:
