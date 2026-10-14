@@ -173,10 +173,34 @@ def resolve_nsp(description: str,
 
 #: WHAT THIS INGEST HAS EVER ACCEPTED. Pinned rather than inherited from
 #: CONCENTRATION_FACTORS so that adding a unit there cannot silently change
-#: which ChEMBL rows convert. 'M' is in the shared table and NOT here: no
-#: one has measured whether ChEMBL standard_units ever holds it, and the
-#: rows that would start converting are rows that are dropped today.
-#: unconvertible_units() below reports them so the question can be settled.
+#: which ChEMBL rows convert.
+#:
+#: MEASURED on chembl_37.db, 26,962 activity rows, 2026-10-15. The open
+#: question was 'M', which the shared table converts and this set excludes.
+#: THERE ARE NO 'M' ROWS. All 108 unconvertible rows are:
+#:
+#:     ug.mL-1       97   needs a molecular weight; no factor exists
+#:     %              1   not a concentration
+#:     10^-1microM    2 \
+#:     10^-2microM    1  |
+#:     10^-4microM    1  |  10 rows in a scaled-microM notation
+#:     10^-5 uM       2  |
+#:     10^1 uM        1  |
+#:     10^2 uM        3 /
+#:
+#: 98 of 108 are correctly dropped and that is not arguable. The remaining
+#: 10 carry what looks like ChEMBL's scaled-unit notation -- a value in
+#: units of 10^n microM -- which would be mechanical to convert IF that
+#: reading is right. It is NOT VERIFIED: the convention was not checked
+#: against ChEMBL's documentation, and standard_units is meant to be the
+#: normalised column, so their presence here is itself odd.
+#:
+#: DELIBERATELY NOT CONVERTED. 10 rows is 0.037% of the query and cannot
+#: move any figure in docs/evaluation.md, while adding them means a guessed
+#: exponent convention on real potencies plus a full regeneration. The
+#: question is closed with an answer, not left open: if someone reopens it,
+#: the thing to check first is the raw `units`/`value` columns for those 10
+#: rows, not this table.
 CHEMBL_UNITS = frozenset({"nM", "uM", "pM", "mM"})
 
 
