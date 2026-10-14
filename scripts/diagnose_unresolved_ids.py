@@ -89,6 +89,7 @@ def main() -> int:
     unparseable = 0
     unparseable_tax: Counter = Counter()
     unparseable_ex: dict[str, list[str]] = defaultdict(list)
+    partner: dict[str, Counter] = defaultdict(Counter)
 
     for path in files:
         for line in path.read_text(errors="replace").splitlines():
@@ -111,13 +112,22 @@ def main() -> int:
                 continue
             if len(v.unresolved) == 2:
                 both_sides += 1
-            for raw, tax, _side in v.unresolved:
+            for raw, tax, side in v.unresolved:
                 tax = tax or "(no taxid)"
                 per_tax_rows[tax] += 1
                 per_tax_ids[tax].add(raw)
                 id_rows[raw] += 1
                 if "PRO_" in raw:
                     chain_ids += 1
+                # THE PARTNER'S TAXID, which decides whether the lost row
+                # could ever have become a bridge edge. The host/viral split
+                # runs AFTER resolution, so a row that dies here is never
+                # classified -- and a viral-viral pair is dropped at the next
+                # gate anyway. Counting these as recoverable interactome
+                # would overstate the loss by however many of them are
+                # viral-viral.
+                other = (v.row or {}).get("taxid_b" if side == "a" else "taxid_a")
+                partner[raw][other or "(no taxid)"] += 1
 
     print(f"{rows:,} rows\n")
     print("gate reached (first failure wins):")
@@ -141,10 +151,21 @@ def main() -> int:
         print("  parse_identifier recognises a UniProt accession or a PRO_ "
               "chain and nothing\n  else, so a row in another namespace dies "
               "HERE, one gate before unresolved_id.")
-        print(f"\n    {'taxid pair':<22} {'rows':>7}  example identifier columns")
+        print(f"\n    {'taxid pair':<22} {'rows':>7}  {'both viral?':<12} "
+              "example identifier columns")
         for pair, n in unparseable_tax.most_common(12):
-            ex = "  |  ".join(s[:34] for s in unparseable_ex[pair][:2])
-            print(f"    {pair:<22} {n:>7,}  {ex}")
+            ex = "  |  ".join(x[:34] for x in unparseable_ex[pair][:2])
+            ta, _, tb = pair.partition(" / ")
+            both = "BOTH VIRAL" if (ta in taxon_map and tb in taxon_map) else ""
+            print(f"    {pair:<22} {n:>7,}  {both:<12} {ex}")
+        if any(p.partition(" / ")[0] in taxon_map
+               and p.partition(" / ")[2] in taxon_map
+               for p in unparseable_tax):
+            print("\n    A row marked BOTH VIRAL cannot become a host-viral "
+                  "edge however the\n    parser improves: the next gate drops "
+                  "a viral-viral pair. Fixing parsing\n    would move those "
+                  "rows from `unparseable` to `viral_viral`, not into the "
+                  "layer.")
 
     unresolved_rows = gates.get("unresolved_id", 0)
     if not unresolved_rows:
@@ -175,10 +196,31 @@ def main() -> int:
             ex += f", +{len(ids) - args.samples:,} more"
         print(f"    {tax:<14} {n:>8,} {len(ids):>7,}  {known:<11}  {ex}")
 
+    # WHAT THE PARTNER IS decides whether a lost row was ever a bridge edge.
+    # The host/viral split runs after resolution, so these rows were never
+    # classified: a row whose other endpoint is also viral would be dropped
+    # at the NEXT gate even with the identifier resolved, and counting it as
+    # recoverable interactome overstates the loss.
     print(f"\n  the {min(args.samples * 2, len(id_rows))} identifiers costing "
-          f"the most rows:")
+          f"the most rows, and what sits on the other end:")
+    print(f"    {'identifier':<26} {'rows':>6}  partner taxid(s)")
     for raw, n in id_rows.most_common(args.samples * 2):
-        print(f"    {raw:<34} {n:>6,} row" + ("" if n == 1 else "s"))
+        parts = []
+        for tax, c in partner[raw].most_common(3):
+            kind = ("viral" if tax in taxon_map
+                    else "human" if tax == "9606" else "other host?")
+            parts.append(f"{tax} {kind} x{c:,}")
+        print(f"    {raw.replace('UniProtKB:', ''):<26} {n:>6,}  "
+              + "; ".join(parts))
+
+    recoverable = sum(c for raw in id_rows for tax, c in partner[raw].items()
+                      if tax not in taxon_map)
+    viral_pairs = sum(c for raw in id_rows for tax, c in partner[raw].items()
+                      if tax in taxon_map)
+    print(f"\n  {recoverable:,} id-slot(s) have a NON-viral partner -- the "
+          f"only ones that could\n  become host-viral edges. {viral_pairs:,} "
+          "have a viral partner and would be dropped\n  at `viral_viral` even "
+          "with the identifier resolved.")
 
     print(f"""
 {'=' * 74}
