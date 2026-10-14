@@ -89,7 +89,7 @@ def main() -> int:
     unparseable = 0
     unparseable_tax: Counter = Counter()
     unparseable_ex: dict[str, list[str]] = defaultdict(list)
-    partner: dict[str, Counter] = defaultdict(Counter)
+    pairs: dict[str, Counter] = defaultdict(Counter)
 
     for path in files:
         for line in path.read_text(errors="replace").splitlines():
@@ -119,15 +119,17 @@ def main() -> int:
                 id_rows[raw] += 1
                 if "PRO_" in raw:
                     chain_ids += 1
-                # THE PARTNER'S TAXID, which decides whether the lost row
-                # could ever have become a bridge edge. The host/viral split
-                # runs AFTER resolution, so a row that dies here is never
-                # classified -- and a viral-viral pair is dropped at the next
-                # gate anyway. Counting these as recoverable interactome
-                # would overstate the loss by however many of them are
-                # viral-viral.
+                # BOTH TAXIDS, because a bridge edge needs one endpoint on
+                # each side of the host/viral line and the partner alone
+                # does not say which side either endpoint is on. The first
+                # version of this counted "partner is not viral" as
+                # recoverable, which got every row BACKWARDS where the
+                # unresolved id was the HOST one: an unresolved human
+                # protein paired with a viral partner is a host-viral row
+                # with a missing host id, not a viral-viral pair. It
+                # reported 30 unrecoverable slots where 7 is the number.
                 other = (v.row or {}).get("taxid_b" if side == "a" else "taxid_a")
-                partner[raw][other or "(no taxid)"] += 1
+                pairs[raw][(tax, other or "(no taxid)")] += 1
 
     print(f"{rows:,} rows\n")
     print("gate reached (first failure wins):")
@@ -196,31 +198,53 @@ def main() -> int:
             ex += f", +{len(ids) - args.samples:,} more"
         print(f"    {tax:<14} {n:>8,} {len(ids):>7,}  {known:<11}  {ex}")
 
-    # WHAT THE PARTNER IS decides whether a lost row was ever a bridge edge.
-    # The host/viral split runs after resolution, so these rows were never
-    # classified: a row whose other endpoint is also viral would be dropped
-    # at the NEXT gate even with the identifier resolved, and counting it as
-    # recoverable interactome overstates the loss.
-    print(f"\n  the {min(args.samples * 2, len(id_rows))} identifiers costing "
-          f"the most rows, and what sits on the other end:")
-    print(f"    {'identifier':<26} {'rows':>6}  partner taxid(s)")
-    for raw, n in id_rows.most_common(args.samples * 2):
-        parts = []
-        for tax, c in partner[raw].most_common(3):
-            kind = ("viral" if tax in taxon_map
-                    else "human" if tax == "9606" else "other host?")
-            parts.append(f"{tax} {kind} x{c:,}")
-        print(f"    {raw.replace('UniProtKB:', ''):<26} {n:>6,}  "
-              + "; ".join(parts))
+    # A BRIDGE EDGE NEEDS ONE ENDPOINT ON EACH SIDE of the host/viral line,
+    # so the verdict is a property of the PAIR, not of the partner. The
+    # host/viral split runs after resolution, so a row that dies here was
+    # never classified and the pair of taxids is the only evidence of what
+    # it would have become.
+    #
+    # Three outcomes, and only the first is a loss worth fixing:
+    #
+    #   viral x human        a host-viral row, missing one identifier
+    #   viral x viral        dropped at `viral_viral` even once resolved
+    #   anything x other     a host species this build does not model, so
+    #                        the identifier is absent by design
+    def _side(tax: str) -> str:
+        return ("viral" if tax in taxon_map
+                else "human" if tax == "9606" else "other")
 
-    recoverable = sum(c for raw in id_rows for tax, c in partner[raw].items()
-                      if tax not in taxon_map)
-    viral_pairs = sum(c for raw in id_rows for tax, c in partner[raw].items()
-                      if tax in taxon_map)
-    print(f"\n  {recoverable:,} id-slot(s) have a NON-viral partner -- the "
-          f"only ones that could\n  become host-viral edges. {viral_pairs:,} "
-          "have a viral partner and would be dropped\n  at `viral_viral` even "
-          "with the identifier resolved.")
+    def _verdict(own: str, other: str) -> str:
+        a, b = _side(own), _side(other)
+        if {a, b} == {"viral", "human"}:
+            return "host-viral"
+        if a == b == "viral":
+            return "viral-viral"
+        if a == b == "human":
+            return "host-host"
+        return "host not modelled"
+
+    print(f"\n  the {min(args.samples * 2, len(id_rows))} identifiers costing "
+          f"the most rows, and what the pair would have been:")
+    print(f"    {'identifier':<22} {'rows':>6}  {'own':>8} x {'partner':<8} "
+          "verdict")
+    for raw, n in id_rows.most_common(args.samples * 2):
+        for (own, other), c in pairs[raw].most_common(3):
+            print(f"    {raw.replace('UniProtKB:', ''):<22} {c:>6,}  "
+                  f"{own:>8} x {other:<8} {_verdict(own, other)}")
+
+    buckets: Counter = Counter()
+    for raw in id_rows:
+        for (own, other), c in pairs[raw].items():
+            buckets[_verdict(own, other)] += c
+    total = sum(buckets.values())
+    print(f"\n  all {total:,} id-slots by what the row would have become:")
+    for v, c in buckets.most_common():
+        note = {"host-viral": "  <- recoverable: a bridge edge, one id short",
+                "viral-viral": "  <- dropped at the next gate regardless",
+                "host not modelled": "  <- host species outside this build",
+                "host-host": "  <- the STRING layer's job, not this one"}.get(v, "")
+        print(f"    {v:<20} {c:>6,}{note}")
 
     print(f"""
 {'=' * 74}

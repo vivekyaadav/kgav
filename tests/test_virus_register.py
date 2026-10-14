@@ -317,18 +317,31 @@ def test_declared_taxa_maps_every_isolate_to_its_species(doc):
 
 
 def test_the_sars_cov_ppi_isolates_stay_declared(doc):
-    """VirHostNet files 73 host-viral interactions under two SARS-CoV isolate
-    taxa, identified from UniProt taxonomy with 694009 in both lineages:
+    """VirHostNet files 73 interactions under two SARS-CoV isolate taxa,
+    identified from UniProt taxonomy with 694009 in both lineages:
 
         227984  SARS coronavirus Tor2      66 rows
         698419  SARS coronavirus wtic-MB    7 rows
 
-    THIS TEST ASSERTS THE MAPPING, NOT AN EFFECT. The first version of this
-    docstring claimed removing these entries loses the graph 73 edges. It
-    does not: ingest_vhppi produces a byte-identical layer with and without
-    them, because `unmapped_viral_taxon` is 0 either way and the rows are
-    dropped earlier at `unresolved_id`. The declaration is correct and inert
-    until extra_accessions lets the spine resolve the isolates' identifiers.
+    THIS TEST ASSERTS THE MAPPING, NOT AN EFFECT, and this docstring has now
+    had to be corrected twice for claiming one.
+
+    First version: removing these entries loses the graph 73 edges. It does
+    not -- ingest_vhppi produces a byte-identical layer either way.
+
+    Second version (the one above this): the rows are "host-viral" and are
+    "dropped earlier at unresolved_id ... inert until extra_accessions lets
+    the spine resolve the isolates' identifiers". Measured by
+    diagnose_unresolved_ids.py, all three of those are wrong. The 66 die at
+    `unparseable`, one gate earlier still, on `refseq:NP_828860` -- a RefSeq
+    identifier parse_identifier never turns into anything to resolve. And
+    both taxid columns are viral on all 73 rows (227984 x 694009, and
+    698419 x 694009), so they are viral-viral: fixing parsing or resolution
+    moves them to the `viral_viral` gate, not into the layer.
+
+    So the entries are inert and expected to stay inert. They are declared
+    because the register's rule is to declare an observed taxon, which is
+    what this test checks and all it checks.
     """
     m = declared_taxa(doc, "viruses")
     for iso in ("227984", "698419"):
@@ -338,9 +351,11 @@ def test_the_sars_cov_ppi_isolates_stay_declared(doc):
 
 
 def test_a_ppi_isolate_is_not_mistaken_for_a_chain_source(doc):
-    """SARS-CoV's chain_source is the species itself. These isolates exist
-    only so the PPI layer can resolve them, and nothing should start reading
-    chains from a recombinant clone because a taxon appeared in the list.
+    """SARS-CoV's chain_source is the species itself. These isolates are
+    declared only because VirHostNet names them (and, as the test above
+    records, nothing in the layer turns on that), and nothing should start
+    reading chains from a recombinant clone because a taxon appeared in the
+    list.
     """
     sars = next(v for v in doc["viruses"] if str(v["taxon"]) == "694009")
     assert str(sars["chain_source"]["taxon"]) == "694009"

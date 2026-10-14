@@ -55,8 +55,9 @@ viruses:
     name: SARS-CoV
     # ISOLATES DECLARED FOR THE PPI LAYER, NOT FOR CHAINS. chain_source above
     # is the species itself, so nothing here is needed to find mature
-    # peptides. These two are declared because VirHostNet files 73 host-viral
-    # interactions under them.
+    # peptides. These two are declared because VirHostNet files 73
+    # interactions under them. (This line said "73 host-viral" until the
+    # measurement below showed all 73 are viral-viral.)
     #
     # DECLARING THEM RECOVERS NOTHING TODAY, AND THE MEASUREMENT SAYS SO.
     # Running ingest_vhppi with and without these two entries gives a
@@ -66,18 +67,43 @@ viruses:
     # change.
     #
     # The reason is the gate order in vhppi.ingest_mitab. `unmapped_viral_taxon`
-    # is 0 in BOTH runs, so these rows never reach the taxon map: they are
-    # dropped earlier, at `unresolved_id`, because an isolate carries its own
-    # UniProt accessions and the spine builds SARS-CoV protein nodes from the
-    # species reference proteome UP000000354. The taxon map is never consulted
-    # for a row whose identifiers did not resolve.
+    # is 0 in BOTH runs, so these rows never reach the taxon map. The
+    # paragraph that stood here said they die at `unresolved_id` "because an
+    # isolate carries its own UniProt accessions", and named
+    # extra_accessions as what would recover them.
     #
-    # WHAT WOULD ACTUALLY RECOVER THEM is extra_accessions, the mechanism MERS
-    # uses above: pull the isolate's reviewed accessions alongside the
-    # proteome and reassign them to the species taxon, so the alias index can
-    # resolve them. That is a spine change and it is not done here. These
-    # entries stay because they are true and because they are the breadcrumb
-    # to the 73 rows; they are not load-bearing.
+    # BOTH HALVES OF THAT ARE WRONG, measured by
+    # scripts/diagnose_unresolved_ids.py on v0.1. The 66 and the 7 are
+    # exactly right; nothing else in it is.
+    #
+    #   227984  66 rows  die at `unparseable`, one gate EARLIER, and not
+    #                    because of isolate accessions: the identifier is
+    #                    `refseq:NP_828860`. parse_identifier takes a
+    #                    UniProt accession or a PRO_ chain, so a RefSeq id
+    #                    never becomes an id to resolve. extra_accessions
+    #                    cannot recover a row that produces no UniProt
+    #                    identifier to look up -- the blocker is parsing.
+    #   698419   7 rows  DO die at `unresolved_id`, on D2E1L9.
+    #
+    # AND NEITHER SET IS HOST-VIRAL, so "73 host-viral interactions" above
+    # is wrong too. Both taxid columns are viral taxa this register maps:
+    # 227984 x 694009 for all 66, and 698419 x 694009 for all 7. The
+    # host/viral split runs AFTER resolution, so these rows were never
+    # classified -- fixing the parser would move the 66 from `unparseable`
+    # to `viral_viral`, and resolving D2E1L9 would move the 7 to
+    # `viral_viral`. Neither reaches the layer.
+    #
+    # So extra_accessions would recover ZERO of the 73, and the real loss
+    # elsewhere is unrelated to these two entries: on the same run, 484-odd
+    # id-slots are genuine host-viral rows missing one identifier, almost
+    # all of them one SARS-CoV-2 accession (A0A6B9W2G5, 342 rows) and one
+    # HCoV-NL63 accession (H9EJ66, 114 rows), neither filed under an
+    # isolate taxon.
+    #
+    # THE ENTRIES STAY. They are true -- VirHostNet does file rows under
+    # these taxa -- and declaring an observed taxon is this register's
+    # rule. They are not load-bearing and they are no longer a breadcrumb
+    # to anything recoverable.
     #
     # Found by the VirHostNet taxon histogram in
     # diagnose_flavivirus_join.py, which prints every taxon in the files and
@@ -104,7 +130,7 @@ viruses:
     # figure in docs/evaluation.md. Both return zero rows for
     # IC50/EC50/Ki/Kd, so this is a PPI-only change.
     isolate_taxa: ["227984", "698419"]
-    curation_note: "isolates present in VirHostNet; INERT until extra_accessions lets the spine resolve their identifiers. No ChEMBL activity under either."
+    curation_note: "isolates present in VirHostNet; INERT and expected to stay so -- all 73 rows are viral-viral and would be dropped at that gate even once their identifiers resolve. No ChEMBL activity under either."
     proteome_id: UP000000354
     mondo: "MONDO:0005091"
     mondo_source: "severe acute respiratory syndrome; sole exact match, verified 2026-09"
