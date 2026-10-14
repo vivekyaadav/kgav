@@ -24,6 +24,7 @@ from kgav.chembl import (
 )
 from kgav.emit import Emit
 from kgav.schema import load_schema
+from kgav.units import CONCENTRATION_FACTORS
 from kgav.virus_register import declared_taxa
 
 
@@ -111,6 +112,17 @@ def main() -> int:
     for k in DROPPED:
         if s[k]:
             print(f"    {k:<32} {s[k]:>7,}")
+            # THE COUNTER RAISES A QUESTION IT CANNOT ANSWER, so the unit
+            # breakdown prints right under its total. Registering the unit_
+            # prefix was not enough: a breakdown nothing prints is a
+            # measurement nobody takes, and I said the previous run would
+            # settle whether ChEMBL uses "M" when nothing in it could.
+            if k == "unconvertible_units":
+                for u in sorted(x for x in s if x.startswith("unit_")):
+                    name = u.replace("unit_", "")
+                    can = " <- CONVERTIBLE, and this ingest drops it" \
+                        if name in CONCENTRATION_FACTORS else ""
+                    print(f"      {name:<28} {s[u]:>7,}{can}")
 
     emitted, dropped, unlisted = accounting(s)
     accounted = emitted + dropped
