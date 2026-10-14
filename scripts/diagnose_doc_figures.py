@@ -128,7 +128,13 @@ def main() -> int:
   sequence" (selective-only, all, verified-only, +publication-disjoint).
   hard_negatives.json holds ONE protocol at a time and currently holds
   row 5, so rows 1-4 cannot be present however current the document is.
-  That table is a record of five separate runs, not of one file.""")
+  That table is a record of five separate runs, not of one file.
+
+  A PRE-REGISTRATION IS HISTORICAL BY DEFINITION. Run this against
+  docs/prereg_*.md and its figures will read absent, correctly: a prereg
+  states what was known when the prediction was declared, and editing
+  one to match a later release destroys the only thing it is for. Fix
+  the live document; leave the prereg alone.""")
 
     print("""
 WHAT THIS DOES NOT DECIDE
