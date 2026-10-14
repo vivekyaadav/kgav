@@ -208,6 +208,33 @@ def test_unconvertible_units_are_dropped(built):
     assert stats["unconvertible_units"] == 1
 
 
+def test_the_drop_records_which_unit_it_could_not_convert(built):
+    """The total cannot answer the question the total raises. ChEMBL
+    standard_units is an open set, and 'M' is one the shared table CAN
+    convert while this ingest deliberately does not -- so whether any such
+    row exists decides whether measurements are being discarded. A count of
+    108 says nothing either way.
+    """
+    _em, stats, _ = built
+    per_unit = {k.replace("unit_", ""): v
+                for k, v in stats.items() if k.startswith("unit_")}
+    assert per_unit == {"ug.mL-1": 1}, per_unit
+    assert sum(per_unit.values()) == stats["unconvertible_units"], (
+        "the breakdown must account for every unconvertible row, or it "
+        "answers the question for only some of them")
+
+
+def test_a_convertible_unit_this_ingest_rejects_is_still_counted_by_name():
+    """'M' is the case the breakdown exists for: kgav.units can convert it
+    and CHEMBL_UNITS excludes it, so the row is dropped today and nothing
+    said so."""
+    from kgav.chembl import CHEMBL_UNITS, to_nm
+    from kgav.units import CONCENTRATION_FACTORS
+
+    assert "M" in CONCENTRATION_FACTORS and "M" not in CHEMBL_UNITS
+    assert to_nm(5.0, "M") is None
+
+
 def test_domain_qualifier_records_the_binding_site(built):
     em, _, _ = built
     doms = {e["qualifiers"].get("domain") for e in em.edges}
