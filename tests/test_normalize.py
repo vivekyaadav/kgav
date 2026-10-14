@@ -14,7 +14,12 @@ from pathlib import Path
 import pytest
 
 from kgav.normalize_bio import MondoResolver, TaxonResolver, UniProtResolver
-from kgav.normalize_chem import NormalizationError, normalize_chemical, same_as_rule
+from kgav.normalize_chem import (
+    NormalizationError,
+    normalize_chemical,
+    same_as_rule,
+    same_structure,
+)
 
 REFS = Path(__file__).resolve().parents[1] / "data" / "raw" / "refs"
 needs_refs = pytest.mark.skipif(not REFS.exists(), reason="reference files not downloaded")
@@ -209,3 +214,28 @@ def test_obsolete_terms_are_flagged(mondo):
         pytest.skip("no obsolete terms parsed")
     r = mondo.resolve(next(iter(mondo.obsolete)))
     assert not r.ok and r.status == "deleted"
+
+
+# ------------------------------------------------- spelling vs disagreement
+def test_same_structure_sees_through_spelling():
+    """The real v0.1 case: chembl writes aromatic rings lowercase, ncats
+    writes them Kekule, the atom order differs, and the stereo descriptor
+    flips with neighbour order. One molecule (rolipram), two spellings."""
+    assert same_structure(
+        "COc1ccc([C@@H]2CNC(=O)C2)cc1OC1CCCC1",
+        "COC1=C(OC2CCCC2)C=C(C=C1)[C@@H]3CNC(=O)C3")
+
+
+def test_same_structure_keeps_stereochemistry():
+    """DELIBERATELY NOT normalize_chemical, whose skeleton key groups
+    stereoisomers. Two enantiomers are two compounds and must not be
+    called one value spelled two ways."""
+    assert not same_structure("C[C@H](N)C(=O)O", "C[C@@H](N)C(=O)O")
+
+
+def test_same_structure_is_false_for_different_molecules_and_for_junk():
+    """A value rdkit cannot parse is a difference like any other: it belongs
+    in the conflict report, not silently merged."""
+    assert not same_structure("CCO", "c1ccccc1")
+    assert not same_structure("not a smiles !!!", "CCO")
+    assert not same_structure("CCO", "")

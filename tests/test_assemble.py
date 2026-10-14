@@ -99,6 +99,50 @@ def test_property_conflict_is_reported_not_resolved_silently(built):
     assert any("sequence_hash" in c for c in built.conflicts)
 
 
+def test_two_spellings_of_one_value_are_equivalent_not_conflicting(layers):
+    """property_conflict:smiles read 7 on v0.1 and all seven were spelling:
+    aromatic vs Kekule rings, different atom order, and stereo descriptors
+    that flip with neighbour order. Every pair canonicalises to one molecule
+    and both members match the node's own InChIKey.
+
+    A counter that fires seven times for nothing teaches the reader to
+    ignore it, which is the argument the Makefile makes for keeping `lint`
+    out of the correctness gate.
+    """
+    a = assemble(layers, None, load_schema().derive_qualifiers,
+                 equivalent={"sequence_hash": lambda x, y: True})
+    assert a.stats["property_equivalent:sequence_hash"] == 1
+    assert a.stats["property_conflict:sequence_hash"] == 0
+    assert not any("sequence_hash" in c for c in a.conflicts)
+
+
+def test_an_equivalence_that_says_no_still_reports_the_conflict(layers):
+    """The hook must not be able to turn every difference into a non-event."""
+    a = assemble(layers, None, load_schema().derive_qualifiers,
+                 equivalent={"sequence_hash": lambda x, y: False})
+    assert a.stats["property_conflict:sequence_hash"] == 1
+    assert a.stats["property_equivalent:sequence_hash"] == 0
+
+
+def test_a_raising_comparator_reports_a_conflict_rather_than_aborting(layers):
+    """An unparseable value is a difference like any other. Letting the
+    comparator's exception escape would turn one bad SMILES into a failed
+    assembly of 74,871 nodes."""
+    def boom(x, y):
+        raise ValueError("unparseable")
+
+    a = assemble(layers, None, load_schema().derive_qualifiers,
+                 equivalent={"sequence_hash": boom})
+    assert a.stats["property_conflict:sequence_hash"] == 1
+
+
+def test_without_a_comparator_nothing_changes(built):
+    """rdkit is the optional `chem` extra, so the no-comparator path is the
+    one that must stay exactly as it was."""
+    assert built.stats["property_conflict:sequence_hash"] == 1
+    assert not any(k.startswith("property_equivalent:") for k in built.stats)
+
+
 def test_earlier_layer_wins_on_conflict(built):
     """The spine is hand-curated; chembl knows least about what it did not
     create. Precedence must not depend on dict ordering."""

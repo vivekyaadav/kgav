@@ -154,3 +154,32 @@ def same_as_rule(a: ChemId, b: ChemId) -> str | None:
     if a.inchikey_skel == b.inchikey_skel:
         return "shared_inchikey_skeleton:salt_or_stereo_or_tautomer"
     return None
+
+
+def same_structure(a: str, b: str) -> bool:
+    """Do two SMILES denote one molecule, written differently?
+
+    WHAT THIS IS FOR. assemble reported `property_conflict:smiles 7` on
+    v0.1, and all seven were spelling: one layer writes aromatic rings
+    lowercase and the other Kekule, atom order differs, and a SMILES stereo
+    descriptor is ORDER-DEPENDENT -- the same centre reads @ or @@ according
+    to which neighbour comes first. Every pair canonicalises to one molecule
+    and both members match the node's own InChIKey.
+
+    DELIBERATELY NOT normalize_chemical. That collapses salts, tautomers and
+    (via the skeleton key) stereoisomers, which is the right grouping for a
+    node id and far too strong here: two tautomers really are two values and
+    should be reported, not merged away. Canonical SMILES normalises
+    aromaticity, atom order and stereo NOTATION while keeping the
+    stereochemistry itself, which is exactly the question "is this the same
+    molecule spelled differently".
+
+    Returns False for anything rdkit cannot parse. A value that is not a
+    structure is a difference like any other and belongs in the report.
+    """
+    from rdkit import Chem, RDLogger
+    RDLogger.DisableLog("rdApp.*")
+    ma, mb = Chem.MolFromSmiles(a), Chem.MolFromSmiles(b)
+    if ma is None or mb is None:
+        return False
+    return Chem.MolToSmiles(ma) == Chem.MolToSmiles(mb)
