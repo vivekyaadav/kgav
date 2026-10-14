@@ -59,6 +59,8 @@ import csv
 from collections import Counter
 from pathlib import Path
 
+from kgav.units import to_nm_strict
+
 ANTIVIRAL_PREDICATE = "HAS_ANTIVIRAL_ACTIVITY_AGAINST"
 
 # Chen CZ et al., Front Pharmacol 2021;11:592737. Vero E6, MOI 0.002, 72h.
@@ -187,23 +189,21 @@ def _f(value) -> float | None:
         return None
 
 
+#: Exactly what unit_for can produce. Pinned so that a unit added to
+#: CONCENTRATION_FACTORS cannot quietly become acceptable here: outside
+#: this set the inference is broken, which is the error this raises.
+NCATS_UNITS = frozenset({"M", "uM", "nM", "logM"})
+
+
 def to_nm(value, unit: str) -> float | None:
     """Concentration to nanomolar. `unit` is one of M, uM, nM, logM.
 
-    logM is NCATS's log_ac50: log10 of molar. -5.0 is 10 uM, i.e. 10,000 nM.
+    STRICT, and deliberately unlike chembl.to_nm: `unit` here is derived by
+    unit_for from a column name this codebase recognises, so an unexpected
+    value means the inference broke. Returning None would drop the row and
+    the evidence of the bug together. See kgav.units for both contracts.
     """
-    v = _f(value)
-    if v is None:
-        return None
-    if unit == "nM":
-        return v
-    if unit == "uM":
-        return v * 1_000.0
-    if unit == "M":
-        return v * 1e9
-    if unit == "logM":
-        return (10.0 ** v) * 1e9
-    raise ValueError(f"unknown concentration unit {unit!r}")
+    return to_nm_strict(value, unit, allow=NCATS_UNITS)
 
 
 def unit_for(column_name: str, default: str = "uM") -> str:

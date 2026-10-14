@@ -1006,6 +1006,40 @@ def p_cell(m: dict, width: int = 7) -> str:
     return f"{v:>{width}.4f}" if v >= 0.0001 else "< .0001".rjust(width)
 
 
+def vs_degree_cell(m: dict) -> str:
+    """Lift relative to the degree baseline -- the comparison that carries
+    information, since p alone is against a random ranking.
+
+    LIVES HERE because it was byte-identical in compare_metapaths and
+    temporal_split -- the tenth instance in this project of one calculation
+    in two files, and the one I left behind when moving _p out of those same
+    two scripts a few commits ago. Found by an AST sweep rather than by
+    tripping over it again.
+
+    Four distinguishable states, because collapsing them to "-" hid the one
+    row where a channel beat degree outright (HCoV-229E M2 4.65 against a
+    degree lift of 0.00):
+
+        base   this IS the baseline row
+       >deg    degree scored 0.00, so the ratio is undefined and the channel
+               wins outright
+        1.93~  the ratio, with (~) when degree itself is below random and the
+               denominator therefore inflates it
+          -    no baseline to compare against
+    """
+    # Checked BEFORE the base/absent branch, which would otherwise read an
+    # undetermined row's two Nones as "this is the baseline".
+    if m.get("vs_degree_undetermined"):
+        return "    n/d"
+    if m.get("beats_degree") is None and m.get("lift_vs_degree") is None:
+        return "   base" if "vs_degree_readable" in m else "      -"
+    v = m.get("lift_vs_degree")
+    if v is None:
+        return "   >deg" if m.get("beats_degree") else "  <=deg"
+    return f"{v:>6.2f}~" if m.get("vs_degree_readable") is False \
+        else f"{v:>7.2f}"
+
+
 def undetermined_note(per: dict[str, dict]) -> str:
     """One line naming every row in a table whose Hits@k was not determined.
 

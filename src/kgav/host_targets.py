@@ -37,6 +37,9 @@ import sqlite3
 from collections import Counter
 from pathlib import Path
 
+from kgav.chembl import CHEMBL_UNITS
+from kgav.units import to_nm as _to_nm
+
 # ChEMBL action_type -> the schema's target_direction enum.
 ACTION_TO_DIRECTION = {
     "INHIBITOR": "inhibitor",
@@ -111,11 +114,15 @@ def query_host_activities(db: Path, min_pchembl: float = DEFAULT_MIN_PCHEMBL,
 
 
 def to_nm(value: float | None, units: str | None) -> float | None:
-    if value is None:
-        return None
-    factors = {"nM": 1.0, "uM": 1000.0, "pM": 0.001, "mM": 1_000_000.0}
-    f = factors.get((units or "").strip())
-    return float(value) * f if f else None
+    """Nanomolar, through the one implementation in kgav.units.
+
+    This was a verbatim-looking copy of chembl.to_nm that was not one: it
+    multiplied by 0.001 for pM where chembl divided by 1000, which differs
+    in the last bit for 13.75% of values. Harmless at pM scale, and the
+    reason to notice is that two copies believed identical had never been
+    compared -- by then their unit sets had already diverged.
+    """
+    return _to_nm(value, units, allow=CHEMBL_UNITS)
 
 
 def ingest_host_targets(em, rows: list[dict], mechanisms: dict[tuple[str, str], str],

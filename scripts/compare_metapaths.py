@@ -28,6 +28,7 @@ from kgav.baselines import (
     metapath_reach,
     mrr,
     p_cell,
+    vs_degree_cell,
     rank,
     undetermined_note,
 )
@@ -49,34 +50,6 @@ def positives(release: Path) -> dict[str, set[str]]:
 def row(name: str, scores: dict[str, float], pos: set[str], k: int = 100) -> dict:
     """Thin wrapper; the metric lives in baselines so it can be tested."""
     return lift_row(scores, pos, k)
-
-
-def _vs(m: dict) -> str:
-    """Lift relative to the degree baseline -- the comparison that carries
-    information, since p alone is against a random ranking.
-
-    Four distinguishable states, because collapsing them to "-" hid the one
-    row where a channel beat degree outright (HCoV-229E M2 4.65 against a
-    degree lift of 0.00):
-
-        base   this IS the baseline row
-       >deg    degree scored 0.00, so the ratio is undefined and the channel
-               wins outright
-        1.93~  the ratio, with (~) when degree itself is below random and the
-               denominator therefore inflates it
-          -    no baseline to compare against
-    """
-    # Checked BEFORE the base/absent branch, which would otherwise read an
-    # undetermined row's two Nones as "this is the baseline".
-    if m.get("vs_degree_undetermined"):
-        return "    n/d"
-    if m.get("beats_degree") is None and m.get("lift_vs_degree") is None:
-        return "   base" if "vs_degree_readable" in m else "      -"
-    v = m.get("lift_vs_degree")
-    if v is None:
-        return "   >deg" if m.get("beats_degree") else "  <=deg"
-    return f"{v:>6.2f}~" if m.get("vs_degree_readable") is False \
-        else f"{v:>7.2f}"
 
 
 def main() -> int:
@@ -132,7 +105,7 @@ def main() -> int:
             print(f"    {name:<10} {m['pool']:>7,} {m['pos']:>5,} "
                   f"{hits_cell(m, 5)} "
                   f"{m['expected']:>7.1f} {lift_cell(m)} {p_cell(m)} "
-                  f"{_vs(m)} {m['mrr']:>7.4f}{flag}")
+                  f"{vs_degree_cell(m)} {m['mrr']:>7.4f}{flag}")
         if (warn := confound_warning(per)):
             print(f"    ! {warn}")
         if (note := undetermined_note(per)):
