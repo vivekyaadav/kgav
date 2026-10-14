@@ -265,19 +265,34 @@ def catalytic_machinery(acc: str, lo: int,
     # protease is still recognisable by composition; anything else is
     # metal-coordinating or structural and gets "none".
     aas = [aa for _p, aa, _d in sites]
-    # NARROWER THAN IT LOOKS, and this is where PLpro dies. The test is
-    # "the LAST residue is C or S" -- the chymotrypsin-like assumption the
-    # explicit branch above was fixed to stop making, still in force here.
-    # A papain-like protease runs Cys-His-Asp with the nucleophile FIRST,
-    # so SARS-CoV-2 PLpro (C1674, H1835, D1849, none of them annotated as a
-    # nucleophile) falls through to "none" and the gate cannot read it.
+    # POSITION-INDEPENDENT NOW. The test was "the LAST residue is C or S"
+    # -- the chymotrypsin-like assumption the explicit branch above was
+    # fixed to stop making, still in force down here. A papain-like
+    # protease runs Cys-His-Asp with the nucleophile FIRST, so SARS-CoV-2
+    # PLpro (C1674, H1835, D1849, none annotated) read "none" and the gate
+    # could not evaluate a cysteine protease.
     #
-    # NOT WIDENED HERE. Changing it would re-decide every chain that
-    # reaches this branch, and nothing currently reports which chains those
-    # are. The basis returned below is what makes that measurable; widen it
-    # once the measurement says what it would move.
-    if "H" in aas and aas[-1] in ("C", "S"):
-        pos, aa = sites[-1][0], sites[-1][1]
+    # THE RULE: a histidine must be present, and exactly ONE site may be C
+    # or S. That one is the nucleophile wherever it sits. Both conditions
+    # carry weight, and the first is what stops this re-introducing the bug
+    # the explicit branch fixed:
+    #
+    #   the histidine   SARS-CoV-2 RdRp's sites are S5151, D5152, D5153 --
+    #                   a serine, but no His, so this refuses it. Without
+    #                   that test it would read "serine" for a polymerase,
+    #                   one step from the "aspartic D5153" error.
+    #   exactly one     two candidates mean the set spans more than one
+    #                   active site and nothing here can say which belongs
+    #                   to the protease. Refusing is sayable; guessing is
+    #                   not.
+    #
+    # MEASURED BEFORE CHANGING, against all 19 chains that have sites. The
+    # 14 this branch already decided come out bit-identical -- every one of
+    # them does carry its nucleophile last -- the four polymerases stay
+    # "none", and exactly one chain moves: PLpro, "none" -> cysteine.
+    cands = [(p, aa) for p, aa, _d in sites if aa in ("C", "S")]
+    if "H" in aas and len(cands) == 1:
+        pos, aa = cands[0]
         return residues, f"{aa}{pos}", NUCLEOPHILES[aa], "composition"
     return residues, "", "none", "none"
 

@@ -317,7 +317,7 @@ def test_matching_roles_are_still_compared():
 
 
 # ------------------------------------------- which rule read the active sites
-def _machinery(sites, seq_len=2000):
+def _machinery(sites, seq_len=6000):
     """catalytic_machinery against a stubbed UniProt response.
 
     `sites` is [(position, residue, description)]; the sequence is built so
@@ -354,24 +354,79 @@ def test_composition_decides_a_chymotrypsin_like_triad():
     assert (nuc, typ, basis) == ("C200", "cysteine", "composition")
 
 
-def test_a_papain_like_triad_is_not_read_by_either_rule():
-    """THE PLPRO CASE, pinned. SARS-CoV-2 PLpro's active sites are C1674,
-    H1835, D1849, all described "For PL-PRO activity" with no nucleophile
-    annotation. A papain-like protease runs Cys-His-Asp with the
-    nucleophile FIRST, and the composition fallback tests the LAST residue
-    -- the chymotrypsin-like assumption the annotated path was already
-    fixed to stop making.
-
-    So the type is "none" for a cysteine protease, and basis says nobody
-    could read it rather than nobody annotated it. Recorded as a known
-    limitation, not fixed here: widening the fallback re-decides every
-    chain reaching it, and the ingest now reports which those are.
+def test_a_papain_like_triad_is_read_by_composition():
+    """THE PLPRO CASE. Its active sites are C1674, H1835, D1849, all
+    described "For PL-PRO activity" with no nucleophile annotation. A
+    papain-like protease runs Cys-His-Asp with the nucleophile FIRST, and
+    the composition rule used to test the LAST residue -- so a cysteine
+    protease read "none" and the gate could not evaluate it.
     """
     _res, nuc, typ, basis = _machinery(
         [(1674, "C", "For PL-PRO activity"),
          (1835, "H", "For PL-PRO activity"),
          (1849, "D", "For PL-PRO activity")])
-    assert (nuc, typ, basis) == ("", "none", "none")
+    assert (nuc, typ, basis) == ("C1674", "cysteine", "composition")
+
+
+def test_a_serine_without_a_histidine_is_still_refused():
+    """THE CONDITION THAT KEEPS THE WIDENING HONEST. SARS-CoV-2 RdRp's
+    sites are S5151, D5152, D5153: a serine, no histidine. Dropping the
+    His test to catch PLpro would read "serine" for a polymerase -- one
+    step from the "aspartic D5153" misclassification the explicit branch
+    was fixed to prevent.
+    """
+    _res, nuc, typ, _b = _machinery(
+        [(5151, "S", "For polymerase activity"),
+         (5152, "D", "For polymerase activity"),
+         (5153, "D", "For polymerase activity")], seq_len=6000)
+    assert (nuc, typ) == ("", "none")
+
+
+def test_two_nucleophile_candidates_are_refused_rather_than_picked():
+    """Two C/S sites mean the set spans more than one active site and
+    nothing here can say which belongs to the protease."""
+    _res, nuc, typ, _b = _machinery(
+        [(10, "C", "For activity A"), (20, "H", "For activity A"),
+         (30, "S", "For activity B")])
+    assert (nuc, typ) == ("", "none")
+
+
+def test_the_widened_rule_moves_only_plpro():
+    """THE BLAST RADIUS, measured before the rule changed and pinned here.
+
+    Every chain in SPECS that has active sites, with the residues exactly
+    as ingest_folds reported them on 2026-10-15. Fourteen of these were
+    already decided by composition; the point of the table is that the
+    position-independent rule leaves all fourteen bit-identical and moves
+    exactly one chain.
+    """
+    cases = [
+        ("SARS-CoV 3CLpro", "H3281, C3385", "cysteine"),
+        ("MERS-CoV 3CLpro", "H3288, C3395", "cysteine"),
+        ("HCoV-229E 3CLpro", "H3006, C3109", "cysteine"),
+        ("Dengue 2 NS3pro", "H1526, D1550, S1610", "serine"),
+        ("Zika NS3pro", "H1549, D1573, S1633", "serine"),
+        ("West Nile NS3pro", "H1552, D1576, S1636", "serine"),
+        ("HCV NS3pro", "H1083, D1107, S1165", "serine"),
+        ("Yellow fever NS3pro", "H1537, D1561, S1622", "serine"),
+        ("JEV NS3pro", "H1555, D1579, S1639", "serine"),
+        ("EV-A71 3C", "H1588, E1619, C1695", "cysteine"),
+        ("Poliovirus 3C", "H1605, E1636, C1712", "cysteine"),
+        ("HAV 3C", "H1563, D1603, C1691", "cysteine"),
+        ("CVB3 3C", "H1580, E1611, C1687", "cysteine"),
+        ("Rhinovirus A 3C", "H1561, E1592, C1668", "cysteine"),
+        # the four polymerases that must stay unreadable
+        ("SARS-CoV-2 RdRp", "S5151, D5152, D5153", "none"),
+        ("SARS-CoV RdRp", "S5128, D5129, D5130", "none"),
+        ("Dengue 2 NS5", "K2552, D2637, K2672, E2708", "none"),
+        ("Zika NS5", "K2577, D2662, K2698, E2734", "none"),
+        # and the one that moves
+        ("SARS-CoV-2 PLpro", "N1062, G1070, C1674, H1835, D1849", "cysteine"),
+    ]
+    for label, residues, expected in cases:
+        sites = [(int(r[1:]), r[0], "For activity") for r in residues.split(", ")]
+        _res, _nuc, typ, _b = _machinery(sites, seq_len=6000)
+        assert typ == expected, f"{label}: {typ} != {expected}"
 
 
 def test_no_active_sites_at_all_is_distinguishable():
