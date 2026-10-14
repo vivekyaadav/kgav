@@ -268,6 +268,50 @@ def load_cache(raw: list[dict]) -> list:
     return chains
 
 
+def window_label(c) -> str:
+    """How a chain's analysed region is printed.
+
+    The per-chain line used to print the CHAIN's coordinates beside the
+    WINDOW's class count: "[1476-2093] ... 11 classes" when the 11 came
+    from 1476-1653. Both numbers are shown when they differ, because the
+    chain is what supplies the node id and the window is what was read.
+    """
+    lo, hi = c.window
+    if c.window_is_chain:
+        return f"[{lo}-{hi}]"
+    return f"[{lo}-{hi} of {c.start}-{c.end}]"
+
+
+def active_site_rows(chains) -> list[tuple[str, str, str, str]]:
+    """(label, role, residue, domain) for every score-eligible active site.
+
+    EVERY ONE. The filter used to require `c.domains` as well, which
+    silently dropped HAV 3C -- three catalytic residues, zero annotated
+    Domains -- from the one report whose job is to say where each active
+    site sits. A table that omits the case it cannot explain is the failure
+    this project keeps finding: correct about what it looks at, silent
+    about what it does not.
+
+    All containing domains are named, not the first: UniProt nests, and
+    SARS-CoV-2 RdRp's S5151 is in both "Nsp12 RNA-dependent RNA polymerase"
+    and "RdRp catalytic".
+    """
+    rows = []
+    for c in chains:
+        if c.spec.role not in SCORE_ELIGIBLE_ROLES or not c.active_sites:
+            continue
+        for pos, aa, _d in sorted(tuple(x) for x in c.active_sites):
+            where = [dd for ds, de, dd in (c.domains or []) if ds <= pos <= de]
+            if where:
+                dom = " + ".join(where)
+            elif not c.domains:
+                dom = "(entry annotates no Domain)"
+            else:
+                dom = "(no annotated domain)"
+            rows.append((c.spec.label, c.spec.role, f"{aa}{pos}", dom))
+    return rows
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
@@ -300,7 +344,14 @@ def main() -> int:
             print(f"{spec.label:<22} ", end="", flush=True)
             r = resolve(spec)
             if r.ok:
-                print(f"[{r.start}-{r.end}] {r.catalytic_type:<9} "
+                # THE WINDOW, not the chain. This line printed the chain's
+                # coordinates beside the WINDOW's class count, so after
+                # narrowing it read "[1476-2093] ... 11 classes" when the 11
+                # came from 1476-1653. Two numbers from different regions,
+                # side by side, which is the defect this whole sequence has
+                # been about. The chain is still shown when they differ,
+                # because the chain is what supplies the node id.
+                print(f"{window_label(r)} {r.catalytic_type:<9} "
                       f"{r.nucleophile or '-':<8} {len(r.classes)} classes")
             else:
                 print(f"NOT FOUND — {r.note[:64]}")
@@ -344,22 +395,38 @@ def main() -> int:
               f"{len(c.classes):>4} {f'{len(inside)}/{len(all_d)}':>6}  "
               f"{c.window_note or 'whole chain'}{flag}")
 
-    crowded = [c for c in usable
-               if c.spec.role in SCORE_ELIGIBLE_ROLES
-               and len([d for d in (c.domains or [])
-                        if d[0] >= c.window[0] and d[1] <= c.window[1]]) > 1]
-    if crowded:
-        print("\n  A window holding more than one enzyme is the polyprotein")
-        print("  problem one level down: its classes are every enclosed")
-        print("  enzyme's classes, and the gate compares on classes. The")
-        print("  domains below are UniProt's own, so the next narrowing is")
-        print("  read off the entry rather than recalled:")
-        for c in crowded:
-            lo, hi = c.window
-            print(f"    {c.spec.label}  [{lo}-{hi}]")
-            for ds, de, dd in c.domains:
-                if ds >= lo and de <= hi:
-                    print(f"      {ds:>6}-{de:<6} {de - ds + 1:>4} aa  {dd}")
+    # EVERY score-eligible chain, not only the crowded ones. The previous
+    # version printed this block only for windows holding more than one
+    # domain, so a single-domain chain never showed its domain's NAME or
+    # SPAN -- which is exactly what the polymerase narrowing needs, and why
+    # that decision could not be made from the last run: the coronavirus and
+    # flavivirus polymerases were listed and the picornavirus 3Ds were not.
+    #
+    # A chain is also listed when its window is barely covered by any
+    # annotated domain. HAV 3C has NO Domain feature at all, and the one
+    # report that accounts for active sites dropped it silently for exactly
+    # that reason.
+    print("\n  domains UniProt annotates in each score-eligible window —")
+    print("  the only place a narrowing may be read from:")
+    for c in usable:
+        if c.spec.role not in SCORE_ELIGIBLE_ROLES:
+            continue
+        lo, hi = c.window
+        inside = [d for d in (c.domains or []) if d[0] >= lo and d[1] <= hi]
+        covered = len({p for ds, de, _d in inside
+                       for p in range(max(ds, lo), min(de, hi) + 1)})
+        pct = 100 * covered / (hi - lo + 1)
+        note = ""
+        if not inside:
+            note = "   <- entry annotates no Domain here"
+        elif len(inside) > 1:
+            note = f"   <- {len(inside)} enzymes in one window"
+        elif pct < 90:
+            note = f"   <- domain covers only {pct:.0f}% of the window"
+        print(f"    {c.spec.label:<22} [{lo}-{hi}]  {pct:>3.0f}% annotated"
+              f"{note}")
+        for ds, de, dd in inside:
+            print(f"      {ds:>6}-{de:<6} {de - ds + 1:>4} aa  {dd}")
 
     # WHICH DOMAIN EACH ACTIVE SITE IS IN. A chain's catalytic type is read
     # from its active sites, and over an un-narrowed window those sites can
@@ -369,22 +436,8 @@ def main() -> int:
     # No heuristic here, just the fact, because the last heuristic in this
     # report fired on nothing. A chain labelled polymerase whose every site
     # sits in a methyltransferase is visible without being flagged.
-    sited = [c for c in usable
-             if c.spec.role in SCORE_ELIGIBLE_ROLES and c.active_sites
-             and (c.domains or [])]
-    rows = []
-    for c in sited:
-        lo, hi = c.window
-        for pos, aa, _d in sorted(tuple(x) for x in c.active_sites):
-            # ALL matches, not the first: UniProt nests domains, and
-            # SARS-CoV-2 RdRp's S5151 is in both "Nsp12 RNA-dependent RNA
-            # polymerase" (4757-5324) and "RdRp catalytic" (5004-5166).
-            # Printing one would hide which narrowing is available.
-            where = [dd for ds, de, dd in c.domains if ds <= pos <= de]
-            rows.append((c.spec.label, c.spec.role, f"{aa}{pos}",
-                         " + ".join(where) if where
-                         else "(no annotated domain)"))
-    off = [r for r in rows if r[3] == "(no annotated domain)"]
+    rows = active_site_rows(usable)
+    off = [r for r in rows if r[3].startswith("(")]
     if rows:
         print("\nactive sites by annotated domain — the catalytic type is "
               "read from these:")

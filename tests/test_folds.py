@@ -717,3 +717,72 @@ def test_a_spec_cannot_request_a_domain_no_chain_of_its_family_has():
             assert s.label in DECLARED_WINDOWS, (
                 f"{s.label} requests domain={s.domain!r} but no run has "
                 f"measured that domain on its entry")
+
+
+# ------------------------------------- the report accounts for every chain
+def _rc(label, role, start, end, *, domains=None, sites=None,
+        window=None, classes=0):
+    c = ResolvedChain(
+        spec=ChainSpec(label, "P1", ("p",), "F", role, "T:1"),
+        chain_name=label, start=start, end=end, chain_pro_id="PRO_1",
+        domains=domains, active_sites=sites,
+        classes=[{"accession": f"X{i}"} for i in range(classes)])
+    if window:
+        c.window_start, c.window_end = window
+    return c
+
+
+def test_the_chain_line_reports_the_window_it_actually_read():
+    """It printed the CHAIN's coordinates beside the WINDOW's class count:
+    "[1476-2093] ... 11 classes" when the 11 came from 1476-1653. Two
+    numbers from different regions, side by side."""
+    lab = _ingest().window_label
+    assert lab(_rc("3CLpro", "protease", 3264, 3569)) == "[3264-3569]"
+    narrowed = _rc("Dengue 2 NS3pro", "protease", 1476, 2093,
+                   window=(1476, 1653))
+    assert lab(narrowed) == "[1476-1653 of 1476-2093]"
+
+
+def test_a_chain_with_no_annotated_domain_is_not_dropped_from_the_table():
+    """HAV 3C: three catalytic residues, zero annotated Domains. The filter
+    required `c.domains`, so the one report whose job is to say where every
+    active site sits omitted it entirely -- and said nothing about doing
+    so."""
+    hav = _rc("HAV 3C", "protease", 1520, 1738, domains=[],
+              sites=[(1563, "H", ""), (1603, "D", ""), (1691, "C", "")])
+    rows = _ingest().active_site_rows([hav])
+    assert [r[2] for r in rows] == ["H1563", "D1603", "C1691"]
+    assert all(r[3] == "(entry annotates no Domain)" for r in rows)
+
+
+def test_a_site_outside_every_domain_reads_differently_from_no_domains():
+    """"The entry annotates nothing" and "the entry annotates domains and
+    this residue is in none of them" are different findings about the
+    curation, and the second is the one that suggests a wrong window."""
+    c = _rc("X", "protease", 100, 400,
+            domains=[(100, 200, "Peptidase Q1")],
+            sites=[(150, "C", ""), (350, "H", "")])
+    rows = _ingest().active_site_rows([c])
+    assert rows[0][3] == "Peptidase Q1"
+    assert rows[1][3] == "(no annotated domain)"
+
+
+def test_nested_domains_are_all_named_not_just_the_first():
+    """SARS-CoV-2 RdRp's S5151 is in "Nsp12 RNA-dependent RNA polymerase"
+    (4757-5324) AND "RdRp catalytic" (5004-5166). Printing one would hide
+    which narrowing is available."""
+    c = _rc("SARS-CoV-2 RdRp", "polymerase", 4393, 5324,
+            domains=[(4399, 4653, "NiRAN"),
+                     (4757, 5324, "Nsp12 RNA-dependent RNA polymerase"),
+                     (5004, 5166, "RdRp catalytic")],
+            sites=[(5151, "S", "")])
+    assert _ingest().active_site_rows([c])[0][3] == (
+        "Nsp12 RNA-dependent RNA polymerase + RdRp catalytic")
+
+
+def test_sites_outside_the_role_filter_are_still_excluded():
+    """The helicase is ingested, not scored. Widening the filter to include
+    domain-less chains must not also have widened it to ineligible roles."""
+    hel = _rc("SARS-CoV-2 helicase", "helicase", 5325, 5925, domains=[],
+              sites=[(5400, "C", "")])
+    assert _ingest().active_site_rows([hel]) == []
