@@ -55,6 +55,7 @@ from collections import Counter
 from pathlib import Path
 
 from kgav.labels import classify
+from kgav.units import to_nm as _to_nm
 
 # Description patterns -> (nsp family, domain). Order matters: the macrodomain
 # patterns must be tested before the generic nsp3/PLpro ones, since a
@@ -170,24 +171,27 @@ def resolve_nsp(description: str,
     return None, None
 
 
+#: WHAT THIS INGEST HAS EVER ACCEPTED. Pinned rather than inherited from
+#: CONCENTRATION_FACTORS so that adding a unit there cannot silently change
+#: which ChEMBL rows convert. 'M' is in the shared table and NOT here: no
+#: one has measured whether ChEMBL standard_units ever holds it, and the
+#: rows that would start converting are rows that are dropped today.
+#: unconvertible_units() below reports them so the question can be settled.
+CHEMBL_UNITS = frozenset({"nM", "uM", "pM", "mM"})
+
+
 def to_nm(value: float, units: str | None) -> float | None:
     """Normalise to nanomolar, or None when the unit is not a concentration.
 
     ug.mL-1 is deliberately NOT converted: that needs the molecular weight, and
     silently guessing one produces a number that looks measured.
+
+    One implementation, in kgav.units. This was the third of three copies
+    that disagreed about which units they supported and what they did with
+    an unrecognised one -- on the calculation every potency threshold in the
+    project runs through.
     """
-    if value is None:
-        return None
-    u = (units or "").strip()
-    if u == "nM":
-        return float(value)
-    if u == "uM":
-        return float(value) * 1000
-    if u == "pM":
-        return float(value) / 1000
-    if u == "mM":
-        return float(value) * 1_000_000
-    return None
+    return _to_nm(value, units, allow=CHEMBL_UNITS)
 
 
 def build_viral_target_index(index, taxon_map: dict[str, str]) -> dict[str, dict[str, str]]:
@@ -397,7 +401,14 @@ DROPPED_COUNTERS = ("no_inchikey", "unmapped_taxon", "unconvertible_units",
                     "binding_constant_on_organism",
                     "undecidable_protein_measurement")
 BREAKDOWN_COUNTERS = ("rows", "censored", "unresolved")
-BREAKDOWN_PREFIXES = ("resolved_", "readout_", "assay_type_")
+#: unit_ breaks `unconvertible_units` down by the unit string itself,
+#: because the total cannot answer the question it raises: ChEMBL
+#: standard_units is an open set, and whether it ever holds "M" --
+#: which the shared table CAN convert and this ingest deliberately
+#: does not -- decides whether rows are being dropped that should
+#: not be. A breakdown prefix, so the emitted/dropped tally is
+#: unaffected.
+BREAKDOWN_PREFIXES = ("resolved_", "readout_", "assay_type_", "unit_")
 
 
 def accounting(stats) -> tuple[int, int, list[str]]:
@@ -440,6 +451,7 @@ def ingest_activities(em, rows: list[dict], viral_targets: dict[str, dict[str, s
         nm = to_nm(r["standard_value"], r["standard_units"])
         if nm is None:
             stats["unconvertible_units"] += 1
+            stats[f"unit_{(r['standard_units'] or '(none)').strip()}"] += 1
             continue
         relation = r["standard_relation"] if r["standard_relation"] in VALID_RELATIONS else "="
         if relation != "=":
