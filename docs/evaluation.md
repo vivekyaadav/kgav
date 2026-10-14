@@ -12,7 +12,7 @@ for their AUCs to describe anything but the imputed floor.**
     not         M3  reaches  9    M2 reaches 5    M1 reaches 3
     evaluated   M6  reaches  1    M7 reaches 0    M8 emits no paths at all
 
-    baseline    degree 0.582 [0.520, 0.644] — the only scorer clear of 0.5,
+    baseline    degree 0.582 [0.520, 0.645] — the only scorer clear of 0.5,
                 and it is the null hypothesis, not a reasoning channel
 
 So a calibrated ranking returns nothing, and that is the correct output. The
