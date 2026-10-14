@@ -288,6 +288,30 @@ def main() -> int:
         print(f"    [{g.strength:<6}] {a.spec.label:<20} -> {b.spec.label:<20} "
               f"{', '.join(g.shared[:2])}")
 
+    # WHICH CHAINS HAVE ANY PARTNER AT ALL. M8's entire claim is reaching a
+    # virus with no activity data of its own, so a chain with zero allowed
+    # transfers is a virus M8 cannot help however the path is wired.
+    #
+    # Reported per chain because the aggregate hides it: 36 allowed sounds
+    # like broad coverage, and on v0.1 every one of them is a cysteine
+    # protease pair. Comparison is cross-family only (same-family pairs are
+    # skipped above), and the catalytic table shows serine proteases exist
+    # in ONE family here -- so a flavivirus protease has no cross-family
+    # partner that is not cysteine, and the gate correctly refuses all of
+    # them. That is structural, not a data gap.
+    partners: Counter = Counter()
+    for a, b, g in results:
+        if g.allowed:
+            partners[a.spec.label] += 1
+            partners[b.spec.label] += 1
+    stranded = [c for c in eligible if not partners[c.spec.label]]
+    print(f"\n  allowed partners per chain "
+          f"({len(eligible) - len(stranded)}/{len(eligible)} have at least one):")
+    for c in sorted(eligible, key=lambda c: -partners[c.spec.label]):
+        mark = "   <- M8 cannot reach this one" if not partners[c.spec.label] else ""
+        print(f"    {c.spec.label:<22} {c.catalytic_type:<9} "
+              f"{partners[c.spec.label]:>3}{mark}")
+
     # The refusals that matter: same fold, different nucleophile.
     key_refusals = [r for r in refused
                     if r[2].mode == "nucleophile" and r[2].shared]
@@ -338,11 +362,34 @@ def main() -> int:
     for k, v in stats.most_common():
         print(f"  {k}: {v:,}")
 
-    violations = load_schema().validate_batch(list(em.nodes.values()), em.edges)
+    # VALIDATED AGAINST THE SPINE TOO, because this layer emits TargetClass
+    # nodes and MEMBER_OF_CLASS edges whose SUBJECTS are Proteins living in
+    # the spine. Checking the edges against em.nodes alone reported all 402
+    # as DANGLING on every run, including the ten chains the spine really
+    # does hold -- a validator that fails identically whether or not the
+    # data is right, which is the condition it exists to detect.
+    #
+    # ingest_vhppi.py solved exactly this and said so: "This release is
+    # edges-only: every endpoint lives in the spine or host release ...
+    # validation runs here against the real index instead." Ninth instance
+    # in this project of a solved problem not reaching its second site.
+    known = list(em.nodes.values())
+    if args.spine and (args.spine / "nodes.jsonl").exists():
+        known += [json.loads(line)
+                  for line in (args.spine / "nodes.jsonl").read_text().splitlines()
+                  if line.strip()]
+    else:
+        print(f"\nno spine at {args.spine}: every Protein endpoint will read "
+              f"DANGLING, which says\n  nothing about this layer")
+    violations = load_schema().validate_batch(known, em.edges)
     if violations:
         print(f"\nSCHEMA FAIL — {len(violations)} violations")
         for v in violations[:8]:
             print(f"  {v}")
+        print("\n  A DANGLING subject here is a chain the spine does not "
+              "build -- see the join\n  report above. Those are comparator "
+              "chains for viruses outside the register,\n  not a defect in "
+              "this layer.")
         return 1
     print("\nschema: PASS")
 
