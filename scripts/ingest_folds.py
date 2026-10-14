@@ -219,6 +219,32 @@ def main() -> int:
 
     usable = [c for c in chains if c.ok]
     print(f"\n{len(usable)}/{len(chains)} chains resolved")
+
+    # A PROTEASE WITH NO CATALYTIC MACHINERY IS A RESOLUTION FAILURE, not a
+    # biological fact, and nothing said so. SARS-CoV-2 PLpro reads
+    # catalytic_type "none" because its spec matches UniProt's "Papain-like
+    # protease nsp3" -- the whole 1,945-residue multi-domain chain, not the
+    # protease domain inside it. 60 InterPro classes against 7-26 for every
+    # other chain is the tell.
+    #
+    # This is the polyprotein problem from phase0's header recurring one
+    # level down: "Any question about a specific protein must be asked of a
+    # specific CHAIN" -- and here the chain is itself multi-domain. Reported
+    # rather than dropped, because which sub-range to use is a curation
+    # question and silently excluding a target would be worse.
+    miscalled = [c for c in usable
+                 if c.spec.role == "protease" and c.catalytic_type == "none"]
+    if miscalled:
+        print(f"\n  {len(miscalled)} chain(s) declared a protease but "
+              f"resolved no catalytic type:")
+        for c in miscalled:
+            print(f"    {c.spec.label:<22} {c.spec.accession} "
+                  f"[{c.start}-{c.end}] {c.end - c.start + 1:,} aa, "
+                  f"{len(c.classes)} classes")
+        print("    A protease has catalytic machinery by definition, so this "
+              "is the chain match\n    being wrong, not the enzyme. Such a "
+              "chain cannot be gated on its nucleophile\n    and contributes "
+              "nothing to M8.")
     unkeyed = [c for c in chains
                if c.end > c.start > 0 and not c.chain_pro_id]
     if unkeyed:

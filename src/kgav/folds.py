@@ -335,6 +335,28 @@ def gate(a: ResolvedChain, b: ResolvedChain) -> GateResult:
     shared = sorted({c["accession"] for c in a.classes}
                     & {c["accession"] for c in b.classes})
 
+    # ROLE FIRST, because the paragraph above claims this rule and the code
+    # did not implement it. MIXED was decided purely by whether a nucleophile
+    # was FOUND, which is a property of the sequence scan, not of the target.
+    # SARS-CoV-2 PLpro is the live case: its spec matches UniProt's
+    # "Papain-like protease nsp3", a 1,945-residue multi-domain chain
+    # (819-2763, 60 InterPro classes against 7-26 for every other chain), so
+    # no single nucleophile resolves and catalytic_type reads "none". A
+    # protease then entered MOTIF mode alongside the polymerases and could
+    # have produced an allowed weak transfer between a protease and a
+    # polymerase -- the one comparison this docstring says is an artifact.
+    #
+    # On v0.1 it did not fire, because PLpro shares no catalytic-domain entry
+    # with any cross-family polymerase and scored 0 allowed partners. That is
+    # the data, not the gate. A gate that holds by luck is the kind this
+    # project keeps finding.
+    if a.spec.role != b.spec.role:
+        return GateResult(False, "refused", False, shared, "none",
+                          f"different target roles ({a.spec.role} vs "
+                          f"{b.spec.role}); not comparable targets, and any "
+                          f"fold similarity between them is an artifact "
+                          f"whatever the catalytic type says")
+
     if a_nuc != b_nuc:
         return GateResult(False, "refused", False, shared, "none",
                           f"one target has a catalytic nucleophile "
