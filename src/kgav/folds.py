@@ -110,6 +110,15 @@ class ChainSpec:
     family: str
     role: str
     virus_taxon: str
+    #: UniProt Domain description to narrow the ANALYSIS WINDOW to, within
+    #: the matched chain. Empty means the whole chain, which is right for a
+    #: chain that is one enzyme and wrong for a chain that is several.
+    #:
+    #: THE CHAIN STAYS THE IDENTITY. Only the window moves: the node is
+    #: still keyed on the chain's PRO_ id, because that is what the spine
+    #: has. What narrows is the region the class fetch and the catalytic
+    #: rule look at -- the two things a neighbouring domain corrupts.
+    domain: str = ""
 
 
 #: Fields of ResolvedChain that are DERIVED by `decide_machinery` from
@@ -155,6 +164,36 @@ class ResolvedChain:
     #: fetch never happened or failed (catalytic_type "unknown"), [] means it
     #: happened and the chain has no annotated active site ("none").
     active_sites: list | None = None
+    #: The region the class fetch and the catalytic rule actually read.
+    #: 0 means "not narrowed", and `window` falls back to the whole chain.
+    window_start: int = 0
+    window_end: int = 0
+    #: Why the window is what it is. Non-empty and window_start == 0 means a
+    #: narrowing was ASKED FOR and did not happen -- which must be visible,
+    #: because silently analysing the whole chain is the bug being fixed.
+    window_note: str = ""
+    #: Every Domain UniProt annotates inside the chain, as
+    #: [(start, end, description)]. Carried so the report can show what a
+    #: chain COULD be narrowed to without anyone naming domains from memory.
+    domains: list | None = None
+
+    @property
+    def window(self) -> tuple[int, int]:
+        """The coordinates analysed, which are not always the chain's.
+
+        SARS-CoV-2 PLpro's chain is nsp3, 819-2763: nine domains, 1,945
+        residues, 60 InterPro classes against 7-12 for a protease that is
+        only a protease. Its active-site list carried N1062 and G1070 --
+        the MACRODOMAIN's ADP-ribosylhydrolase sites, 600 residues from the
+        protease -- and the catalytic rule read cysteine only because
+        neither of those happens to be a C or an S.
+        """
+        return (self.window_start or self.start,
+                self.window_end or self.end)
+
+    @property
+    def window_is_chain(self) -> bool:
+        return not self.window_start
 
     def redecide(self) -> None:
         """Re-run the rule over `active_sites`, discarding any stored verdict.
@@ -238,6 +277,63 @@ def find_chain(acc: str,
                     return f.get("description", pat), int(s), int(e), "", fid
     have = "; ".join(sorted({d for _f, d in lowered})[:6])
     return "", 0, 0, f"no chain matched {patterns}; entry has: {have}", ""
+
+
+def fetch_domains(acc: str, lo: int,
+                  hi: int) -> list[tuple[int, str]] | None:
+    """Every UniProt Domain inside [lo, hi] as (start, end, description).
+
+    Fetched for EVERY chain, not just the ones being narrowed, so the report
+    can show what each chain could be narrowed to. The alternative is
+    someone naming domains from memory, and the boundary is the whole point.
+
+    None if the fetch failed.
+    """
+    data = _get(f"{UNIPROT}/{acc}?fields=ft_domain")
+    if not data:
+        return None
+    out = []
+    for f in data.get("features", []):
+        if f.get("type") != "Domain":
+            continue
+        loc = f.get("location", {}) or {}
+        s = (loc.get("start", {}) or {}).get("value")
+        e = (loc.get("end", {}) or {}).get("value")
+        if s and e and s >= lo and e <= hi:
+            out.append((int(s), int(e), f.get("description", "")))
+    return sorted(out)
+
+
+def pick_domain(domains: list | None,
+                description: str) -> tuple[int, int, str]:
+    """The named domain's span, or (0, 0, why not).
+
+    NO SILENT FALLBACK. A requested narrowing that cannot be performed
+    returns a reason, and the caller must surface it: quietly analysing the
+    whole chain instead is exactly the behaviour this is here to end.
+    """
+    if domains is None:
+        return 0, 0, "domain fetch failed; window not narrowed"
+    want = description.strip().lower()
+    hits = [(s, e, d) for s, e, d in domains
+            if d.strip().lower() == want]
+    if not hits:
+        # NEAR MISSES FIRST. Sorted alphabetically and cut at 8, this list
+        # dropped "Peptidase C16" from the message for a request of
+        # "Peptidase C30" -- hiding the one name that would have fixed the
+        # typo. The point of the message is to be actionable.
+        words = set(want.split())
+        names = sorted({d for _s, _e, d in domains},
+                       key=lambda d: (-len(words & set(d.lower().split())), d))
+        have = ", ".join(names[:8]) or "none"
+        if len(names) > 8:
+            have += f", +{len(names) - 8} more"
+        return 0, 0, f"no Domain matched {description!r}; entry has: {have}"
+    if len(hits) > 1:
+        return 0, 0, (f"{len(hits)} Domains match {description!r}; "
+                      f"ambiguous, so the window was not narrowed")
+    s, e, _d = hits[0]
+    return s, e, ""
 
 
 def fetch_sites(acc: str, lo: int,
@@ -416,11 +512,22 @@ def resolve(spec: ChainSpec) -> ResolvedChain:
     r.chain_name, r.start, r.end, r.note, r.chain_pro_id = name, s, e, note, pro
     if not r.ok:
         return r
+    # The window is settled BEFORE anything is read, because everything
+    # downstream -- active sites, InterPro classes, and therefore the
+    # catalytic type and every gate verdict -- is a function of it.
+    r.domains = fetch_domains(spec.accession, s, e)
+    if spec.domain:
+        ws, we, why = pick_domain(r.domains, spec.domain)
+        r.window_start, r.window_end, r.window_note = ws, we, why
+        if not why:
+            r.window_note = f"narrowed to {spec.domain} ({ws}-{we})"
+
+    lo, hi = r.window
     # Fetch the sites, store them, then decide from the stored copy -- the
     # same call the cache path makes, so offline and online cannot diverge.
-    r.active_sites = fetch_sites(spec.accession, s, e)
+    r.active_sites = fetch_sites(spec.accession, lo, hi)
     r.redecide()
-    r.classes = fetch_classes(spec.accession, s, e)
+    r.classes = fetch_classes(spec.accession, lo, hi)
     return r
 
 

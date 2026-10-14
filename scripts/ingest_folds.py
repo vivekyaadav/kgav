@@ -23,10 +23,26 @@ THE NS3 SPLIT. Flavivirus NS3 is a protease AND a helicase in one chain --
 UniProt describes it as "Serine protease/helicase NS3" and phase 0 saw 22-26
 InterPro matches on it, against 7-9 for a coronavirus or picornavirus protease.
 Treating it as one target lets the protease comparison inherit helicase fold
-matches, which is the polyprotein problem one level down. The protease occupies
-roughly the N-terminal 180 residues; the helicase follows. Both are declared
-separately below, with the boundary taken from the domain annotation rather
-than assumed.
+matches, which is the polyprotein problem one level down.
+
+THIS PARAGRAPH USED TO END "Both are declared separately below, with the
+boundary taken from the domain annotation rather than assumed." Neither
+clause was ever true. There is one NS3 spec per flavivirus, not two, and
+until this commit nothing in the codebase read a Domain annotation at all --
+grep for ft_domain returned zero. The NS3pro chains resolve to 618-631
+residues, the whole protease-AND-helicase product, which is why they carry
+22-26 classes against 7-12 for a chain that is one enzyme. Third instance of
+a comment outliving its code, after selectivity.py's "WORST is kept" and
+catalytic_machinery's "last catalytic residue" paragraph -- and the worst of
+the three, because this one described a design that was planned and never
+built, in the present tense.
+
+WHAT IS TRUE NOW: ChainSpec takes an optional `domain`, which narrows the
+analysis window -- the region the class fetch and the catalytic rule read --
+to a named UniProt Domain inside the matched chain, while the chain's PRO_ id
+stays the node identity. SARS-CoV-2 PLpro uses it. The six NS3pro chains do
+not yet: narrowing them needs the domain's name as UniProt spells it, which
+is measured by the run (see the analysis-window report) rather than recalled.
 """
 from __future__ import annotations
 
@@ -95,9 +111,21 @@ SPECS: list[ChainSpec] = [
     ChainSpec("HCoV-229E 3CLpro", "P0C6X1",
               ("3C-like proteinase", "nsp5"), "Coronaviridae", "protease",
               "NCBITaxon:11137"),
+    # THE CHAIN IS nsp3, 819-2763 -- nine domains and 1,945 residues, of
+    # which the protease is one. Measured consequences of analysing all of
+    # it: 60 InterPro classes against 7-12 for a chain that is only a
+    # protease, and an active-site list carrying N1062 and G1070, the
+    # macrodomain's ADP-ribosylhydrolase sites, 600 residues away. The
+    # catalytic rule returned cysteine anyway, but only because neither of
+    # those is a C or an S -- a right answer that did not depend on the
+    # window being right.
+    #
+    # "Peptidase C16" 1634-1898 is UniProt's own annotation on P0DTD1,
+    # read off the entry rather than recalled.
     ChainSpec("SARS-CoV-2 PLpro", "P0DTD1",
               ("Papain-like protease", "papain-like proteinase"),
-              "Coronaviridae", "protease", "NCBITaxon:2697049"),
+              "Coronaviridae", "protease", "NCBITaxon:2697049",
+              domain="Peptidase C16"),
     ChainSpec("SARS-CoV-2 RdRp", "P0DTD1",
               ("RNA-directed RNA polymerase", "nsp12"), "Coronaviridae",
               "polymerase", "NCBITaxon:2697049"),
@@ -267,18 +295,74 @@ def main() -> int:
     usable = [c for c in chains if c.ok]
     print(f"\n{len(usable)}/{len(chains)} chains resolved")
 
-    # A PROTEASE WITH NO CATALYTIC MACHINERY IS A RESOLUTION FAILURE, not a
-    # biological fact, and nothing said so. SARS-CoV-2 PLpro reads
-    # catalytic_type "none" because its spec matches UniProt's "Papain-like
-    # protease nsp3" -- the whole 1,945-residue multi-domain chain, not the
-    # protease domain inside it. 60 InterPro classes against 7-26 for every
-    # other chain is the tell.
+    # ------------------------------------------------- the analysis window
+    # WHAT EACH CHAIN'S CLASSES AND CATALYTIC TYPE WERE READ FROM. Every
+    # verdict in this run is a function of this window, and until now it
+    # was never printed -- so a chain spanning nine domains and a chain
+    # spanning one looked identical in the output.
     #
-    # This is the polyprotein problem from phase0's header recurring one
-    # level down: "Any question about a specific protein must be asked of a
-    # specific CHAIN" -- and here the chain is itself multi-domain. Reported
-    # rather than dropped, because which sub-range to use is a curation
-    # question and silently excluding a target would be worse.
+    # THE SUSPECT CONDITION IS "MORE THAN ONE ANNOTATED DOMAIN IN THE
+    # WINDOW", not a size or class-count threshold. The first version of
+    # this flagged a protease whose window was twice the median protease
+    # window, and it fired on nothing: six of the twelve proteases are the
+    # un-narrowed NS3 chains, so they ARE the median and masked themselves.
+    # A statistic computed over a population that is mostly outliers does
+    # not find the outliers. Domain count is a fact about the chain and
+    # cannot be diluted that way.
+    print("\nanalysis window — what the classes and catalytic type were "
+          "read from:")
+    # 'dom' is domains-in-window / domains-in-chain, because for a
+    # narrowed chain those differ and only the first drives the flag.
+    print(f"  {'chain':<22} {'window':<14} {'aa':>5} {'cls':>4} {'dom':>6}  "
+          f"basis")
+    for c in usable:
+        lo, hi = c.window
+        all_d = c.domains or []
+        inside = [d for d in all_d if d[0] >= lo and d[1] <= hi]
+        flag = ("   <- window holds %d annotated domains" % len(inside)
+                if c.spec.role in SCORE_ELIGIBLE_ROLES and len(inside) > 1
+                else "")
+        print(f"  {c.spec.label:<22} {f'{lo}-{hi}':<14} {hi - lo + 1:>5} "
+              f"{len(c.classes):>4} {f'{len(inside)}/{len(all_d)}':>6}  "
+              f"{c.window_note or 'whole chain'}{flag}")
+
+    crowded = [c for c in usable
+               if c.spec.role in SCORE_ELIGIBLE_ROLES
+               and len([d for d in (c.domains or [])
+                        if d[0] >= c.window[0] and d[1] <= c.window[1]]) > 1]
+    if crowded:
+        print("\n  A window holding more than one enzyme is the polyprotein")
+        print("  problem one level down: its classes are every enclosed")
+        print("  enzyme's classes, and the gate compares on classes. The")
+        print("  domains below are UniProt's own, so the next narrowing is")
+        print("  read off the entry rather than recalled:")
+        for c in crowded:
+            lo, hi = c.window
+            print(f"    {c.spec.label}  [{lo}-{hi}]")
+            for ds, de, dd in c.domains:
+                if ds >= lo and de <= hi:
+                    print(f"      {ds:>6}-{de:<6} {de - ds + 1:>4} aa  {dd}")
+
+    refused_narrowing = [c for c in chains
+                         if c.spec.domain and c.window_is_chain]
+    if refused_narrowing:
+        print("\n  WINDOW NOT NARROWED THOUGH ONE WAS ASKED FOR — the whole")
+        print("  chain was analysed, which is the condition this field exists")
+        print("  to prevent. Fix the domain name or drop the request:")
+        for c in refused_narrowing:
+            print(f"    {c.spec.label:<22} {c.window_note}")
+
+    # A PROTEASE WITH NO CATALYTIC MACHINERY IS A RESOLUTION FAILURE, not a
+    # biological fact, and nothing said so.
+    #
+    # SARS-CoV-2 PLpro was the one this caught, and it is now empty: the
+    # widened composition rule reads it cysteine/C1674. Kept because the
+    # check is about the class of failure, not that one chain -- and
+    # because what it caught was real. This is the polyprotein problem from
+    # phase0's header recurring one level down: "Any question about a
+    # specific protein must be asked of a specific CHAIN" -- and the chain
+    # can itself be multi-domain, which is what ChainSpec.domain addresses.
+    # Reported rather than dropped: silently excluding a target is worse.
     miscalled = [c for c in usable
                  if c.spec.role == "protease" and c.catalytic_type == "none"]
     if miscalled:

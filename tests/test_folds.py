@@ -523,7 +523,11 @@ def test_a_cache_predating_active_sites_is_refused_not_defaulted():
                     "family": "F", "role": "protease", "virus_taxon": "T:1"},
            "chain_name": "x", "start": 1, "end": 9, "chain_pro_id": "PRO_1",
            "classes": [], "note": ""}
-    assert ing.missing_inputs([old]) == ["active_sites"]
+    # Every input field added since, not just the first one. The guard is
+    # derived from the dataclass precisely so this list grows by itself.
+    assert ing.missing_inputs([old]) == ["active_sites", "domains",
+                                         "window_end", "window_note",
+                                         "window_start"]
 
 
 def test_a_failed_fetch_and_an_empty_fetch_stay_different():
@@ -548,3 +552,103 @@ def test_the_rule_is_reachable_without_the_network():
         assert folds.decide_machinery(PLPRO_SITES)[1] == "C1674"
     finally:
         folds._get = real
+
+
+# --------------------------------------------- the window the analysis reads
+#: P0DTD1's Domain annotations inside nsp3 (819-2763), copied from the
+#: UniProt probe run on 2026-10-15. Nine domains in one chain.
+NSP3_DOMAINS = [(821, 929, "Ubiquitin-like 1"), (1025, 1194, "Macro 1"),
+                (1231, 1359, "Macro 2"), (1367, 1494, "Macro 3"),
+                (1496, 1561, "DPUP"), (1565, 1620, "Ubiquitin-like 2"),
+                (1634, 1898, "Peptidase C16"),
+                (1911, 2021, "Nucleic acid-binding"), (2046, 2155, "G2M"),
+                (2247, 2317, "3Ecto"), (2395, 2763, "CoV Nsp3 Y")]
+
+
+def test_the_window_defaults_to_the_whole_chain():
+    """Narrowing is opt-in. A chain that is one enzyme must be unaffected."""
+    c = ResolvedChain(spec=ChainSpec("L", "P1", ("p",), "F", "protease", "T:1"),
+                      chain_name="x", start=3264, end=3569,
+                      chain_pro_id="PRO_1")
+    assert c.window == (3264, 3569)
+    assert c.window_is_chain
+
+
+def test_a_named_domain_narrows_the_window_to_itself():
+    from kgav.folds import pick_domain
+
+    assert pick_domain(NSP3_DOMAINS, "Peptidase C16") == (1634, 1898, "")
+
+
+def test_narrowing_cuts_the_macrodomain_sites_out_of_the_catalytic_input():
+    """WHY THE WINDOW MATTERS, in the one case measured end to end.
+
+    PLpro's sites over the whole nsp3 chain are N1062, G1070, C1674, H1835,
+    D1849 -- and the first two are the MACRODOMAIN's ADP-ribosylhydrolase
+    sites, 600 residues from the protease. The rule returned cysteine over
+    that set, but only because neither N nor G is a nucleophile candidate.
+    Over the real protease domain the same answer no longer depends on
+    that.
+    """
+    from kgav.folds import decide_machinery, pick_domain
+
+    lo, hi, why = pick_domain(NSP3_DOMAINS, "Peptidase C16")
+    assert not why
+    inside = [s for s in PLPRO_SITES if lo <= s[0] <= hi]
+    assert [s[0] for s in inside] == [1674, 1835, 1849]      # the triad alone
+    residues, nuc, typ, basis = decide_machinery(inside)
+    assert (nuc, typ, basis) == ("C1674", "cysteine", "composition")
+    assert residues == ["C1674", "H1835", "D1849"]
+    # and the un-narrowed set carried two residues from another enzyme
+    assert decide_machinery(PLPRO_SITES)[0][:2] == ["N1062", "G1070"]
+
+
+def test_a_requested_narrowing_that_fails_does_not_fall_back_silently():
+    """The whole chain is the wrong window; reverting to it without saying
+    so is how this survived unnoticed in the first place."""
+    from kgav.folds import pick_domain
+
+    s, e, why = pick_domain(NSP3_DOMAINS, "Peptidase C30")
+    assert (s, e) == (0, 0)
+    assert "no Domain matched" in why
+    assert "Peptidase C16" in why          # says what IS there
+
+    s, e, why = pick_domain(None, "Peptidase C16")
+    assert (s, e) == (0, 0) and "fetch failed" in why
+
+
+def test_two_matching_domains_are_refused_rather_than_picked():
+    doubled = NSP3_DOMAINS + [(2500, 2600, "Peptidase C16")]
+    from kgav.folds import pick_domain
+
+    s, e, why = pick_domain(doubled, "Peptidase C16")
+    assert (s, e) == (0, 0) and "ambiguous" in why
+
+
+def test_the_window_is_cached_because_it_is_an_input_not_a_verdict():
+    """Everything downstream is a function of the window, so a cache that
+    omitted it would re-derive classes and catalytic type against the wrong
+    region -- the previous bug with a different field."""
+    from kgav.folds import DERIVED_FIELDS
+
+    assert DERIVED_FIELDS.isdisjoint({"window_start", "window_end", "domains"})
+    ing = _ingest()
+    c = ResolvedChain(spec=ChainSpec("L", "P1", ("p",), "F", "protease", "T:1"),
+                      chain_name="x", start=819, end=2763, chain_pro_id="PRO_1",
+                      window_start=1634, window_end=1898, active_sites=[])
+    written, = ing.cache_payload([c])
+    assert written["window_start"] == 1634 and written["window_end"] == 1898
+    assert ing.missing_inputs([written]) == []
+    assert ing.load_cache([written])[0].window == (1634, 1898)
+
+
+def test_the_docstring_no_longer_claims_a_split_that_does_not_exist():
+    """It said the NS3 protease and helicase were "declared separately
+    below, with the boundary taken from the domain annotation". There is
+    one NS3 spec per flavivirus and, until this commit, no code read a
+    Domain annotation anywhere."""
+    src = (Path(__file__).resolve().parents[1]
+           / "scripts/ingest_folds.py").read_text()
+    head = src.split('"""')[1]
+    assert "Both are declared\nseparately below" not in head
+    assert "Neither\nclause was ever true" in head
