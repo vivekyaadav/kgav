@@ -89,13 +89,26 @@ const edges: Edge[] = [
 // not the ten nodes drawn on the canvas. The figures here were previously
 // 52,763 / 18,204 / 1,182 / 6,430 -- invented, wrong by up to elevenfold, and
 // summing to 78,586 against a real node count of 66,007.
+//
+// THEN THEY WENT STALE, which is the same bug one layer down: a figure
+// copied into a second place drifts from its source, and correcting it once
+// does not stop that. Four of the five were wrong again -- Virus 7 (the
+// release has 8 since Zika), Protein 20,759 (20,775), Gene 19,181 (19,182)
+// and Compound 12,821 against 21,667, low by 41%.
+//
+// tests/test_web_counts.py now reads this array and compares it to
+// MANIFEST.json, so the next drift fails the suite instead of being read as
+// a real figure. That test is the reason these may be typed by hand at all.
+//
+// Disease (3 nodes) is deliberately not a filter here, so these five sum to
+// 74,868 against a release of 74,871. The three are the gap.
 const RELEASE = "v0.1";
 const filters: { label: NodeType; count: number }[] = [
-  { label: "Virus", count: 7 },
-  { label: "Protein", count: 20_759 },
-  { label: "Gene", count: 19_181 },
+  { label: "Virus", count: 8 },
+  { label: "Protein", count: 20_775 },
+  { label: "Gene", count: 19_182 },
   { label: "Pathway", count: 13_236 },
-  { label: "Compound", count: 12_821 },
+  { label: "Compound", count: 21_667 },
 ];
 
 function AppButton({ children, active = false, onClick }: { children: React.ReactNode; active?: boolean; onClick?: () => void }) {
