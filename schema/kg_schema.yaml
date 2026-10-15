@@ -1,4 +1,4 @@
-schema_version: "0.12.0"
+schema_version: "0.13.0"
 scope: "Coronaviridae v1 — SARS-CoV-2, SARS-CoV, MERS-CoV, HCoV-229E, HCoV-OC43, HCoV-NL63, HCoV-HKU1"
 
 # ---------------------------------------------------------------------------
@@ -377,10 +377,29 @@ edge_classes:
   # nucleophile separates them (Cys vs Ser). A fold similarity without this
   # check is exactly how a cysteine-protease inhibitor gets recommended for a
   # serine protease.
+  # PROTEIN TO PROTEIN, NOT CLASS TO CLASS. Declared TargetClass ->
+  # TargetClass until 0.13.0, which cannot be walked and cannot carry the
+  # qualifier it requires:
+  #
+  #   A shared fold is ONE class node, not two. Two chains are similar
+  #   BECAUSE they both belong to IPR009003, so an edge between their
+  #   classes has the same node at each end. ingest_folds already made that
+  #   mistake once -- its own comment records "the previous version emitted
+  #   self-loops, which validate cleanly and are silently unwalkable".
+  #
+  #   catalytic_type_match is incoherent on a class. The 2026-10-15 run
+  #   reports classes_mixed_catalytic_type: 9 -- classes holding both a
+  #   cysteine and a serine protease, which emit_classes marks "unknown"
+  #   for exactly this reason. A catalytic type belongs to a chain. The
+  #   gate's verdict is about a pair of chains and the edge must be too.
+  #
+  # TargetClass and MEMBER_OF_CLASS are unchanged and still emitted: they
+  # record which folds a protein carries, which is evidence worth holding
+  # even though M8 no longer traverses them.
   - predicate: FOLD_SIMILAR_TO
     symmetric: true
-    subject: TargetClass
-    object: TargetClass
+    subject: Protein
+    object: Protein
     qualifiers:
       tm_score:             {type: float, min: 0, max: 1}
       rmsd_angstrom:        {type: float, min: 0}
@@ -761,7 +780,10 @@ metapaths:
   # nirmatrelvir for hepatitis C.
   M8:
     doc: "cross-family direct-acting via conserved fold, catalytic type gated"
-    path: [SmallMolecule, INHIBITS, Protein, MEMBER_OF_CLASS, TargetClass, FOLD_SIMILAR_TO, TargetClass, "<MEMBER_OF_CLASS", Protein, ENCODED_BY, Gene, BELONGS_TO, OrganismTaxon]
+    # The two MEMBER_OF_CLASS hops and the TargetClass nodes are gone from
+    # this path: see FOLD_SIMILAR_TO above. They remain in the schema and
+    # are still emitted; M8 simply does not walk them.
+    path: [SmallMolecule, INHIBITS, Protein, FOLD_SIMILAR_TO, Protein, ENCODED_BY, Gene, BELONGS_TO, OrganismTaxon]
     constraints:
       FOLD_SIMILAR_TO.catalytic_type_match: true
       # Same rule as M1: an edge that could not be resolved past the

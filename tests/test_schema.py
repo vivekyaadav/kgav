@@ -321,14 +321,18 @@ def test_symmetric_self_loop_is_rejected(world):
     passed validation: declared triple, legal qualifiers, full provenance. And
     every one was discarded by walk_metapath as already-visited, so M8 produced
     zero paths from the day it was declared and nothing said so.
+
+    SCHEMA 0.13.0 MOVED THE PREDICATE TO Protein -> Protein for precisely
+    that reason, so the self-loop this guards against is now a protein
+    pointing at itself. The guard still matters: "X is similar to X" is no
+    more a fact about a chain than about a class.
     """
     schema = load_schema()
     nodes = list(world["nodes"]) + [
-        {"id": "INTERPRO:IPR009003", "class": "TargetClass",
-         "properties": {"label": "Peptidase S1", "source": "interpro",
-                        "catalytic_type": "cysteine"}}]
-    e = {"subject": "INTERPRO:IPR009003", "predicate": "FOLD_SIMILAR_TO",
-         "object": "INTERPRO:IPR009003",
+        {"id": "UniProtKB:PRO_SELF", "class": "Protein",
+         "properties": {"taxon_id": "NCBITaxon:2697049", "is_viral": True}}]
+    e = {"subject": "UniProtKB:PRO_SELF", "predicate": "FOLD_SIMILAR_TO",
+         "object": "UniProtKB:PRO_SELF",
          "qualifiers": {"catalytic_type_match": True, "method": "interpro_shared"},
          "primary_knowledge_source": "infores:interpro", "evidence_tier": 3,
          "first_asserted_date": "1970-01-01"}
@@ -342,3 +346,65 @@ def test_a_directed_self_reference_is_still_allowed(world):
     sym = {ec.predicate for ec in schema.edge_classes if ec.symmetric}
     assert "PHYSICALLY_INTERACTS_WITH" in sym
     assert "ENCODED_BY" not in sym
+
+
+# ------------------------------- 0.13.0: the fold edge joins chains, not classes
+def test_fold_similarity_is_asserted_between_proteins():
+    """Declared TargetClass -> TargetClass until 0.13.0, which could not be
+    walked and could not carry its own required qualifier.
+
+    A shared fold is ONE class node. Two chains are similar BECAUSE both
+    belong to IPR009003, so an edge between their classes has the same node
+    at each end -- the self-loop ingest_folds already emitted 36 of, which
+    "validate cleanly and are silently unwalkable".
+    """
+    schema = load_schema()
+    fold = next(e for e in schema.edge_classes
+                if e.predicate == "FOLD_SIMILAR_TO")
+    assert (fold.subject, fold.object) == ("Protein", "Protein")
+    assert fold.symmetric
+    assert "catalytic_type_match" in fold.required_qualifiers
+
+
+def test_m8_no_longer_routes_through_targetclass():
+    """The path and the edge had to move together: leaving M8 walking
+    TargetClass while the edge joins Proteins would make the metapath
+    unwalkable in a new way rather than fix it."""
+    schema = load_schema()
+    path = schema.metapaths["M8"]["path"]
+    assert "TargetClass" not in path
+    assert "MEMBER_OF_CLASS" not in " ".join(path)
+    assert path[:5] == ["SmallMolecule", "INHIBITS", "Protein",
+                        "FOLD_SIMILAR_TO", "Protein"]
+    # the gate is still the constraint that makes M8 safe
+    assert schema.metapaths["M8"]["constraints"][
+        "FOLD_SIMILAR_TO.catalytic_type_match"] is True
+
+
+def test_targetclass_and_member_of_class_survive_the_change():
+    """They are not M8's path any more and they are still evidence: which
+    folds a protein carries is worth recording. Deleting them would throw
+    away the layer's other output to make one metapath walk."""
+    schema = load_schema()
+    assert any(e.predicate == "MEMBER_OF_CLASS" for e in schema.edge_classes)
+    member = next(e for e in schema.edge_classes
+                  if e.predicate == "MEMBER_OF_CLASS")
+    assert (member.subject, member.object) == ("Protein", "TargetClass")
+
+
+def test_the_phase1_patch_refuses_to_downgrade_the_schema():
+    """It is a ONE-SHOT historical patch that calls itself idempotent, and
+    its last act sets schema_version to "0.8.0" unconditionally. Re-run
+    against 0.13.0 it would silently downgrade the version while leaving
+    the newer edits in place -- a schema lying about which version it is,
+    written by the tool whose job was to version it."""
+    import subprocess
+    import sys
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    before = (root / "schema" / "kg_schema.yaml").read_text()
+    r = subprocess.run([sys.executable, "scripts/phase1_schema_patch.py"],
+                       cwd=root, capture_output=True, text=True)
+    assert r.returncode == 2, r.stdout
+    assert "would downgrade" in r.stdout
+    assert (root / "schema" / "kg_schema.yaml").read_text() == before

@@ -195,8 +195,15 @@ def test_the_entry_predicate_is_the_first_non_spine_hop_from_the_taxon(metapaths
     assert virus_entry_predicate(metapaths["M7"]["path"], spine) == "INHIBITS"
     assert virus_entry_predicate(metapaths["M2"]["path"], spine) \
         == "HOST_FACTOR_FOR"
+    # SCHEMA 0.13.0: M8 walks Protein -FOLD_SIMILAR_TO-> Protein instead of
+    # out through TargetClass and back. The entry predicate moved with it,
+    # and the new answer is the stricter one -- MEMBER_OF_CLASS is emitted
+    # for every chain the folds layer resolves, so it would read "evaluable"
+    # for a virus whose proteins merely have class memberships. Reaching a
+    # virus through M8 requires a fold edge that actually lands on one of
+    # ITS proteins, which is what this module exists to distinguish.
     assert virus_entry_predicate(metapaths["M8"]["path"], spine) \
-        == "MEMBER_OF_CLASS"
+        == "FOLD_SIMILAR_TO"
 
 
 def test_adding_virhostnet_coverage_makes_m3_reachable(metapaths):
