@@ -59,7 +59,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from kgav.emit import Emit
 from kgav.folds import (DERIVED_FIELDS, ChainSpec, ResolvedChain, gate,
                         resolve)
-from kgav.schema import load_schema, report_violations
+from kgav.schema import load_schema, print_capped, report_violations
 
 # Roles whose comparisons may enter a score. Others are ingested and stored but
 # excluded until phase 4 validates the premise.
@@ -681,8 +681,9 @@ def main() -> int:
     if unkeyed:
         print(f"  {len(unkeyed)} matched a chain but carry no PRO_ id, so "
               f"they have no stable node key:")
-        for c in unkeyed[:6]:
-            print(f"    {c.spec.label:<22} {c.note[:60]}")
+        print_capped(unkeyed, 6,
+                     lambda c: f"{c.spec.label:<22} {c.note[:60]}",
+                     unit="more unkeyed chain(s)")
 
     # DOES THIS LAYER JOIN THE SPINE? Until now it could not: node_id was
     # built from coordinates while the spine keys the same chain on its PRO_

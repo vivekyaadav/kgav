@@ -16,7 +16,7 @@ from kgav.assemble import (
     connectivity_report,
     orphan_nodes,
 )
-from kgav.schema import load_schema, report_violations
+from kgav.schema import load_schema, print_capped, report_violations
 
 
 def _rel(p: Path, root: Path) -> str:
@@ -104,16 +104,18 @@ def main() -> int:
         for k, v in sorted(a.stats.items()):
             print(f"  {k:<34} {v:>7,}")
     if a.conflicts:
-        print(f"\n  first {min(len(a.conflicts), 10)} conflicts:")
-        for c in a.conflicts[:10]:
-            print(f"    {c}")
+        # "first 10 conflicts" with no total read the same at 10 and at 400.
+        print(f"\n  {len(a.conflicts):,} property conflict(s):")
+        print_capped(a.conflicts, 10, unit="more conflict(s)")
 
     dangling = a.dangling()
     if dangling:
         print(f"\nDANGLING — {len(dangling):,} edges reference a node that does not exist")
-        for k in dangling[:8]:
-            missing = k[0] if k[0] not in a.nodes else k[2]
-            print(f"  {k[0]} -{k[1]}-> {k[2]}   (missing: {missing})")
+        print_capped(
+            dangling, 8,
+            lambda k: f"{k[0]} -{k[1]}-> {k[2]}   "
+                      f"(missing: {k[0] if k[0] not in a.nodes else k[2]})",
+            indent="  ", unit="more dangling edge(s)")
         return 1
 
     orphans = orphan_nodes(a)
@@ -148,10 +150,13 @@ def main() -> int:
     print(f"\nhub exclusion: {sorted(classes)} with degree > {cut}"
           f"{'' if include_viral else ', viral excluded from the cut'}")
     print(f"  {len(hubs)} nodes excluded as path connectors")
-    for nid in sorted(hubs, key=lambda n: -deg[n])[:10]:
+    def _hub(nid):
         props = a.nodes[nid].get("properties", {})
         label = props.get("gene_symbol") or props.get("label") or nid
-        print(f"    {str(label)[:24]:<26} {deg[nid]:>7,}")
+        return f"{str(label)[:24]:<26} {deg[nid]:>7,}"
+
+    print_capped(sorted(hubs, key=lambda n: -deg[n]), 10, _hub,
+                 unit="more excluded hub(s)")
 
     a.write(args.out)
     manifest = a.manifest(
