@@ -339,6 +339,31 @@ def active_site_rows(chains) -> list[tuple[str, str, str, str]]:
     return rows
 
 
+def shared_class_census(results) -> dict:
+    """mode -> (number of allowed pairs, Counter of class -> pairs carrying it).
+
+    A class carried by EVERY allowed pair in a mode is a constant. It cannot
+    distinguish one pair from another, so it is not evidence about any
+    particular transfer -- only evidence that both ends are the kind of
+    enzyme the mode is for. IPR007094 is "RNA-directed RNA polymerase,
+    catalytic domain": two polymerases sharing it says they are both
+    polymerases.
+
+    Counted rather than asserted, because which classes are universal
+    changes every time a window moves, and the last four commits all moved
+    windows.
+    """
+    out: dict = {}
+    for a, b, g in results:
+        if not g.allowed:
+            continue
+        n, c = out.setdefault(g.mode, [0, Counter()])
+        out[g.mode][0] = n + 1
+        for acc in g.shared:
+            c[acc] += 1
+    return {m: (n, c) for m, (n, c) in out.items()}
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
@@ -610,8 +635,12 @@ def main() -> int:
     print(f"\n  allowed transfers, all {len(allowed)} (strong first):")
     for a, b, g in sorted(allowed, key=lambda r: (r[2].strength != "strong",
                                                   a.spec.label, b.spec.label)):
+        # EVERY shared class, not the first two. The row cap was fixed one
+        # commit ago and this one was left: all 20 protease rows printed
+        # "G3DSA:2.40.10.10, IPR009003" and nothing said whether that was
+        # the whole evidence or the start of it.
         print(f"    [{g.strength:<6}] {a.spec.label:<20} -> {b.spec.label:<20} "
-              f"{', '.join(g.shared[:2])}")
+              f"{', '.join(g.shared)}")
 
     # WHICH CHAINS HAVE ANY PARTNER AT ALL. M8's entire claim is reaching a
     # virus with no activity data of its own, so a chain with zero allowed
@@ -643,15 +672,44 @@ def main() -> int:
         print(f"    {c.spec.label:<22} {c.catalytic_type:<9} "
               f"{partners[c.spec.label]:>3}{mark}")
 
+    # WHAT THE SHARED CLASSES ACTUALLY DISTINGUISH.
+    #
+    # A class carried by every allowed pair in a mode is a constant, and a
+    # constant cannot rank anything. If every shared class a pair has is
+    # universal, that pair's fold evidence is identical to every other
+    # pair's in its mode -- the transfer is eligible, but the fold says
+    # nothing about WHICH comparator to prefer. That matters directly for
+    # M8: DWPC over FOLD_SIMILAR_TO edges carrying identical evidence
+    # weights them identically, so the hop would be a filter, not a score.
+    #
+    # Printed because narrowing the windows changed it, and will again.
+    census = shared_class_census(results)
+    if census:
+        print("\n  shared classes, by how many allowed pairs carry them:")
+        for mode in sorted(census):
+            n, counts = census[mode]
+            universal = [a for a, k in counts.items() if k == n]
+            print(f"    {mode} mode — {n} allowed pair(s), "
+                  f"{len(counts)} distinct class(es)")
+            for acc, k in counts.most_common():
+                tag = "   <- in every pair, so it ranks nothing" if k == n else ""
+                print(f"      {acc:<22} {k:>3}/{n}{tag}")
+            if len(universal) == len(counts):
+                print(f"      EVERY shared class in {mode} mode is universal: "
+                      f"all {n} pairs carry\n      exactly the same fold "
+                      f"evidence, so the fold cannot prefer one over\n"
+                      f"      another. Eligibility, not similarity.")
+
     # The refusals that matter: same fold, different nucleophile.
     key_refusals = [r for r in refused
                     if r[2].mode == "nucleophile" and r[2].shared]
     if key_refusals:
         print(f"\n  refused despite a SHARED FOLD ({len(key_refusals)}) — the "
               f"gate doing its job:")
-        for a, b, g in key_refusals[:8]:
+        for a, b, g in sorted(key_refusals,
+                              key=lambda r: (r[0].spec.label, r[1].spec.label)):
             print(f"    {a.spec.label:<20} -> {b.spec.label:<20} "
-                  f"shares {', '.join(g.shared[:2])} but "
+                  f"shares {', '.join(g.shared)} but "
                   f"{a.catalytic_type} != {b.catalytic_type}")
 
     # ------------------------------------------------------------- write

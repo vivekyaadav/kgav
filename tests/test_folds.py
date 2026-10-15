@@ -834,3 +834,53 @@ def test_sites_outside_the_role_filter_are_still_excluded():
     hel = _rc("SARS-CoV-2 helicase", "helicase", 5325, 5925, domains=[],
               sites=[(5400, "C", "")])
     assert _ingest().active_site_rows([hel]) == []
+
+
+# ------------------------------- what the shared classes actually distinguish
+def _pair(mode, shared, allowed=True):
+    spec = ChainSpec("x", "P", ("p",), "F", "protease", "T:1")
+    c = ResolvedChain(spec=spec)
+    from kgav.folds import GateResult
+    return (c, c, GateResult(allowed, mode, True, list(shared), "strong", ""))
+
+
+def test_a_class_in_every_allowed_pair_is_counted_as_such():
+    """IPR007094 is "RNA-directed RNA polymerase, catalytic domain". Two
+    polymerases sharing it says they are both polymerases -- a constant
+    across the mode, which cannot rank one comparator above another."""
+    res = ([_pair("motif", ["IPR007094", "IPR043502"])] * 10
+           + [_pair("motif", ["IPR001205", "IPR007094"])] * 4)
+    n, counts = _ingest().shared_class_census(res)["motif"]
+    assert n == 14
+    assert counts["IPR007094"] == 14          # universal
+    assert counts["IPR043502"] == 10          # discriminating
+    assert counts["IPR001205"] == 4
+
+
+def test_refused_pairs_are_not_counted():
+    """The census describes the evidence behind transfers that WERE made.
+    A refusal's shared fold is the gate's story, not the transfer's."""
+    res = [_pair("nucleophile", ["IPR009003"]),
+           _pair("nucleophile", ["IPR009003"], allowed=False)]
+    n, counts = _ingest().shared_class_census(res)["nucleophile"]
+    assert (n, counts["IPR009003"]) == (1, 1)
+
+
+def test_modes_are_counted_separately():
+    """A class universal in one mode need not be in another, and merging
+    them would hide both facts."""
+    res = ([_pair("nucleophile", ["IPR009003"])] * 3
+           + [_pair("motif", ["IPR007094"])] * 5)
+    c = _ingest().shared_class_census(res)
+    assert c["nucleophile"][0] == 3 and c["motif"][0] == 5
+    assert set(c) == {"nucleophile", "motif"}
+
+
+def test_a_mode_whose_every_class_is_universal_is_detectable():
+    """The condition the report calls out: identical fold evidence on every
+    pair, so the hop is an eligibility filter and not a similarity score --
+    which is what M8's DWPC would be weighting."""
+    res = [_pair("nucleophile", ["G3DSA:2.40.10.10", "IPR009003"])] * 20
+    n, counts = _ingest().shared_class_census(res)["nucleophile"]
+    assert all(k == n for k in counts.values())
+    assert len(counts) == 2
