@@ -1113,3 +1113,39 @@ def test_a_built_virus_is_never_reported_as_surveyed():
            "surveyed": [{"taxon": 64320, "proteome_id": "UPOLD",
                          "chain_source": {"accession": "X"}}]}
     assert _diag().register_state(cfg)["64320"] == ("BUILT", "UP000007241")
+
+
+# ------------------------------------- a curation menu must name the virus
+def test_the_virus_name_keeps_its_serotype():
+    """label.split()[0] turned "Dengue 2 NS3pro" into "Dengue" and
+    "Rhinovirus A 3C" into "Rhinovirus", in the one table whose job is to
+    say which virus to curate next. The register's surveyed block lists
+    DENV-1 and DENV-2 separately with separate proteomes, so "Dengue" does
+    not pick one."""
+    chains = [_sc("Dengue 2 NS3pro", "PRO_1"), _sc("Rhinovirus A 3C", "PRO_2"),
+              _sc("EV-A71 3C", "PRO_3"), _sc("HCV NS5B", "PRO_4")]
+    for c, t in zip(chains, ("11060", "147711", "39054", "11103")):
+        c.spec.virus_taxon = f"NCBITaxon:{t}"
+    got = _diag().virus_names(chains, {"viruses": [], "surveyed": []})
+    assert got["NCBITaxon:11060"] == "Dengue 2"
+    assert got["NCBITaxon:147711"] == "Rhinovirus A"
+    assert got["NCBITaxon:39054"] == "EV-A71"
+    assert got["NCBITaxon:11103"] == "HCV"
+
+
+def test_the_registers_own_name_wins_over_the_chain_label():
+    """Where the register has curated the virus it has also named it, and
+    that name is the one the curation step will be filed under."""
+    c = _sc("Dengue 2 NS3pro", "PRO_1")
+    c.spec.virus_taxon = "NCBITaxon:11060"
+    cfg = {"viruses": [], "surveyed": [{"taxon": 11060, "name": "DENV-2"}]}
+    assert _diag().virus_names([c], cfg)["NCBITaxon:11060"] == "DENV-2"
+
+
+def test_a_one_word_chain_label_does_not_become_empty():
+    """Dropping the last token is right for "Dengue 2 NS3pro" and wrong for
+    a label that is only the chain, which must not collapse to ""."""
+    c = _sc("3CLpro", "PRO_1")
+    c.spec.virus_taxon = "NCBITaxon:999"
+    assert _diag().virus_names([c], {"viruses": [], "surveyed": []})[
+        "NCBITaxon:999"] == "3CLpro"
