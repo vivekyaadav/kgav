@@ -56,11 +56,29 @@ def patch(text: str, anchor: str, addition: str, marker: str,
     return text.replace(anchor, addition, 1), True
 
 
+#: Schema versions this script is allowed to write over. It is a ONE-SHOT
+#: HISTORICAL PATCH that calls itself idempotent, and its last act is to set
+#: schema_version to "0.8.0" unconditionally. Re-run against 0.13.0 it would
+#: silently DOWNGRADE the version while leaving the newer edits in place --
+#: a schema that lies about which version it is, written by the tool whose
+#: job was to version it. It is in no pipeline, which is the only reason
+#: that has not happened.
+WRITES_OVER = {"0.8.0", "0.7.0"}
+
+
 def main() -> int:
     if not SCHEMA.exists():
         print(f"{SCHEMA} not found — run from the repository root")
         return 1
     t = SCHEMA.read_text()
+
+    m = re.search(r'schema_version:\s*"([0-9.]+)"', t)
+    current = m.group(1) if m else "?"
+    if current not in WRITES_OVER:
+        print(f"schema is {current}; this script writes 0.8.0 and would "
+              f"downgrade it.\nIt is the phase 1 patch and phase 1 is done. "
+              f"Refusing.")
+        return 2
 
     # ---------------------------------------------------------------- enums
     t, _ = patch(
