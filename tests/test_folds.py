@@ -660,14 +660,41 @@ def test_the_docstring_no_longer_claims_a_split_that_does_not_exist():
 #: not from recall. The residues are here so a wrong domain name cannot be
 #: adopted quietly: a window that excludes a chain's own catalytic residues
 #: is the wrong window whatever it is called.
+#: label -> (domain, residues that MUST be inside the window,
+#:           residues deliberately left outside and why)
+#: Every number is from a run's printed output, not from recall.
 DECLARED_WINDOWS = {
-    "SARS-CoV-2 PLpro":    ("Peptidase C16",  [1674, 1835, 1849]),
-    "Dengue 2 NS3pro":     ("Peptidase S7",   [1526, 1550, 1610]),
-    "Zika NS3pro":         ("Peptidase S7",   [1549, 1573, 1633]),
-    "West Nile NS3pro":    ("Peptidase S7",   [1552, 1576, 1636]),
-    "HCV NS3pro":          ("Peptidase S29",  [1083, 1107, 1165]),
-    "Yellow fever NS3pro": ("Peptidase S7",   [1537, 1561, 1622]),
-    "JEV NS3pro":          ("Peptidase S7",   [1555, 1579, 1639]),
+    "SARS-CoV-2 PLpro":    ("Peptidase C16", (1634, 1898),
+                            [1674, 1835, 1849], []),
+    "Dengue 2 NS3pro":     ("Peptidase S7", (1476, 1653),
+                            [1526, 1550, 1610], []),
+    "Zika NS3pro":         ("Peptidase S7", (1499, 1676),
+                            [1549, 1573, 1633], []),
+    "West Nile NS3pro":    ("Peptidase S7", (1502, 1679),
+                            [1552, 1576, 1636], []),
+    "HCV NS3pro":          ("Peptidase S29", (1027, 1208),
+                            [1083, 1107, 1165], []),
+    "Yellow fever NS3pro": ("Peptidase S7", (1485, 1665),
+                            [1537, 1561, 1622], []),
+    "JEV NS3pro":          ("Peptidase S7", (1505, 1682),
+                            [1555, 1579, 1639], []),
+    # the seven polymerases: "RdRp catalytic" is the only domain name
+    # UniProt annotates on all of them
+    "SARS-CoV-2 RdRp":     ("RdRp catalytic", (5004, 5166),
+                            [5151, 5152, 5153], []),
+    "SARS-CoV RdRp":       ("RdRp catalytic", (4981, 5143),
+                            [5128, 5129, 5130], []),
+    "HCV NS5B":            ("RdRp catalytic", (2634, 2752), [], []),
+    # NS5's four annotated sites are the METHYLTRANSFERASE's -- the run
+    # placed every one inside "mRNA cap 0-1 NS5-type MT". Excluding them is
+    # the point, so they are recorded as required-outside rather than
+    # quietly dropped from the table.
+    "Dengue 2 NS5":        ("RdRp catalytic", (3020, 3169), [],
+                            [2552, 2637, 2672, 2708]),
+    "Zika NS5":            ("RdRp catalytic", (3045, 3195), [],
+                            [2577, 2662, 2698, 2734]),
+    "Poliovirus 3D":       ("RdRp catalytic", (1975, 2090), [], []),
+    "EV-A71 3D":           ("RdRp catalytic", (1958, 2073), [], []),
 }
 
 
@@ -686,26 +713,47 @@ def test_every_narrowed_spec_narrows_to_the_domain_it_was_measured_for():
     """
     specs = {s.label: s for s in _ingest().SPECS}
     for label, spec in specs.items():
-        want = DECLARED_WINDOWS.get(label, ("", None))[0]
+        want = DECLARED_WINDOWS.get(label, ("",))[0]
         assert spec.domain == want, (
             f"{label}: domain={spec.domain!r}, measured {want!r}")
 
 
 def test_no_narrowed_window_excludes_its_own_catalytic_residues():
-    """The name alone is not enough: "Peptidase S7" on the wrong entry
-    resolves to nothing, but on a near-miss entry it could resolve to a
+    """The name alone is not enough: a plausible name can resolve to a
     region that does not hold the enzyme's triad. That window is wrong even
     though the narrowing "worked"."""
-    spans = {"Peptidase C16": (1634, 1898), "Peptidase S7": None,
-             "Peptidase S29": (1027, 1208)}
-    measured = {"Dengue 2 NS3pro": (1476, 1653), "Zika NS3pro": (1499, 1676),
-                "West Nile NS3pro": (1502, 1679),
-                "Yellow fever NS3pro": (1485, 1665),
-                "JEV NS3pro": (1505, 1682)}
-    for label, (dom, residues) in DECLARED_WINDOWS.items():
-        lo, hi = measured.get(label) or spans[dom]
-        outside = [p for p in residues if not lo <= p <= hi]
-        assert not outside, f"{label}: {outside} fall outside {dom} {lo}-{hi}"
+    for label, (dom, (lo, hi), inside, _out) in DECLARED_WINDOWS.items():
+        missing = [p for p in inside if not lo <= p <= hi]
+        assert not missing, f"{label}: {missing} outside {dom} {lo}-{hi}"
+
+
+def test_residues_recorded_as_excluded_really_are_excluded():
+    """NS5's four annotated sites belong to its methyltransferase, and
+    narrowing to the polymerase is supposed to drop them. If a future
+    boundary quietly pulled them back in, the polymerase's catalytic type
+    would once again be read from a capping enzyme."""
+    checked = 0
+    for label, (dom, (lo, hi), _in, out) in DECLARED_WINDOWS.items():
+        for p in out:
+            assert not lo <= p <= hi, (
+                f"{label}: {p} was recorded as deliberately outside "
+                f"{dom} {lo}-{hi}, but falls inside it")
+            checked += 1
+    assert checked == 8, "both NS5 chains' four MTase sites"
+
+
+def test_the_polymerase_windows_all_use_the_one_shared_domain_name():
+    """Narrowing coronaviruses to the 568 aa "Nsp12 RNA-dependent RNA
+    polymerase" and picornaviruses to the 116 aa "RdRp catalytic" would
+    compare unlike regions as if alike. "RdRp catalytic" was chosen because
+    intersecting the seven entries' domain-name sets leaves exactly it."""
+    poly = [s for s in _ingest().SPECS if s.role == "polymerase"]
+    assert len(poly) == 7
+    assert {s.domain for s in poly} == {"RdRp catalytic"}
+    spans = [DECLARED_WINDOWS[s.label][1] for s in poly]
+    widths = [hi - lo + 1 for lo, hi in spans]
+    assert max(widths) / min(widths) < 1.5, dict(zip(
+        [s.label for s in poly], widths))
 
 
 def test_a_spec_cannot_request_a_domain_no_chain_of_its_family_has():

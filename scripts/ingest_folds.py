@@ -126,12 +126,32 @@ SPECS: list[ChainSpec] = [
               ("Papain-like protease", "papain-like proteinase"),
               "Coronaviridae", "protease", "NCBITaxon:2697049",
               domain="Peptidase C16"),
+    # ALL SEVEN POLYMERASES NARROW TO "RdRp catalytic", and that name was
+    # chosen because it is the ONLY domain UniProt annotates on every one of
+    # them -- not because it is the prettiest boundary. The 2026-10-15 run
+    # printed each entry's domains; intersecting the seven name sets leaves
+    # exactly {"RdRp catalytic"}. The broad coronavirus domain, "Nsp12
+    # RNA-dependent RNA polymerase" (568 aa), has no counterpart in the
+    # flaviviruses or picornaviruses, so using it would compare a 568 aa
+    # window against a 116 aa one -- unlike regions, scored as if alike.
+    #
+    #   SARS-CoV-2 RdRp  5004-5166  163 aa   sites S5151 D5152 D5153 inside
+    #   SARS-CoV RdRp    4981-5143  163 aa   sites S5128 D5129 D5130 inside
+    #   HCV NS5B         2634-2752  119 aa   no annotated sites
+    #   Dengue 2 NS5     3020-3169  150 aa   its 4 sites are OUTSIDE, below
+    #   Zika NS5         3045-3195  151 aa   its 4 sites are OUTSIDE, below
+    #   Poliovirus 3D    1975-2090  116 aa   no annotated sites
+    #   EV-A71 3D        1958-2073  116 aa   no annotated sites
+    #
+    # What the coronavirus windows drop is NiRAN, a separate
+    # nucleotidyltransferase with its own druggable site, and the Nsp12
+    # interface region.
     ChainSpec("SARS-CoV-2 RdRp", "P0DTD1",
               ("RNA-directed RNA polymerase", "nsp12"), "Coronaviridae",
-              "polymerase", "NCBITaxon:2697049"),
+              "polymerase", "NCBITaxon:2697049", domain="RdRp catalytic"),
     ChainSpec("SARS-CoV RdRp", "P0C6X7",
               ("RNA-directed RNA polymerase", "nsp12"), "Coronaviridae",
-              "polymerase", "NCBITaxon:694009"),
+              "polymerase", "NCBITaxon:694009", domain="RdRp catalytic"),
     ChainSpec("SARS-CoV-2 helicase", "P0DTD1",
               ("Helicase", "nsp13"), "Coronaviridae", "helicase",
               "NCBITaxon:2697049"),
@@ -178,13 +198,20 @@ SPECS: list[ChainSpec] = [
               "NCBITaxon:11072", domain="Peptidase S7"),
     ChainSpec("HCV NS5B", "P26664",
               ("RNA-directed RNA polymerase", "NS5B"), "Flaviviridae",
-              "polymerase", "NCBITaxon:11103"),
+              "polymerase", "NCBITaxon:11103", domain="RdRp catalytic"),
+    # NS5 LOSES ALL FOUR OF ITS ANNOTATED ACTIVE SITES, DELIBERATELY. The
+    # run placed every one of them -- K2552, D2637, K2672, E2708 for Dengue,
+    # K2577, D2662, K2698, E2734 for Zika -- inside "mRNA cap 0-1 NS5-type
+    # MT". They are the METHYLTRANSFERASE's, not the polymerase's. A
+    # polymerase window that excludes a capping enzyme's residues is more
+    # correct, not less, and nothing changes in the gate: NS5 reads "none"
+    # with sites nobody could use and "none" with no sites at all.
     ChainSpec("Dengue 2 NS5", "P29990",
               ("RNA-directed RNA polymerase NS5", "NS5"), "Flaviviridae",
-              "polymerase", "NCBITaxon:11060"),
+              "polymerase", "NCBITaxon:11060", domain="RdRp catalytic"),
     ChainSpec("Zika NS5", "Q32ZE1",
               ("RNA-directed RNA polymerase NS5", "NS5"), "Flaviviridae",
-              "polymerase", "NCBITaxon:64320"),
+              "polymerase", "NCBITaxon:64320", domain="RdRp catalytic"),
 
     # --------------------------------------------------- Picornaviridae
     ChainSpec("EV-A71 3C", "Q66478",
@@ -204,10 +231,10 @@ SPECS: list[ChainSpec] = [
               "NCBITaxon:147711"),
     ChainSpec("Poliovirus 3D", "P03300",
               ("RNA-directed RNA polymerase", "3D"), "Picornaviridae",
-              "polymerase", "NCBITaxon:12080"),
+              "polymerase", "NCBITaxon:12080", domain="RdRp catalytic"),
     ChainSpec("EV-A71 3D", "Q66478",
               ("RNA-directed RNA polymerase", "3D"), "Picornaviridae",
-              "polymerase", "NCBITaxon:39054"),
+              "polymerase", "NCBITaxon:39054", domain="RdRp catalytic"),
 ]
 
 
@@ -571,8 +598,18 @@ def main() -> int:
     for mode, n in by_mode.most_common():
         print(f"    {mode:<12} {n}")
 
-    print("\n  allowed transfers (strong first):")
-    for a, b, g in sorted(allowed, key=lambda r: r[2].strength != "strong")[:14]:
+    # ALL OF THEM, not the first 14. The cap was [:14] with no "and N more",
+    # and sorted strong-first -- so the printed list was 14 strong protease
+    # rows and the 22 hidden ones included EVERY weak polymerase pair. The
+    # comment below then said all 36 were cysteine protease pairs, and the
+    # truncation was what made that look true. Measured: 20 protease pairs
+    # and 16 polymerase pairs, and 16 is also the motif-mode total, so every
+    # cross-family polymerase pair is allowed. These rows are the layer's
+    # actual output -- the FOLD_SIMILAR_TO edges it would write -- and the
+    # one list that must not be abridged.
+    print(f"\n  allowed transfers, all {len(allowed)} (strong first):")
+    for a, b, g in sorted(allowed, key=lambda r: (r[2].strength != "strong",
+                                                  a.spec.label, b.spec.label)):
         print(f"    [{g.strength:<6}] {a.spec.label:<20} -> {b.spec.label:<20} "
               f"{', '.join(g.shared[:2])}")
 
@@ -580,12 +617,18 @@ def main() -> int:
     # virus with no activity data of its own, so a chain with zero allowed
     # transfers is a virus M8 cannot help however the path is wired.
     #
-    # Reported per chain because the aggregate hides it: 36 allowed sounds
-    # like broad coverage, and on v0.1 every one of them is a cysteine
-    # protease pair. Comparison is cross-family only (same-family pairs are
-    # skipped above), and the catalytic table shows serine proteases exist
-    # in ONE family here -- so a flavivirus protease has no cross-family
-    # partner that is not cysteine, and the gate correctly refuses all of
+    # Reported per chain because the aggregate hides it. THIS COMMENT USED
+    # TO SAY "on v0.1 every one of them is a cysteine protease pair", which
+    # the same run refuted one screen below: the partners add to 40 for
+    # proteases and 32 for polymerases, so 20 pairs and 16 pairs. It read as
+    # true only because the transfer list above was cut at 14 rows, all of
+    # them strong protease pairs. Fourth comment outliving its code.
+    #
+    # The part that IS true and matters: comparison is cross-family only
+    # (same-family pairs are skipped above), and the catalytic table shows
+    # serine proteases exist in ONE family here -- so a flavivirus protease
+    # has no cross-family partner that is not cysteine, and the gate
+    # correctly refuses all of
     # them. That is structural, not a data gap.
     partners: Counter = Counter()
     for a, b, g in results:
