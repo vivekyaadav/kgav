@@ -513,6 +513,30 @@ class Schema:
         return out
 
 
+def print_capped(items, limit: int, render=str, *, indent: str = "    ",
+                 unit: str = "more") -> None:
+    """Print at most `limit` items and SAY HOW MANY WERE NOT PRINTED.
+
+    An AST sweep found 14 printing loops over a constant-capped slice in
+    this repo. Nine were copies of the schema reporter. Of the remaining
+    five, exactly ONE said what it had left out:
+
+        if len(orcs["matched"]) > 40:
+            print(f"    ... {len(orcs['matched']) - 40} more")
+
+    The other four printed a head and stopped, so a reader saw ten
+    conflicts and could not tell ten from four hundred. That is the same
+    failure as the join list that counted fourteen dangling chains and
+    named ten, in the report that gates LAYER_PRECEDENCE.
+
+    This is the honest one's shape, made the only shape.
+    """
+    for x in items[:limit]:
+        print(f"{indent}{render(x)}")
+    if len(items) > limit:
+        print(f"{indent}... and {len(items) - limit:,} {unit}")
+
+
 def report_violations(violations: list, *, per_code: int = 3,
                       note: str = "") -> int:
     """Print a schema failure and return the exit code (1, or 0 if clean).
@@ -536,14 +560,11 @@ def report_violations(violations: list, *, per_code: int = 3,
     by_code: dict[str, list] = {}
     for v in violations:
         by_code.setdefault(v.code, []).append(v)
-    print(f"\nSCHEMA FAIL — {len(violations):,} violations, "
-          f"{len(by_code)} distinct code(s)")
+    kinds = f"{len(by_code)} distinct code" + ("s" if len(by_code) != 1 else "")
+    print(f"\nSCHEMA FAIL — {len(violations):,} violations, {kinds}")
     for code, vs in sorted(by_code.items(), key=lambda kv: -len(kv[1])):
         print(f"  {code:<28} {len(vs):>7,}")
-        for v in vs[:per_code]:
-            print(f"      {v}")
-        if len(vs) > per_code:
-            print(f"      ... and {len(vs) - per_code:,} more [{code}]")
+        print_capped(vs, per_code, indent="      ", unit=f"more [{code}]")
     if note:
         print(note)
     return 1

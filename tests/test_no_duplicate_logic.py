@@ -159,9 +159,15 @@ def test_a_rare_violation_code_is_not_buried_under_a_common_one():
         rc = report_violations(vs)
     out = buf.getvalue()
     assert rc == 1
-    assert "126 violations, 2 distinct code(s)" in out
+    assert "126 violations, 2 distinct codes" in out
     assert "[ENUM]" in out                       # the rare one is shown
     assert "and 122 more [DANGLING]" in out      # the remainder is counted
+
+    # and a single kind does not read as "1 distinct code(s)"
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        report_violations([V("DANGLING", "n")])
+    assert "1 distinct code\n" in buf.getvalue()
 
 
 def test_a_clean_batch_prints_pass_and_returns_zero():
@@ -173,3 +179,69 @@ def test_a_clean_batch_prints_pass_and_returns_zero():
     with redirect_stdout(buf):
         rc = report_violations([])
     assert rc == 0 and "schema: PASS" in buf.getvalue()
+
+
+# --------------------------------- a printed list must say what it left out
+def test_no_printing_loop_silently_drops_the_rest():
+    """FOURTEEN loops printed a constant-capped slice. Exactly ONE said how
+    many it had left out -- diagnose_flavivirus_join's "... N more". Nine
+    were copies of the schema reporter; the other four printed a head and
+    stopped, so ten conflicts and four hundred read identically.
+
+    It is the same failure as the join list that counted fourteen dangling
+    chains and named ten, in the report that gates LAYER_PRECEDENCE, and as
+    the allowed-transfer list cut at 14 of 36 while a comment beside it
+    drew a conclusion the hidden 22 refuted.
+
+    kgav.schema.print_capped is the honest one's shape. The sweep is what
+    stops a fifteenth.
+    """
+    offenders = []
+    for p in sorted((ROOT / "scripts").glob("*.py")):
+        tree = ast.parse(p.read_text())
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.For):
+                continue
+            it = node.iter
+            if not (isinstance(it, ast.Subscript)
+                    and isinstance(it.slice, ast.Slice)
+                    and it.slice.lower is None
+                    and isinstance(it.slice.upper, ast.Constant)):
+                continue
+            if any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                   and n.func.id == "print" for n in ast.walk(node)):
+                offenders.append(f"{p.name}:{node.lineno}")
+    assert not offenders, (
+        f"{offenders} print a capped slice directly; use "
+        f"kgav.schema.print_capped so the remainder is counted")
+
+
+def test_print_capped_states_the_remainder_and_stays_quiet_otherwise():
+    import io
+    from contextlib import redirect_stdout
+
+    from kgav.schema import print_capped
+
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        print_capped(list(range(400)), 10, unit="more conflict(s)")
+    out = buf.getvalue()
+    assert out.count("\n") == 11                      # 10 rows + the tail
+    assert "... and 390 more conflict(s)" in out
+
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        print_capped([1, 2], 10)
+    assert buf.getvalue() == "    1\n    2\n"          # nothing left out
+
+
+def test_print_capped_counts_with_a_thousands_separator():
+    """124 and 1240 must not read alike in a report people skim."""
+    import io
+    from contextlib import redirect_stdout
+
+    from kgav.schema import print_capped
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        print_capped(list(range(1250)), 10)
+    assert "... and 1,240 more" in buf.getvalue()

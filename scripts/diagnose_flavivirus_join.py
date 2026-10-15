@@ -56,6 +56,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.chembl import assay_readout, query_activities
+from kgav.schema import print_capped
 from kgav.orcs import is_virus_resistance_screen, virus_taxon
 from kgav.vhppi import parse_row
 
@@ -413,12 +414,12 @@ def main() -> int:
                   "testable channels.")
         else:
             print(f"\n    {'screen':<10}{'resist':>8}{'mapped':>9}  condition")
-            for m in orcs["matched"][:40]:
-                print(f"    {m['id']!s:<10}"
-                      f"{('yes' if m['virus_resistance'] else 'no'):>8}"
-                      f"{m['already_mapped'] or '-'!s:>9}  {m['condition']}")
-            if len(orcs["matched"]) > 40:
-                print(f"    ... {len(orcs['matched']) - 40} more")
+            print_capped(
+                orcs["matched"], 40,
+                lambda m: f"{m['id']!s:<10}"
+                          f"{('yes' if m['virus_resistance'] else 'no'):>8}"
+                          f"{m['already_mapped'] or '-'!s:>9}  {m['condition']}",
+                unit="more screen(s)")
             unmapped = [m for m in orcs["matched"] if not m["already_mapped"]]
             if unmapped:
                 print(f"\n    {len(unmapped)} of these map to NO taxon: "
