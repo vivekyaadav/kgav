@@ -59,7 +59,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from kgav.emit import Emit
 from kgav.folds import (DERIVED_FIELDS, ChainSpec, ResolvedChain, gate,
                         resolve)
-from kgav.schema import load_schema
+from kgav.schema import load_schema, report_violations
 
 # Roles whose comparisons may enter a score. Others are ingested and stored but
 # excluded until phase 4 validates the premise.
@@ -931,14 +931,11 @@ def main() -> int:
         print(f"\nno spine at {args.spine}: every Protein endpoint will read "
               f"DANGLING, which says\n  nothing about this layer")
     violations = load_schema().validate_batch(known, em.edges)
-    if violations:
-        print(f"\nSCHEMA FAIL — {len(violations)} violations")
-        for v in violations[:8]:
-            print(f"  {v}")
-        print("\n  A DANGLING subject here is a chain the spine does not "
-              "build -- see the join\n  report above. Those are comparator "
-              "chains for viruses outside the register,\n  not a defect in "
-              "this layer.")
+    if report_violations(violations, note=(
+            "\n  A DANGLING subject here is a chain the spine does not "
+            "build -- see the join\n  report above. Those are comparator "
+            "chains for viruses outside the register,\n  not a defect in "
+            "this layer.")):
         return 1
     print("\nschema: PASS")
 

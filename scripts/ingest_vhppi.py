@@ -74,14 +74,10 @@ def main() -> int:
     # This release is edges-only: every endpoint lives in the spine or host
     # release. validate_release.py would report all of them DANGLING against an
     # empty node file, so validation runs here against the real index instead.
-    from kgav.schema import load_schema
+    from kgav.schema import load_schema, report_violations
     violations = load_schema().validate_batch(index.nodes.values(), em.edges)
-    if violations:
-        print(f"\nSCHEMA FAIL — {len(violations)} violations")
-        for v in violations[:8]:
-            print(f"  {v}")
+    if report_violations(violations):
         return 1
-    print("\nschema: PASS")
 
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "nodes.jsonl").write_text("")

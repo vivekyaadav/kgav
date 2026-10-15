@@ -50,7 +50,7 @@ from kgav.ncats import (
     top_concentration_nm,
     unit_for,
 )
-from kgav.schema import load_schema
+from kgav.schema import load_schema, report_violations
 
 # Below this, assume the normalization is wrong rather than the library being
 # unusual. These are approved and annotated compound collections; ChEMBL's
@@ -275,15 +275,11 @@ def main() -> int:
 
     violations = load_schema().validate_batch(
         release_nodes + list(em.nodes.values()), em.edges)
-    if violations:
-        print(f"\nSCHEMA FAIL — {len(violations)} violations")
-        for v in violations[:8]:
-            print(f"  {v}")
-        if not release_nodes:
-            print(f"\n  No peer layer was read, so the node set is this "
-                  f"layer's own nodes\n  only -- which omits the OrganismTaxon "
-                  f"the spine owns. DANGLING here\n  means the validation "
-                  f"scope is wrong, not the edges.")
+    if report_violations(violations, note=(
+            "\n  No peer layer was read, so the node set is this layer's own "
+            "nodes\n  only -- which omits the OrganismTaxon the spine owns. "
+            "DANGLING here\n  means the validation scope is wrong, not the "
+            "edges." if not release_nodes else "")):
         return 1
     print("\nschema: PASS")
 

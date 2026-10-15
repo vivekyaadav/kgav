@@ -29,7 +29,7 @@ from kgav.orcs import (
     polarity_mode,
     virus_taxon,
 )
-from kgav.schema import load_schema
+from kgav.schema import load_schema, report_violations
 
 API = "https://orcsws.thebiogrid.org"
 
@@ -147,12 +147,8 @@ def main() -> int:
             print(f"    {k}")
 
     violations = load_schema().validate_batch(index.nodes.values(), em.edges)
-    if violations:
-        print(f"\nSCHEMA FAIL — {len(violations)} violations")
-        for v in violations[:8]:
-            print(f"  {v}")
+    if report_violations(violations):
         return 1
-    print("\nschema: PASS")
 
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "nodes.jsonl").write_text("")

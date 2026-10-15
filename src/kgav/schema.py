@@ -513,6 +513,42 @@ class Schema:
         return out
 
 
+def report_violations(violations: list, *, per_code: int = 3,
+                      note: str = "") -> int:
+    """Print a schema failure and return the exit code (1, or 0 if clean).
+
+    NINE NEAR-IDENTICAL COPIES OF THIS EXISTED, one per ingest script plus
+    assemble_release, and the one that was not shared was the best of them:
+    assemble grouped by violation code first, so "127 violations" could be
+    read as one kind rather than 127 problems. The eight ingest copies
+    printed the head of the list and nothing else.
+
+    THAT HIDES A RARE CODE BEHIND A COMMON ONE. The folds layer reports 127
+    violations and shows 8, all [DANGLING]; whether a second kind sits in
+    the other 119 was not answerable from the output. Examples are
+    therefore taken PER CODE, so one instance of a rare class is shown
+    beside a hundred of a common one, and the unshown remainder is counted
+    rather than dropped.
+    """
+    if not violations:
+        print("\nschema: PASS")
+        return 0
+    by_code: dict[str, list] = {}
+    for v in violations:
+        by_code.setdefault(v.code, []).append(v)
+    print(f"\nSCHEMA FAIL — {len(violations):,} violations, "
+          f"{len(by_code)} distinct code(s)")
+    for code, vs in sorted(by_code.items(), key=lambda kv: -len(kv[1])):
+        print(f"  {code:<28} {len(vs):>7,}")
+        for v in vs[:per_code]:
+            print(f"      {v}")
+        if len(vs) > per_code:
+            print(f"      ... and {len(vs) - per_code:,} more [{code}]")
+    if note:
+        print(note)
+    return 1
+
+
 def load_schema(path: str | Path | None = None) -> Schema:
     if path is None:
         path = Path(__file__).resolve().parents[2] / "schema" / "kg_schema.yaml"

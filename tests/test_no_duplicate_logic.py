@@ -99,3 +99,77 @@ def test_the_allowed_list_does_not_outlive_its_entries():
     assert not stale, (
         f"ALLOWED exempts pairs that are no longer duplicated: {stale}. "
         "Remove them, or the next real duplicate at those paths passes.")
+
+
+# ------------------------------------------- schema failure had nine copies
+def test_no_script_prints_its_own_schema_failure():
+    """NINE near-identical copies of the SCHEMA FAIL reporter existed: one
+    per ingest script plus assemble_release. Eight printed the head of the
+    list; the ninth -- the one not shared -- grouped by violation code
+    first and was strictly better.
+
+    kgav.schema.report_violations is now the only one. A new ingest script
+    that rolls its own would lose the per-code breakdown silently, so the
+    sweep is the thing that keeps it from happening a tenth time.
+    """
+    # BY AST, NOT BY TEXT. The first version matched the literal string
+    # anywhere in the file and fired on dryrun_promote.py, where "SCHEMA
+    # FAIL" appears in a comment explaining a past incident. A sweep that
+    # cannot tell prose from a print call is a sweep someone will disable.
+    offenders = []
+    for p in sorted((ROOT / "scripts").glob("*.py")):
+        tree = ast.parse(p.read_text())
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Name)
+                    and node.func.id == "print"):
+                continue
+            emitted = "".join(
+                v.value for a in node.args for v in ast.walk(a)
+                if isinstance(v, ast.Constant) and isinstance(v.value, str))
+            if "SCHEMA FAIL" in emitted:
+                offenders.append(f"{p.name}:{node.lineno}")
+    assert not offenders, (
+        f"{offenders} print SCHEMA FAIL directly instead of calling "
+        f"kgav.schema.report_violations")
+
+
+def test_a_rare_violation_code_is_not_buried_under_a_common_one():
+    """The eight copies took violations[:8] off the head of one list. The
+    folds layer reports 127 violations and showed 8, all [DANGLING]; a
+    second code among the other 119 was unanswerable from the output."""
+    import io
+    from contextlib import redirect_stdout
+    from dataclasses import dataclass
+
+    from kgav.schema import report_violations
+
+    @dataclass
+    class V:
+        code: str
+        ref: str = ""
+        message: str = "m"
+
+        def __str__(self):
+            return f"[{self.code}] {self.ref}: {self.message}"
+
+    vs = [V("DANGLING", f"n{i}") for i in range(125)] + [V("ENUM", "x")]
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        rc = report_violations(vs)
+    out = buf.getvalue()
+    assert rc == 1
+    assert "126 violations, 2 distinct code(s)" in out
+    assert "[ENUM]" in out                       # the rare one is shown
+    assert "and 122 more [DANGLING]" in out      # the remainder is counted
+
+
+def test_a_clean_batch_prints_pass_and_returns_zero():
+    import io
+    from contextlib import redirect_stdout
+
+    from kgav.schema import report_violations
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        rc = report_violations([])
+    assert rc == 0 and "schema: PASS" in buf.getvalue()

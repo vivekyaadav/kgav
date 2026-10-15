@@ -14,7 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.emit import Emit
-from kgav.schema import load_schema
+from kgav.schema import load_schema, report_violations
 from kgav.similarity import (
     build,
     fingerprints,
@@ -122,12 +122,8 @@ def main() -> int:
     nodes = [json.loads(x) for x in (args.release / "nodes.jsonl").read_text().splitlines()
              if x.strip()]
     violations = load_schema().validate_batch(nodes, em.edges)
-    if violations:
-        print(f"\nSCHEMA FAIL — {len(violations)} violations")
-        for v in violations[:8]:
-            print(f"  {v}")
+    if report_violations(violations):
         return 1
-    print("\nschema: PASS")
 
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "nodes.jsonl").write_text("")
