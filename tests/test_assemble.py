@@ -169,15 +169,28 @@ def test_layer_order_is_deterministic(layers):
 def test_precedence_covers_every_layer():
     assert set(LAYER_PRECEDENCE) == {"spine", "host", "vhppi", "orcs", "chembl",
                                      "selectivity", "hosttargets", "similarity",
-                                     "ncats"}
+                                     "ncats", "folds"}
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "ingest_folds.py writes a layer LAYER_PRECEDENCE does not list, and "
-    "assemble_release.py builds its layer dict FROM that list -- so the folds "
-    "release is never assembled and M8 has no TargetClass nodes to walk. One "
-    "of the three independent reasons M8 is inert. Remove this xfail in the "
-    "commit that decides M8's path shape."))
+def test_folds_is_last_because_it_is_computed():
+    """A fold assignment and a gate verdict are derived, not measured, so
+    where this layer shares a property with an experimental one it should
+    lose."""
+    assert LAYER_PRECEDENCE[-1] == "folds"
+
+
+# THE XFAIL THAT STOOD HERE said: "ingest_folds.py writes a layer
+# LAYER_PRECEDENCE does not list ... One of the three independent reasons
+# M8 is inert. Remove this xfail in the commit that decides M8's path
+# shape." This is that commit, and all three are now closed:
+#
+#   the path shape    schema 0.13.0, FOLD_SIMILAR_TO Protein -> Protein,
+#                     because a shared fold is one class node and the only
+#                     class-to-class edge available was a self-loop
+#   the listing       `folds` added to LAYER_PRECEDENCE, above
+#   the directory     ingest_folds wrote to v0.2-folds, a name that
+#                     appeared exactly once in the repository -- on its own
+#                     default -- while assemble reads v0.1-{name}
 def test_every_ingest_script_has_a_precedence_entry():
     """The hardcoded set above cannot catch a layer nobody listed.
 

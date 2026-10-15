@@ -1149,3 +1149,98 @@ def test_a_one_word_chain_label_does_not_become_empty():
     c.spec.virus_taxon = "NCBITaxon:999"
     assert _diag().virus_names([c], {"viruses": [], "surveyed": []})[
         "NCBITaxon:999"] == "3CLpro"
+
+
+# --------------------------------- 0.13.0: the verdict written into the graph
+def _rc2(label, pro, role, ctype, nuc, classes, family="F"):
+    spec = ChainSpec(label, "P", ("p",), family, role, "NCBITaxon:1")
+    return ResolvedChain(spec=spec, chain_name=label, start=1, end=9,
+                         chain_pro_id=pro, catalytic_type=ctype,
+                         nucleophile=nuc,
+                         classes=[{"accession": a, "label": a,
+                                   "level": "homologous_superfamily",
+                                   "start": 1, "end": 9} for a in classes])
+
+
+def test_one_orientation_per_pair_so_dwpc_is_not_doubled():
+    """baselines.Graph reads BOTH adjacency maps for a symmetric predicate
+    and says what breaks if an ingest does the same: "An ingest that
+    emitted both orientations of one fact would inflate its DWPC weight
+    twofold." That invariant is the ingest's to hold."""
+    from kgav.folds import similarity_edges, gate
+    a = _rc2("A", "PRO_A", "protease", "cysteine", "C1", ["IPR009003"], "Cov")
+    b = _rc2("B", "PRO_B", "protease", "cysteine", "C2", ["IPR009003"], "Pico")
+    ids = {a.node_id, b.node_id}
+    fwd = similarity_edges([(a, b, gate(a, b))], ids)
+    rev = similarity_edges([(b, a, gate(b, a))], ids)
+    assert len(fwd) == 1
+    assert fwd[0][:2] == rev[0][:2] == tuple(sorted(ids))
+
+
+def test_a_refused_pair_is_recorded_with_the_verdict_false():
+    """The graph holds the measurement, M8's constraint holds the policy.
+    Omitting refusals would make the gate's verdict visible only as an
+    absence, which is not auditable."""
+    from kgav.folds import similarity_edges, gate
+    cys = _rc2("Mpro", "PRO_C", "protease", "cysteine", "C1",
+               ["IPR009003"], "Cov")
+    ser = _rc2("NS3", "PRO_S", "protease", "serine", "S1",
+               ["IPR009003"], "Flavi")
+    g = gate(cys, ser)
+    assert not g.allowed and g.catalytic_type_match is False
+    edges = similarity_edges([(cys, ser, g)], {cys.node_id, ser.node_id})
+    assert len(edges) == 1
+    assert edges[0][2]["catalytic_type_match"] is False
+    assert edges[0][2]["shared_superfamilies"] == ["IPR009003"]
+
+
+def test_a_role_mismatch_gets_no_edge_at_all():
+    """gate() calls fold similarity between a protease and a polymerase "an
+    artifact". Writing it with catalytic_type_match=False would still put
+    the artifact in the graph as a similarity assertion."""
+    from kgav.folds import similarity_edges, gate
+    pro = _rc2("Mpro", "PRO_C", "protease", "cysteine", "C1",
+               ["IPR009003"], "Cov")
+    pol = _rc2("RdRp", "PRO_P", "polymerase", "none", "",
+               ["IPR009003"], "Pico")
+    g = gate(pro, pol)
+    assert g.mode == "refused"
+    assert similarity_edges([(pro, pol, g)], {pro.node_id, pol.node_id}) == []
+
+
+def test_a_pair_touching_an_unbuilt_chain_is_skipped():
+    """That edge would dangle, which is the 127 violations that kept this
+    layer out of LAYER_PRECEDENCE."""
+    from kgav.folds import similarity_edges, gate
+    a = _rc2("A", "PRO_A", "protease", "cysteine", "C1", ["IPR009003"], "Cov")
+    b = _rc2("B", "PRO_B", "protease", "cysteine", "C2", ["IPR009003"], "Pico")
+    assert similarity_edges([(a, b, gate(a, b))], {a.node_id}) == []
+
+
+def test_a_pair_with_no_shared_fold_gets_no_edge():
+    """FOLD_SIMILAR_TO asserts similarity. Two chains sharing nothing are
+    not similar, whatever their chemistry."""
+    from kgav.folds import similarity_edges, gate
+    a = _rc2("A", "PRO_A", "protease", "cysteine", "C1", ["IPR000001"], "Cov")
+    b = _rc2("B", "PRO_B", "protease", "cysteine", "C2", ["IPR000002"], "Pico")
+    assert similarity_edges([(a, b, gate(a, b))], {a.node_id, b.node_id}) == []
+
+
+def test_the_emitted_edge_validates_against_the_real_schema():
+    """Against kg_schema.yaml itself, not a fixture: Protein -> Protein with
+    both required qualifiers, which is the whole point of 0.13.0."""
+    from kgav.schema import load_schema
+    from kgav.folds import similarity_edges, gate
+    a = _rc2("A", "PRO_A", "protease", "cysteine", "C1", ["IPR009003"], "Cov")
+    b = _rc2("B", "PRO_B", "protease", "cysteine", "C2", ["IPR009003"], "Pico")
+    subj, obj, quals = similarity_edges(
+        [(a, b, gate(a, b))], {a.node_id, b.node_id})[0]
+    edge = {"subject": subj, "predicate": "FOLD_SIMILAR_TO", "object": obj,
+            "qualifiers": quals, "primary_knowledge_source": "infores:interpro",
+            "evidence_tier": 3, "first_asserted_date": "1970-01-01"}
+    nodes = [{"id": subj, "class": "Protein",
+              "properties": {"taxon_id": "NCBITaxon:1", "is_viral": True}},
+             {"id": obj, "class": "Protein",
+              "properties": {"taxon_id": "NCBITaxon:2", "is_viral": True}}]
+    index = {n["id"]: n for n in nodes}
+    assert load_schema().validate_edge(edge, index) == []
