@@ -49,6 +49,31 @@ def register_state(cfg: dict) -> dict[str, tuple[str, str]]:
     return out
 
 
+def virus_names(chains, cfg: dict) -> dict[str, str]:
+    """taxon -> the virus's name, with its serotype intact.
+
+    THE FIRST VERSION TOOK label.split()[0], which turns "Dengue 2 NS3pro"
+    into "Dengue" and "Rhinovirus A 3C" into "Rhinovirus". In a table whose
+    only purpose is to say which virus to curate next, that names the wrong
+    virus: the register's surveyed block lists DENV-1 and DENV-2 as separate
+    entries with separate proteomes, and "Dengue" does not pick one.
+
+    This repo has a whole test module about virus-name precision for exactly
+    this reason. The register's own name wins where the taxon is known;
+    otherwise the chain label minus its LAST token, which is the chain.
+    """
+    out: dict[str, str] = {}
+    declared = {str(v["taxon"]): v.get("name")
+                for v in list(cfg["viruses"]) + list(cfg.get("surveyed") or [])
+                if v.get("name")}
+    for c in chains:
+        tax = c.spec.virus_taxon.removeprefix("NCBITaxon:")
+        parts = c.spec.label.split()
+        out.setdefault(c.spec.virus_taxon,
+                       declared.get(tax) or " ".join(parts[:-1]) or parts[0])
+    return out
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
@@ -103,9 +128,7 @@ def main() -> int:
         st, pid = state.get(tax(t), ("NOT IN REGISTER", "-"))
         return f"{st:<27} {pid}"
 
-    names = {}
-    for c in chains:
-        names.setdefault(c.spec.virus_taxon, c.spec.label.split()[0])
+    names = virus_names(chains, cfg)
 
     print("building ONE virus unblocks (marginal — the other end is already "
           "in the spine):")
@@ -136,9 +159,27 @@ def main() -> int:
     for st in sorted(by_state):
         print(f"  {st:<27} {', '.join(sorted(by_state[st]))}")
 
-    print("\nA transfer is only worth unblocking if its strength is worth "
-          "walking.\nCount the strong ones: those are the conservation "
-          "hypothesis's own case.")
+    # COUNTED HERE, not left to the reader. The closing line used to say
+    # "count the strong ones" while printing only per-virus subtotals --
+    # a report asking for arithmetic it already had the numbers to do.
+    strong_solo = {t: sum(1 for _a, _b, g in v if g.strength == "strong")
+                   for t, v in solo.items()}
+    strong_duo = sum(1 for v in duo.values()
+                     for _a, _b, g in v if g.strength == "strong")
+    total_strong = sum(strong_solo.values()) + strong_duo
+    print(f"\nstrong transfers, which are the conservation hypothesis's own "
+          f"case: {total_strong} blocked")
+    for t, n in sorted(strong_solo.items(), key=lambda kv: -kv[1]):
+        if n:
+            print(f"  {names.get(t, tax(t)):<14} +{n} strong")
+    if strong_duo:
+        print(f"  {'(needing two)':<14} +{strong_duo} strong")
+    singles = sorted({n for n in strong_solo.values() if n})
+    if len(singles) == 1:
+        print(f"\n  Every virus that unblocks any strong transfer unblocks "
+              f"exactly {singles[0]},\n  one per coronavirus 3CLpro the spine "
+              f"builds. There is no cheapest first\n  pick among them, and "
+              f"all {total_strong} need every one of them.")
     return 0
 
 
