@@ -49,8 +49,13 @@ EquivalenceFn = Callable[[Any, Any], bool]
 # sits last because its position is immaterial: HAS_ANTIVIRAL_ACTIVITY_AGAINST
 # declares identity_includes_source, so a panel measurement never shares a key
 # with a chembl one and never competes for its qualifiers.
+#: Lowest precedence last. `folds` is last because it is COMPUTED -- a fold
+#: assignment and a gate verdict, not an experiment -- so any property it
+#: shares with a measured layer should lose. It was absent from this list
+#: entirely until schema 0.13.0, which with ingest_folds writing to an
+#: unread directory is the full reason M8 reached nothing.
 LAYER_PRECEDENCE = ["spine", "host", "vhppi", "orcs", "chembl", "selectivity",
-                    "hosttargets", "similarity", "ncats"]
+                    "hosttargets", "similarity", "ncats", "folds"]
 
 
 def _read_jsonl(path: Path) -> list[dict]:

@@ -484,7 +484,14 @@ def blocking_chains(unwalkable, spine_ids) -> Counter:
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", type=Path, default=root / "data/releases/v0.2-folds")
+    # v0.1-folds, NOT v0.2-folds. assemble_release reads v0.1-{name} for
+    # every name in LAYER_PRECEDENCE, and "v0.2-folds" appeared exactly once
+    # in this repository -- on this line. The layer has been writing to a
+    # directory nothing reads, which is the other half of why M8 reached
+    # nothing: not only was `folds` absent from LAYER_PRECEDENCE, the
+    # output would not have been found if it were there.
+    ap.add_argument("--out", type=Path,
+                    default=root / "data/releases/v0.1-folds")
     ap.add_argument("--cache", type=Path,
                     default=root / "data/raw/folds/phase2_chains.json")
     ap.add_argument("--spine", type=Path,
@@ -861,52 +868,78 @@ def main() -> int:
                   f"{a.catalytic_type} != {b.catalytic_type}")
 
     # ------------------------------------------------------------- write
+    if not spine_ids:
+        print("no spine release was read, so which chains the graph actually "
+              "holds is\nunknown. Writing the layer blind is how 127 dangling "
+              "edges shipped.\nRefusing. Pass --spine, or build "
+              "data/releases/v0.1-spine first.", file=sys.stderr)
+        return 2
+
+    # ONLY THE CHAINS THE SPINE BUILDS. Everything above still analyses all
+    # 24 -- the gate matrix, the 54 refusals, the class census are
+    # unchanged, because that is a report about the comparison and not
+    # about the graph. But a node the spine does not build makes every edge
+    # touching it dangle, which is the 14 chains and 127 violations that
+    # kept this layer out of LAYER_PRECEDENCE.
+    emitted = [c for c in usable if c.node_id in spine_ids]
+    emitted_ids = {c.node_id for c in emitted}
+    print(f"\nemitting {len(emitted)} of {len(usable)} resolved chains -- "
+          f"the ones the spine builds.\nThe other "
+          f"{len(usable) - len(emitted)} are comparators for viruses outside "
+          f"the register and\nwould dangle; they are analysed above and not "
+          f"written.")
+
     em = Emit()
     from kgav.folds import emit_classes
-    stats = emit_classes(em, usable, "infores:interpro")
-    # NO FOLD_SIMILAR_TO EDGES ARE EMITTED, AND THAT IS DELIBERATE UNTIL THE
-    # PATH SHAPE IS SETTLED.
+    stats = emit_classes(em, emitted, "infores:interpro")
+
+    # FOLD_SIMILAR_TO, Protein -> Protein, schema 0.13.0.
     #
-    # This loop used to write `em.edge(cid, "FOLD_SIMILAR_TO", cid, ...)` --
-    # subject and object the SAME node, because a shared class is one node, not
-    # two. M8 requires two DISTINCT TargetClass nodes joined by that predicate,
-    # and walk_metapath discards a neighbour already in `visited`, so every
-    # self-loop was skipped and M8 produced zero paths on every run since 0.8.0.
+    # The comment that stood here said the layer emitted none because "the
+    # data model disagrees with the metapath" -- M8 asked for a hop between
+    # two TargetClass nodes, and two chains sharing a fold share ONE class,
+    # so the only edge available was a self-loop. 36 were written once and
+    # every one was skipped by walk_metapath as already-visited.
     #
-    # The self-loop is not a typo to swap for a pair of ids. It is the data
-    # model disagreeing with the metapath: when two chains SHARE a class, the
-    # structure that connects them is MEMBER_OF_CLASS in both directions
-    # through that one node, and no similarity edge is needed or meaningful.
-    # M8's declared path asks for a hop between two classes that this ingest
-    # has no principled pair to supply. Inventing one -- every class of A
-    # crossed with every class of B -- would mint thousands of similarity
-    # assertions nobody measured, which is the failure this project exists to
-    # avoid. See the note in the schema on M8.
+    # 0.13.0 moved the predicate to Protein -> Protein, which is where the
+    # verdict belongs: a catalytic type is a property of a chain, and the
+    # gate compares chains. So the edge can now be written as what it is.
     #
-    # The gate itself is correct and is reported above; what is unresolved is
-    # how to write its verdict into the graph. Until that is decided the layer
-    # emits classes and membership only, and metapath_reach reports M8 as
-    # reaching nothing rather than letting it look scored.
-    if any(g.allowed for _a, _b, g in results):
-        n_allowed = len(allowed_pairs(results))
-        # "n allowed transfers are NOT written" implied that writing them
-        # would give M8 n hops. It would give it the walkable subset and
-        # n - that dangling edges, which is the self-loop mistake again in
-        # a different shape: edges that validate and cannot be walked.
-        n_walk = (len(walkable_transfers(results, spine_ids)[0])
-                  if spine_ids else None)
-        reach = (f"{n_walk} of them have both endpoints in the spine, so "
-                 f"writing all\n  {n_allowed} would give M8 {n_walk} hop(s) "
-                 f"and {n_allowed - n_walk} dangling edge(s)."
-                 if n_walk is not None else
-                 "No spine was checked, so how many could be written is "
-                 "unknown.")
-        print(f"\n  NOTE: none of the {n_allowed} allowed transfers is written "
-              f"as a\n  FOLD_SIMILAR_TO edge, so M8 has no similarity hop and "
-              f"reports zero reach.\n  {reach}\n  See the comment at this line "
-              f"before changing it -- the previous version\n  emitted "
-              f"self-loops, which validate cleanly and are silently "
-              f"unwalkable.")
+    # ONE ORIENTATION PER PAIR, ordered by node id. baselines.Graph reads
+    # both adjacency maps for a symmetric predicate and says so explicitly:
+    # "An ingest that emitted both orientations of one fact would inflate
+    # its DWPC weight twofold." That invariant belongs to the ingests, so
+    # it is this layer's job to hold it -- and a test checks it.
+    #
+    # EVERY EVALUATED PAIR WITH A SHARED FOLD, refusals included, carrying
+    # catalytic_type_match as the verdict. M8 constrains that to true, so
+    # a refused pair is recorded and not traversed -- the graph holds the
+    # measurement and the metapath holds the policy.
+    #
+    # Role mismatches are excluded. A protease and a polymerase that happen
+    # to share a class are not fold-similar in any useful sense; the gate
+    # calls such similarity "an artifact", and asserting FOLD_SIMILAR_TO
+    # over it would put that artifact in the graph.
+    from kgav.folds import similarity_edges
+    for subj, obj, quals in similarity_edges(results, emitted_ids):
+        em.edge(subj, "FOLD_SIMILAR_TO", obj,
+                source="infores:interpro", date="1970-01-01", tier=3,
+                quals=quals)
+    pairs = [(a, b, g) for a, b, g in results
+             if a.node_id in emitted_ids and b.node_id in emitted_ids
+             and g.mode in ("nucleophile", "motif") and g.shared]
+    walkable = [r for r in pairs if r[2].catalytic_type_match]
+    print(f"\n{len(pairs)} FOLD_SIMILAR_TO edge(s), one per evaluated pair "
+          f"with a shared fold:")
+    for a, b, g in sorted(pairs, key=lambda r: (not r[2].catalytic_type_match,
+                                                r[0].spec.label)):
+        mark = "walkable" if g.catalytic_type_match else "refused "
+        print(f"    [{mark}] {a.spec.label:<20} -> {b.spec.label:<20} "
+              f"{', '.join(g.shared[:3])}")
+    print(f"\n  {len(walkable)} carry catalytic_type_match=true, which is "
+          f"M8's constraint,\n  so M8 has {len(walkable)} hop(s) to walk. "
+          f"The rest are the gate's refusals,\n  recorded in the graph and "
+          f"filtered out by the metapath.")
 
     print(f"\n{len(em.nodes):,} TargetClass nodes | {len(em.edges):,} edges")
     for k, v in stats.most_common():

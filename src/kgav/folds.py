@@ -671,6 +671,43 @@ def motif_c_present(sequence: str, lo: int, hi: int) -> list[str]:
 
 
 # ------------------------------------------------------------------ emit
+def similarity_edges(results, emitted_ids: set[str]
+                     ) -> list[tuple[str, str, dict]]:
+    """(subject, object, qualifiers) per evaluated pair with a shared fold.
+
+    ONE ORIENTATION PER PAIR, ordered by node id. baselines.Graph reads both
+    adjacency maps for a symmetric predicate and states the consequence of
+    getting this wrong: "An ingest that emitted both orientations of one
+    fact would inflate its DWPC weight twofold." The invariant belongs to
+    the ingests, so it is enforced here and checked by a test.
+
+    REFUSALS ARE WRITTEN TOO, carrying catalytic_type_match=False. M8
+    constrains that qualifier to true, so the graph holds the measurement
+    and the metapath holds the policy -- which is the only arrangement
+    where the gate's verdict is auditable rather than implied by absence.
+
+    ROLE MISMATCHES ARE NOT. gate() calls similarity between a protease and
+    a polymerase "an artifact", and asserting FOLD_SIMILAR_TO over it would
+    put that artifact in the graph.
+
+    Pairs touching a chain the spine does not build are skipped: the edge
+    would dangle, which is the 127 violations that kept this layer out of
+    LAYER_PRECEDENCE.
+    """
+    out: list[tuple[str, str, dict]] = []
+    for a, b, g in results:
+        if a.node_id not in emitted_ids or b.node_id not in emitted_ids:
+            continue
+        if g.mode not in ("nucleophile", "motif") or not g.shared:
+            continue
+        subj, obj = sorted((a.node_id, b.node_id))
+        out.append((subj, obj, {
+            "catalytic_type_match": g.catalytic_type_match,
+            "method": "interpro_shared",
+            "shared_superfamilies": list(g.shared)}))
+    return out
+
+
 def emit_classes(em, chains: list[ResolvedChain], source: str,
                  date: str = "1970-01-01") -> Counter:
     """TargetClass nodes and MEMBER_OF_CLASS edges.
