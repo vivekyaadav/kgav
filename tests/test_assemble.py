@@ -8,11 +8,13 @@ import pytest
 
 from kgav.assemble import (
     LAYER_PRECEDENCE,
+    Assembly,
     assemble,
     edge_key,
     fact_id,
     connectivity_report,
     merge_edges,
+    orphan_detail,
     orphan_nodes,
 )
 from kgav.schema import load_schema
@@ -547,3 +549,61 @@ def test_a_collision_is_reported_not_ignored(monkeypatch, layers):
     a = A.assemble(layers)
     assert a.stats["fact_id_collision"] > 0
     assert any("derived from two different keys" in c for c in a.conflicts)
+
+
+# ----------------------------------- an orphan count that can be read
+def test_orphans_are_split_into_the_benign_case_and_the_failure():
+    """634 orphan Proteins shipped in v0.1 with no way to read the number.
+    The docstring names both possibilities in one sentence -- host proteome
+    entries with no coronavirus evidence, or a failed join -- and the report
+    gave no means to tell which. is_viral tells them apart: the proteome is
+    ingested whole so a host orphan is expected, while a viral protein the
+    spine built and nothing connected is the failure."""
+    a = Assembly()
+    a.nodes = {
+        "UniProtKB:HOST1": {"class": "Protein", "properties": {"is_viral": False}},
+        "UniProtKB:HOST2": {"class": "Protein", "properties": {"is_viral": False}},
+        "UniProtKB:V1": {"class": "Protein",
+                         "properties": {"is_viral": True,
+                                        "taxon_id": "NCBITaxon:64320"}},
+        "CHEMBL:1": {"class": "SmallMolecule", "properties": {}},
+        "UniProtKB:JOINED": {"class": "Protein", "properties": {"is_viral": True,
+                                                                "taxon_id": "T"}},
+    }
+    a.edges = {("UniProtKB:JOINED", "ENCODED_BY", "KGAV:G"): {}}
+
+    d = orphan_detail(a)
+    assert d["Protein"]["host"] == 2
+    assert d["Protein"]["viral NCBITaxon:64320"] == 1
+    assert "UniProtKB:JOINED" not in str(d)          # it has an edge
+    assert d["SmallMolecule"]["no is_viral property"] == 1
+
+    # the old total is unchanged, and is now derived from the detail
+    assert orphan_nodes(a) == {"Protein": 3, "SmallMolecule": 1}
+
+
+def test_a_viral_orphan_names_its_taxon_so_a_whole_virus_is_visible():
+    """If a virus fails to join, every one of its proteins orphans at once.
+    Counting them as one number per class hides that; naming the taxon makes
+    it one line."""
+    a = Assembly()
+    a.nodes = {f"UniProtKB:P{i}": {"class": "Protein",
+                                   "properties": {"is_viral": True,
+                                                  "taxon_id": "NCBITaxon:12080"}}
+               for i in range(9)}
+    a.nodes["UniProtKB:OTHER"] = {"class": "Protein",
+                                  "properties": {"is_viral": True,
+                                                 "taxon_id": "NCBITaxon:64320"}}
+    a.edges = {}
+    d = orphan_detail(a)["Protein"]
+    assert d["viral NCBITaxon:12080"] == 9
+    assert d["viral NCBITaxon:64320"] == 1
+
+
+def test_a_viral_node_without_a_taxon_is_not_silently_grouped_with_host():
+    """is_viral True and no taxon is its own defect, and lumping it under
+    "host" would hide a failed join as an expected one."""
+    a = Assembly()
+    a.nodes = {"X": {"class": "Protein", "properties": {"is_viral": True}}}
+    a.edges = {}
+    assert orphan_detail(a)["Protein"] == {"viral taxon unknown": 1}
