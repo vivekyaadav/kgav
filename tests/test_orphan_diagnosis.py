@@ -249,3 +249,54 @@ def test_the_chain_hash_caveat_is_printed_for_a_PRO_node(tmp_path, capsys,
     out = capsys.readouterr().out
     assert "NEVER REFERENCED" in out
     assert "_sha(accession:chain_id)" in out
+
+
+# ------------------------------- the gate: a NEW viral orphan fails the build
+def _assemble_script():
+    sys.path.insert(0, str(ROOT / "scripts"))
+    return import_module("assemble_release")
+
+
+def test_the_known_orphan_is_declared_with_a_reason():
+    """Declared, not deleted. The spine's own comment on the pp1a/pp1ab
+    alias stub says an unreferenced chain id must stay resolvable because
+    "VirHostNet and IntAct cite pp1a chain ids freely". The uncleaved pp1a
+    id is exactly that, so it earns its place by being resolvable rather
+    than connected -- and the reason is on the record."""
+    m = _assemble_script()
+    assert "UniProtKB:PRO_0000449634" in m.EXPECTED_VIRAL_ORPHANS
+    why = m.EXPECTED_VIRAL_ORPHANS["UniProtKB:PRO_0000449634"]
+    assert "pp1a" in why and len(why) > 60
+
+
+def test_a_declared_viral_orphan_does_not_fail_the_build():
+    m = _assemble_script()
+    assert m.undeclared_viral_orphans(
+        [_prot("UniProtKB:PRO_0000449634")]) == []
+
+
+def test_an_undeclared_viral_orphan_does_fail_the_build():
+    """The whole point. A viral orphan was invisible inside "Protein 634"
+    in every release; the next one must stop the build instead."""
+    m = _assemble_script()
+    rows = [_prot("UniProtKB:PRO_9999999"), _prot("UniProtKB:PRO_0000449634")]
+    assert [n["id"] for n in m.undeclared_viral_orphans(rows)] == \
+        ["UniProtKB:PRO_9999999"]
+
+
+def test_host_orphans_never_fail_the_build():
+    """698 of them ship, correctly: the host proteome is ingested whole and
+    carries entries with no viral evidence. Gating on those would make the
+    check useless on its first run."""
+    m = _assemble_script()
+    hosts = [{"id": f"UniProtKB:H{i}", "class": "Protein",
+              "properties": {"is_viral": False}} for i in range(700)]
+    assert m.undeclared_viral_orphans(hosts) == []
+
+
+def test_a_node_with_no_is_viral_property_is_not_gated():
+    """SmallMolecules carry no is_viral. Treating absent as viral would
+    fail the build on 65 compounds that are not the subject of this check."""
+    m = _assemble_script()
+    assert m.undeclared_viral_orphans(
+        [{"id": "CHEMBL:1", "class": "SmallMolecule", "properties": {}}]) == []

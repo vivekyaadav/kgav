@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import sys
+import textwrap
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -17,6 +18,38 @@ from kgav.assemble import (
     orphan_detail,
 )
 from kgav.schema import load_schema, print_capped, report_violations
+
+
+#: Viral nodes that legitimately have no edges, each with the reason it is
+#: allowed to. ANY OTHER VIRAL ORPHAN FAILS THE BUILD.
+#:
+#: A host protein with no edges is expected -- the proteome is ingested
+#: whole. A viral one means the spine built a node and no layer joined it,
+#: which is a failed join, and until the host/viral split landed it was
+#: invisible inside "Protein 634" in every release.
+#:
+#: The entry below is NOT deleted, and the reason is the spine's own, from
+#: the comment on the pp1a/pp1ab alias stub: "the loser's id must remain
+#: resolvable -- VirHostNet and IntAct cite pp1a chain ids freely, and
+#: without this alias those interactions silently fail to join". The
+#: uncleaved pp1a chain id is precisely the kind an external database
+#: cites, so the node earns its place by being resolvable rather than by
+#: being connected. Declared, so it is a decision on the record instead of
+#: an anomaly nobody can read.
+EXPECTED_VIRAL_ORPHANS = {
+    "UniProtKB:PRO_0000449634":
+        "SARS-CoV-2 uncleaved pp1a. No gene symbol, so the spine writes no "
+        "ENCODED_BY, and no experiment attaches to the uncleaved form -- "
+        "evidence lands on the nsps inside it. Kept so an external citation "
+        "of the pp1a chain id resolves.",
+}
+
+
+def undeclared_viral_orphans(orphans: list[dict]) -> list[dict]:
+    """Viral orphans nobody has accounted for. These fail the build."""
+    return [n for n in orphans
+            if (n.get("properties") or {}).get("is_viral")
+            and n["id"] not in EXPECTED_VIRAL_ORPHANS]
 
 
 def _rel(p: Path, root: Path) -> str:
@@ -118,23 +151,59 @@ def main() -> int:
             indent="  ", unit="more dangling edge(s)")
         return 1
 
+    untouched_ids = set(a.nodes) - {x for k in a.edges for x in (k[0], k[2])}
+    # The KEY is the id. Reading it from the stored dict instead would make
+    # the gate depend on every layer having written an "id" field into its
+    # own node body, which is true today and is not the authority.
+    orphan_rows = [{**a.nodes[i], "id": i} for i in untouched_ids]
     detail = orphan_detail(a)
     if detail:
         print("\nnodes with no edges — a HOST protein with none is expected, "
               "the proteome is\ningested whole; a VIRAL one means the spine "
               "built it and no layer joined it:")
+        # "<- a join failed" printed directly above "DECLARED ... kept
+        # deliberately" is a report contradicting itself one line apart,
+        # which is the thing this release keeps being audited for. The flag
+        # only fires where the taxon has an UNDECLARED orphan.
+        open_taxa = {(n.get("properties") or {}).get("taxon_id")
+                     for n in undeclared_viral_orphans(orphan_rows)}
         viral_orphans = 0
         for c, by in sorted(detail.items(),
                             key=lambda kv: -sum(kv[1].values())):
             print(f"  {c:<16} {sum(by.values()):>8,}")
             for label, n in by.most_common():
-                flag = "   <- a join failed" if label.startswith("viral") else ""
-                print(f"    {label:<30} {n:>8,}{flag}")
+                flag = ""
                 if label.startswith("viral"):
                     viral_orphans += n
+                    tax = label.removeprefix("viral ")
+                    flag = ("   <- a join failed" if tax in open_taxa
+                            else "   <- declared below")
+                print(f"    {label:<30} {n:>8,}{flag}")
         if not viral_orphans:
             print("  No viral node is orphaned, so every count above is the "
                   "benign case.")
+        else:
+            declared = [(nid, why)
+                        for nid, why in sorted(EXPECTED_VIRAL_ORPHANS.items())
+                        if nid in untouched_ids]
+            for nid, why in declared:
+                print(f"\n  DECLARED  {nid}")
+                for line in textwrap.wrap(why, 70):
+                    print(f"            {line}")
+
+    undeclared = undeclared_viral_orphans(orphan_rows)
+    if undeclared:
+        print(f"\n{len(undeclared)} VIRAL node(s) with no edge and no "
+              f"declared reason. A viral orphan is a\nfailed join: the spine "
+              f"built it and no layer connected it. Run\nscripts/"
+              f"diagnose_orphans.py to see which of the three failures it "
+              f"is, then\neither fix the join or add it to "
+              f"EXPECTED_VIRAL_ORPHANS with the reason.")
+        print_capped(undeclared, 20,
+                     lambda n: f"{n['id']}   "
+                               f"{(n.get('properties') or {}).get('taxon_id')}",
+                     unit="more undeclared viral orphan(s)")
+        return 1
 
     print("\nconnectivity by predicate:")
     for p, combos in sorted(connectivity_report(a).items()):
