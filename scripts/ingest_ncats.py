@@ -281,7 +281,6 @@ def main() -> int:
             "DANGLING here\n  means the validation scope is wrong, not the "
             "edges." if not release_nodes else "")):
         return 1
-    print("\nschema: PASS")
 
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "nodes.jsonl").write_text(

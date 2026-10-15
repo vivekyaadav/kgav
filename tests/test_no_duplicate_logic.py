@@ -245,3 +245,40 @@ def test_print_capped_counts_with_a_thousands_separator():
     with redirect_stdout(buf):
         print_capped(list(range(1250)), 10)
     assert "... and 1,240 more" in buf.getvalue()
+
+
+def test_no_script_prints_its_own_schema_pass():
+    """THE OTHER HALF OF report_violations, and I missed it.
+
+    Consolidating nine SCHEMA FAIL printers into kgav.schema.report_violations
+    replaced the FAIL branch. In six scripts the replacement consumed the
+    trailing print("schema: PASS") with it; in two -- ingest_folds and
+    ingest_ncats, whose branches carried an extra note and so were edited in
+    two steps -- it did not. report_violations prints PASS itself, so those
+    two printed it twice, and the folds run showed it:
+
+        schema: PASS
+
+        schema: PASS
+        wrote .../v0.1-folds
+
+    A report saying the same thing twice is a smaller defect than one saying
+    it never, and it is the same defect: the output no longer matches the
+    code that produces it.
+    """
+    offenders = []
+    for p in sorted((ROOT / "scripts").glob("*.py")):
+        tree = ast.parse(p.read_text())
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Name)
+                    and node.func.id == "print"):
+                continue
+            emitted = "".join(
+                v.value for a in node.args for v in ast.walk(a)
+                if isinstance(v, ast.Constant) and isinstance(v.value, str))
+            if "schema: PASS" in emitted:
+                offenders.append(f"{p.name}:{node.lineno}")
+    assert not offenders, (
+        f"{offenders} print 'schema: PASS' directly; report_violations "
+        f"already prints it, so this duplicates it")

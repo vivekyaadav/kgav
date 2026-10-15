@@ -941,6 +941,11 @@ def main() -> int:
           f"The rest are the gate's refusals,\n  recorded in the graph and "
           f"filtered out by the metapath.")
 
+    # fold_edges is counted here so the breakdown adds up. It printed
+    # "110 edges" over "member_edges: 104" and left the reader to find the
+    # other six, which is the same shape as a capped list that does not say
+    # what it left out.
+    stats["fold_edges"] = len(em.edges) - stats.get("member_edges", 0)
     print(f"\n{len(em.nodes):,} TargetClass nodes | {len(em.edges):,} edges")
     for k, v in stats.most_common():
         print(f"  {k}: {v:,}")
@@ -971,7 +976,6 @@ def main() -> int:
             "chains for viruses outside the register,\n  not a defect in "
             "this layer.")):
         return 1
-    print("\nschema: PASS")
 
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "nodes.jsonl").write_text(
