@@ -455,6 +455,32 @@ def print_census(title: str, census: dict, coverage: dict | None = None,
         print(note)
 
 
+def walkable_transfers(results, spine_ids) -> tuple[list, list]:
+    """(walkable, unwalkable) allowed transfers.
+
+    A FOLD_SIMILAR_TO edge is Protein->Protein, so it needs BOTH endpoints
+    in the spine. A transfer whose comparator the spine never built is not
+    a weak hop -- it is no hop. Separated here rather than counted with the
+    rest, because "36 allowed" as a reach figure would be unreproducible:
+    M8 walking this graph would find 2.
+    """
+    walkable, unwalkable = [], []
+    for a, b, g in allowed_pairs(results):
+        both = a.node_id in spine_ids and b.node_id in spine_ids
+        (walkable if both else unwalkable).append((a, b, g))
+    return walkable, unwalkable
+
+
+def blocking_chains(unwalkable, spine_ids) -> Counter:
+    """How many transfers each un-built comparator costs."""
+    out: Counter = Counter()
+    for a, b, _g in unwalkable:
+        for c in (a, b):
+            if c.node_id not in spine_ids:
+                out[c.spec.label] += 1
+    return out
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
@@ -667,6 +693,7 @@ def main() -> int:
     # Reported rather than assumed, because the ids matching in form does
     # not mean the spine built the chain: a virus outside the register, or a
     # chain the spine skipped, still dangles.
+    spine_ids: set[str] = set()
     if args.spine and (args.spine / "nodes.jsonl").exists():
         spine_ids = {json.loads(line)["id"]
                      for line in (args.spine / "nodes.jsonl").read_text().splitlines()
@@ -675,13 +702,18 @@ def main() -> int:
         miss = [c for c in usable if c.node_id not in spine_ids]
         print(f"\njoin against {args.spine.name}: {len(hit)}/{len(usable)} "
               f"resolved chains exist as Protein nodes")
-        for c in miss[:10]:
+        # ALL OF THEM. This was miss[:10] while the line beneath it said
+        # "14 chain(s) would produce DANGLING edges", so four -- CVB3 3C,
+        # Rhinovirus A 3C, Poliovirus 3D, EV-A71 3D -- were counted and not
+        # named. In the one report that gates LAYER_PRECEDENCE.
+        for c in miss:
             print(f"    MISSING  {c.node_id:<30} {c.spec.label} "
                   f"({c.spec.family}, taxon {c.spec.virus_taxon})")
         if miss:
             print(f"  {len(miss)} chain(s) would produce DANGLING edges. The "
                   f"layer must not be added to\n  LAYER_PRECEDENCE until this "
                   f"is zero, or until those chains are dropped.")
+
     else:
         print(f"\nno spine release at {args.spine}, so the join is unchecked")
 
@@ -786,6 +818,35 @@ def main() -> int:
                  "the gate's own\n  justification, which rests on whatever "
                  "is universal here:",
                  class_census(spurned), class_coverage(spurned))
+
+    # WHAT M8 COULD ACTUALLY WALK.
+    #
+    # 36 allowed transfers is the fold layer's answer. It is not M8's:
+    # the agreed design writes one Protein->Protein FOLD_SIMILAR_TO per
+    # evaluated pair, and an edge needs BOTH endpoints in the spine.
+    # A transfer whose comparator the spine never built is not a weak
+    # hop, it is no hop -- and counting it with the rest is how "36
+    # allowed" would become a reach figure nobody could reproduce.
+    if spine_ids:
+        walkable, unwalkable = walkable_transfers(results, spine_ids)
+        print(f"\n  of {len(walkable) + len(unwalkable)} allowed transfers, "
+              f"{len(walkable)} have BOTH ends in the spine and could be "
+              f"written\n  as Protein->Protein FOLD_SIMILAR_TO edges:")
+        for a, b, g in sorted(walkable, key=lambda r: (r[0].spec.label,
+                                                       r[1].spec.label)):
+            print(f"    [{g.strength:<6}] {a.spec.label:<20} -> "
+                  f"{b.spec.label}")
+        if not walkable:
+            print("    (none)")
+        blocked = blocking_chains(unwalkable, spine_ids)
+        if blocked:
+            print(f"\n  the other {len(unwalkable)} are blocked by comparator "
+                  f"chains the spine does not build:")
+            for label, n in blocked.most_common():
+                print(f"    {label:<22} blocks {n:>2} transfer(s)")
+            strengths = Counter(g.strength for _a, _b, g in unwalkable)
+            print("    by strength: " + ", ".join(
+                f"{k} {v}" for k, v in sorted(strengths.items())))
 
     # The refusals that matter: same fold, different nucleophile.
     key_refusals = refused_with_shared_fold(results)

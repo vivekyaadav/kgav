@@ -998,3 +998,65 @@ def test_a_universal_class_lists_nobody_as_lacking_it():
     n, counts = ing.class_census(res)["nucleophile"]
     assert counts["IPR009003"] == n
     assert ing.class_coverage(res)["nucleophile"]["IPR009003"] == []
+
+
+# ------------------------------------------- what M8 could actually walk
+def _sc(label, pro, role="protease"):
+    c = ResolvedChain(spec=ChainSpec(label, "P", ("p",), "F", role, "T:1"),
+                      chain_name=label, start=1, end=9, chain_pro_id=pro)
+    return c
+
+
+def test_a_transfer_whose_comparator_is_not_built_is_not_a_hop():
+    """36 allowed is the fold layer's answer, not M8's. A FOLD_SIMILAR_TO
+    edge is Protein->Protein, so both ends must exist in the spine. The
+    spine builds 7 coronaviruses and Zika; every picornavirus and most
+    flavivirus comparators are outside it, which is why 20 strong protease
+    transfers -- the conservation hypothesis's own flagship case -- are
+    worth nothing to M8 as the graph stands."""
+    from kgav.folds import GateResult
+    mpro = _sc("SARS-CoV-2 3CLpro", "PRO_IN1")
+    pico = _sc("Poliovirus 3C", "PRO_OUT")
+    zika = _sc("Zika NS5", "PRO_IN2", "polymerase")
+    rdrp = _sc("SARS-CoV-2 RdRp", "PRO_IN3", "polymerase")
+    g = lambda s: GateResult(True, "nucleophile", True, ["IPR009003"], s, "")  # noqa: E731
+    res = [(mpro, pico, g("strong")), (rdrp, zika, g("weak"))]
+    spine = {"UniProtKB:PRO_IN1", "UniProtKB:PRO_IN2", "UniProtKB:PRO_IN3"}
+    walk, blocked_pairs = _ingest().walkable_transfers(res, spine)
+    assert [r[1].spec.label for r in walk] == ["Zika NS5"]
+    assert [r[1].spec.label for r in blocked_pairs] == ["Poliovirus 3C"]
+
+
+def test_the_blocking_chain_is_named_and_its_cost_counted():
+    """Which comparator to build next is a scope decision, and it should be
+    made against how many transfers each one unblocks."""
+    from kgav.folds import GateResult
+    ins = [_sc(f"in{i}", f"PRO_I{i}") for i in range(3)]
+    out = _sc("Poliovirus 3C", "PRO_OUT")
+    res = [(c, out, GateResult(True, "nucleophile", True, ["X"], "strong", ""))
+           for c in ins]
+    spine = {c.node_id for c in ins}
+    ing = _ingest()
+    _w, un = ing.walkable_transfers(res, spine)
+    assert ing.blocking_chains(un, spine) == {"Poliovirus 3C": 3}
+
+
+def test_a_pair_with_neither_end_built_counts_against_both():
+    """Two unbuilt comparators each cost that transfer, and a scope list
+    that credited only one would understate the cheaper fix."""
+    from kgav.folds import GateResult
+    a, b = _sc("HCV NS5B", "PRO_A"), _sc("Poliovirus 3D", "PRO_B")
+    res = [(a, b, GateResult(True, "motif", True, ["IPR007094"], "weak", ""))]
+    ing = _ingest()
+    _w, un = ing.walkable_transfers(res, set())
+    assert ing.blocking_chains(un, set()) == {"HCV NS5B": 1,
+                                              "Poliovirus 3D": 1}
+
+
+def test_refused_pairs_never_appear_as_walkable():
+    """Walkability is about edges that would be written; a refusal writes
+    nothing whatever the spine holds."""
+    from kgav.folds import GateResult
+    a, b = _sc("A", "PRO_A"), _sc("B", "PRO_B")
+    res = [(a, b, GateResult(False, "nucleophile", False, ["X"], "none", ""))]
+    assert _ingest().walkable_transfers(res, {a.node_id, b.node_id}) == ([], [])
