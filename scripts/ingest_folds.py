@@ -382,22 +382,75 @@ def class_census(pairs) -> dict:
     return {m: (n, c) for m, (n, c) in out.items()}
 
 
-def print_census(title: str, census: dict, *, note: str = "") -> None:
+def class_coverage(pairs) -> dict:
+    """mode -> {class: [labels of participating chains that LACK it]}.
+
+    THE COUNTS ALONE INVITE A WRONG READING, and I made it one message
+    after writing them. Seeing "IPR043502 10/16" I called the class
+    discriminating. It is not. Every count below the maximum in the
+    2026-10-15 run is a hole in annotation coverage:
+
+        SSF50494          10/20 allowed   absent from both SARS 3CLpros
+        G3DSA:2.40.10.10  18/54 refused   absent from 4 of the 6 NS3pros
+        SSF56672           6/16 allowed   absent from both coronavirus RdRps
+        IPR001205          4/16 allowed   absent from the 3 flavivirus NS5s
+
+    A member database either has a hit on an entry or it does not, and a
+    pair count falls mechanically with every chain missing the class. Read
+    as conservation it says the opposite of what it means: SSF50494 at
+    10/20 looks like a class that distinguishes some coronavirus proteases
+    from others, when it is a class SUPERFAMILY did not annotate on two
+    entries.
+
+    A count is evidence about chemistry only where coverage is complete.
+    """
+    seen: dict = {}
+    for a, b, g in pairs:
+        m = seen.setdefault(g.mode, {"chains": {}, "classes": set()})
+        for c in (a, b):
+            m["chains"][c.spec.label] = {x["accession"] for x in c.classes}
+        m["classes"] |= set(g.shared)
+    return {mode: {acc: sorted(lab for lab, cl in v["chains"].items()
+                               if acc not in cl)
+                   for acc in sorted(v["classes"])}
+            for mode, v in seen.items()}
+
+
+def print_census(title: str, census: dict, coverage: dict | None = None,
+                 *, note: str = "") -> None:
+    """Each count with the reason it is not the maximum, where there is one.
+
+    A bare count reads as conservation and is usually coverage. Naming the
+    chains that lack the class puts the cause beside the number instead of
+    leaving the reader -- me, last time -- to supply a flattering one.
+    """
     if not census:
         return
+    coverage = coverage or {}
     print(f"\n  {title}")
     for mode in sorted(census):
         n, counts = census[mode]
         universal = [a for a, k in counts.items() if k == n]
         print(f"    {mode} mode — {n} pair(s), {len(counts)} distinct class(es)")
         for acc, k in counts.most_common():
-            tag = "   <- in every pair, so it ranks nothing" if k == n else ""
-            print(f"      {acc:<22} {k:>3}/{n}{tag}")
+            if k == n:
+                why = "   <- in every pair, so it ranks nothing"
+            else:
+                lacking = coverage.get(mode, {}).get(acc, [])
+                why = ("   <- absent from " + ", ".join(lacking)
+                       if lacking else "")
+            print(f"      {acc:<22} {k:>3}/{n}{why}")
         if universal and len(universal) == len(counts):
             print(f"      EVERY shared class in {mode} mode is universal: all "
                   f"{n} pairs carry\n      exactly the same fold evidence, so "
                   f"the fold cannot prefer one over\n      another. "
                   f"Eligibility, not similarity.")
+        partial = [a for a, k in counts.items() if k < n]
+        if partial and all(coverage.get(mode, {}).get(a) for a in partial):
+            print("      Every count below the maximum here is explained by a "
+                  "chain lacking the\n      class, which is annotation "
+                  "coverage and not conservation. None of\n      these spreads "
+                  "is evidence about chemistry.")
     if note:
         print(note)
 
@@ -725,12 +778,14 @@ def main() -> int:
     # from a serine one" is a claim about pairs the gate REFUSES, so the
     # class that is universal among those is the one doing the work. The
     # module header named SSF50494 for years; this is what checks it.
+    taken, spurned = allowed_pairs(results), refused_with_shared_fold(results)
     print_census("shared classes among ALLOWED transfers, by how many "
-                 "pairs carry them:", class_census(allowed_pairs(results)))
+                 "pairs carry them:",
+                 class_census(taken), class_coverage(taken))
     print_census("shared classes among REFUSED-DESPITE-SHARED-FOLD pairs — "
                  "the gate's own\n  justification, which rests on whatever "
                  "is universal here:",
-                 class_census(refused_with_shared_fold(results)))
+                 class_census(spurned), class_coverage(spurned))
 
     # The refusals that matter: same fold, different nucleophile.
     key_refusals = refused_with_shared_fold(results)

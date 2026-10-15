@@ -931,3 +931,70 @@ def test_the_header_no_longer_claims_what_the_run_refutes():
     assert "Coronaviridae 3CLpro : SSF50494" in head   # kept, as the error
     assert "THE TABLE THAT USED TO BE HERE WAS WRONG" in head
     assert "the nucleophile last in the same arrangement." not in head
+
+
+# ------------------------------------ a count below the maximum is coverage
+def _ch(label, accs, role="protease"):
+    return ResolvedChain(
+        spec=ChainSpec(label, "P", ("p",), "F", role, "T:1"),
+        classes=[{"accession": a} for a in accs])
+
+
+def _gp(a, b, allowed=True, mode="nucleophile"):
+    from kgav.folds import GateResult
+    shared = sorted({x["accession"] for x in a.classes}
+                    & {x["accession"] for x in b.classes})
+    return (a, b, GateResult(allowed, mode, allowed, shared, "strong", ""))
+
+
+def test_a_class_count_below_the_maximum_names_the_chains_that_lack_it():
+    """I READ ONE OF THESE COUNTS AS SIGNAL AND IT WAS A COVERAGE HOLE.
+
+    Seeing "SSF50494 10/20" I called it a class that distinguishes some
+    coronavirus proteases from others. It is a class SUPERFAMILY did not
+    annotate on two entries -- both SARS 3CLpros -- and the count falls
+    mechanically from that. The number has to arrive with its cause.
+    """
+    core = ["G3DSA:2.40.10.10", "IPR009003"]
+    covs = [_ch("SARS-CoV-2 3CLpro", core), _ch("SARS-CoV 3CLpro", core),
+            _ch("MERS-CoV 3CLpro", core + ["SSF50494"])]
+    threecs = [_ch(n, core + ["SSF50494"])
+               for n in ("EV-A71 3C", "Poliovirus 3C")]
+    res = [_gp(a, b) for a in covs for b in threecs]
+    cov = _ingest().class_coverage(res)["nucleophile"]
+    assert cov["SSF50494"] == ["SARS-CoV 3CLpro", "SARS-CoV-2 3CLpro"]
+    assert cov["IPR009003"] == []          # complete coverage, no cause needed
+
+
+def test_coverage_is_read_from_the_chains_not_inferred_from_intersections():
+    """A class on a chain but never in any shared set is still ON that
+    chain. Deducing coverage from the pair intersections would report it
+    missing from everything."""
+    a = _ch("A", ["IPR009003", "PRIVATE1"])
+    b = _ch("B", ["IPR009003"])
+    cov = _ingest().class_coverage([_gp(a, b)])["nucleophile"]
+    assert cov == {"IPR009003": []}        # PRIVATE1 was never shared
+    # and it is genuinely on A, so nothing claims otherwise
+    assert "PRIVATE1" not in cov
+
+
+def test_modes_keep_separate_coverage():
+    pro = _gp(_ch("P1", ["IPR009003"]), _ch("P2", ["IPR009003"]))
+    pol = _gp(_ch("Q1", ["IPR007094"], "polymerase"),
+              _ch("Q2", ["IPR007094", "SSF56672"], "polymerase"),
+              mode="motif")
+    cov = _ingest().class_coverage([pro, pol])
+    assert set(cov) == {"nucleophile", "motif"}
+    assert cov["motif"] == {"IPR007094": []}
+    assert "Q1" not in str(cov["nucleophile"])
+
+
+def test_a_universal_class_lists_nobody_as_lacking_it():
+    """The two readings must not collide: 'in every pair' and 'absent from
+    nobody' are the same fact and the report prints only the first."""
+    a, b = _ch("A", ["IPR009003"]), _ch("B", ["IPR009003"])
+    ing = _ingest()
+    res = [_gp(a, b)]
+    n, counts = ing.class_census(res)["nucleophile"]
+    assert counts["IPR009003"] == n
+    assert ing.class_coverage(res)["nucleophile"]["IPR009003"] == []
