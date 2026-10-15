@@ -353,18 +353,51 @@ def assemble(layers: dict[str, Path],
     return a
 
 
-def orphan_nodes(a: Assembly) -> Counter:
-    """Nodes with no edges at all, counted by class.
+def orphan_detail(a: Assembly) -> dict[str, Counter]:
+    """class -> Counter of orphans by whether they are viral, and whose.
 
-    Not an error -- the host proteome contributes many proteins with no
-    coronavirus evidence -- but a large orphan count in a class that should be
-    connected (SmallMolecule, for instance) means a join failed.
+    THE COUNT ALONE CANNOT BE READ. The docstring below has always said "a
+    large orphan count in a class that should be connected means a join
+    failed", and the release reports 634 orphan Proteins -- with no way to
+    tell whether that is the benign case the same sentence names (host
+    proteome entries with no coronavirus evidence) or the failure.
+
+    The two are distinguishable, and by the node's own property. A HOST
+    protein with no edges is expected: the proteome is ingested whole. A
+    VIRAL protein with no edges is not -- the spine built it and no layer
+    connected it, which is exactly the failed join. Splitting on is_viral
+    turns one unreadable number into two readable ones, and names the
+    taxon so a whole virus failing to join is visible as a whole virus.
     """
     touched: set[str] = set()
     for k in a.edges:
         touched.add(k[0])
         touched.add(k[2])
-    return Counter(n["class"] for nid, n in a.nodes.items() if nid not in touched)
+    out: dict[str, Counter] = defaultdict(Counter)
+    for nid, n in a.nodes.items():
+        if nid in touched:
+            continue
+        props = n.get("properties", {}) or {}
+        viral = props.get("is_viral")
+        if viral:
+            label = f"viral {props.get('taxon_id') or 'taxon unknown'}"
+        elif viral is False:
+            label = "host"
+        else:
+            label = "no is_viral property"
+        out[n["class"]][label] += 1
+    return dict(out)
+
+
+def orphan_nodes(a: Assembly) -> Counter:
+    """Nodes with no edges at all, counted by class.
+
+    Not an error -- the host proteome contributes many proteins with no
+    coronavirus evidence -- but a large orphan count in a class that should be
+    connected (SmallMolecule, for instance) means a join failed. Use
+    orphan_detail to tell those two apart; this is its total.
+    """
+    return Counter({c: sum(v.values()) for c, v in orphan_detail(a).items()})
 
 
 def connectivity_report(a: Assembly) -> dict[str, Counter]:

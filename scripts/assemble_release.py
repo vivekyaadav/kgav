@@ -14,7 +14,7 @@ from kgav.assemble import (
     LAYER_PRECEDENCE,
     assemble,
     connectivity_report,
-    orphan_nodes,
+    orphan_detail,
 )
 from kgav.schema import load_schema, print_capped, report_violations
 
@@ -118,12 +118,23 @@ def main() -> int:
             indent="  ", unit="more dangling edge(s)")
         return 1
 
-    orphans = orphan_nodes(a)
-    if orphans:
-        print("\nnodes with no edges (not an error; a large count in a class that "
-              "should be connected means a join failed):")
-        for c, n in orphans.most_common():
-            print(f"  {c:<16} {n:>8,}")
+    detail = orphan_detail(a)
+    if detail:
+        print("\nnodes with no edges — a HOST protein with none is expected, "
+              "the proteome is\ningested whole; a VIRAL one means the spine "
+              "built it and no layer joined it:")
+        viral_orphans = 0
+        for c, by in sorted(detail.items(),
+                            key=lambda kv: -sum(kv[1].values())):
+            print(f"  {c:<16} {sum(by.values()):>8,}")
+            for label, n in by.most_common():
+                flag = "   <- a join failed" if label.startswith("viral") else ""
+                print(f"    {label:<30} {n:>8,}{flag}")
+                if label.startswith("viral"):
+                    viral_orphans += n
+        if not viral_orphans:
+            print("  No viral node is orphaned, so every count above is the "
+                  "benign case.")
 
     print("\nconnectivity by predicate:")
     for p, combos in sorted(connectivity_report(a).items()):
