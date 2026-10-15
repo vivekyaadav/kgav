@@ -13,7 +13,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.emit import Emit
-from kgav.schema import load_schema
+from kgav.schema import load_schema, report_violations
 from kgav.selectivity import SI_THRESHOLD, ingest_selectivity, query_pairs
 from kgav.virus_register import declared_taxa
 
@@ -83,12 +83,8 @@ def main() -> int:
         em.edges = [e for e in em.edges if e not in dangling]
 
     violations = load_schema().validate_batch(nodes, em.edges)
-    if violations:
-        print(f"\nSCHEMA FAIL — {len(violations)} violations")
-        for v in violations[:8]:
-            print(f"  {v}")
+    if report_violations(violations):
         return 1
-    print("\nschema: PASS")
 
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "nodes.jsonl").write_text("")

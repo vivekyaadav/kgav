@@ -16,7 +16,7 @@ from kgav.assemble import (
     connectivity_report,
     orphan_nodes,
 )
-from kgav.schema import load_schema
+from kgav.schema import load_schema, report_violations
 
 
 def _rel(p: Path, root: Path) -> str:
@@ -131,15 +131,8 @@ def main() -> int:
     schema = schema_early
     print("\nvalidating assembled graph")
     violations = schema.validate_batch(a.nodes.values(), a.edges.values())
-    if violations:
-        print(f"SCHEMA FAIL — {len(violations):,} violations")
-        from collections import Counter
-        for code, n in Counter(v.code for v in violations).most_common():
-            print(f"  {code:<28} {n:>7,}")
-        for v in violations[:6]:
-            print(f"    {v}")
+    if report_violations(violations):
         return 1
-    print("schema: PASS")
 
     # Hub exclusion is class-scoped. A global cut would exclude the virus
     # nodes (SARS-CoV-2 has degree 10,679) and the viral replicase -- but those

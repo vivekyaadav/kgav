@@ -17,7 +17,7 @@ from kgav.host_targets import (
     load_mechanisms,
     query_host_activities,
 )
-from kgav.schema import load_schema
+from kgav.schema import load_schema, report_violations
 
 
 def main() -> int:
@@ -79,12 +79,8 @@ def main() -> int:
 
     all_nodes = list(index.nodes.values()) + list(em.nodes.values())
     violations = load_schema().validate_batch(all_nodes, em.edges)
-    if violations:
-        print(f"\nSCHEMA FAIL — {len(violations)} violations")
-        for v in violations[:8]:
-            print(f"  {v}")
+    if report_violations(violations):
         return 1
-    print("\nschema: PASS")
 
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in em.nodes.values()))

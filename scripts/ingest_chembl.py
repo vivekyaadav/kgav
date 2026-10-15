@@ -23,7 +23,7 @@ from kgav.chembl import (
     query_activities,
 )
 from kgav.emit import Emit
-from kgav.schema import load_schema
+from kgav.schema import load_schema, report_violations
 from kgav.units import CONCENTRATION_FACTORS
 from kgav.virus_register import declared_taxa
 
@@ -139,12 +139,8 @@ def main() -> int:
 
     all_nodes = list(index.nodes.values()) + list(em.nodes.values())
     violations = load_schema().validate_batch(all_nodes, em.edges)
-    if violations:
-        print(f"\nSCHEMA FAIL — {len(violations)} violations")
-        for v in violations[:8]:
-            print(f"  {v}")
+    if report_violations(violations):
         return 1
-    print("\nschema: PASS")
 
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in em.nodes.values()))
