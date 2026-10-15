@@ -173,3 +173,79 @@ def test_a_release_with_no_viral_orphan_says_so_rather_than_printing_nothing(
                          "--releases", str(tmp_path)])
     assert d.main() == 0
     assert "No viral orphan" in capsys.readouterr().out
+
+
+# ------------------------- the correction: a label is not identity
+def test_the_same_label_in_a_different_virus_is_not_the_same_protein():
+    """THE BUG THIS FILE SHIPPED WITH.
+
+    Run against v0.1 the script called SARS-CoV-2's orphaned pp1a a
+    DISCARDED IDENTIFIER on six matches -- every one a different
+    coronavirus whose pp1a chain carries the same description, "Replicase
+    polyprotein 1a". ingest_spine dedups chain labels in `seen_chains`,
+    which is local to ingest_virus, so one label per virus is expected and
+    proves nothing across viruses. Six different proteins, reported as one
+    protein filed twice.
+
+    My first test for siblings() used _prot() for both nodes, so both
+    carried the same taxon and the cross-virus case was never exercised:
+    a fixture correct about itself and silent about the world, which is
+    the failure this project keeps finding.
+    """
+    d = _diag()
+    me = {"id": "UniProtKB:PRO_0000449634", "class": "Protein",
+          "properties": {"is_viral": True, "taxon_id": "NCBITaxon:2697049",
+                         "mature_peptide": "Replicase polyprotein 1a"}}
+    others = [{"id": f"UniProtKB:PRO_000033{i}", "class": "Protein",
+               "properties": {"is_viral": True, "taxon_id": f"NCBITaxon:{t}",
+                              "mature_peptide": "Replicase polyprotein 1a"}}
+              for i, t in enumerate(("694009", "1335626", "11137", "277944",
+                                     "31631", "290028"))]
+    connected = {o["id"] for o in others}
+    assert d.siblings(me, [me, *others], connected) == []
+
+    from collections import Counter
+    assert d.classify(me, Counter(), []) == "NEVER REFERENCED"
+
+
+def test_the_same_label_in_the_SAME_virus_is_still_reported():
+    """The taxon clause must not switch the check off. Within one virus the
+    spine's own dedup should already have collapsed a repeated label, so a
+    same-taxon match is a finding about that dedup."""
+    d = _diag()
+    me = _prot("P:a", mature_peptide="nsp16")
+    twin = _prot("P:b", mature_peptide="nsp16")      # same taxon via _prot
+    assert d.siblings(me, [me, twin], {"P:b"}) == \
+        [("mature_peptide", "P:b", True)]
+
+
+def test_a_chain_sequence_hash_is_built_from_the_id_not_the_sequence():
+    """Anchored to ingest_spine's source, because the script's advice
+    depends on it: a chain's sequence_hash is _sha(accession:chain_id), so
+    it is injective and CANNOT match another chain's. Reading its absence
+    as "not a duplicate" would be wrong, and the diagnostic says so only
+    while this stays true.
+    """
+    src = (ROOT / "scripts" / "ingest_spine.py").read_text()
+    assert 'sequence_hash=_sha(f"{acc}:{cid}")' in src   # chain nodes
+    assert "sequence_hash=_sha(seq)" in src              # entry-level nodes
+
+
+def test_the_chain_hash_caveat_is_printed_for_a_PRO_node(tmp_path, capsys,
+                                                         monkeypatch):
+    """A reader who sees NEVER REFERENCED needs to know the strongest
+    identity check was unavailable, not that it passed."""
+    d = _diag()
+    rel = tmp_path / "v0.1"
+    rel.mkdir()
+    (rel / "nodes.jsonl").write_text(json.dumps(
+        _prot("UniProtKB:PRO_0000449634",
+              mature_peptide="Replicase polyprotein 1a")) + "\n")
+    (rel / "edges.jsonl").write_text("")
+    monkeypatch.setattr(sys, "argv",
+                        ["diagnose_orphans", "--release", str(rel),
+                         "--releases", str(tmp_path)])
+    assert d.main() == 0
+    out = capsys.readouterr().out
+    assert "NEVER REFERENCED" in out
+    assert "_sha(accession:chain_id)" in out

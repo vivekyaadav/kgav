@@ -81,22 +81,46 @@ def layer_references(releases: Path, prefix: str = "v0.1-") -> dict[str, Counter
     return out
 
 
-def siblings(node: dict, nodes: list[dict], connected: set[str]) -> list[tuple]:
-    """Other nodes sharing an identity-bearing property with this one.
+#: Identity keys, strongest first, with what a match actually proves.
+#:
+#: sequence_hash IS NOT ALWAYS A HASH OF THE SEQUENCE. ingest_spine builds
+#: it two ways: _sha(seq) on an entry-level protein, and _sha(f"{acc}:{cid}")
+#: on a CHAIN. The second is a hash of the identifier, so it is injective by
+#: construction and two distinct chains can never share it. A chain match is
+#: therefore real evidence; the absence of one proves nothing.
+#:
+#: mature_peptide is a human-readable chain description, not an identity.
+IDENTITY_KEYS = {
+    "sequence_hash": "same sequence hash",
+    "mature_peptide": "same chain label",
+}
 
-    THE DOMINANT BUG CLASS IN THIS REPO IS A DISCARDED IDENTIFIER, four
-    times over by the README's own count. If a protein is orphaned while
-    another node carrying its sequence hash has edges, nothing was lost --
-    it was filed under a second id, and the two should be one node or
-    joined by SAME_AS.
+
+def siblings(node: dict, nodes: list[dict], connected: set[str]) -> list[tuple]:
+    """Other nodes of the same class AND TAXON sharing an identity key.
+
+    THE TAXON CLAUSE IS THE WHOLE CORRECTION. Without it this reported
+    SARS-CoV-2's orphaned pp1a as a DISCARDED IDENTIFIER on the strength of
+    six matches -- every one of them a different coronavirus whose pp1a
+    chain carries the same label, "Replicase polyprotein 1a". ingest_spine
+    dedups chain labels in `seen_chains`, which is LOCAL to ingest_virus, so
+    the same label across viruses is expected and means nothing. Six
+    different proteins, reported as one filed twice.
+
+    A label is only identity-bearing inside one taxon, and there the spine's
+    own dedup should already have collapsed it -- so a same-taxon label
+    match is itself a finding about that dedup.
     """
     props = node.get("properties") or {}
-    keys = [k for k in ("sequence_hash", "mature_peptide") if props.get(k)]
+    tax = props.get("taxon_id")
+    keys = [k for k in IDENTITY_KEYS if props.get(k)]
     found = []
     for other in nodes:
         if other["id"] == node["id"] or other.get("class") != node.get("class"):
             continue
         op = other.get("properties") or {}
+        if op.get("taxon_id") != tax:
+            continue
         for k in keys:
             if op.get(k) == props[k]:
                 found.append((k, other["id"], other["id"] in connected))
@@ -172,9 +196,10 @@ def main() -> int:
             print("      -> assembly dropped them. Precedence, merging or an "
                   "edge-key collision.")
         elif sibs:
-            print("      another node carries the same identity property:")
+            print("      another node of the SAME TAXON carries the same "
+                  "identity property:")
             for k, oid, conn in sibs:
-                print(f"        {k:<16} {oid}   "
+                print(f"        {IDENTITY_KEYS[k]:<20} {oid}   "
                       f"{'HAS edges' if conn else 'also orphaned'}")
             print("      -> the evidence is filed under a second id for the "
                   "same protein.")
@@ -183,6 +208,13 @@ def main() -> int:
                    if not props.get("gene_symbol")
                    else "has a gene_symbol, so even ENCODED_BY is missing")
             print(f"      no layer emitted any edge naming it; {why}.")
+            if str(n["id"]).startswith("UniProtKB:PRO_"):
+                print("      NOTE this is a chain node, whose sequence_hash "
+                      "is _sha(accession:chain_id)\n      -- a hash of the "
+                      "identifier. It cannot match another chain's, so it "
+                      "rules\n      nothing out. Only the label was "
+                      "available to compare, and a label is\n      not "
+                      "identity.")
         print()
 
     print("verdicts:")
