@@ -1060,3 +1060,56 @@ def test_refused_pairs_never_appear_as_walkable():
     a, b = _sc("A", "PRO_A"), _sc("B", "PRO_B")
     res = [(a, b, GateResult(False, "nucleophile", False, ["X"], "none", ""))]
     assert _ingest().walkable_transfers(res, {a.node_id, b.node_id}) == ([], [])
+
+
+# ------------------------------- marginal gain, not blame count
+def _diag():
+    import sys
+    from importlib import import_module
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    return import_module("diagnose_comparator_cost")
+
+
+def test_building_one_of_two_missing_comparators_unblocks_nothing():
+    """blocking_chains charges HCV NS5B -> Poliovirus 3D to BOTH, so a
+    scope list built from it would promise a gain that building either one
+    alone does not deliver. The marginal split is the honest figure."""
+    from kgav.folds import GateResult
+    a = _sc("HCV NS5B", "PRO_A", "polymerase")
+    b = _sc("Poliovirus 3D", "PRO_B", "polymerase")
+    a.spec.virus_taxon, b.spec.virus_taxon = "NCBITaxon:11103", "NCBITaxon:12080"
+    res = [(a, b, GateResult(True, "motif", True, ["IPR007094"], "weak", ""))]
+    ing = _ingest()
+    _w, blocked = ing.walkable_transfers(res, set())
+    # the blame count credits each end
+    assert ing.blocking_chains(blocked, set()) == {"HCV NS5B": 1,
+                                                   "Poliovirus 3D": 1}
+    # but building either alone leaves the pair unwalkable
+    for only in ({a.node_id}, {b.node_id}):
+        assert ing.walkable_transfers(res, only)[0] == []
+    # and building both makes it walkable
+    assert len(ing.walkable_transfers(res, {a.node_id, b.node_id})[0]) == 1
+
+
+def test_the_register_states_are_the_three_the_config_encodes():
+    """built, surveyed-with-curation, and absent are different costs, and
+    the four surveyed flaviviruses turned out to unblock almost nothing --
+    so the state has to be reported beside the gain, not instead of it."""
+    cfg = {"viruses": [{"taxon": 2697049, "proteome_id": "UP1"}],
+           "surveyed": [{"taxon": 11060, "proteome_id": "UP2",
+                         "chain_source": {"accession": "P29990"}},
+                        {"taxon": 11053, "proteome_id": None}]}
+    st = _diag().register_state(cfg)
+    assert st["2697049"][0] == "BUILT"
+    assert st["11060"][0] == "SURVEYED"
+    assert st["11053"][0] == "SURVEYED (no chain_source)"
+    assert "12080" not in st          # picornaviruses are in neither list
+
+
+def test_a_built_virus_is_never_reported_as_surveyed():
+    """The config lists Zika in viruses; if it also appeared in surveyed,
+    the state must stay BUILT or the menu would offer work already done."""
+    cfg = {"viruses": [{"taxon": 64320, "proteome_id": "UP000007241"}],
+           "surveyed": [{"taxon": 64320, "proteome_id": "UPOLD",
+                         "chain_source": {"accession": "X"}}]}
+    assert _diag().register_state(cfg)["64320"] == ("BUILT", "UP000007241")

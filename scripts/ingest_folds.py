@@ -887,12 +887,25 @@ def main() -> int:
     # emits classes and membership only, and metapath_reach reports M8 as
     # reaching nothing rather than letting it look scored.
     if any(g.allowed for _a, _b, g in results):
-        n_allowed = sum(1 for _a, _b, g in results if g.allowed)
-        print(f"\n  NOTE: {n_allowed} allowed transfers are NOT written as "
-              f"FOLD_SIMILAR_TO edges.\n  M8 therefore has no similarity hop to "
-              f"walk and will report zero reach. See the\n  comment at this "
-              f"line before changing it -- the previous version emitted\n  "
-              f"self-loops, which validate cleanly and are silently unwalkable.")
+        n_allowed = len(allowed_pairs(results))
+        # "n allowed transfers are NOT written" implied that writing them
+        # would give M8 n hops. It would give it the walkable subset and
+        # n - that dangling edges, which is the self-loop mistake again in
+        # a different shape: edges that validate and cannot be walked.
+        n_walk = (len(walkable_transfers(results, spine_ids)[0])
+                  if spine_ids else None)
+        reach = (f"{n_walk} of them have both endpoints in the spine, so "
+                 f"writing all\n  {n_allowed} would give M8 {n_walk} hop(s) "
+                 f"and {n_allowed - n_walk} dangling edge(s)."
+                 if n_walk is not None else
+                 "No spine was checked, so how many could be written is "
+                 "unknown.")
+        print(f"\n  NOTE: none of the {n_allowed} allowed transfers is written "
+              f"as a\n  FOLD_SIMILAR_TO edge, so M8 has no similarity hop and "
+              f"reports zero reach.\n  {reach}\n  See the comment at this line "
+              f"before changing it -- the previous version\n  emitted "
+              f"self-loops, which validate cleanly and are silently "
+              f"unwalkable.")
 
     print(f"\n{len(em.nodes):,} TargetClass nodes | {len(em.edges):,} edges")
     for k, v in stats.most_common():
