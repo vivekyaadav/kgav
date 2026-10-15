@@ -25,8 +25,19 @@ def _chain(label, family, role, cat_type, nucleophile, classes):
                                   for a, n in classes])
 
 
-# Measured in phase 0: all three families share SSF50494 and G3DSA:2.40.10.10.
-SHARED_PROTEASE_FOLD = [("SSF50494", "Trypsin-like serine protease"),
+# THIS FIXTURE SAID "Measured in phase 0: all three families share SSF50494
+# and G3DSA:2.40.10.10" and gave SARS-CoV-2 Mpro both. The 2026-10-15 run
+# says SARS-CoV-2 3CLpro carries NEITHER against four of the six NS3pros,
+# and never carries SSF50494 at all -- deducible from the printed
+# intersections, since MERS and 229E share SSF50494 with EV-A71 3C and the
+# two SARS 3CLpros do not. The fixture asserted something false about the
+# world and passed for months, because a fixture is only ever checked
+# against itself.
+#
+# IPR009003, Peptidase S1 PA clan, is what every cross-family protease pair
+# really carries. The fold still cannot separate cysteine from serine, so
+# the gate's reason to exist is unchanged -- only the class doing it.
+SHARED_PROTEASE_FOLD = [("IPR009003", "Peptidase S1, PA clan"),
                         ("G3DSA:2.40.10.10", "Trypsin-like serine protease")]
 SHARED_RDRP = [("IPR043502", "DNA/RNA polymerase superfamily"),
                ("IPR007094", "RNA-directed RNA polymerase, catalytic domain")]
@@ -49,19 +60,23 @@ def test_same_nucleophile_and_shared_fold_is_allowed():
     This is the transfer the conservation hypothesis predicts."""
     g = gate(COV_MPRO, PICO_3C)
     assert g.allowed and g.mode == "nucleophile" and g.strength == "strong"
-    assert "SSF50494" in g.shared
+    assert "IPR009003" in g.shared
 
 
 def test_different_nucleophile_is_refused_despite_identical_fold():
-    """THE central check. Phase 0 measured that SARS-CoV-2 Mpro and HCV NS3
-    share SSF50494 and G3DSA:2.40.10.10 -- by fold they are indistinguishable.
-    Without this gate M8 recommends nirmatrelvir for hepatitis C."""
+    """THE central check. The run measures SARS-CoV-2 3CLpro and HCV NS3pro
+    sharing G3DSA:2.40.10.10 and IPR009003 -- by fold they are
+    indistinguishable. Without this gate M8 recommends nirmatrelvir for
+    hepatitis C.
+
+    The docstring here used to cite SSF50494, which neither SARS chain
+    carries."""
     g = gate(COV_MPRO, HCV_NS3)
     assert not g.allowed
     assert g.catalytic_type_match is False
     assert "cysteine" in g.reason and "serine" in g.reason
     # the shared fold is still reported, so the refusal is explicable
-    assert "SSF50494" in g.shared
+    assert "IPR009003" in g.shared
 
 
 def test_same_nucleophile_without_shared_fold_is_refused():
@@ -844,34 +859,52 @@ def _pair(mode, shared, allowed=True):
     return (c, c, GateResult(allowed, mode, True, list(shared), "strong", ""))
 
 
-def test_a_class_in_every_allowed_pair_is_counted_as_such():
+def test_a_class_in_every_pair_is_counted_as_such():
     """IPR007094 is "RNA-directed RNA polymerase, catalytic domain". Two
     polymerases sharing it says they are both polymerases -- a constant
-    across the mode, which cannot rank one comparator above another."""
+    across the bucket, which cannot rank one comparator above another."""
     res = ([_pair("motif", ["IPR007094", "IPR043502"])] * 10
            + [_pair("motif", ["IPR001205", "IPR007094"])] * 4)
-    n, counts = _ingest().shared_class_census(res)["motif"]
+    ing = _ingest()
+    n, counts = ing.class_census(ing.allowed_pairs(res))["motif"]
     assert n == 14
     assert counts["IPR007094"] == 14          # universal
     assert counts["IPR043502"] == 10          # discriminating
     assert counts["IPR001205"] == 4
 
 
-def test_refused_pairs_are_not_counted():
-    """The census describes the evidence behind transfers that WERE made.
-    A refusal's shared fold is the gate's story, not the transfer's."""
-    res = [_pair("nucleophile", ["IPR009003"]),
+def test_the_transfers_and_the_refusals_are_censused_separately():
+    """They answer different questions. "What carried this transfer" is
+    about allowed pairs; "why does the gate need to exist" is about the
+    pairs it REFUSES despite a shared fold, and the class universal among
+    those is the one doing that work. The module header named SSF50494 for
+    that job and the run says SARS-CoV-2 3CLpro does not carry it."""
+    ing = _ingest()
+    res = [_pair("nucleophile", ["IPR009003", "SSF50494"]),
            _pair("nucleophile", ["IPR009003"], allowed=False)]
-    n, counts = _ingest().shared_class_census(res)["nucleophile"]
-    assert (n, counts["IPR009003"]) == (1, 1)
+    assert len(ing.allowed_pairs(res)) == 1
+    assert len(ing.refused_with_shared_fold(res)) == 1
+    a_n, a_c = ing.class_census(ing.allowed_pairs(res))["nucleophile"]
+    r_n, r_c = ing.class_census(ing.refused_with_shared_fold(res))["nucleophile"]
+    assert (a_n, a_c["SSF50494"]) == (1, 1)
+    assert (r_n, r_c["SSF50494"]) == (1, 0)
+
+
+def test_a_refusal_with_no_shared_class_is_not_the_interesting_kind():
+    """Nothing wanted to join those two in the first place, so they say
+    nothing about whether the fold can separate chemistries."""
+    res = [_pair("nucleophile", [], allowed=False),
+           _pair("refused", ["IPR009003"], allowed=False)]
+    assert _ingest().refused_with_shared_fold(res) == []
 
 
 def test_modes_are_counted_separately():
     """A class universal in one mode need not be in another, and merging
     them would hide both facts."""
+    ing = _ingest()
     res = ([_pair("nucleophile", ["IPR009003"])] * 3
            + [_pair("motif", ["IPR007094"])] * 5)
-    c = _ingest().shared_class_census(res)
+    c = ing.class_census(ing.allowed_pairs(res))
     assert c["nucleophile"][0] == 3 and c["motif"][0] == 5
     assert set(c) == {"nucleophile", "motif"}
 
@@ -880,7 +913,21 @@ def test_a_mode_whose_every_class_is_universal_is_detectable():
     """The condition the report calls out: identical fold evidence on every
     pair, so the hop is an eligibility filter and not a similarity score --
     which is what M8's DWPC would be weighting."""
+    ing = _ingest()
     res = [_pair("nucleophile", ["G3DSA:2.40.10.10", "IPR009003"])] * 20
-    n, counts = _ingest().shared_class_census(res)["nucleophile"]
+    n, counts = ing.class_census(ing.allowed_pairs(res))["nucleophile"]
     assert all(k == n for k in counts.values())
     assert len(counts) == 2
+
+
+def test_the_header_no_longer_claims_what_the_run_refutes():
+    """Two false claims lived in src/kgav/folds.py's header: that all three
+    families share SSF50494, and that every triad has the nucleophile last.
+    PLpro -- C1674, H1835, D1849 -- disproved the second in the very commit
+    that widened the rule for it, and the sentence survived."""
+    src = (Path(__file__).resolve().parents[1]
+           / "src/kgav/folds.py").read_text()
+    head = src.split('"""')[1]
+    assert "Coronaviridae 3CLpro : SSF50494" in head   # kept, as the error
+    assert "THE TABLE THAT USED TO BE HERE WAS WRONG" in head
+    assert "the nucleophile last in the same arrangement." not in head

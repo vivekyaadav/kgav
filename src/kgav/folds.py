@@ -2,16 +2,40 @@
 
 WHAT PHASES 0 AND ITS FOLLOW-UP ESTABLISHED, measured at chain level.
 
-PROTEASES. All three families share the same fold:
+PROTEASES. All three families share a fold, and the plan's assumption that
+they differ was wrong. What separates them is the nucleophile, read from the
+sequence at UniProt's annotated active site: cysteine in coronaviruses and
+picornaviruses, serine in flaviviruses.
+
+THE TABLE THAT USED TO BE HERE WAS WRONG, AND IT WAS THE PROJECT'S
+FOUNDATIONAL MEASUREMENT. It read:
 
     Coronaviridae 3CLpro : SSF50494, G3DSA:2.40.10.10
     Picornaviridae 3C    : SSF50494, G3DSA:2.40.10.10
     Flaviviridae NS3     : SSF50494, G3DSA:2.40.10.10
 
-The plan assumed the folds DIFFER. They do not. What separates them is the
-nucleophile, read from the sequence at UniProt's annotated active site:
-cysteine in coronaviruses and picornaviruses, serine in flaviviruses. Every
-triad has histidine first and the nucleophile last in the same arrangement.
+The 2026-10-15 run, printing every shared class instead of the first two,
+shows SSF50494 on MERS-CoV and HCoV-229E 3CLpro and on all five 3Cs and all
+six NS3pros -- but NOT on SARS-CoV-2 or SARS-CoV 3CLpro, the two chains this
+project exists to serve. Deducible without a new fetch, because a shared set
+is an intersection: MERS and 229E each share SSF50494 with EV-A71 3C and the
+two SARS 3CLpros do not, so EV-A71 3C has it and those two do not. The
+census counted it at exactly 10/20 allowed pairs, which is MERS's five plus
+229E's five.
+
+G3DSA:2.40.10.10 is likewise absent from four of the six NS3pros.
+
+WHAT IS ACTUALLY UNIVERSAL is IPR009003, Peptidase S1 PA clan: every
+cross-family protease pair carries it, allowed and refused alike. That, not
+SSF50494, is the class that makes fold alone unable to separate a cysteine
+protease from a serine one -- which is the danger the gate exists for, so
+the gate's justification is intact and only its cited evidence was wrong.
+
+Triad ORDER is not universal either. "Every triad has histidine first and
+the nucleophile last" was in this header until SARS-CoV-2 PLpro was read
+correctly: C1674, H1835, D1849, a papain-like triad with the nucleophile
+FIRST. The composition rule was widened for exactly that chain, and this
+sentence survived the commit that disproved it.
 
 POLYMERASES. Also shared, and more broadly:
 
@@ -546,10 +570,17 @@ def gate(a: ResolvedChain, b: ResolvedChain) -> GateResult:
     """Two-mode comparison.
 
     NUCLEOPHILE mode — both have a catalytic nucleophile. Identical residue
-    required. Phase 0 showed the three families share SSF50494 and
-    G3DSA:2.40.10.10, so fold alone cannot separate a cysteine protease from a
-    serine protease: without this check M8 traverses SARS-CoV-2 Mpro to HCV
-    NS3 and recommends nirmatrelvir for hepatitis C.
+    required, because fold alone cannot separate a cysteine protease from a
+    serine one: without this check M8 traverses SARS-CoV-2 Mpro to HCV NS3
+    and recommends nirmatrelvir for hepatitis C.
+
+    THE CLASS THAT MAKES THAT TRUE IS IPR009003, Peptidase S1 PA clan,
+    carried by every cross-family protease pair. This docstring used to
+    cite SSF50494 and G3DSA:2.40.10.10 instead; the run shows SARS-CoV-2
+    3CLpro carries neither SSF50494 nor, against four of the six NS3pros,
+    a shared G3DSA entry. The Mpro-to-NS3 traversal is still real and
+    still refused -- the two do share IPR009003 and G3DSA:2.40.10.10 --
+    but the evidence named here was not the evidence doing the work.
 
     MOTIF mode — neither has a nucleophile (polymerases, helicases). Shared
     catalytic-domain entries are the only available signal and the result is
