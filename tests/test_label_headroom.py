@@ -157,14 +157,54 @@ def test_it_says_it_is_planning_and_not_evidence(tmp_path, capsys):
     assert "needs its own registration" in out
 
 
-def test_it_warns_where_the_need_exceeds_the_reach(tmp_path, capsys):
-    """If a cell needs more labelled compounds than the channel reaches, no
-    panel over this graph can settle it, and the output has to say so
-    rather than printing a number that cannot be acted on."""
-    H.main(["--release", str(_release(tmp_path))])
+def test_it_performs_the_ceiling_comparison_itself(capsys):
+    """IT USED TO ASK THE READER TO DO THIS. Reach was printed in one
+    table, the required label count in another, and a paragraph said
+    "where needed exceeds the headroom beside it" -- except they were not
+    beside each other and nothing compared them."""
+    H.ceiling_verdict([
+        ("NCBITaxon:2697049", "M4", 2982, 3869),     # short by 887
+        ("NCBITaxon:2697049", "M4", 2982, 6534),     # the other scoring
+        ("NCBITaxon:694009", "M7", 93, 50),          # settleable
+    ])
     out = capsys.readouterr().out
-    assert "no panel over" in out
-    assert "more graph, not more labels" in out
+    assert "1.30x" in out, "the best scoring per cell must be the one used"
+    assert "NO -- more graph, not more labels" in out
+    assert "YES" in out
+    assert "1 of 2 cells could be settled" in out
+
+
+def test_the_ceiling_is_reach_not_headroom(capsys):
+    """A compound the metapath never arrives at cannot enter the
+    regression however well it is screened, so the ceiling is everything
+    the channel reaches -- not just the part still unlabelled."""
+    H.ceiling_verdict([("v", "M4", 1000, 900)])
+    out = capsys.readouterr().out
+    assert "1,000" in out and "YES" in out
+    src = (ROOT / "scripts" / "label_headroom.py").read_text()
+    assert "The ceiling is the channel's REACH, not its headroom" in src
+
+
+def test_when_nothing_is_settleable_it_says_the_constraint_is_reach(capsys):
+    H.ceiling_verdict([("v", "M4", 2982, 3869), ("v", "M1", 3021, 17748)])
+    out = capsys.readouterr().out
+    assert "0 of 2 cells could be settled" in out
+    assert "NO PANEL OVER THIS GRAPH SETTLES ANY CELL" in out
+    assert "binding" in out and "reach, not labels" in out
+
+
+def test_an_uncomputable_need_is_not_silently_dropped(capsys):
+    """A cell whose effect is too small to chase must appear in the
+    verdict, not vanish from it."""
+    H.ceiling_verdict([("v", "M3", 836, None)])
+    out = capsys.readouterr().out
+    assert "M3" in out
+    assert "too small to chase with labels" in out
+
+
+def test_the_verdict_handles_having_nothing_to_size(capsys):
+    H.ceiling_verdict([])
+    assert "nothing to size" in capsys.readouterr().out
 
 
 def test_it_writes_nothing():

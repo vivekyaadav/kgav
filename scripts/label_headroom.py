@@ -261,6 +261,7 @@ def main(argv=None) -> int:
               f"{reached:8,} {lab:9,} {free:9,}")
     print()
 
+    fitted: list[tuple[str, str, int, int | None]] = []
     print("  power, for cells the registered test could fit")
     print(f"  {'virus':<18} {'chan':<4} {'scoring':<20} {'b_c':>7} "
           f"{'rho':>7} {'rate':>7} {'now':>7} {'sim':>7} {'needed':>9}")
@@ -290,6 +291,7 @@ def main(argv=None) -> int:
                        args.trials)
         need, pw = labels_needed(rate, bf[1], rho, correction)
         need_s = f"{need:,}" if need else f">1M ({pw:.0%})"
+        fitted.append((virus, chan, reached, need))
         print(f"  {virus:<18} {chan:<4} {scoring:<20} {bf[1]:+7.3f} "
               f"{rho:+7.3f} {rate:7.1%} {now:7.0%} {sim:7.0%} {need_s:>9}")
 
@@ -309,10 +311,64 @@ def main(argv=None) -> int:
     print("  effect estimated from a non-significant cell is the weakest")
     print("  input here, so read the column as an order of magnitude.")
     print()
-    print("  Where 'needed' exceeds the headroom beside it, no panel over")
-    print("  the CURRENT graph can settle that cell: the compounds do not")
-    print("  exist in reach, and the answer is more graph, not more labels.")
+    ceiling_verdict(fitted)
     return 0
+
+
+def ceiling_verdict(fitted: list[tuple[str, str, int, int | None]]) -> None:
+    """Compare what each cell needs against what its channel can supply.
+
+    THE SCRIPT USED TO ASK THE READER TO DO THIS. It printed reach in one
+    table and the required label count in another, then a paragraph saying
+    "where needed exceeds the headroom beside it" -- except the two were
+    not beside each other, and nothing performed the comparison. Telling a
+    reader to cross-reference two tables is how a conclusion goes unread.
+
+    The ceiling is the channel's REACH, not its headroom: a compound the
+    metapath never arrives at cannot enter the regression however well it
+    is screened. Labelling every reached compound is the best any panel
+    can do over a fixed graph.
+    """
+    if not fitted:
+        print("  No cell was fitted, so there is nothing to size.")
+        return
+    best: dict[tuple[str, str], tuple[int, int | None]] = {}
+    for virus, chan, reached, need in fitted:
+        key = (virus, chan)
+        prev = best.get(key)
+        if prev is None:
+            best[key] = (reached, need)
+        elif need is not None and (prev[1] is None or need < prev[1]):
+            best[key] = (reached, need)
+
+    print("  CAN LABELS SETTLE IT? ceiling is the channel's reach -- a")
+    print("  compound the metapath never arrives at cannot enter the")
+    print("  regression however well it is screened.")
+    print()
+    print(f"  {'virus':<18} {'chan':<4} {'ceiling':>8} {'needed':>10} "
+          f"{'ratio':>7}  verdict")
+    settleable = 0
+    for (virus, chan), (reached, need) in sorted(best.items()):
+        if need is None:
+            print(f"  {virus:<18} {chan:<4} {reached:8,} {'>1M':>10} "
+                  f"{'--':>7}  NO -- effect too small to chase with labels")
+            continue
+        ok = need <= reached
+        settleable += ok
+        print(f"  {virus:<18} {chan:<4} {reached:8,} {need:10,} "
+              f"{need / reached:6.2f}x  "
+              f"{'YES' if ok else 'NO -- more graph, not more labels'}")
+    print()
+    print(f"  {settleable} of {len(best)} cells could be settled by labelling")
+    print("  every compound its channel already reaches.")
+    if settleable == 0:
+        print()
+        print("  NO PANEL OVER THIS GRAPH SETTLES ANY CELL. The binding")
+        print("  constraint is reach, not labels: the compounds a decisive")
+        print("  test would need are ones no metapath arrives at. A second")
+        print("  screening panel helps only insofar as it brings compounds")
+        print("  the graph can already route to, and the measurement above")
+        print("  says there are not enough of those.")
 
 
 if __name__ == "__main__":
