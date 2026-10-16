@@ -69,11 +69,11 @@ verdict was an artifact of the filter, not a fact about chemistry.
 This project already knows how these rows are filed: ingest_activities
 calls chembl.resolve_nsp on the description and stamps the resulting edge
 target_resolution="chain_from_assay_description". The same tables resolve
-the role here, per ROW. What they do not resolve is printed verbatim, which
-is the input to the next step -- chembl.PATTERNS_BY_FAMILY has no
-Picornaviridae table, and writing one from the real text rather than from
-what the proteins are called in a textbook is how the flavivirus table was
-written.
+the role here, per ROW. What they do not resolve is printed verbatim, in
+full, and that listing is what the tables get written from: it is how
+chembl.PICORNA_PATTERNS came to exist, out of all 19 descriptions on the
+six picornavirus polyprotein targets, rather than out of what the proteins
+are called in a textbook. The flavivirus table was written the same way.
 
 ORGANISM-LEVEL TARGETS ARE REJECTED. A target whose target_type is ORGANISM
 carries antiviral readouts -- replicon, CPE, cell culture -- not enzyme
@@ -109,7 +109,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from kgav.calibration import MIN_REACHED_POSITIVES
-from kgav.chembl import QUANT_TYPES, assay_readout, resolve_nsp, to_nm
+from kgav.chembl import (PATTERNS_BY_FAMILY, QUANT_TYPES, assay_readout,
+                         resolve_nsp, to_nm)
 from kgav.schema import print_capped
 
 # THE FLOOR, BORROWED RATHER THAN CHOSEN. calibration.MIN_REACHED_POSITIVES
@@ -197,18 +198,26 @@ POLYPROTEIN_ROLE = {
     ("Coronaviridae", "nsp5", None): "3clpro",
     ("Coronaviridae", "nsp3", "PLpro"): "plpro",
     ("Flaviviridae", "NS3", "protease"): "ns3pro",
+    ("Picornaviridae", "3C", None): "3cpro",
 }
 
-# WHICH FAMILIES HAVE A MEASURED DESCRIPTION TABLE. chembl.PATTERNS_BY_FAMILY
-# holds Flaviviridae and nothing else; every other family falls through to
-# NSP_PATTERNS, which names CORONAVIRUS proteins. Letting a picornavirus row
-# fall through to the coronavirus table is the cross-family naming bug
-# diagnose_flavivirus_targets.py was written to find, so Picornaviridae is
-# excluded here BY NAME rather than by trusting the patterns not to match.
-# Writing a picornavirus table is phase 4's next step and it must be written
-# from the real description text, which is why the unresolved descriptions
-# are printed verbatim below.
-DESCRIPTION_TABLE = frozenset({"Coronaviridae", "Flaviviridae"})
+# WHICH FAMILIES HAVE A MEASURED DESCRIPTION TABLE.
+#
+# DERIVED FROM chembl.PATTERNS_BY_FAMILY, not listed again here. The earlier
+# version wrote the set out by hand, which was correct on the day and is a
+# second copy of a fact the library already holds: adding Picornaviridae to
+# the library while this set still said {Coronaviridae, Flaviviridae} would
+# have left the new table unreachable, with the survey still reporting "NO
+# DESCRIPTION TABLE EXISTS" beside a table that does.
+#
+# Coronaviridae is unioned in because it has no key of its own:
+# resolve_nsp's fallback IS the coronavirus table. Every other family falls
+# through to that fallback too, and letting a picornavirus row read with
+# CORONAVIRUS patterns is the cross-family naming bug
+# diagnose_flavivirus_targets.py was written to find -- so a family absent
+# from this set is refused BY NAME rather than by trusting the coronavirus
+# patterns not to match it.
+DESCRIPTION_TABLE = frozenset(PATTERNS_BY_FAMILY) | {"Coronaviridae"}
 
 # target_type values that denote a protein measurement. Anything else that
 # matched a role is printed as excluded, with its type, rather than dropped

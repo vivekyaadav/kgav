@@ -706,3 +706,139 @@ def test_resolve_nsp_matches_flavivirus_descriptions_and_must_be_family_scoped()
     # and the coronavirus cases it exists for still work
     assert resolve_nsp("Inhibition of SARS-CoV-2 3CL protease") == ("nsp5", None)
     assert resolve_nsp("SARS-CoV-2 PLpro inhibition") == ("nsp3", "PLpro")
+
+
+# ------------------- PICORNA_PATTERNS, closed against the real descriptions
+#: Every distinct assay description on a picornavirus polyprotein target in
+#: chembl_37, with its row count, as scripts/phase4_survey_chemistry.py
+#: printed them on 2026-10-16. 19 descriptions, 199 rows, nothing sampled:
+#: the flavivirus table was closed the same way and says so.
+PICORNA_DESCRIPTIONS: list[tuple[int, str, str | None]] = [
+    (59, "Inhibition of recombinant Coxsackievirus B3 3C protease expressed "
+         "in Escherichia coli BL21 (DE3) preincubated for 5 mins followed by "
+         "addition of NMA-EALFQGPPVK-DNP-rrr-NH2 as substrate measured up to "
+         "2 hrs by FRET-based enzyme assay", "3C"),
+    (26, "Inhibition of EV71 3C protease expressed in Escherichia coli "
+         "BL21(DE3) using NMA-IEALFQGPPK(DNP)FR as substrate preincubated "
+         "for 0.5 hrs followed by substrate addition by fluorescence assay",
+     "3C"),
+    (22, "Inhibition of Enterovirus 71 Shenzhen/120F1/09 capsid infected in "
+         "human RD cells assessed as reduction in virus-induced cell death "
+         "after 72 hrs by CCK-8 assay", "capsid"),
+    (17, "Inhibitory activity against polio virus RNA polymerase", "3D"),
+    (17, "Inhibition of human coxsackievirus B3 protease 3C expressed in "
+         "Escherichia coli (BL21) using fluorogenic-Dabcyl-KEALFQGPPQFE-"
+         "Edans as substrate after 1 hr by FRET assay", "3C"),
+    (14, "Inhibition of Coxsackievirus B3 protease 3c using "
+         "NMA-EALFQGPPVK-DNP as substrate incubated for 5 mins prior to "
+         "substrate addition measured after 1 hr by FRET assay", "3C"),
+    (14, "Inhibition of Human rhinovirus serotype 14 3C protease "
+         "preincubated for 1 hr followed by Cys(PT14M)-Ala-Ile-Phe-Gln'Gly-"
+         "Pro-Asp-Phe(4-NH2)-OH substrate addition measured after 1 hr by "
+         "fluorescence lifetime readout assay", "3C"),
+    (9, "Inhibition of coxsackievirus B3 3C protease by fluorescence plate "
+        "reader analysis", "3C"),
+    (5, "Inhibition of HRV-16 protease 3C expressed in Escherichia coli "
+        "BL21(DE3) by FRET assay", "3C"),
+    (2, "Inhibition of poliovirus RNA dependent RNA polymerase", "3D"),
+    (2, "Inhibition of His-6-tagged Coxsackievirus B3 3C protease expressed "
+        "in Escherichia coli BL21(DE3) using Asp-Glu-EDANS-(5-((2-"
+        "aminoethyl)amino)naphthalene-1-sulfonic acid)-MSAIFQGPISK-DABCYL "
+        "(4-((4-(dimethylamino)phenyl)azo)benzoic acid) as peptide substrate "
+        "by fluorescence-based absorbance assay", "3C"),
+    (2, "Inhibition of recombinant Coxsackievirus B3 3C protease expressed "
+        "in Escherichia coli BL21 (DE3) preincubated for 5 mins followed by "
+        "addition of NMA-EALFQGPPVK-DNP-rrr-NH2 as substrate measured every "
+        "10 mins for 2 hrs by FRET-based enzyme assay", "3C"),
+    (2, "Inhibition of Coxsackievirus B3 C-terminal His6-tagged protease 3C "
+        "expressed in Escherichia coli BL21(DE3) using N-Dabcyl-"
+        "KTLEALFQGPPVYE-(Edans)-NH2 as substrate after 30 mins by "
+        "fluorescence assay", "3C"),
+    (2, "Inhibition of recombinant human rhinovirus protease 3C using "
+        "fluorogenic-Dabcyl-KTSAVLQSGFRKME-Edan as substrate after 5 mins by "
+        "FRET assay", "3C"),
+    (2, "Reversible inhibition of Coxsackievirus B3 C-terminal His6-tagged "
+        "protease 3C expressed in Escherichia coli BL21(DE3) using N-Dabcyl-"
+        "KTLEALFQGPPVYE-(Edans)-NH2 as substrate after 30 mins by "
+        "fluorescence assay", "3C"),
+    (1, "Inhibition of Coxsackievirus B3 Nancy 3Cpro", "3C"),
+    (1, "Binding affinity to poliovirus RNA dependent RNA polymerase", "3D"),
+    (1, "Inhibition of recombinant Coxsackievirus B3 C-terminal 6His-tagged "
+        "3C protease expressed in Escherichia coli BL21 preincubated for 20 "
+        "mins followed by addition of fluorogenic peptide as substrate by "
+        "Cheng-Prusoff equation analysis", "3C"),
+    (1, "Competitive inhibition of recombinant Coxsackievirus B3 3C protease "
+        "expressed in Escherichia coli BL21 (DE3) preincubated with protein "
+        "followed by addition of NMA-EALFQGPPVK-DNP-rrr-NH2 as substrate "
+        "measured every 5 mins for 2 hrs by Dixon plot analysis", "3C"),
+]
+
+
+@pytest.mark.parametrize("rows,description,expected", PICORNA_DESCRIPTIONS)
+def test_every_real_picornavirus_description_resolves(rows, description,
+                                                      expected):
+    from kgav.chembl import resolve_nsp
+    assert resolve_nsp(description, "Picornaviridae")[0] == expected
+
+
+def test_the_picornavirus_table_is_closed_against_the_database():
+    """Not sampled. All 19 descriptions and all 199 rows are accounted for,
+    which is the standard the flavivirus table set when it recorded closing
+    its own residue at 19 rows across three phrasings."""
+    from collections import Counter
+    assert len(PICORNA_DESCRIPTIONS) == 19
+    assert sum(n for n, _, _ in PICORNA_DESCRIPTIONS) == 199
+    by_key: Counter = Counter()
+    for n, _, key in PICORNA_DESCRIPTIONS:
+        by_key[key] += n
+    assert by_key == {"3C": 157, "capsid": 22, "3D": 20}
+
+
+@pytest.mark.parametrize("description", [
+    "Inhibition of Protease 3CD",          # the uncleaved precursor
+    "Inhibition of 3CD protease",
+    "Inhibition of SARS-CoV-2 3CL protease",   # the coronavirus enzyme
+    "Inhibition of cathepsin L protease",      # a HOST protease
+    "Inhibition of host RNA polymerase II",
+])
+def test_the_picornavirus_table_refuses_what_it_should(description):
+    """"3C" is a substring of "3CD" and of "3CL", and a bare \\bprotease\\b
+    would claim host protease assays -- the restraint the flavivirus table
+    states for its own bare-function rules."""
+    from kgav.chembl import resolve_nsp
+    assert resolve_nsp(description, "Picornaviridae") == (None, None)
+
+
+def test_adding_the_picornavirus_table_cannot_move_an_edge_in_v0_1():
+    """BEHAVIOUR-NEUTRALITY, asserted from the register rather than assumed.
+
+    resolve_nsp picks its table from the family of the row's taxon, and
+    ingest_chembl fetches only declared taxa. If no declared virus is a
+    picornavirus, no ingest call can reach PICORNA_PATTERNS and no edge in
+    v0.1 can move. This fails the day a picornavirus is promoted, which is
+    exactly when someone should re-read that claim.
+    """
+    import yaml
+    from kgav.chembl import PATTERNS_BY_FAMILY
+
+    doc = yaml.safe_load((ROOT / "config/viruses.yaml").read_text())
+    default = (doc.get("defaults") or {}).get("family")
+    families = {(e.get("family") or default) for e in doc["viruses"]}
+    assert families == {"Coronaviridae", "Flaviviridae"}
+    assert "Picornaviridae" in PATTERNS_BY_FAMILY
+    assert "Picornaviridae" not in families
+
+
+def test_the_other_families_tables_are_untouched():
+    """The whole point of a per-family table is that adding one cannot
+    change another. The coronavirus fallback and the flavivirus table must
+    answer exactly as before."""
+    from kgav.chembl import resolve_nsp
+    assert resolve_nsp("Inhibition of SARS-CoV-2 3CL protease") == ("nsp5", None)
+    assert resolve_nsp("SARS-CoV-2 PLpro inhibition") == ("nsp3", "PLpro")
+    assert resolve_nsp("Inhibition of dengue virus NS2B-NS3 protease by FRET",
+                       "Flaviviridae") == ("NS3", "protease")
+    # and a picornavirus description still reads as nothing without the
+    # family, because the fallback is the CORONAVIRUS table
+    assert resolve_nsp("Inhibition of coxsackievirus B3 3C protease") \
+        == (None, None)
