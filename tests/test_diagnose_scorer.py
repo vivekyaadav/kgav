@@ -185,3 +185,84 @@ def test_the_default_scoring_is_still_the_published_results_one():
     for fn in (walk_metapath, dwpc_scores):
         assert inspect.signature(fn).parameters["scoring"].default == \
             SCORING_LEGACY, fn.__name__
+
+
+# ------------------------------------------- the layer column, added after
+# the first run, because a NEGATIVE global rho could not be read without it:
+# a compound can be globally busy and locally sparse, which manufactures an
+# anti-correlation out of nothing.
+def test_first_hop_is_the_predicate_the_channel_leaves_the_compound_by():
+    from kgav.schema import load_schema
+    schema = load_schema()
+    got = {n: D.first_hop(mp["path"]) for n, mp in schema.metapaths.items()}
+    assert got["M1"] == "INHIBITS"
+    assert got["M2"] == "TARGETS"
+    assert got["M6"] == "CHEMICALLY_SIMILAR_TO"
+    # Every channel's first hop must be a real predicate of the schema, or
+    # the degree lookup silently returns 0 for every compound and the column
+    # prints n/d forever.
+    for name, pred in got.items():
+        assert pred in schema.symmetry(), f"{name}: {pred} not in the schema"
+
+
+def test_first_hop_strips_the_reverse_marker():
+    """A reversed first hop is still that predicate's layer; metaedge_degree
+    counts both directions, so the marker must not reach the lookup key."""
+    assert D.first_hop(["SmallMolecule", "<PARTICIPATES_IN", "Pathway"]) == \
+        "PARTICIPATES_IN"
+
+
+def test_the_layer_degree_is_not_the_global_degree(tmp_path):
+    """The column earns its place only if it can disagree. A compound with
+    one INHIBITS edge and many edges of another type is globally busy and
+    locally sparse -- exactly the case that would fake a negative rho."""
+    from kgav.baselines import Graph, degree_ranking, metaedge_degree
+    rel = _release(tmp_path, extra_targets=2)
+    # Give AAA many edges of a type M1 never walks.
+    nodes = [json.loads(l) for l in
+             (rel / "nodes.jsonl").read_text().splitlines()]
+    edges = [json.loads(l) for l in
+             (rel / "edges.jsonl").read_text().splitlines()]
+    for i in range(8):
+        nodes.append({"id": f"INCHIKEY:Z{i}", "class": "SmallMolecule",
+                      "properties": {}})
+        edges.append({"subject": "INCHIKEY:AAA",
+                      "predicate": "CHEMICALLY_SIMILAR_TO",
+                      "object": f"INCHIKEY:Z{i}", "qualifiers": {},
+                      "primary_knowledge_source": "infores:kgav-computed",
+                      "evidence_tier": 2, "first_asserted_date": "2021-01-01"})
+    (rel / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
+    (rel / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in edges))
+
+    from kgav.schema import load_schema
+    schema = load_schema()
+    g = Graph.load(rel, skip_predicates=schema.held_out_predicates(),
+                   symmetry=schema.symmetry())
+    glob = degree_ranking(g)
+    md = metaedge_degree(g)
+    assert md[("INHIBITS", "INCHIKEY:AAA")] == 1
+    assert md[("INHIBITS", "INCHIKEY:BBB")] == 3
+    # Globally AAA is the busier of the two; in M1's layer it is the sparser.
+    assert glob["INCHIKEY:AAA"] > glob["INCHIKEY:BBB"]
+    assert md[("INHIBITS", "INCHIKEY:AAA")] < md[("INHIBITS", "INCHIKEY:BBB")]
+
+
+def test_the_header_names_both_degree_columns(tmp_path, capsys):
+    """Two rho pairs that look alike would be read as one. The header and the
+    legend under each table have to distinguish them."""
+    assert D.main(["--release", str(_release(tmp_path, extra_targets=3))]) == 0
+    out = capsys.readouterr().out
+    assert "rho(score,global)" in out
+    assert "rho(score,layer)" in out
+    assert "layer degree is each channel's first hop" in out
+    assert "M1=INHIBITS" in out
+
+
+def test_the_docstring_no_longer_predicts_the_tie_column_is_static():
+    """It did, and said that if the column moved much something was wrong.
+    It moved a great deal and nothing was wrong. A stale prediction left in
+    place would make the next reader distrust a correct run."""
+    doc = D.__doc__
+    assert "something is wrong" not in doc
+    assert "THE FIRST VERSION OF THIS DOCSTRING PREDICTED" in doc
+    assert "2,442 ->" in doc and "2,380" in doc

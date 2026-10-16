@@ -31,11 +31,38 @@ WHAT TO READ
                        more the channel is restating the baseline. A channel
                        whose rho FALLS under pdp was carrying degree.
 
+  rho(score, layer)    the same, against the compound's degree IN THE LAYER
+                       THE CHANNEL WALKS (its first hop) rather than its
+                       global degree. Both are needed. The global column
+                       answers "is the channel restating the baseline it is
+                       compared against", which is the question
+                       docs/evaluation.md asks. The layer column answers
+                       "is the channel restating the degree pdp actually
+                       divides by" -- and without it a NEGATIVE global rho
+                       cannot be read, because a compound can be globally
+                       busy and locally sparse, which manufactures an
+                       anti-correlation out of nothing.
+
   distinct / tie       the degeneracy table from the prereg, recomputed under
-                       both. Expect it NOT to improve: two compounds with one
-                       edge each to the same protein have equal degrees on
-                       both sides of every metaedge, so they stay tied. If
-                       this column moves much, something is wrong.
+                       both.
+
+                       THE FIRST VERSION OF THIS DOCSTRING PREDICTED THIS
+                       COLUMN WOULD NOT MOVE, and said that if it did,
+                       something was wrong. It moves a great deal -- M2 on
+                       HCoV-OC43 goes from a largest tie of 137 to 20, M3 on
+                       SARS-CoV from 114 to 16 -- and nothing is wrong. The
+                       prediction generalised from the one case that had been
+                       tested: two compounds with ONE edge each to the same
+                       protein do stay tied, because their layer degrees are
+                       both 1. Compounds differing in how many OTHER edges of
+                       the same predicate they hold do not, because pdp
+                       divides by the source's layer degree and legacy does
+                       not. M1 is the first case and barely moves (2,442 ->
+                       2,380 on SARS-CoV-2); M2, M3 and M5 are the second.
+
+                       That M1 keeps 2,380 tied under pdp is evidence rather
+                       than a null: surviving the correction means those
+                       compounds have IDENTICAL INHIBITS degree.
 
   rho(ranks) / top-k   whether the change reaches the ranking at all. A
                        channel that reorders nothing cannot change a result.
@@ -63,6 +90,7 @@ from kgav.baselines import (  # noqa: E402
     Graph,
     degree_ranking,
     dwpc_scores,
+    metaedge_degree,
 )
 from kgav.schema import load_schema  # noqa: E402
 
@@ -139,19 +167,33 @@ def fmt_rho(r: float | None) -> str:
     return "  n/d " if r is None else f"{r:+.3f}"
 
 
+def first_hop(path: list) -> str:
+    """The predicate a channel leaves the compound by.
+
+    That is the layer whose degree pdp divides the compound's score by, and
+    it is not interchangeable with the global degree: M1 leaves by INHIBITS
+    and M2 by TARGETS, and a compound busy in one can be absent from the
+    other -- the graph holds 44 of 18,075 compounds with both.
+    """
+    from kgav.schema import parse_hop
+    return parse_hop(path[1])[0]
+
+
 def channel_table(name: str, legacy: dict[str, float], pdp: dict[str, float],
-                  degree: dict[str, float]) -> str:
+                  degree: dict[str, float], layer: dict[str, float]) -> str:
     shared = sorted(set(legacy) & set(pdp))
     if not shared:
         return f"  {name:<5} no drug reached"
     lv = [legacy[d] for d in shared]
     pv = [pdp[d] for d in shared]
     dv = [degree.get(d, 0) for d in shared]
+    yv = [layer.get(d, 0) for d in shared]
     ld, llt, lpct = degeneracy(lv)
     pd_, plt, ppct = degeneracy(pv)
     overlap = len(topk(legacy, TOP_K) & topk(pdp, TOP_K))
     return (f"  {name:<5} {len(shared):6,} "
             f"{fmt_rho(spearman(lv, dv))} {fmt_rho(spearman(pv, dv))}  "
+            f"{fmt_rho(spearman(lv, yv))} {fmt_rho(spearman(pv, yv))}  "
             f"{ld:7,} {pd_:7,}  {llt:6,} {plt:6,}  "
             f"{fmt_rho(spearman(lv, pv))}  {overlap:3d}/{TOP_K}")
 
@@ -203,12 +245,15 @@ def main(argv=None) -> int:
         print("The table below is therefore empty by construction, not by "
               "a null result.\n")
 
+    mdeg = metaedge_degree(g)
     for virus in viruses:
         print(f"=== {virus}")
-        print(f"  {'chan':<5} {'drugs':>6} {'rho(score,deg)':>14}  "
+        print(f"  {'chan':<5} {'drugs':>6} {'rho(score,global)':>14}  "
+              f"{'rho(score,layer)':>14}  "
               f"{'distinct':>15}  {'largest tie':>13}  {'rho(L,P)':>8} "
               f"{'top':>7}")
         print(f"  {'':<5} {'':>6} {'legacy':>6} {'pdp':>7}  "
+              f"{'legacy':>6} {'pdp':>7}  "
               f"{'legacy':>7} {'pdp':>7}  {'legacy':>6} {'pdp':>6}  "
               f"{'':>8} {'overlap':>7}")
         for name in sorted(schema.metapaths):
@@ -218,7 +263,12 @@ def main(argv=None) -> int:
             pdp = {d: hits[virus]
                    for d, hits in both[SCORING_PDP].get(name, {}).items()
                    if virus in hits}
-            print(channel_table(name, legacy, pdp, degree))
+            pred = first_hop(schema.metapaths[name]["path"])
+            layer = {d: mdeg.get((pred, d), 0) for d in set(legacy) | set(pdp)}
+            print(channel_table(name, legacy, pdp, degree, layer))
+        print(f"  layer degree is each channel's first hop: "
+              + ", ".join(f"{n}={first_hop(schema.metapaths[n]['path'])}"
+                          for n in sorted(schema.metapaths))[:200])
         print()
 
     print("Top-k overlap counts the drugs in both top-100 sets. Ties at the")
