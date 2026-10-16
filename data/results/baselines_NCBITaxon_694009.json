@@ -21,7 +21,7 @@
       "mrr": 0.06666666666666667
     },
     "dwpc": {
-      "n": 868,
+      "n": 878,
       "hits@10": 0,
       "hits@50": 4,
       "hits@100": 7,
@@ -1217,11 +1217,11 @@
         "score": 0.8892794376098418
       },
       {
-        "drug": "INCHIKEY:CVWXJKQAOSCOAB-UHFFFAOYSA-N",
+        "drug": "INCHIKEY:VNBRGSXVFBYQNN-UHFFFAOYSA-N",
         "score": 0.8875219683655536
       },
       {
-        "drug": "INCHIKEY:VNBRGSXVFBYQNN-UHFFFAOYSA-N",
+        "drug": "INCHIKEY:CVWXJKQAOSCOAB-UHFFFAOYSA-N",
         "score": 0.8857644991212654
       },
       {
@@ -1365,11 +1365,11 @@
         "score": 0.8315217391304348
       },
       {
-        "drug": "INCHIKEY:VRQMAABPASPXMW-HDICACEKSA-N",
+        "drug": "INCHIKEY:UZWDCWONPYILKI-UHFFFAOYSA-N",
         "score": 0.8312829525483304
       },
       {
-        "drug": "INCHIKEY:UZWDCWONPYILKI-UHFFFAOYSA-N",
+        "drug": "INCHIKEY:VRQMAABPASPXMW-HDICACEKSA-N",
         "score": 0.8295254833040422
       },
       {
@@ -1637,14 +1637,14 @@
   "provenance": {
     "release": {
       "id": "v0.1",
-      "nodes_sha": "8c9de2dabfcf7aee",
-      "edges_sha": "e110053c19e9c983"
+      "nodes_sha": "4b527a17d8df2827",
+      "edges_sha": "fcb87044aed60e19"
     },
     "code": {
-      "commit": "5601ba56e2d91d5e1e7fbd131889ea671d670300",
+      "commit": "0fca57569815a83b57fe53ece1e944725b0c96f9",
       "dirty": true
     },
-    "schema_version": "0.12.0",
-    "generated_utc": "2026-10-13T23:50:48+00:00"
+    "schema_version": "0.13.0",
+    "generated_utc": "2026-10-15T21:07:10+00:00"
   }
 }
