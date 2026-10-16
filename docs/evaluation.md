@@ -137,32 +137,75 @@ volume**.
 So p-values make the *uncontrolled* protocol look full of discoveries.
 `compare_metapaths.py` runs on unfiltered `build_labels` output, and there:
 
-| virus | best channel | lift | p | degree | p | |
+<!-- TABLE: metapath_comparison — asserted cell-by-cell by
+     tests/test_evaluation_table.py against data/results/metapath_comparison.json.
+     Do not hand-edit; re-derive. The rule for the channel column is the one
+     this document already requires of a reader: the single metapath with the
+     highest lift among those that are BOTH `trustworthy` and
+     `hits_determined`, and an em-dash when no channel qualifies. The verdict
+     column is the first token of `confound_warning()`. -->
+
+| virus | best readable channel | lift | p | degree | p | baseline verdict |
 |---|---|---|---|---|---|---|
-| SARS-CoV | M1 | 2.10 | <.0001 | **9.51** | **<.0001** | degree wins 4.5x |
-| MERS-CoV | M4 | 11.86 | <.0001 | 10.87 | <.0001 | both significant |
-| HCoV-229E | M4 | 8.48 | 0.021 | 4.48 | 0.030 | both significant |
-| HCoV-NL63 | — | 0.00 | 1.000 | **36.15** | **0.027** | degree only |
-| SARS-CoV-2 | M4 | 1.99 | 0.140 | 0.45 | 0.990 | neither |
-| HCoV-OC43 | M4 | 7.40 | 0.129 | 2.20 | 0.230 | neither |
+| SARS-CoV-2 | M4 | 1.99 | 0.1401 | 0.54 | 0.9622 | — |
+| Zika | — | — | — | 0.85 | 0.6887 | — |
+| HCoV-OC43 | — | — | — | 2.64 | 0.1753 | — |
+| SARS-CoV | M3 | 1.90 | 0.1424 | 11.40 | <.0001 | BASELINE NOT DETERMINED |
+| MERS-CoV | M2 | 1.13 | 0.5661 | 13.03 | <.0001 | CONFOUNDED |
+| HCoV-229E | — | — | — | 5.37 | 0.0186 | CONFOUNDED |
+| HCoV-NL63 | — | — | — | 43.33 | 0.0229 | CONFOUNDED |
+
+**Four of seven viruses have no readable channel at all**, and that is the
+first thing this table should have said. The version it replaces named a
+"best channel" for six of them -- SARS-CoV M1 at 2.10, MERS-CoV M4 at 11.86,
+HCoV-229E M4 at 8.48, HCoV-OC43 M4 at 7.40 -- and of those six rows exactly
+one, SARS-CoV-2 M4, is readable under the rule the rest of this document
+spends four paragraphs establishing. The others fail it in two ways that the
+code already records and the table did not print: SARS-CoV M1 and Zika M1 are
+`hits_determined: False`, one draw from a tie block; the four M4 rows are
+`trustworthy: False`, because `exp >= 1.0` fails when a pool of ~2,960 holds
+4 to 15 positives and expects half a hit at k=100. HCoV-NL63 has **no
+positive reachable by any metapath** (`COMBINED` pool 2,653, `pos` 0), so its
+0.00 was never a measurement of anything. Zika is absent from the old table
+entirely, which is the omission this table's test now makes impossible.
+
+The headline the old table carried -- channels winning big on four viruses,
+degree winning bigger -- was therefore an artifact of printing rows the code
+refuses to read. The corrected reading is quieter and worse: where a channel
+IS readable it sits at 1.13 to 1.99, none of it significant, and the three
+significant columns on the page all belong to degree.
 
 **Degree's own p-value is the diagnostic.** Where it is significant, the
 labels track how much a compound has been studied, and a channel beating
 random on those labels says nothing about mechanism -- only beating *degree*
 does. `confound_warning()` prints the verdict under every table, both ways:
 
-    CONFOUNDED            degree is itself significant -- SARS-CoV, MERS-CoV,
+    CONFOUNDED            degree is itself significant -- MERS-CoV,
                           HCoV-229E, HCoV-NL63 cross-sectionally, and
-                          MERS-CoV and SARS-CoV temporally
+                          MERS-CoV and SARS-CoV temporally (both the
+                          computed_only and include policies)
     BASELINE AT CHANCE    degree is indistinguishable from random AND a
-                          TRUSTWORTHY channel is significant -- held for
-                          SARS-CoV-2 temporal alone, and no longer holds
-                          anywhere, because both rows are ~tied
+                          TRUSTWORTHY, DETERMINED channel is significant --
+                          SARS-CoV-2 under temporal computed_only, and
+                          there alone: degree lift 1.15 (p=0.4262) against
+                          COMBINED's 3.31 (p=0.0162)
     BASELINE NOT          the degree row's own Hits@k is an interval, so no
     DETERMINED            comparison against it can be read -- including
                           every ratio in the vs-deg column, which divides
-                          by it. SARS-CoV-2 temporal, both policies
+                          by it. SARS-CoV cross-sectionally ([7, 8] from a
+                          9-row tie block) and SARS-CoV-2 under temporal
+                          include
     (nothing)             neither, so there is nothing to report
+
+**An earlier version of this block said BASELINE AT CHANCE "no longer holds
+anywhere".** It does hold, for SARS-CoV-2 under `computed_only`, and the
+artifact diff proves the claim was already false when it was written rather
+than overtaken by a later change: regenerating across the 2026-10-16
+`NSP_PATTERNS` fix moved SARS-CoV and nothing else, leaving that entire block
+byte-identical. The sentence was not stale -- it was never right. What is
+true is narrower and belongs in the row above: the condition holds under one
+of the three temporal policies, and under `include` the same virus falls to
+NOT DETERMINED because the tie block straddles the cut.
 
 Stating the good case out loud matters: printed only as an *absence* of
 warning, the one condition every real result here depends on was left for the
@@ -213,13 +256,20 @@ rather than comparing two draws.
 
 Both tables also carry a `vs deg` column, with `(~)` marking a ratio whose
 denominator is itself at chance. SARS-CoV-2 cross-sectional is why: M4 reads
-4.44x a degree lift of **0.45**, which is M4 lift 1.99 at p=0.14. A ratio
+3.71x a degree lift of **0.54**, which is M4 lift 1.99 at p=0.1401, and the
+cell carries `vs_degree_readable: False` rather than the bare ratio. A ratio
 against a noisy denominator describes; it does not test.
 
-Note SARS-CoV especially: M1 at p<0.0001 looks like the strongest result in
-the project until you see that degree scores 9.51 on the same labels against
-M1's 2.10. Reported alone, that p-value would have been the fifth wrong M1
-number in this document.
+Note SARS-CoV especially. M1 there reads lift 2.08 at p<0.0001 and looks like
+the strongest result in the project -- and it is not readable at all:
+`hits_determined` is `False`, its Hits@100 is one draw from [2, 23] of 23
+positives, and the lift interval [0.21, 2.39] contains 1.00. The degree row
+beside it is undetermined too ([7, 8] from a 9-row tie block), which is why
+the virus reads BASELINE NOT DETERMINED and why no ratio against it can be
+quoted. An earlier version of this paragraph compared M1's 2.10 against a
+degree lift of 9.51 as though both were measurements; they were two draws.
+Reported alone, that p-value would have been the fifth wrong M1 number in
+this document -- and reported as a comparison, it was the sixth.
 
 ## The temporal protocol: the first signal above the baseline
 
@@ -405,6 +455,18 @@ release and were wrong by the time anyone re-ran the diagnostic:
 | 94.9% shared PMIDs (1,015/1,070) | 92.2% (933/1,012) | the assay-readout fix removed 540 `INHIBITS` edges |
 | 45 of 12,821 with both edges | 44 of 18,075 | same, plus a different denominator |
 | `INHIBITS` reaches 19 proteins | 18 | same |
+| cross-sectional degree lifts 9.51 / 10.87 / 4.48 / 36.15 / 0.45 / 2.20 | 11.40 / 13.03 / 5.37 / 43.33 / 0.54 / 2.64 | every one of the six drifted across releases while the table sat unchanged; the 2026-10-16 `NSP_PATTERNS` fix moved only SARS-CoV, so the rest had been wrong for longer |
+| "best channel" named for 6 of 7 viruses | readable for 3 | the rows were printed without checking `trustworthy` and `hits_determined`, the two fields this document requires of a reader |
+| Zika absent from the table | present | it was never added; the guard test now asserts the table's virus set equals the JSON's |
+| BASELINE AT CHANCE "no longer holds anywhere" | holds for SARS-CoV-2 under `computed_only` | not stale -- never true |
+
+**The first table is no longer prose.** Every cell of the cross-sectional
+lift table is now asserted against `data/results/metapath_comparison.json`
+by `tests/test_evaluation_table.py`, including that the set of viruses in
+the table equals the set in the JSON. The rule below -- name the script that
+re-derives a figure -- leaves the reader to re-run it; for that one table the
+suite re-runs it, so the next release that moves a degree lift fails CI
+instead of quietly rotting. The rows above are what happens without that.
 
 Each figure below names the script that re-derives it. Re-run that script
 before quoting a number from this document, and treat a figure with no named
@@ -418,6 +480,7 @@ source as unverified.
 | which source dated a label on which side of the cutoff | `diagnose_temporal_leak.py` |
 | per-channel AUC, coverage, evaluability | `hard_negatives.py` then `calibrate.py` |
 | lift, p, vs-degree, the baseline read | `compare_metapaths.py`, `temporal_split.py` |
+| the cross-sectional lift table above | `compare_metapaths.py`, then asserted cell-by-cell by `tests/test_evaluation_table.py` |
 | flavivirus volumes and substrate concentration | `diagnose_flavivirus_join.py`, `diagnose_flavivirus_targets.py` |
 | fold layer counts, allowed transfers, blocking chains, M8's reach | `ingest_folds.py`, `diagnose_comparator_cost.py` |
 | journal profile, repurposing-venue coverage, rows by year per protease role | `diagnose_source_scope.py` |
