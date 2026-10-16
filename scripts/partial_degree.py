@@ -289,8 +289,48 @@ def main(argv=None) -> int:
               f"{fmt(c.p, '9.4f')} {fmt(c.p_adj, '9.4f')}")
 
     print()
+    negative_statistics(tested)
     why_not_tested(cells)
     return verdict(tested)
+
+
+def negative_statistics(tested: list[Cell]) -> None:
+    """A likelihood ratio cannot be negative, and some of these are.
+
+    NOT NOISE, AND NOT A CODING ERROR. The registration says the two models
+    are "both penalised identically", meaning the same lambda -- but over
+    DIFFERENT numbers of coefficients. The full model maximises
+    loglik - lambda/2 * (b_c^2 + b_d^2) and the reduced one
+    loglik - lambda/2 * b_d^2, so admitting b_c lets the fit trade b_d away
+    against the penalty and land on a LOWER data log-likelihood than the
+    reduced model reached. 2 * (ll_full - ll_red) then goes negative.
+
+    Reproduced in 146 of 300 synthetic null cells shaped like the real ones
+    -- n about 3,000, 15 positives, channel and degree correlated at 0.95 --
+    with the most negative at -0.601.
+
+    THE DIRECTION MATTERS. p is set to 1 for these, so the defect can only
+    fail to reject. P1 is a null and its non-rejection survives; what the
+    defect costs is power, exactly where channel and degree are collinear,
+    which is every cell worth testing.
+
+    The fix belongs in a future registration, not here: take the ratio of
+    the PENALISED objectives, which cannot be negative because the full
+    model evaluated at b_c = 0 IS the reduced model.
+    """
+    bad = [c for c in tested if c.stat is not None and c.stat < 0]
+    if not bad:
+        return
+    worst = min(c.stat for c in bad)
+    print(f"  {len(bad)} of {len(tested)} cells returned a NEGATIVE "
+          f"likelihood ratio (most negative {worst:+.3f}).")
+    print("  The two models carry the same lambda over different numbers of")
+    print("  coefficients, so the full fit can trade b_d against the penalty")
+    print("  and reach a lower DATA log-likelihood than the reduced one.")
+    print("  p is set to 1 for those, which is conservative: the defect can")
+    print("  only fail to reject, so P1's non-rejection survives it. What it")
+    print("  costs is power, where channel and degree are collinear.")
+    print()
 
 
 def why_not_tested(cells: list[Cell]) -> None:

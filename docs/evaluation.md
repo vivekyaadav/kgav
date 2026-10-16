@@ -366,6 +366,33 @@ covariate in the same model as the channel -- which is what Rephetio did,
 carrying node degrees for 14 metaedges as candidate features beside the
 DWPCs.
 
+### That measurement has now run. Verdict in the prereg; three results here
+
+**No channel clears the bar.** Across 78 cells, 16 tested under measured
+negatives and 26 under the looser reading, not one is significant after
+correction under BOTH scorings with the same sign. The registered criterion
+for proceeding to a full regularized model was not met.
+
+**The closest cell is SARS-CoV-2 M4**, measured negatives: `b_c` +0.401
+legacy and +0.403 pdp, raw p 0.0422 and 0.0093, corrected 0.6758 and
+0.1488. Same sign, near-identical magnitude, and the only cell in the table
+with that property -- and it fails Bonferroni, so it is not a result. It is
+the one cell worth more labels.
+
+**How a "negative" is defined decides what the model measures.** `b_d` on
+SARS-CoV-2 is negative on 5 of 7 channels when negatives are MEASURED
+inactive, and positive on 6 of 7 -- reaching +2.23 on SARS-CoV -- when
+unlabelled compounds are counted as inactive. Counting the unlabelled as
+inactive turns the model into a predictor of which compounds were ever
+measured, which is the 92.2% shared-PMID confound wearing another costume.
+That is why the measured-negative reading is primary.
+
+The verdict also records a defect in the registered statistic: the
+penalised likelihood ratio can come out negative, because the two models
+carry the same lambda over different numbers of coefficients. It is
+conservative -- those cells get p = 1 -- so the null survives it, but the
+null is weaker than the corrected p-values suggest.
+
 Nothing in `data/results` is affected yet: `baselines.SCORING_LEGACY` remains
 the default and produced every number in this document. `SCORING_PDP` exists
 beside it so the two can be measured against each other. Switching the
