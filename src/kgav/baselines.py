@@ -237,15 +237,86 @@ def _oversized_pathways(g: Graph, limits: dict) -> set[str]:
     return {p for p, n in members.items() if n > cap}
 
 
+# TWO SCORINGS, AND THE DEFAULT IS STILL THE ONE EVERY RESULTS FILE WAS
+# COMPUTED WITH. Switching it changes every number in data/results, so the
+# switch is a separate, measured, registered decision -- not a side effect of
+# adding the correct implementation.
+#
+# SCORING_LEGACY is what this repository has always computed: each node that
+# the walk ENTERS contributes `global_degree ** -w`. docs/prereg_m1_potency.md
+# already records one consequence -- "nothing drug-specific ever enters", so
+# M1 resolves 12 distinct values across 3,020 drugs. Two more follow from the
+# same two lines, and are not recorded anywhere:
+#
+#   - The START node's degree is never divided out, so the score grows with
+#     the compound's own edge count. On a controlled graph a compound with 10
+#     targets scores 11.58x one with 1 target; under the published form that
+#     ratio is 5.13x. The channel therefore CONTAINS the degree baseline it is
+#     being compared against, which is a confound inside the scorer, distinct
+#     from the shared-PMID confound in the labels.
+#   - `g.degree` counts edges of EVERY predicate, so an edge of an unrelated
+#     type on an intermediate changes the score. Adding one CHEMICALLY_SIMILAR
+#     edge to a traversed protein moved a probe's M1 score 0.644394 ->
+#     0.574349, a 10.9% shift from a layer the metapath never walks.
+#
+# SCORING_PDP is Himmelstein's path-degree product, the formulation this was
+# meant to be: every node on the path contributes once PER INCIDENT METAEDGE,
+# using that metaedge's own degree rather than the global one. The reference
+# Cypher builds an 8-element degree list for a 4-hop metapath -- both
+# endpoints included -- at the same damping exponent this file already uses
+# (DEFAULT_W = 0.4). Under it, the probe above is invariant: 0.757858 before
+# and after the unrelated edge.
+#
+# NEITHER form breaks the M1 tie block. Two compounds with one edge each to
+# the same protein have equal per-metaedge degrees, so they score identically
+# under both. The degeneracy is a separate defect and potency weighting
+# (docs/prereg_m1_potency.md) remains its remedy.
+SCORING_LEGACY = "entered-node-global"
+SCORING_PDP = "path-degree-product"
+SCORINGS = (SCORING_LEGACY, SCORING_PDP)
+
+
+def metaedge_degree(g: Graph) -> Counter:
+    """{(predicate, node): edges of THAT predicate incident to the node}.
+
+    Counts both adjacency maps, matching the reference implementation's
+    undirected `size((n)-[:TYPE]-())`. For a directed predicate this is the
+    natural reading anyway: a compound has only outgoing INHIBITS edges and a
+    protein only incoming, so each side gets its own count without a special
+    case.
+    """
+    deg: Counter = Counter()
+    for (pred, node), targets in g.out.items():
+        deg[(pred, node)] += len(targets)
+    for (pred, node), targets in g.inv.items():
+        deg[(pred, node)] += len(targets)
+    return deg
+
+
 def walk_metapath(g: Graph, start: str, path: list, constraints: dict | None,
                   blocked: set[str], w: float = DEFAULT_W,
-                  max_paths: int = 20000) -> dict[str, float]:
+                  max_paths: int = 20000,
+                  scoring: str = SCORING_LEGACY,
+                  mdeg: Counter | None = None) -> dict[str, float]:
     """DWPC from `start` along a metapath, returning {endpoint: score}.
 
     Each frontier entry carries the accumulated degree-product weight. Nodes
     already on the path are not revisited: a path that loops back through its
     own intermediate is not evidence.
+
+    `scoring` selects the weighting; see SCORINGS above. `mdeg` is the
+    metaedge-degree table, which SCORING_PDP needs for every walk -- pass the
+    one `metaedge_degree(g)` returns rather than paying for it per drug.
     """
+    if scoring not in SCORINGS:
+        # Not a silent fallback: a typo here would quietly produce the old
+        # numbers under the new name, which is the one outcome that would
+        # make the comparison this exists for meaningless.
+        raise ValueError(f"unknown scoring {scoring!r}; expected one of "
+                         f"{list(SCORINGS)}")
+    if scoring == SCORING_PDP and mdeg is None:
+        mdeg = metaedge_degree(g)
+
     frontier: list[tuple[str, float, frozenset]] = [(start, 1.0, frozenset({start}))]
     steps = [(parse_hop(path[i]), path[i + 1]) for i in range(1, len(path) - 1, 2)]
 
@@ -254,6 +325,9 @@ def walk_metapath(g: Graph, start: str, path: list, constraints: dict | None,
         last = step_i == len(steps) - 1
         for node, weight, visited in frontier:
             candidates = g.neighbours(predicate, node, reverse)
+            # The SOURCE side of this metaedge, which the legacy form omits.
+            d_src = (mdeg.get((predicate, node), 1) or 1) \
+                if scoring == SCORING_PDP else 1
             for nbr, edge in candidates:
                 if nbr in visited or g.klass(nbr) != want_class:
                     continue
@@ -263,8 +337,12 @@ def walk_metapath(g: Graph, start: str, path: list, constraints: dict | None,
                 # nodes only. Endpoints are the answer, not a shortcut.
                 if not last and nbr in blocked:
                     continue
-                d = g.degree.get(nbr, 1) or 1
-                nxt.append((nbr, weight * d ** -w, visited | {nbr}))
+                if scoring == SCORING_PDP:
+                    d_tgt = mdeg.get((predicate, nbr), 1) or 1
+                    step_w = (d_src * d_tgt) ** -w
+                else:
+                    step_w = (g.degree.get(nbr, 1) or 1) ** -w
+                nxt.append((nbr, weight * step_w, visited | {nbr}))
             if len(nxt) > max_paths:
                 break
         frontier = nxt
@@ -278,15 +356,20 @@ def walk_metapath(g: Graph, start: str, path: list, constraints: dict | None,
 
 
 def dwpc_scores(g: Graph, metapaths: dict, limits: dict,
-                w: float = DEFAULT_W) -> dict[str, dict[str, dict[str, float]]]:
+                w: float = DEFAULT_W, scoring: str = SCORING_LEGACY
+                ) -> dict[str, dict[str, dict[str, float]]]:
     """{metapath: {drug: {virus: score}}} for every drug with any path."""
     blocked = _hub_set(g, limits) | _oversized_pathways(g, limits)
+    # Once per call, not once per drug: on v0.1 this table is built from
+    # 374,792 edges and every drug's walk reads it.
+    mdeg = metaedge_degree(g) if scoring == SCORING_PDP else None
     results: dict[str, dict[str, dict[str, float]]] = {}
     for name, mp in metapaths.items():
         per_drug: dict[str, dict[str, float]] = {}
         for drug in g.drugs():
             hits = walk_metapath(g, drug, mp["path"], mp.get("constraints"),
-                                 blocked if mp.get("exclude_hubs") else set(), w)
+                                 blocked if mp.get("exclude_hubs") else set(),
+                                 w, scoring=scoring, mdeg=mdeg)
             if hits:
                 per_drug[drug] = hits
         results[name] = per_drug

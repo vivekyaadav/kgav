@@ -1480,3 +1480,162 @@ def test_neither_evaluation_script_formats_lift_or_p_itself():
             "is what printed a point lift beside an undetermined hit count")
         for fn in ("lift_cell", "p_cell", "undetermined_note"):
             assert fn in src, f"{script}.py does not use {fn}"
+
+
+# ====================================================================
+# The scorer is not DWPC as published, and now both forms exist
+# ====================================================================
+#
+# docs/prereg_m1_potency.md already records that "nothing drug-specific ever
+# enters" the walk. These cover the two consequences that were not recorded:
+# the start node's degree is never divided out, and `g.degree` counts edges of
+# every predicate so an unrelated layer shifts the score.
+W = 0.4
+
+
+def _scoring_release(tmp_path, n_targets_for_B=10, extra=()):
+    """VIRUS <- n proteins; A reaches one of them, B reaches all n."""
+    from kgav.baselines import Graph as G
+    nodes = [{"id": "VIRUS", "class": "OrganismTaxon", "properties": {}}]
+    edges = []
+    for i in range(max(n_targets_for_B, 1)):
+        nodes.append({"id": f"P{i}", "class": "Protein", "properties": {}})
+        edges.append(("P{}".format(i), "PART_OF", "VIRUS"))
+    for c in ("A", "B"):
+        nodes.append({"id": c, "class": "SmallMolecule", "properties": {}})
+    edges.append(("A", "INHIBITS", "P0"))
+    for i in range(n_targets_for_B):
+        edges.append(("B", "INHIBITS", f"P{i}"))
+    for s, p, o, klass in extra:
+        if s not in {n["id"] for n in nodes}:
+            nodes.append({"id": s, "class": klass, "properties": {}})
+        edges.append((s, p, o))
+    (tmp_path / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text("\n".join(json.dumps(
+        {"subject": s, "predicate": p, "object": o, "qualifiers": {},
+         "primary_knowledge_source": "infores:chembl", "evidence_tier": 1,
+         "first_asserted_date": "2021-01-01"}) for s, p, o in edges))
+    return G.load(tmp_path, symmetry={"INHIBITS": False, "PART_OF": False,
+                                      "CHEMICALLY_SIMILAR_TO": True})
+
+
+_PATH = ["SmallMolecule", "INHIBITS", "Protein", "PART_OF", "OrganismTaxon"]
+
+
+def test_the_default_scoring_is_the_one_every_results_file_used(tmp_path):
+    """Switching the default would change every number in data/results with
+    no measurement behind it. The correct implementation ships as an option
+    and the switch is a separate registered decision."""
+    from kgav.baselines import SCORING_LEGACY, walk_metapath as walk
+    g = _scoring_release(tmp_path)
+    assert walk(g, "A", _PATH, None, set()) == \
+        walk(g, "A", _PATH, None, set(), scoring=SCORING_LEGACY)
+
+
+def test_the_legacy_form_does_not_divide_out_the_compounds_own_degree(tmp_path):
+    """THE DEFECT. A compound with ten targets accumulates ten paths and
+    nothing damps its own edge count, so the channel contains the degree
+    baseline it is compared against."""
+    from kgav.baselines import SCORING_PDP, walk_metapath as walk
+    g = _scoring_release(tmp_path)
+    leg = {c: walk(g, c, _PATH, None, set())["VIRUS"] for c in "AB"}
+    pdp = {c: walk(g, c, _PATH, None, set(),
+                   scoring=SCORING_PDP)["VIRUS"] for c in "AB"}
+    assert leg["B"] / leg["A"] == pytest.approx(11.58, abs=0.01)
+    assert pdp["B"] / pdp["A"] == pytest.approx(5.13, abs=0.01)
+    assert pdp["B"] / pdp["A"] < leg["B"] / leg["A"]
+
+
+def test_the_pdp_value_is_the_closed_form(tmp_path):
+    """Not a regression pin on whatever the code returns. A -INHIBITS-> P0
+    -PART_OF-> VIRUS with per-metaedge degrees INHIBITS(A)=1, INHIBITS(P0)=2,
+    PART_OF(P0)=1, PART_OF(VIRUS)=1 is (1*2)^-w * (1*1)^-w = 2^-0.4."""
+    from kgav.baselines import SCORING_PDP, metaedge_degree, walk_metapath
+    g = _scoring_release(tmp_path, n_targets_for_B=1)
+    md = metaedge_degree(g)
+    assert md[("INHIBITS", "A")] == 1
+    assert md[("INHIBITS", "P0")] == 2        # A and B both inhibit it
+    assert md[("PART_OF", "P0")] == 1
+    assert md[("PART_OF", "VIRUS")] == 1
+    got = walk_metapath(g, "A", _PATH, None, set(), scoring=SCORING_PDP)
+    assert got["VIRUS"] == pytest.approx(2 ** -W, abs=1e-12)
+
+
+def test_global_degree_leaks_across_layers_and_per_metaedge_does_not(tmp_path):
+    """An edge of a type the metapath never walks changes the legacy score,
+    because g.degree counts every predicate. This is why adding the fold
+    layer moved M1 without anything in M1 changing."""
+    from kgav.baselines import SCORING_PDP, walk_metapath as walk
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    plain = _scoring_release(tmp_path / "a", n_targets_for_B=1)
+    leaked = _scoring_release(
+        tmp_path / "b", n_targets_for_B=1,
+        extra=[("X", "CHEMICALLY_SIMILAR_TO", "P0", "SmallMolecule")])
+    leg = [walk(g, "A", _PATH, None, set())["VIRUS"] for g in (plain, leaked)]
+    pdp = [walk(g, "A", _PATH, None, set(),
+                scoring=SCORING_PDP)["VIRUS"] for g in (plain, leaked)]
+    assert leg[0] != leg[1]
+    assert abs(leg[1] - leg[0]) / leg[0] > 0.10
+    assert pdp[0] == pdp[1], "per-metaedge degree must ignore other layers"
+
+
+def test_NEITHER_form_breaks_the_M1_tie_block(tmp_path):
+    """Stated so nobody reads this change as a fix for the degeneracy. Two
+    compounds with one edge each to the same protein have equal degrees on
+    both sides of every metaedge, so they score identically under both --
+    potency weighting remains the remedy for that."""
+    from kgav.baselines import SCORING_LEGACY, SCORING_PDP, walk_metapath as walk
+    g = _scoring_release(tmp_path, n_targets_for_B=1)   # A and B both -> P0
+    for scoring in (SCORING_LEGACY, SCORING_PDP):
+        a = walk(g, "A", _PATH, None, set(), scoring=scoring)
+        b = walk(g, "B", _PATH, None, set(), scoring=scoring)
+        assert a == b, scoring
+
+
+def test_an_unknown_scoring_raises_rather_than_falling_back(tmp_path):
+    """A typo that silently returned the legacy numbers under the new name
+    would make the comparison this exists for meaningless."""
+    from kgav.baselines import walk_metapath
+    g = _scoring_release(tmp_path, n_targets_for_B=1)
+    with pytest.raises(ValueError, match="unknown scoring"):
+        walk_metapath(g, "A", _PATH, None, set(), scoring="pdp")
+
+
+def test_a_supplied_degree_table_matches_one_built_per_walk(tmp_path):
+    """dwpc_scores builds the table once and passes it to every walk. If the
+    two paths disagreed, the per-drug numbers would depend on the caller."""
+    from kgav.baselines import SCORING_PDP, metaedge_degree, walk_metapath
+    g = _scoring_release(tmp_path)
+    md = metaedge_degree(g)
+    for c in ("A", "B"):
+        assert walk_metapath(g, c, _PATH, None, set(), scoring=SCORING_PDP) == \
+            walk_metapath(g, c, _PATH, None, set(), scoring=SCORING_PDP,
+                          mdeg=md)
+
+
+def test_metaedge_degree_is_per_predicate_and_counts_both_directions(tmp_path):
+    """Per-predicate, or it is the global degree again under a new name.
+    Both directions, matching the reference `size((n)-[:TYPE]-())`: a
+    compound holds only outgoing INHIBITS and a protein only incoming."""
+    from kgav.baselines import metaedge_degree
+    g = _scoring_release(
+        tmp_path, n_targets_for_B=1,
+        extra=[("X", "CHEMICALLY_SIMILAR_TO", "P0", "SmallMolecule")])
+    md = metaedge_degree(g)
+    assert md[("INHIBITS", "P0")] == 2                  # incoming only
+    assert md[("CHEMICALLY_SIMILAR_TO", "P0")] == 1     # a different layer
+    assert md[("INHIBITS", "P0")] + md[("PART_OF", "P0")] \
+        + md[("CHEMICALLY_SIMILAR_TO", "P0")] == g.degree["P0"]
+
+
+def test_dwpc_scores_passes_the_scoring_through(tmp_path):
+    """The option is useless if the driver ignores it."""
+    from kgav.baselines import SCORING_PDP, dwpc_scores
+    g = _scoring_release(tmp_path)
+    mps = {"M": {"path": _PATH}}
+    leg = dwpc_scores(g, mps, {})["M"]
+    pdp = dwpc_scores(g, mps, {}, scoring=SCORING_PDP)["M"]
+    assert set(leg) == set(pdp) == {"A", "B"}
+    assert leg["B"]["VIRUS"] != pdp["B"]["VIRUS"]

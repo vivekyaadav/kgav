@@ -271,6 +271,57 @@ degree lift of 9.51 as though both were measurements; they were two draws.
 Reported alone, that p-value would have been the fifth wrong M1 number in
 this document -- and reported as a comparison, it was the sixth.
 
+## The channel partly IS the baseline, and that is a defect in the scorer
+
+Everything above compares a channel against a degree baseline on the
+assumption that they are different quantities. They are not entirely.
+
+`walk_metapath` multiplies by each ENTERED node's `degree ** -w`. Two
+consequences follow, neither of which is a judgement call:
+
+**The start node's degree is never divided out.** Himmelstein's path-degree
+product divides by the degree of every node on the path, source included, and
+does it once per incident metaedge -- the reference implementation builds an
+eight-element degree list for a four-hop metapath, at the same `w = 0.4` this
+file uses. Here three of those six terms are applied and the compound's own
+is not among them. So a compound with more edges accumulates more score. On a
+controlled graph, ten targets against one scores **11.58x** under this
+implementation and **5.13x** under the published one.
+
+**`g.degree` counts every predicate.** The published form uses the degree
+within the specific metaedge being traversed. Using the global degree means
+an edge of a type the metapath never walks still moves the score: adding one
+`CHEMICALLY_SIMILAR_TO` edge to a traversed protein moved a probe's M1 score
+0.644394 -> 0.574349, a **10.9%** shift. Under the published form that probe
+is invariant to the digit: 0.757858 before and after. Mechanically, then,
+shipping the fold layer moved M1 scores without anything in M1 changing.
+
+`docs/prereg_m1_potency.md` records the related half of this -- "nothing
+drug-specific ever enters", hence 12 distinct M1 values across 3,020 drugs.
+The two above are not recorded anywhere and are not what that prereg
+proposes to fix.
+
+**What is NOT yet known, and must not be inferred from the above.** How much
+of each channel's measured lift is degree, on v0.1. The probes are controlled
+graphs of a dozen nodes; they establish the mechanism and say nothing about
+its magnitude here. `scripts/diagnose_scorer.py` runs both scorings over a
+release and reports, per channel, the Spearman correlation between score and
+compound degree under each, the tie structure under each, and whether the
+ranking changes at all. Until that has run on v0.1 the correct statement is
+that the comparison is contaminated by an unmeasured amount, not that any
+particular result is wrong.
+
+Nothing in `data/results` is affected yet: `baselines.SCORING_LEGACY` remains
+the default and produced every number in this document. `SCORING_PDP` exists
+beside it so the two can be measured against each other. Switching the
+default is a separate decision that needs that measurement first, and a
+registration.
+
+**Neither form breaks the M1 tie block.** Two compounds with one edge each to
+the same protein have equal degrees on both sides of every metaedge, so they
+score identically under both. The degeneracy is a different defect and
+potency weighting remains its remedy.
+
 ## The temporal protocol: the first signal above the baseline
 
 Pre-2021 graph, post-2021 measurements. **This protocol is
@@ -497,6 +548,7 @@ source as unverified.
 | flavivirus volumes and substrate concentration | `diagnose_flavivirus_join.py`, `diagnose_flavivirus_targets.py` |
 | fold layer counts, allowed transfers, blocking chains, M8's reach | `ingest_folds.py`, `diagnose_comparator_cost.py` |
 | journal profile, repurposing-venue coverage, rows by year per protease role | `diagnose_source_scope.py` |
+| how much of a channel's score is the compound's own degree | `diagnose_scorer.py` |
 
 ## Reproducing
 
