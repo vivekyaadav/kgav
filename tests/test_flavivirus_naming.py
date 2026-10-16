@@ -259,8 +259,22 @@ def test_coronavirus_descriptions_are_unchanged_by_the_new_argument():
 
 def test_an_unknown_family_falls_back_to_the_coronavirus_table():
     """Not a guess -- the pre-existing behaviour. A taxon with no family in
-    the graph gets what it got before this commit, never a flavivirus read."""
-    assert resolve_nsp("Inhibition of SARS-CoV-2 Mpro", "Picornaviridae") \
+    the graph gets what it got before this commit, never a flavivirus read.
+
+    THE EXAMPLE IS DERIVED, NOT NAMED. This test used to pass
+    "Picornaviridae" as its unknown family, and adding PICORNA_PATTERNS
+    broke it -- correctly, because the example had become a known family
+    while the property under test had not changed at all. A test about
+    families with no table must pick one that has no table, today and
+    after the next one is added.
+    """
+    from kgav.chembl import PATTERNS_BY_FAMILY
+
+    unknown = "Caliciviridae"
+    assert unknown not in PATTERNS_BY_FAMILY
+    assert resolve_nsp("Inhibition of SARS-CoV-2 Mpro", unknown) \
+        == resolve_nsp("Inhibition of SARS-CoV-2 Mpro")
+    assert resolve_nsp("Inhibition of SARS-CoV-2 Mpro", None) \
         == resolve_nsp("Inhibition of SARS-CoV-2 Mpro")
     assert len(NSP_PATTERNS) == 9, "the coronavirus table is untouched"
 

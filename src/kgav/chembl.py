@@ -153,7 +153,60 @@ FLAVI_PATTERNS: list[tuple[re.Pattern, str, str | None]] = [
     (re.compile(r"envelope protein e\b", re.IGNORECASE), "E", None),
 ]
 
-PATTERNS_BY_FAMILY = {"Flaviviridae": FLAVI_PATTERNS}
+# PICORNAVIRUS DESCRIPTIONS. Written from the real text, not from what the
+# proteins are called in a textbook -- the method the flavivirus table above
+# used, and the reason this one exists at all.
+#
+# MEASURED on chembl_37 by scripts/phase4_survey_chemistry.py, 2026-10-16.
+# ChEMBL names NO picornavirus protease target: all 80 targets in a matched
+# picornavirus organism are ORGANISM-level but six, and those six are
+# polyproteins carrying 199 quantified rows in 19 distinct descriptions.
+# Every one of the 19 is accounted for below -- 157 rows name the 3C
+# protease, 20 the 3D polymerase, 22 the capsid -- so this table is closed
+# against the database rather than sampled from it.
+#
+# BEHAVIOUR-NEUTRAL FOR v0.1, and the register is why. resolve_nsp picks its
+# table from the family of the row's taxon, and ingest_chembl only ever
+# fetches declared taxa: config/viruses.yaml lists 8 viruses, 7 Coronaviridae
+# and Zika, with `defaults.family: Coronaviridae` and nine Flaviviridae
+# overrides. No entry is a picornavirus, so no ingest call can reach this
+# table and no edge in v0.1 can move. test_chembl asserts that from the
+# config rather than taking it on trust. It is here because phase 4 needs it
+# and because promoting a picornavirus later should not also require
+# discovering that its assay text is unreadable.
+#
+# RESTRAINT, copied from the flavivirus table. There is no bare
+# \bprotease\b: all 15 three-C phrasings name "3C" explicitly, and a bare
+# one would start claiming HOST protease assays. The polymerase rule is
+# likewise anchored -- "polio virus RNA polymerase" is reached through
+# virus/viral next to the function name, exactly as the flavivirus
+# methyltransferase rule is.
+#
+# ORDER. "3C" is a substring of "3CD", the uncleaved precursor, and of the
+# coronavirus "3CL". Neither can match: both patterns require 3C to be
+# followed by whitespace or the word boundary before "pro", which a D or an
+# L breaks. The substring hazard is the project's sixth; this is where it
+# would have bitten seventh.
+PICORNA_PATTERNS: list[tuple[re.Pattern, str, str | None]] = [
+    # 157 rows: "Coxsackievirus B3 3C protease", "EV71 3C protease",
+    # "coxsackievirus B3 protease 3C", "protease 3c", "HRV-16 protease 3C",
+    # "Human rhinovirus serotype 14 3C protease", "Coxsackievirus B3 Nancy
+    # 3Cpro".
+    (re.compile(r"\b3C\s*protease|\bprotease\s*3C\b|\b3C\s*pro\b",
+                re.IGNORECASE), "3C", None),
+    # 20 rows: "poliovirus RNA dependent RNA polymerase" (3), and
+    # "Inhibitory activity against polio virus RNA polymerase" (17).
+    (re.compile(r"rna[- ]dependent rna pol|rna[- ]directed rna pol"
+                r"|\b3D\s*pol|\b(?:virus|viral)\s+rna\s+polymerase",
+                re.IGNORECASE), "3D", None),
+    # 22 rows: "Enterovirus 71 Shenzhen/120F1/09 capsid infected in human RD
+    # cells". NOT a chain ingest_folds builds -- declared so the row is READ
+    # and reported as the capsid rather than counted as unreadable text.
+    (re.compile(r"\bcapsid\b", re.IGNORECASE), "capsid", None),
+]
+
+PATTERNS_BY_FAMILY = {"Flaviviridae": FLAVI_PATTERNS,
+                      "Picornaviridae": PICORNA_PATTERNS}
 
 
 def resolve_nsp(description: str,

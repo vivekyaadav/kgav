@@ -190,6 +190,10 @@ def _db(path: Path, *, arm_a: int = 12, arm_b: int = 12,
         (70, 6, "Inhibition of recombinant SARS-CoV-2 nsp13 helicase", "B", 1),
         (80, 7, ("Inhibition of recombinant Enterovirus A71 3C protease by "
                  "FRET assay"), "B", 1),
+        # text no family table can read: the only route into the third
+        # bucket now that all three families have one
+        (90, 6, "Inhibition of recombinant thingamajig by squiggle assay",
+         "B", 1),
     ])
     mols = [(i, f"CHEMBL{i:06d}", f"drug{i}", 0.0) for i in range(1, 61)]
     # One InChIKey per molregno, except: 54 and 55 are a salt pair sharing a
@@ -231,6 +235,8 @@ def _db(path: Path, *, arm_a: int = 12, arm_b: int = 12,
     add(55, 30)
     # no structure row, so no InChIKey: dropped, as the ingest drops it
     add(56, 10)
+    # a coronavirus polyprotein row whose description names no enzyme
+    add(57, 90)
     con.executemany("INSERT INTO molecule_dictionary VALUES (?,?,?,?)", mols)
     con.executemany("INSERT INTO compound_structures VALUES (?,?)",
                     sorted(keys.items()))
@@ -456,15 +462,6 @@ def test_an_hcv_polyprotein_row_reads_with_the_flavivirus_table():
     assert S.row_role(t, "Inhibition of NS3 helicase") is None
 
 
-def test_a_picornavirus_polyprotein_row_is_left_unresolved():
-    """chembl.PATTERNS_BY_FAMILY has no Picornaviridae entry, so resolve_nsp
-    would fall through to NSP_PATTERNS -- the CORONAVIRUS table. That is the
-    cross-family naming bug diagnose_flavivirus_targets.py was written to
-    find, and it is refused here by family name rather than by trusting the
-    coronavirus patterns not to match a picornavirus description."""
-    t = _poly("Picornaviridae", "Enterovirus A71")
-    assert S.row_role(t, "Inhibition of EV-A71 3C protease by FRET") is None
-    assert "Picornaviridae" not in S.DESCRIPTION_TABLE
 
 
 def test_a_polyprotein_target_that_is_organism_typed_supplies_nothing():
@@ -485,8 +482,11 @@ def test_polyprotein_rows_are_split_three_ways(tmp_path):
     # the helicase row IS read -- as nsp13, which is not a protease
     assert other["Coronaviridae  nsp13"] == 1
     assert not any("nsp13" in d for d in unknown["Coronaviridae"])
-    # the picornavirus row is unreadable: no table exists for that family
-    assert any("3C protease" in d for d in unknown["Picornaviridae"])
+    # the picornavirus row now reads, since PICORNA_PATTERNS exists
+    assert arm["Picornaviridae  3cpro"] == 1
+    assert not unknown.get("Picornaviridae")
+    # and only genuinely unreadable text reaches the third bucket
+    assert any("thingamajig" in d for d in unknown["Coronaviridae"])
 
 
 def test_the_unresolved_descriptions_are_printed_verbatim(tmp_path,
@@ -495,8 +495,8 @@ def test_the_unresolved_descriptions_are_printed_verbatim(tmp_path,
     from the real text, the way the flavivirus table was."""
     _main(monkeypatch, _db(tmp_path / "ok.db"))
     out = capsys.readouterr().out
-    assert "NO DESCRIPTION TABLE EXISTS for this family" in out
-    assert "Inhibition of recombinant Enterovirus A71 3C protease" in out
+    assert "rows the table could NOT READ AT ALL" in out
+    assert "Inhibition of recombinant thingamajig by squiggle assay" in out
 
 
 def test_a_polyprotein_compound_reaches_an_arm_role(tmp_path):
