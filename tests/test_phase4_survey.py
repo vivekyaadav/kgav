@@ -715,3 +715,60 @@ def test_rows_that_never_had_a_role_are_not_counted_as_attrition(
     out = capsys.readouterr().out
     assert "rows that never had an arm role:" in out
     assert "rows WITH an arm role, dropped before a potency" in out
+
+
+# ------------------------------------------- the unit is the publication
+def test_a_one_paper_arm_counts_as_one_observation(tmp_path):
+    """Nine analogues of one medicinal-chemistry series, measured on two
+    enzymes in one paper, are ONE observation about those enzymes and nine
+    about that series. On the real database arm A has 12 pairs, 10 of them
+    within a single document and 9 from one paper."""
+    _, by_tid, acts = _loaded(tmp_path)
+    pot, _, _ = S.usable_potency(acts, by_tid)
+    pubs = S.role_publications(acts, by_tid, pot)
+    arm_b = set(pot["3clpro"]) & set(pot["hcv_ns3pro"])
+    # every arm-B pair in the fixture sits in document 101
+    assert len(arm_b) > 1
+    assert S.independent_units(arm_b, "3clpro", "hcv_ns3pro", pubs) == 1
+
+
+def test_cross_paper_pairs_each_count_for_themselves(tmp_path):
+    """A pair whose two ends come from different papers is nobody's series,
+    and it is the kind of observation the premise is actually about."""
+    _, by_tid, acts = _loaded(tmp_path)
+    pot, _, _ = S.usable_potency(acts, by_tid)
+    pubs = S.role_publications(acts, by_tid, pot)
+    arm_a = set(pot["3clpro"]) & set(pot["3cpro"])
+    assert S.independent_units(arm_a, "3clpro", "3cpro", pubs) == len(arm_a)
+
+
+def test_the_verdict_reads_units_not_compounds(tmp_path, monkeypatch, capsys):
+    """REGRESSION. The verdict printed "MEASURABLE, A n=12" four lines below
+    a table saying 10 of those 12 pairs sat in one document. A verdict that
+    prints the publication structure and then ignores it is the silence
+    this survey keeps finding."""
+    code = _main(monkeypatch, _db(tmp_path / "ok.db", arm_a=12, arm_b=12))
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "10-observation floor" in out
+    assert "12 independent observation(s)" in out
+    # arm B is 12 compounds from one paper and must NOT be in the verdict
+    assert "B   REFUSED  CoV 3CLpro + HCV NS3  n=" not in out
+
+
+def test_an_arm_that_clears_on_compounds_but_not_units_is_named(
+        tmp_path, monkeypatch, capsys):
+    """Not silently dropped: an arm with the compounds but not the
+    independence is exactly the one a reader would otherwise assume was
+    simply too small."""
+    p = _db(tmp_path / "onepaper.db", arm_a=12, arm_b=12)
+    con = sqlite3.connect(p)
+    # put arm A's two ends in one document as well
+    con.execute("UPDATE assays SET doc_id = 101 WHERE assay_id = 20")
+    con.commit()
+    con.close()
+    code = _main(monkeypatch, p)
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "NO PAIRED ARM IS MEASURABLE" in out
+    assert "independent observation(s) — a congeneric" in out
