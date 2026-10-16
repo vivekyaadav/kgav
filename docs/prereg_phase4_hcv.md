@@ -188,3 +188,86 @@ end.
    shape, so it needs its own control arm measured before it is registered.
 3. **A prospective assay.** Twelve compounds on two enzymes in one protocol
    would settle arm A better than the whole of ChEMBL does.
+
+---
+
+# Amendment 1 — the arms are partly a property of the source
+
+2026-10-16, measured by `scripts/diagnose_source_scope.py` on chembl_37.
+The prereg body above is unchanged. This amendment corrects one inference
+in it and records what the correction rests on.
+
+## What I got wrong
+
+Point 3 of "What the evidence permits" explains control C1 — 49 paired
+compounds across two proteases that share no fold — with "The COVID-era
+papers that ran 3CLpro ran PLpro beside it". **That attribution is wrong.**
+
+Per-year, C1's two ends are not COVID-era at all. `plpro` carries 8 rows
+from 2020–2021 out of 809, and 493 from 2024. `3clpro`'s mass is 2022
+(1,325), 2023 (932) and 2024 (1,403). C1 is **post-pandemic medicinal
+chemistry running two protease assays inside one programme**, which is a
+different thing from a 2020 repurposing screen and explains the same 47-of-49
+single-document structure for a different reason.
+
+I also predicted, from a top-fifteen table, that the coronavirus protease
+data post-dates the repurposing window entirely. **It does not**: 3CLpro
+carries 489 rows from 2020–2021, 10.3% of its total. The complete histogram
+contradicted the truncated one, which is why the script prints every year
+and a test asserts it.
+
+## What the source measurement found
+
+ChEMBL 37 holds 93,489 documents under 304 distinct journal titles. Five
+titles supply **87.1%** of them; fifteen supply 98.2%; the remaining 289
+titles supply 1.8%.
+
+    J Med Chem             26,839     28.7%
+    Bioorg Med Chem Lett   24,365     54.8%
+    Eur J Med Chem         11,799     67.4%
+    Bioorg Med Chem         9,438     77.5%
+    J Nat Prod              8,945     87.1%
+
+Against a lookup of nineteen named venues where repurposing screens are
+published — PLoS ONE, Sci Rep, Nat Commun, eLife, Antiviral Res, bioRxiv and
+others — the whole set contributes 2,353 documents, 2.5% of the database,
+and **seven documents in 2020–2021**. PLoS ONE contributes 13 documents in
+total and none from 2021, which is why the screen that is arm B's experiment
+is absent.
+
+Every one of this project's protease roles draws from the same five or six
+medicinal-chemistry journals, in every year it has data for.
+
+## What that changes, and what it does not
+
+**It does not weaken any figure in the body.** The arms, the units and the
+publication structure are unchanged, and the test the prereg registers is
+unaffected.
+
+**It narrows one claim.** The body says the catalytic-type gate is
+"untestable on ChEMBL 37", which was correctly scoped and is now explained:
+a medicinal-chemistry paper is a congeneric series — one scaffold, one
+target — and a cross-target observation is not a thing that shape of paper
+produces. ChEMBL has a great deal of coronavirus protease chemistry. What it
+does not have is the same compound measured on two viral proteases, because
+the experiments that do that are published in venues it does not curate.
+
+**It does not say ChEMBL is deficient.** It answers "how does this series
+vary on this target" and answers it extremely well. This project asks
+"would this existing drug work on that virus". Those are different
+questions, and the second one's evidence is largely outside this source.
+
+**It raises the priority of the backlog's second screening panel.** The
+NCATS CPE layer is already the only source here generated independently of
+ChEMBL annotation, and `docs/evaluation.md` already asks for a second. The
+measurement above is the reason: such a panel is not more data of the kind
+we have, it is the only data of a kind this source structurally lacks.
+
+## Arm A, in the same light
+
+`3cpro` carries 157 rows, **none** from 2020–2021, spread over 2009–2018
+with 63 rows each in 2016 and 2018. So arm A is not a COVID artifact either.
+It pairs a pre-2019 picornavirus 3C series with coronavirus 3CLpro data —
+a broad-spectrum protease programme, which is exactly the kind of paper that
+would measure both, and exactly why nine of its twelve compounds are one
+document.

@@ -183,3 +183,51 @@ def test_the_top_flag_caps_only_the_journal_profile(tmp_path, capsys,
     out = capsys.readouterr().out
     assert "the other 1 titles supply" in out
     assert "rows by year, complete:" in out
+
+
+# ----------------------------------- the causes table names its own sources
+EVAL = ROOT / "docs" / "evaluation.md"
+
+
+def _causes_table() -> list[str]:
+    text = EVAL.read_text()
+    body = text.split("measured causes", 1)[1]
+    rows = []
+    for line in body.splitlines():
+        if line.startswith("|") and not line.startswith("|---"):
+            rows.append(line)
+        elif rows and not line.startswith("|"):
+            break
+    return rows[1:]          # drop the header row
+
+
+def test_the_heading_counts_the_rows_it_has():
+    """A table headed "Six" with seven rows is the smallest possible version
+    of a report that is silent about the thing beside it."""
+    words = {6: "Six", 7: "Seven", 8: "Eight", 9: "Nine", 10: "Ten"}
+    n = len(_causes_table())
+    assert f"## {words[n]} measured causes" in EVAL.read_text()
+
+
+def test_every_figure_class_names_a_script_that_re_derives_it():
+    """evaluation.md's own rule: "Each figure below names the script that
+    re-derives it... treat a figure with no named source as unverified."
+    A cause added without registering its script is an unverified figure
+    in a document that forbids them."""
+    text = EVAL.read_text()
+    assert "`diagnose_source_scope.py` |" in text
+    assert "`ingest_folds.py`" in text
+    # and the scripts it names exist
+    for name in ("diagnose_source_scope.py", "ingest_folds.py",
+                 "diagnose_comparator_cost.py", "diagnose_label_overlap.py"):
+        assert (ROOT / "scripts" / name).exists(), name
+
+
+def test_the_m8_row_is_not_the_stale_one():
+    """REGRESSION. The row read "M8 inert | no MEMBER_OF_CLASS or
+    FOLD_SIMILAR_TO edges" for as long as that was true, and this session
+    shipped the layer that makes it false. Adding a true row while leaving
+    a false one is the silence this document keeps catching elsewhere."""
+    rows = "\n".join(_causes_table())
+    assert "M8 inert" not in rows
+    assert "`FOLD_SIMILAR_TO`" in rows and "104 `MEMBER_OF_CLASS`" in rows
