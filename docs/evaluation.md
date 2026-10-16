@@ -329,15 +329,42 @@ reached from unreached, not ordering anything within reach.
 between the two scorings' own scores falls to +0.171 for M2 on HCoV-NL63 and
 +0.310 for M3 on HCoV-HKU1. This is not a cosmetic rescaling.
 
-**Still open: four channels flip the sign of that correlation.** M2, M3, M6
-and M7 are positive under the legacy form and negative under pdp -- M2 on
-HCoV-NL63 goes +0.256 to −0.827. Two readings fit, and the measurement above
-cannot separate them: either pdp removes degree and the residual
-anti-correlates for a reason, or it is an artifact of correlating against the
-GLOBAL degree while pdp divides by the degree in the layer the channel walks.
-A compound can be globally busy and locally sparse. `diagnose_scorer.py` now
-reports both correlations side by side; until that column has been read, the
-sign flip is not evidence of anything.
+**Four channels flip the sign, and it is not an artifact.** M2, M3, M6 and
+M7 are positive under the legacy form and negative under pdp -- M2 on
+HCoV-NL63 goes +0.256 to −0.827. The candidate explanation was that this
+came from correlating against the GLOBAL degree while pdp divides by the
+degree in the layer the channel walks, since a compound can be globally busy
+and locally sparse. It does not: across the 36 channel-virus cells the two
+correlations **agree in sign 36 times out of 36**, and for M2, M3 and M5
+they agree to within 0.013 to 0.023 in median absolute difference. The flip
+is a property of the scorer, not of which degree it is measured against.
+
+**So neither form is degree-neutral, in opposite directions.** The legacy
+form correlates +0.3 to +0.7 with degree; pdp correlates −0.04 to −0.87 on
+25 of 36 cells. `w` is the knob between them -- the legacy form applies no
+damping to the source and pdp applies `w = 0.4` -- and some intermediate
+value would cross zero. Tuning `w` until the correlation vanishes would be
+fitting the scorer to the confound, so it is noted here and not done.
+
+**M4 is worse against the degree it actually uses.** Measured against the
+`TARGETS` degree rather than the global one, M4's legacy correlation is
++0.831 / +0.814 / +0.830 / +0.700 / +0.812 across the five viruses it
+reaches -- higher than the global figures above -- and it remains +0.317 to
++0.593 under pdp.
+
+**Four cells are a perfect monotone function of the compound's degree.** M8
+on SARS-CoV-2, Zika and SARS-CoV, and M1 on HCoV-229E, all read exactly
+**−1.000** against the layer degree under pdp. Not "correlated with": rank
+for rank, those channels ARE the compound's own edge count, inverted. They
+carry no information beyond it, in either direction. M1 on MERS-CoV (−0.966)
+and M7 on Zika (−0.955) are within noise of the same statement.
+
+**What follows, and is registered in `docs/prereg_partial_degree.md`.**
+"Does this channel beat degree" cannot be settled by choosing a scoring,
+because both scorings are degree with a sign. It needs degree as an explicit
+covariate in the same model as the channel -- which is what Rephetio did,
+carrying node degrees for 14 metaedges as candidate features beside the
+DWPCs.
 
 Nothing in `data/results` is affected yet: `baselines.SCORING_LEGACY` remains
 the default and produced every number in this document. `SCORING_PDP` exists
