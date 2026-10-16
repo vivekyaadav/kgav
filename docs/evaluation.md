@@ -447,6 +447,19 @@ written in this document's prose carry no such stamp, so they rot silently --
 which is the stale-before-column problem one layer up from the one
 `provenance.py` was written for.
 
+**One field in that stamp was reporting on its own output.** `code.dirty`
+is meant to say whether the CODE differed from the commit beside it, and it
+was computed from a bare `git status --porcelain` -- but `data/results/*.json`
+are tracked, so the first results file a run writes dirties the tree and
+every stamp after it reads `True`. In the 2026-10-16 regeneration 13 of 14
+files say `dirty: True` and the single `False` is simply the first written
+(`temporal_2021_exclude.json`, 05:20:02; the next is 05:20:45). That clean
+first stamp is positive evidence the run started from a clean checkout at
+`e7d1451`, so those numbers are citable -- but the flag could not have told
+us otherwise. The status check now excludes the generated-results directory.
+**The 14 committed files keep the old flag**; the next regeneration records
+it correctly.
+
 It had already happened. These figures were recorded against an earlier
 release and were wrong by the time anyone re-ran the diagnostic:
 

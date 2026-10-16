@@ -69,24 +69,69 @@ def release_fingerprint(release: Path) -> dict[str, Any]:
     }
 
 
-def code_commit() -> dict[str, Any]:
-    """The commit that produced a result, and whether the tree was dirty.
+# THE FLAG WAS REPORTING ON ITS OWN OUTPUT. `dirty` lives under `code` and is
+# meant to say whether the CODE that produced a number differed from the
+# commit beside it. It was computed from a bare `git status --porcelain` over
+# the whole tree -- and data/results/*.json are tracked, so the first results
+# file a run writes dirties the tree and every stamp after it records
+# dirty: True, including later stamps from the same script.
+#
+# The 2026-10-16 regeneration shows the shape exactly: 13 of the 14 results
+# files say dirty: True, and the single False is simply the first one written
+# (temporal_2021_exclude.json, 05:20:02; the next is 05:20:45). Nothing was
+# wrong with that run -- the clean first stamp is positive evidence the code
+# was clean when it started -- but a flag that is True for 13 of 14 files
+# whatever happens cannot distinguish that run from a genuinely dirty one.
+#
+# So the status check excludes the generated-results directory. Nothing reads
+# this field today, which is why it could be wrong for as long as it was.
+#
+# GIT DOES THE PATH MATCHING, NOT US. The first version of this fix parsed
+# `git status --porcelain` and compared line[3:] against these prefixes --
+# and did not work, because _git() below returns stdout.strip() and the strip
+# ate the leading space of the first entry: " M data/results/x.json" became
+# "M data/results/x.json", so line[3:] was "ta/results/x.json" and matched
+# nothing. The unit test written alongside it passed, because it fed the
+# parser a hand-written unstripped string rather than the command's real
+# output. A pathspec has no column to miscount, and it covers untracked
+# files under the directory too.
+#
+# `root` EXISTS SO THIS CAN BE TESTED AT ALL. The first test for it ran
+# against the repository itself and skipped when the tree was dirty -- which
+# is to say it skipped in exactly the situation where someone is changing
+# this function, and both the broken versions above passed it by being
+# skipped. A test needs a tree whose state it controls, so the caller may
+# supply one.
+GENERATED_PREFIXES = ("data/results",)
+_EXCLUDE = tuple(f":(exclude){p}" for p in GENERATED_PREFIXES)
+
+
+def code_commit(root: Path | None = None) -> dict[str, Any]:
+    """The commit that produced a result, and whether the CODE was dirty.
+
+    Dirty means a tracked file OUTSIDE the generated-results directory
+    differs from HEAD. Results files are excluded because writing them is
+    what this function's callers do -- see GENERATED_PREFIXES above.
+
+    `root` defaults to this repository and is overridden only by tests.
 
     A dirty tree is recorded rather than refused: results are frequently
     generated mid-change, and a result that says so is more useful than one
     that cannot be produced at all.
     """
+    where = Path(root) if root is not None \
+        else Path(__file__).resolve().parents[2]
+
     def _git(*args: str) -> str | None:
         try:
             out = subprocess.run(("git", *args), capture_output=True, text=True,
-                                 cwd=Path(__file__).resolve().parents[2],
-                                 timeout=10, check=False)
+                                 cwd=where, timeout=10, check=False)
             return out.stdout.strip() if out.returncode == 0 else None
         except (OSError, subprocess.SubprocessError):
             return None
 
     commit = _git("rev-parse", "HEAD")
-    status = _git("status", "--porcelain")
+    status = _git("status", "--porcelain", "--", *_EXCLUDE)
     return {"commit": commit,
             "dirty": bool(status) if status is not None else None}
 
