@@ -154,10 +154,20 @@ def _db(path: Path, *, arm_a: int = 12, arm_b: int = 12,
          "ORGANISM"),
         (5, "CHEMBL_POLY", "Genome polyprotein", "Zika virus", 64320,
          "SINGLE PROTEIN"),
+        # THE SHAPE THE REAL DATABASE USES. ChEMBL files coronavirus
+        # protease chemistry against the polyprotein and names the enzyme
+        # in the assay description; CHEMBL4523582 carries 6,690 such rows.
+        (6, "CHEMBL_COVPOLY", "Replicase polyprotein 1ab",
+         "Severe acute respiratory syndrome coronavirus 2", 2697049,
+         "SINGLE PROTEIN"),
+        # Same shape, a family with NO description table in kgav.chembl.
     ]
     if picornavirus:
         targets.append((2, "CHEMBL_RV", "Protease 3C", "Human rhinovirus 14",
                         12131, "SINGLE PROTEIN"))
+        # Same shape, a family with NO description table in kgav.chembl.
+        targets.append((7, "CHEMBL_PICPOLY", "Genome polyprotein",
+                        "Enterovirus A71", 39054, "SINGLE PROTEIN"))
     con.executemany("INSERT INTO target_dictionary VALUES (?,?,?,?,?,?)",
                     targets)
     con.executemany("INSERT INTO assays VALUES (?,?,?,?,?)", [
@@ -168,6 +178,11 @@ def _db(path: Path, *, arm_a: int = 12, arm_b: int = 12,
         (40, 4, ("Antiviral activity against HCV in Huh-7 cells by replicon "
                  "assay"), "F", 1),
         (50, 1, "Antiviral activity against SARS-CoV-2 in Vero cells", "F", 1),
+        (60, 6, ("Inhibition of recombinant SARS-CoV-2 3CL protease using "
+                 "fluorogenic substrate"), "B", 1),
+        (70, 6, "Inhibition of recombinant SARS-CoV-2 nsp13 helicase", "B", 1),
+        (80, 7, ("Inhibition of recombinant Enterovirus A71 3C protease by "
+                 "FRET assay"), "B", 1),
     ])
     mols = [(i, f"CHEMBL{i:06d}", f"drug{i}", 0.0) for i in range(1, 61)]
     acts, aid = [], 0
@@ -189,6 +204,14 @@ def _db(path: Path, *, arm_a: int = 12, arm_b: int = 12,
         add(i, 50)
     # replicon-only, on the ORGANISM target
     add(60, 40)
+    # on the coronavirus POLYPROTEIN target: one row the description
+    # resolves to 3CLpro, one it resolves to the helicase (not an arm role)
+    add(51, 60)
+    add(52, 70)
+    # on the picornavirus polyprotein: no description table exists, so this
+    # row must come back unresolved rather than be read with the
+    # coronavirus table
+    add(53, 80)
     con.executemany("INSERT INTO molecule_dictionary VALUES (?,?,?,?)", mols)
     con.executemany("INSERT INTO activities VALUES (?,?,?,?,?,?,?)", acts)
     con.commit()
@@ -238,7 +261,7 @@ def test_only_matched_organisms_are_loaded(tmp_path):
     targets, _, _ = _loaded(tmp_path)
     assert {t["chembl_id"] for t in targets} == {
         "CHEMBL_COV", "CHEMBL_RV", "CHEMBL_HCV", "CHEMBL_HCVORG",
-        "CHEMBL_POLY"}
+        "CHEMBL_POLY", "CHEMBL_COVPOLY", "CHEMBL_PICPOLY"}
 
 
 def test_a_cellular_row_is_not_an_enzyme_measurement(tmp_path):
@@ -248,8 +271,9 @@ def test_a_cellular_row_is_not_an_enzyme_measurement(tmp_path):
     _, by_tid, acts = _loaded(tmp_path)
     protein = S.compounds_by_role(acts, by_tid, protein_only=True)
     anywhere = S.compounds_by_role(acts, by_tid, protein_only=False)
-    assert len(protein["3clpro"]) == 24          # arm A 12 + arm B 12
-    assert len(anywhere["3clpro"]) == 29         # + the 5 cellular
+    # arm A 12 + arm B 12 + the one 3CLpro row filed on the polyprotein
+    assert len(protein["3clpro"]) == 25
+    assert len(anywhere["3clpro"]) == 30         # + the 5 cellular
     assert len(protein["hcv_ns3pro"]) == 17      # arm B 12 + the 5
 
 
@@ -347,4 +371,86 @@ def test_the_rejections_are_counted_over_every_matched_target(
     _main(monkeypatch, _db(tmp_path / "ok.db"))
     out = capsys.readouterr().out
     assert "rejected as NOT PROTEIN-LEVEL: 1 target(s), 1 quantified row(s)" in out
-    assert "rejected as POLYPROTEIN targets: 1 target(s)" in out
+
+
+# ------------------------------------------- polyprotein targets are read
+def _poly(family, organism, name="Genome polyprotein", protein=True):
+    return {"family": family, "organism": organism, "pref_name": name,
+            "role": None, "polyprotein": True, "protein_level": protein,
+            "hcv": S.is_hcv(organism)}
+
+
+def test_a_coronavirus_polyprotein_row_is_read_from_its_description():
+    """REGRESSION, and the reason the first real run was wrong. ChEMBL files
+    coronavirus protease chemistry against the polyprotein and names the
+    enzyme in the assay description -- CHEMBL4523582 carries 6,690 such
+    rows. Rejecting the target by name reported "Coronaviridae: 0 with a
+    protease role" and a NOT MEASURABLE verdict that was an artifact of the
+    filter. ingest_activities has always read these rows this way and
+    stamps them target_resolution=chain_from_assay_description."""
+    t = _poly("Coronaviridae", "Severe acute respiratory syndrome "
+                               "coronavirus 2", "Replicase polyprotein 1ab")
+    assert S.row_role(t, "Inhibition of recombinant SARS-CoV-2 3CL protease "
+                         "by FRET assay") == "3clpro"
+    assert S.row_role(t, "Inhibition of SARS-CoV-2 main protease") == "3clpro"
+    assert S.row_role(t, "Inhibition of SARS-CoV-2 PLpro") == "plpro"
+
+
+def test_a_polyprotein_row_naming_another_enzyme_supplies_no_role():
+    t = _poly("Coronaviridae", "Human coronavirus 229E")
+    assert S.row_role(t, "Inhibition of nsp13 helicase") is None
+    assert S.row_role(t, "Inhibition of RdRp") is None
+    assert S.row_role(t, "") is None
+
+
+def test_an_hcv_polyprotein_row_reads_with_the_flavivirus_table():
+    t = _poly("Flaviviridae", "Hepatitis C virus")
+    assert S.row_role(t, "Inhibition of HCV NS3 protease") == "ns3pro"
+    assert S.role_key(t, S.row_role(t, "Inhibition of HCV NS3 protease")) \
+        == "hcv_ns3pro"
+    assert S.row_role(t, "Inhibition of NS3 helicase") is None
+
+
+def test_a_picornavirus_polyprotein_row_is_left_unresolved():
+    """chembl.PATTERNS_BY_FAMILY has no Picornaviridae entry, so resolve_nsp
+    would fall through to NSP_PATTERNS -- the CORONAVIRUS table. That is the
+    cross-family naming bug diagnose_flavivirus_targets.py was written to
+    find, and it is refused here by family name rather than by trusting the
+    coronavirus patterns not to match a picornavirus description."""
+    t = _poly("Picornaviridae", "Enterovirus A71")
+    assert S.row_role(t, "Inhibition of EV-A71 3C protease by FRET") is None
+    assert "Picornaviridae" not in S.DESCRIPTION_TABLE
+
+
+def test_a_polyprotein_target_that_is_organism_typed_supplies_nothing():
+    t = _poly("Flaviviridae", "Hepatitis C virus", protein=False)
+    assert S.row_role(t, "Inhibition of HCV NS3 protease") is None
+
+
+def test_polyprotein_rows_are_split_into_resolved_and_unresolved(tmp_path):
+    _, by_tid, acts = _loaded(tmp_path)
+    resolved, unresolved = S.polyprotein_rows(acts, by_tid)
+    assert resolved["Coronaviridae  3clpro"] == 1
+    # the helicase row resolved to no arm role, so it is unresolved here
+    assert any("nsp13 helicase" in d
+               for d in unresolved["Coronaviridae"])
+    assert any("3C protease" in d for d in unresolved["Picornaviridae"])
+
+
+def test_the_unresolved_descriptions_are_printed_verbatim(tmp_path,
+                                                          monkeypatch, capsys):
+    """They are the input to the next step: a picornavirus table written
+    from the real text, the way the flavivirus table was."""
+    _main(monkeypatch, _db(tmp_path / "ok.db"))
+    out = capsys.readouterr().out
+    assert "NO DESCRIPTION TABLE EXISTS for this family" in out
+    assert "Inhibition of recombinant Enterovirus A71 3C protease" in out
+
+
+def test_a_polyprotein_compound_reaches_an_arm_role(tmp_path):
+    """The whole point of reading the description: compound 51's only
+    3CLpro measurement is filed against the polyprotein target."""
+    _, by_tid, acts = _loaded(tmp_path)
+    protein = S.compounds_by_role(acts, by_tid, protein_only=True)
+    assert "CHEMBL000051" in protein["3clpro"]
+    assert "CHEMBL000052" not in protein["3clpro"]   # the helicase row

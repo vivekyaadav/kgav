@@ -58,21 +58,28 @@ printed, with counts, so what was pulled in is visible rather than asserted.
 Role comes from the target's pref_name, MOST SPECIFIC FIRST, and every
 target in a matched organism is printed with the role it got or a dash.
 
-TWO REJECTIONS ARE NOT INCIDENTAL AND ARE COUNTED SEPARATELY.
+POLYPROTEIN TARGETS ARE READ, NOT REJECTED -- AND THE FIRST VERSION OF THIS
+SCRIPT GOT THAT WRONG. ChEMBL files most viral protease data against the
+polyprotein target and names the enzyme in the ASSAY DESCRIPTION. Rejecting
+those targets by name, which is what the first run did, threw out 31
+targets and 17,102 rows including CHEMBL4523582's 6,690, reported
+"Coronaviridae: 0 with a protease role", and returned NOT MEASURABLE. That
+verdict was an artifact of the filter, not a fact about chemistry.
 
-  POLYPROTEIN TARGETS. ChEMBL files a great deal of viral protease data
-  against "Genome polyprotein". Counting those as protease measurements is
-  the polyprotein problem this project has now hit at least three times --
-  v1 chapter 9, the first phase 0 script comparing whole replicases, and
-  the flavivirus NS3 rows that fell through to UniProtKB:<polyprotein>.
-  They are rejected and reported, because how much data is lost that way is
-  a number phase 4 needs.
+This project already knows how these rows are filed: ingest_activities
+calls chembl.resolve_nsp on the description and stamps the resulting edge
+target_resolution="chain_from_assay_description". The same tables resolve
+the role here, per ROW. What they do not resolve is printed verbatim, which
+is the input to the next step -- chembl.PATTERNS_BY_FAMILY has no
+Picornaviridae table, and writing one from the real text rather than from
+what the proteins are called in a textbook is how the flavivirus table was
+written.
 
-  ORGANISM-LEVEL TARGETS. A target whose target_type is ORGANISM carries
-  antiviral readouts -- replicon, CPE, cell culture -- not enzyme
-  measurements. For HCV that is most of the chemistry in ChEMBL. A replicon
-  EC50 says a compound stops the virus; it does not say it inhibits NS3.
-  Rejected for the paired arms, and counted into the broad set below.
+ORGANISM-LEVEL TARGETS ARE REJECTED. A target whose target_type is ORGANISM
+carries antiviral readouts -- replicon, CPE, cell culture -- not enzyme
+measurements. For HCV that is most of the chemistry in ChEMBL. A replicon
+EC50 says a compound stops the virus; it does not say it inhibits NS3.
+Rejected for the paired arms, and counted into the broad set below.
 
 ON ASSAY READOUT. Arms A and B are claims about ENZYMES, so they take only
 rows chembl.assay_readout calls "protein". A cellular antiviral number is
@@ -102,7 +109,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from kgav.calibration import MIN_REACHED_POSITIVES
-from kgav.chembl import QUANT_TYPES, assay_readout, to_nm
+from kgav.chembl import QUANT_TYPES, assay_readout, resolve_nsp, to_nm
 from kgav.schema import print_capped
 
 # THE FLOOR, BORROWED RATHER THAN CHOSEN. calibration.MIN_REACHED_POSITIVES
@@ -167,8 +174,41 @@ ROLES: dict[str, tuple[tuple[str, tuple[str, ...], tuple[str, ...],
     ),
 }
 
-# Rejected before role matching, and counted. See the module docstring.
+# A POLYPROTEIN TARGET IS WHERE THE DATA IS, NOT WHERE IT IS LOST.
+#
+# The first version of this script rejected every polyprotein-named target
+# outright, on the reasoning that a measurement filed against a polyprotein
+# does not say which of its proteins was inhibited. Run on chembl_37 that
+# threw out 31 targets and 17,102 rows -- among them CHEMBL4523582 with
+# 6,690 -- and reported "Coronaviridae: 0 with a protease role". The verdict
+# was NOT MEASURABLE, and it was an artifact of my own filter.
+#
+# ChEMBL files coronavirus and flavivirus enzyme data against the
+# polyprotein target and says which enzyme in the ASSAY DESCRIPTION. This
+# project already knows that: chembl.ingest_activities calls resolve_nsp on
+# the description and stamps the edge target_resolution=
+# "chain_from_assay_description". So the role is resolved per ROW here too,
+# from the same tables, and a polyprotein target is a target whose rows need
+# reading rather than one whose rows are gone.
 POLYPROTEIN = re.compile(r"polyprotein", re.I)
+
+# (family, nsp, domain) from resolve_nsp -> the arm role it supplies.
+POLYPROTEIN_ROLE = {
+    ("Coronaviridae", "nsp5", None): "3clpro",
+    ("Coronaviridae", "nsp3", "PLpro"): "plpro",
+    ("Flaviviridae", "NS3", "protease"): "ns3pro",
+}
+
+# WHICH FAMILIES HAVE A MEASURED DESCRIPTION TABLE. chembl.PATTERNS_BY_FAMILY
+# holds Flaviviridae and nothing else; every other family falls through to
+# NSP_PATTERNS, which names CORONAVIRUS proteins. Letting a picornavirus row
+# fall through to the coronavirus table is the cross-family naming bug
+# diagnose_flavivirus_targets.py was written to find, so Picornaviridae is
+# excluded here BY NAME rather than by trusting the patterns not to match.
+# Writing a picornavirus table is phase 4's next step and it must be written
+# from the real description text, which is why the unresolved descriptions
+# are printed verbatim below.
+DESCRIPTION_TABLE = frozenset({"Coronaviridae", "Flaviviridae"})
 
 # target_type values that denote a protein measurement. Anything else that
 # matched a role is printed as excluded, with its type, rather than dropped
@@ -304,18 +344,48 @@ def load_activities(con: sqlite3.Connection, tids: list[int]) -> list[dict]:
     return [dict(zip(ACTIVITY_FIELDS, r)) for r in rows]
 
 
+def row_role(t: dict, description: str | None) -> str | None:
+    """The enzyme one activity row measures, or None.
+
+    A target named for its enzyme supplies the role directly. A polyprotein
+    target supplies it only through the assay description, read with the
+    family's own table -- the mechanism ingest_activities already uses.
+    """
+    if not t["protein_level"]:
+        return None
+    if t["role"]:
+        return t["role"]
+    if not t["polyprotein"] or t["family"] not in DESCRIPTION_TABLE:
+        return None
+    nsp, domain = resolve_nsp(description or "", t["family"])
+    return POLYPROTEIN_ROLE.get((t["family"], nsp, domain))
+
+
+def role_key(t: dict, role: str | None = None) -> str | None:
+    """The role name the arms use, with HCV split out of the flaviviruses.
+
+    Arm B is about HCV specifically: it is the one serine protease in the
+    comparison with a large approved inhibitor class, and the one the schema
+    names. The other six NS3 proteases are a separate comparison.
+    """
+    role = role if role is not None else t["role"]
+    if role is None:
+        return None
+    if t["family"] == "Flaviviridae" and role == "ns3pro":
+        return "hcv_ns3pro" if t["hcv"] else "flavi_ns3pro"
+    return role
+
+
 def compounds_by_role(acts: list[dict], targets: dict[int, dict],
                       *, protein_only: bool = True) -> dict[str, set[str]]:
-    """role key -> the compounds measured on it, one entry per compound.
-
-    The role key is the role name for every family but Flaviviridae, where
-    HCV is split out as `hcv_ns3pro` because arm B is about HCV specifically
-    and the other six NS3 proteases are a separate comparison.
-    """
+    """role key -> the compounds measured on it, one entry per compound."""
     out: dict[str, set[str]] = defaultdict(set)
     for a in acts:
         t = targets.get(a["tid"])
-        if t is None or t["role"] is None or not t["protein_level"]:
+        if t is None:
+            continue
+        key = role_key(t, row_role(t, a["description"]))
+        if key is None:
             continue
         if to_nm(a["standard_value"], a["standard_units"]) is None:
             continue
@@ -323,15 +393,32 @@ def compounds_by_role(acts: list[dict], targets: dict[int, dict],
             where, _ = assay_readout(a["description"] or "", a["assay_type"])
             if where != "protein":
                 continue
-        key = role_key(t)
         out[key].add(a["compound"])
     return out
 
 
-def role_key(t: dict) -> str:
-    if t["family"] == "Flaviviridae" and t["role"] == "ns3pro":
-        return "hcv_ns3pro" if t["hcv"] else "flavi_ns3pro"
-    return t["role"]
+def polyprotein_rows(acts: list[dict], targets: dict[int, dict]
+                     ) -> tuple[Counter, dict[str, Counter]]:
+    """(resolved role -> rows, family -> unresolved description -> rows).
+
+    The second half is the input to the next step. A picornavirus
+    description table has to be written from the real text, the way the
+    flavivirus table was -- "measured on 2026-10-11, 19 unresolved rows
+    across three viruses, all three phrasings" -- so the text is printed
+    rather than summarised.
+    """
+    resolved: Counter = Counter()
+    unresolved: dict[str, Counter] = defaultdict(Counter)
+    for a in acts:
+        t = targets.get(a["tid"])
+        if t is None or not t["polyprotein"] or not t["protein_level"]:
+            continue
+        key = role_key(t, row_role(t, a["description"]))
+        if key:
+            resolved[f"{t['family']}  {key}"] += 1
+        else:
+            unresolved[t["family"]][(a["description"] or "")[:96]] += 1
+    return resolved, unresolved
 
 
 def broad_coronavirus_compounds(acts: list[dict], targets: dict[int, dict]) -> set[str]:
@@ -399,52 +486,74 @@ def main() -> int:
                       if not any(t["family"] == f for t in targets)]
 
     # ------------------------------------------------- targets and roles
-    print("\nprotease targets found, by family. Every target in a matched "
-          "organism is\nlisted; a dash means no role pattern claimed it:")
+    print("\nprotease targets NAMED for their enzyme, by family. A "
+          "polyprotein target\nnames no enzyme and is read from its assay "
+          "descriptions instead, below:")
     for family in FAMILIES:
         fam = sorted((t for t in targets if t["family"] == family),
                      key=lambda t: (t["role"] or "~", t["pref_name"]))
         roled = [t for t in fam if t["role"]]
-        print(f"  {family}  —  {len(roled)} with a protease role, "
-              f"{len(fam) - len(roled)} without")
+        poly_here = [t for t in fam if t["polyprotein"]]
+        print(f"  {family}  —  {len(roled)} named for a protease, "
+              f"{len(poly_here)} polyprotein, "
+              f"{len(fam) - len(roled) - len(poly_here)} neither")
         print_capped(roled, 14,
                      lambda t: (f"{t['chembl_id']:<14} {role_key(t):<13} "
                                 f"{'' if t['protein_level'] else 'EXCLUDED '}"
                                 f"{t['target_type']:<16} {t['pref_name'][:44]}"),
-                     indent="      ", unit="more with a role")
+                     indent="      ", unit="more named for a protease")
 
     # ------------------------------------------------------- the chemistry
-    usable = [t["tid"] for t in targets if t["role"] and t["protein_level"]]
-    if not usable:
-        print("\nno protein-level protease target in any of the three "
-              "families.\nExiting 2: nothing was measured.")
-        return 2
     acts = load_activities(con, [t["tid"] for t in targets])
     con.close()
+    if not acts:
+        print("\nnot one quantified row on any matched target.\n"
+              "Exiting 2: nothing was measured.")
+        return 2
     rows_per_tid = Counter(a["tid"] for a in acts)
 
-    # WHAT WAS REJECTED, IN ROWS AS WELL AS TARGETS. An earlier draft of this
-    # block counted only targets that had already taken a role, and printed
-    # "rejected as NOT PROTEIN-LEVEL: 0" on a database holding an
-    # ORGANISM-level HCV target -- true of the set it counted, and read as
-    # nothing having been dropped. The two classes below are disjoint and
-    # cover every matched target that cannot reach an arm.
     def _rows(ts):
         return sum(rows_per_tid[t["tid"]] for t in ts)
 
-    poly = [t for t in targets if t["polyprotein"]]
-    print(f"\n  rejected as POLYPROTEIN targets: {len(poly)} target(s), "
+    # POLYPROTEIN TARGETS, READ RATHER THAN REJECTED. See the note beside
+    # POLYPROTEIN above: rejecting these by name threw out 6,690 coronavirus
+    # protease rows and produced a NOT MEASURABLE verdict that was an
+    # artifact of the filter.
+    poly = [t for t in targets if t["polyprotein"] and t["protein_level"]]
+    resolved, unresolved = polyprotein_rows(acts, by_tid)
+    print(f"\n  POLYPROTEIN targets: {len(poly)} target(s), "
           f"{_rows(poly):,} quantified row(s)")
-    print("  A measurement filed against a polyprotein does not say which of "
-          "its\n  proteins was inhibited. This is the polyprotein problem, "
-          "counted rather\n  than absorbed.")
+    print("  The target name says polyprotein; the ASSAY DESCRIPTION says "
+          "which enzyme,\n  and that is how ingest_activities already "
+          "resolves these rows\n  (target_resolution=chain_from_assay_"
+          "description). Read the same way here:")
     print_capped(sorted(poly, key=lambda t: -rows_per_tid[t["tid"]]), 8,
-                 lambda t: f"{t['chembl_id']:<14} {t['organism'][:40]:<42} "
-                           f"{rows_per_tid[t['tid']]:>7,} rows",
+                 lambda t: f"{t['chembl_id']:<14} {t['pref_name'][:26]:<28} "
+                           f"{t['organism'][:30]:<32} "
+                           f"{rows_per_tid[t['tid']]:>7,} row(s)",
                  indent="      ", unit="more polyprotein target(s)")
+    print(f"\n    rows the description resolved to an enzyme: "
+          f"{sum(resolved.values()):,}")
+    for k, v in resolved.most_common():
+        print(f"      {k:<34} {v:>7,}")
+    unres_total = sum(sum(c.values()) for c in unresolved.values())
+    print(f"\n    rows it did NOT: {unres_total:,}")
+    for family in FAMILIES:
+        c = unresolved.get(family)
+        if not c:
+            continue
+        table = ("the family's own table"
+                 if family in DESCRIPTION_TABLE
+                 else "NO DESCRIPTION TABLE EXISTS for this family")
+        print(f"      {family}  {sum(c.values()):,} row(s)  —  {table}")
+        print_capped(c.most_common(), 6,
+                     lambda kv: f"{kv[1]:>6,}  {kv[0]}",
+                     indent="        ", unit="more distinct description(s)")
 
-    nonprotein = [t for t in targets
-                  if not t["protein_level"] and not t["polyprotein"]]
+    # Not "and not polyprotein": a polyprotein target that is ORGANISM-typed
+    # belongs here, and `poly` above already requires protein_level. The two
+    # lists stay disjoint and together cover every matched target.
+    nonprotein = [t for t in targets if not t["protein_level"]]
     print(f"\n  rejected as NOT PROTEIN-LEVEL: {len(nonprotein)} target(s), "
           f"{_rows(nonprotein):,} quantified row(s)")
     print("  An ORGANISM target carries replicon and cell-culture antiviral "
@@ -456,7 +565,7 @@ def main() -> int:
     print_capped(sorted(nonprotein, key=lambda t: -rows_per_tid[t["tid"]]), 8,
                  lambda t: f"{t['chembl_id']:<14} {t['target_type']:<16} "
                            f"{t['organism'][:28]:<30} "
-                           f"{rows_per_tid[t['tid']]:>7,} rows",
+                           f"{rows_per_tid[t['tid']]:>7,} row(s)",
                  indent="      ", unit="more excluded target(s)")
 
     protein = compounds_by_role(acts, by_tid, protein_only=True)
