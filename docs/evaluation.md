@@ -645,6 +645,9 @@ source as unverified.
 | fold layer counts, allowed transfers, blocking chains, M8's reach | `ingest_folds.py`, `diagnose_comparator_cost.py` |
 | journal profile, repurposing-venue coverage, rows by year per protease role | `diagnose_source_scope.py` |
 | how much of a channel's score is the compound's own degree | `diagnose_scorer.py` |
+| whether the channel beats degree once both are in one model | `partial_degree.py` |
+| labels required for 80% power, against what the reach can supply | `label_headroom.py` |
+| whether a reach ceiling is missing data or a retrieval limit | `diagnose_reach_ceiling.py` |
 
 ## Reproducing
 
