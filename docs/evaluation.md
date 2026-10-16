@@ -345,7 +345,7 @@ This is the third figure in this project to have had two implementations with
 only one of them fixed, after AUC 0.826 in `guards.py` and `tools.py` and the
 coverage floor.
 
-## Six measured causes
+## Seven measured causes
 
 | Cause | Measurement |
 |---|---|
@@ -353,8 +353,9 @@ coverage floor.
 | M1 was never purely direct-acting | 1,884 of 7,677 protein-target rows (24.5%) described a CELLULAR readout and were filed against a viral protein; now reattributed to the organism |
 | `INHIBITS` is effectively two proteins | nsp5 and nsp3 dominate; `INHIBITS` reaches 18 distinct viral proteins in all |
 | The graph is two compound populations | 44 of 18,075 compounds have both `INHIBITS` and `TARGETS` |
-| M8 inert | no `MEMBER_OF_CLASS` or `FOLD_SIMILAR_TO` edges; `ingest_folds` writes a layer `LAYER_PRECEDENCE` does not list (strict xfail in `test_assemble`) |
+| M8 walks, and reaches almost nothing | FIXED 2026-10-16: the layer assembles (104 `MEMBER_OF_CLASS`, 6 `FOLD_SIMILAR_TO`, 2 carrying `catalytic_type_match`). M8 now reaches 11 drugs for SARS-CoV-2, 29 for Zika, 11 for SARS-CoV and `no paths` for the other four coronaviruses; cross-sectional AUC 0.501 and 0.508 at 0.1% and 1.5% coverage, every row flagged. 34 of the 36 allowed transfers are blocked by comparator chains the spine does not build |
 | M3/M5 untestable temporally | both PPI layers wholly post-cutoff (STRING 2023-08-28, VirHostNet 2024-01-01); the protocol itself was blocked by L5 until 2026-10-11 |
+| The chemistry source is a medicinal-chemistry corpus | 5 journals supply 87.1% of ChEMBL 37's 93,489 documents; 19 named repurposing venues supply 2.5% of them and **7 documents in 2020-2021**. A congeneric series on one target is the shape it curates; a compound measured on two viral proteases is not |
 
 Note which are *evaluation* faults rather than graph faults. The graph
 validates, provenance is intact, and 500 host proteins that drugs target are
@@ -418,6 +419,8 @@ source as unverified.
 | per-channel AUC, coverage, evaluability | `hard_negatives.py` then `calibrate.py` |
 | lift, p, vs-degree, the baseline read | `compare_metapaths.py`, `temporal_split.py` |
 | flavivirus volumes and substrate concentration | `diagnose_flavivirus_join.py`, `diagnose_flavivirus_targets.py` |
+| fold layer counts, allowed transfers, blocking chains, M8's reach | `ingest_folds.py`, `diagnose_comparator_cost.py` |
+| journal profile, repurposing-venue coverage, rows by year per protease role | `diagnose_source_scope.py` |
 
 ## Reproducing
 
