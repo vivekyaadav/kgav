@@ -99,10 +99,12 @@ EXIT CODES, following phase0_verify_folds:
 from __future__ import annotations
 
 import argparse
+import math
 import re
 import sqlite3
 import sys
 from collections import Counter, defaultdict
+from statistics import median
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -486,6 +488,84 @@ def polyprotein_rows(acts: list[dict], targets: dict[int, dict]
     return arm, other, unknown
 
 
+def usable_potency(acts: list[dict], targets: dict[int, dict],
+                   *, skeleton: bool = False
+                   ) -> tuple[dict[str, dict[str, float]], Counter, dict]:
+    """(role -> compound -> median log10 nM, drops, assay-type mix).
+
+    A COMPOUND WITH A PROTEIN-LEVEL ROW IS NOT A COMPOUND WITH A USABLE
+    NUMBER, and the arms were sized on the first. A row still has to carry
+    an exact relation and a convertible unit before its potency can enter a
+    correlation, so the arm a protocol can actually run on is this one, not
+    the membership count printed above it.
+    """
+    per: dict[tuple[str, str], dict[str, list[float]]] = defaultdict(
+        lambda: defaultdict(list))
+    drops: Counter = Counter()
+    for a in acts:
+        t = targets.get(a["tid"])
+        if t is None:
+            continue
+        key = role_key(t, row_role(t, a["description"]))
+        if key is None:
+            drops["no_role"] += 1
+            continue
+        cid = compound_id(a, skeleton=skeleton)
+        if cid is None:
+            drops["no_inchikey"] += 1
+            continue
+        where, _ = assay_readout(a["description"] or "", a["assay_type"])
+        if where != "protein":
+            drops["not_a_protein_readout"] += 1
+            continue
+        if (a["standard_relation"] or "") != EXACT_RELATION:
+            drops["censored_relation"] += 1
+            continue
+        nm = to_nm(a["standard_value"], a["standard_units"])
+        if nm is None or nm <= 0:
+            drops["unconvertible_or_nonpositive"] += 1
+            continue
+        per[(key, cid)][a["standard_type"]].append(math.log10(nm))
+
+    out: dict[str, dict[str, float]] = defaultdict(dict)
+    mix: Counter = Counter()
+    for (key, cid), by_type in per.items():
+        for stype in POTENCY_PREFERENCE:
+            if by_type.get(stype):
+                out[key][cid] = median(by_type[stype])
+                mix[f"{key}  {stype}"] += 1
+                break
+    return out, drops, mix
+
+
+def role_organisms(acts: list[dict], targets: dict[int, dict],
+                   usable: dict[str, dict[str, float]],
+                   *, skeleton: bool = False) -> dict[str, Counter]:
+    """role -> organism -> how many of the USABLE compounds it supplied.
+
+    Arm A pools four picornaviruses, and 59 of the 199 rows are one
+    Coxsackievirus B3 paper. Whether to pool is a prereg decision and it
+    cannot be taken without seeing the split.
+
+    Restricted to `usable` on purpose. Counted over every role-resolved row
+    instead, this table said 3clpro drew on 31 compounds while the arm
+    beside it used 26 -- a split describing a set the protocol does not
+    read.
+    """
+    seen: dict[str, dict[str, set]] = defaultdict(lambda: defaultdict(set))
+    for a in acts:
+        t = targets.get(a["tid"])
+        if t is None:
+            continue
+        key = role_key(t, row_role(t, a["description"]))
+        cid = compound_id(a, skeleton=skeleton)
+        if key is None or cid is None or cid not in usable.get(key, {}):
+            continue
+        seen[key][t["organism"]].add(cid)
+    return {k: Counter({org: len(c) for org, c in v.items()})
+            for k, v in seen.items()}
+
+
 def broad_coronavirus_compounds(acts: list[dict], targets: dict[int, dict],
                                 *, skeleton: bool = False) -> set[str]:
     """Compounds with ANY coronavirus measurement, enzyme or antiviral.
@@ -505,14 +585,66 @@ def broad_coronavirus_compounds(acts: list[dict], targets: dict[int, dict],
     return out
 
 
+# THE DESIGN IS A 2x2, AND THE FIRST VERSION HAD TWO OF ITS FOUR CELLS.
+#
+# The gate makes its decision on two facts: do the chains share a fold, and
+# is the catalytic residue the same. A and B hold the fold constant and vary
+# the nucleophile, which tests the nucleophile rule and says nothing about
+# whether the FOLD is doing any work. If compounds overlap just as much
+# between two cysteine proteases with NO shared fold, then what A measures
+# is compound promiscuity and screening-panel habit, not conservation.
+#
+# So both of the missing cells are here, as controls. They are not claims
+# the premise makes; they are what makes A's number readable.
+#
+#   shared fold   same nucleophile   pair
+#   yes           yes                A, A2   gate ALLOWS
+#   yes           no                 B, B'   gate BLOCKS on catalytic type
+#   no            yes                C1      gate blocks for want of a fold
+#   no            no                 C2      nothing links them at all
+#
+# A2 applies the gate's own rule WITHIN Flaviviridae rather than across
+# families: HCV NS3 and the other flavivirus NS3 proteases are serine both
+# and share the fold, so gate() allows them. It is not one of the 36
+# cross-family transfers the layer emits, and it is here because arm A is
+# twelve compounds and a second allowed pair with more of them is worth
+# having before anything is concluded from twelve.
 ARMS = (
-    ("A  ALLOWED  CoV 3CLpro + picornavirus 3C", "3clpro", "3cpro",
-     "gate PERMITS: shared fold, cysteine both"),
-    ("B  REFUSED  CoV 3CLpro + HCV NS3", "3clpro", "hcv_ns3pro",
-     "gate BLOCKS: shared fold, cysteine vs serine"),
-    ("B' REFUSED  CoV 3CLpro + other flavivirus NS3", "3clpro", "flavi_ns3pro",
-     "gate BLOCKS: shared fold, cysteine vs serine"),
+    ("A   ALLOWED  CoV 3CLpro + picornavirus 3C", "3clpro", "3cpro", "allowed",
+     "shared fold, cysteine both — gate PERMITS"),
+    ("A2  ALLOWED  HCV NS3 + other flavivirus NS3", "hcv_ns3pro",
+     "flavi_ns3pro", "allowed",
+     "shared fold, serine both — gate PERMITS (within family)"),
+    ("B   REFUSED  CoV 3CLpro + HCV NS3", "3clpro", "hcv_ns3pro", "refused",
+     "shared fold, cysteine vs serine — gate BLOCKS"),
+    ("B'  REFUSED  CoV 3CLpro + other flavivirus NS3", "3clpro",
+     "flavi_ns3pro", "refused",
+     "shared fold, cysteine vs serine — gate BLOCKS"),
+    ("C1  CONTROL  CoV 3CLpro + CoV PLpro", "3clpro", "plpro", "control",
+     "NO shared fold, cysteine both — isolates the fold"),
+    ("C2  CONTROL  CoV PLpro + HCV NS3", "plpro", "hcv_ns3pro", "control",
+     "NO shared fold, cysteine vs serine — the floor"),
 )
+
+# POTENCY, AND WHY THE RULE IS A MEDIAN RATHER THAN THE BEST VALUE.
+#
+# A compound usually carries several rows on one enzyme. Taking the most
+# potent is what this project already knows not to do: chembl.py's own note
+# records chloroquine's "IC50 160 nM on Spike" winning a best-potency
+# selection by 44x over its real 7,000 nM measurement, because the 160 came
+# from a pseudovirus entry assay. A median over the protein-level rows
+# cannot be captured by one outlier that way.
+#
+# ONE ASSAY TYPE AT A TIME. An IC50 and a Ki are not the same quantity and
+# averaging them produces a number that is neither. The first type present
+# in this order is used and the rest are ignored, with the mix reported so
+# the prereg can argue with the order rather than inherit it silently.
+POTENCY_PREFERENCE = ("IC50", "Ki", "Kd", "EC50")
+
+# Censored rows -- ">", "<" -- are a bound, not a measurement, and a
+# correlation cannot use a bound. chembl.VALID_RELATIONS keeps them with
+# their relation and counts them; so does this.
+EXACT_RELATION = "="
 
 
 def main() -> int:
@@ -694,15 +826,41 @@ def main() -> int:
             print(f"    {key:<16} {len(protein.get(key, ())):>9,} "
                   f"{len(anywhere.get(key, ())):>13,}")
 
-        print("\n  THE ARMS — compounds measured at BOTH ends, on the enzyme:")
-        print(f"    {'arm':<44} {'n':>6}   what the gate says")
-        for label, left, right, says in ARMS:
+        pot, drops, mix = usable_potency(acts, by_tid, skeleton=skel)
+        print("\n  THE ARMS — `both` is compounds measured at both ends; "
+              "`usable` is\n  those with a potency a correlation can read, "
+              "after the rules below:")
+        print(f"    {'arm':<46} {'both':>5} {'usable':>7}   what the gate says")
+        for label, left, right, kind, says in ARMS:
             both = protein.get(left, set()) & protein.get(right, set())
+            pair = set(pot.get(left, {})) & set(pot.get(right, {}))
             # The widest identity wins: a compound the graph would merge is
             # one compound, and refusing on the narrower count would refuse
-            # a measurable arm over salt bookkeeping.
-            results[label] = max(results.get(label, set()), both, key=len)
-            print(f"    {label:<44} {len(both):>6}   {says}")
+            # a measurable arm over salt bookkeeping. USABLE is what the
+            # verdict reads, because membership without a readable number
+            # sizes a protocol that cannot run.
+            if kind != "control":
+                results[label] = max(results.get(label, set()), pair, key=len)
+            print(f"    {label:<46} {len(both):>5} {len(pair):>7}   {says}")
+        if not skel:
+            print(f"\n    rows dropped before a potency could be read: "
+                  f"{sum(drops.values()):,}")
+            for k, v in drops.most_common():
+                print(f"      {k:<34} {v:>8,}")
+            print("\n    assay type each compound's number came from "
+                  f"(preference {' > '.join(POTENCY_PREFERENCE)}):")
+            print_capped(mix.most_common(), 10,
+                         lambda kv: f"{kv[0]:<30} {kv[1]:>7,}",
+                         indent="      ", unit="more role/type pair(s)")
+            orgs = role_organisms(acts, by_tid, pot, skeleton=skel)
+            print("\n    which organisms supplied each role's compounds — "
+                  "arm A pools four\n    picornaviruses, and whether to pool "
+                  "is a decision the prereg has to take:")
+            for key in sorted(orgs):
+                print(f"      {key}")
+                print_capped(orgs[key].most_common(), 5,
+                             lambda kv: f"  {kv[0][:44]:<46} {kv[1]:>6,}",
+                             indent="      ", unit="more organism(s)")
 
         broad = broad_coronavirus_compounds(acts, by_tid, skeleton=skel)
         hcv_broad = protein.get("hcv_ns3pro", set()) & broad
