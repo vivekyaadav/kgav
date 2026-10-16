@@ -338,7 +338,8 @@ def load_targets(con: sqlite3.Connection) -> list[dict]:
 
 ACTIVITY_FIELDS = ("tid", "compound", "inchikey", "drug_name", "max_phase",
                    "standard_type", "standard_value", "standard_units",
-                   "standard_relation", "description", "assay_type")
+                   "standard_relation", "description", "assay_type",
+                   "doc_id")
 
 
 def load_activities(con: sqlite3.Connection, tids: list[int]) -> list[dict]:
@@ -365,7 +366,7 @@ def load_activities(con: sqlite3.Connection, tids: list[int]) -> list[dict]:
         SELECT a.tid, md.chembl_id, cs.standard_inchi_key, md.pref_name,
                md.max_phase, act.standard_type, act.standard_value,
                act.standard_units, act.standard_relation, a.description,
-               a.assay_type
+               a.assay_type, a.doc_id
         FROM activities act
         JOIN assays a ON act.assay_id = a.assay_id
         JOIN molecule_dictionary md ON act.molregno = md.molregno
@@ -564,6 +565,53 @@ def role_organisms(acts: list[dict], targets: dict[int, dict],
         seen[key][t["organism"]].add(cid)
     return {k: Counter({org: len(c) for org, c in v.items()})
             for k, v in seen.items()}
+
+
+def role_publications(acts: list[dict], targets: dict[int, dict],
+                      usable: dict[str, dict[str, float]],
+                      *, skeleton: bool = False) -> dict[str, dict[str, set]]:
+    """role -> compound -> the ChEMBL documents its usable rows came from."""
+    out: dict[str, dict[str, set]] = defaultdict(lambda: defaultdict(set))
+    for a in acts:
+        t = targets.get(a["tid"])
+        if t is None:
+            continue
+        key = role_key(t, row_role(t, a["description"]))
+        cid = compound_id(a, skeleton=skeleton)
+        if key is None or cid is None or cid not in usable.get(key, {}):
+            continue
+        if a["doc_id"] is not None:
+            out[key][cid].add(a["doc_id"])
+    return out
+
+
+def pair_publications(pair: set[str], left: str, right: str,
+                      pubs: dict[str, dict[str, set]]) -> tuple[int, Counter]:
+    """(pairs whose two ends share a publication, documents by arm share).
+
+    WHY AN ARM'S PUBLICATION STRUCTURE DECIDES WHETHER IT MEANS ANYTHING.
+    Which compounds end up measured on BOTH enzymes is not a fact about the
+    enzymes; it is a fact about who screened what together. Control C1 is
+    the demonstration: two cysteine proteases of the same virus that share
+    NO fold carry four times the paired compounds of the fold-sharing arm,
+    because the same COVID-era papers ran both.
+
+    Membership being confounded does not by itself sink a correlation of
+    POTENCY given membership -- but it does if the pairs also come from one
+    paper, because then the arm is a congeneric series and the correlation
+    is about that series. This project already reasons this way: hard_
+    negatives ships a --publication-disjoint protocol for the same reason.
+    """
+    shared = 0
+    docs: Counter = Counter()
+    for cid in pair:
+        lhs = pubs.get(left, {}).get(cid, set())
+        rhs = pubs.get(right, {}).get(cid, set())
+        if lhs & rhs:
+            shared += 1
+        for d in lhs | rhs:
+            docs[d] += 1
+    return shared, docs
 
 
 def broad_coronavirus_compounds(acts: list[dict], targets: dict[int, dict],
@@ -843,10 +891,38 @@ def main() -> int:
                 results[label] = max(results.get(label, set()), pair, key=len)
             print(f"    {label:<46} {len(both):>5} {len(pair):>7}   {says}")
         if not skel:
-            print(f"\n    rows dropped before a potency could be read: "
-                  f"{sum(drops.values()):,}")
+            # THE HEADLINE WAS DOMINATED BY ROWS THAT WERE NEVER CANDIDATES.
+            # "68,575 dropped" read as enormous attrition; 59,902 of it was
+            # no_role -- rows on ORGANISM targets and other enzymes, which
+            # no arm ever wanted. The attrition that matters is among rows
+            # that DID resolve to an arm role, and it is 8,673, not 68,575.
+            no_role = drops.pop("no_role", 0)
+            print(f"\n    rows that never had an arm role: {no_role:,} "
+                  f"(other enzymes, ORGANISM targets)")
+            print(f"    rows WITH an arm role, dropped before a potency "
+                  f"could be read: {sum(drops.values()):,}")
             for k, v in drops.most_common():
                 print(f"      {k:<34} {v:>8,}")
+            pubs = role_publications(acts, by_tid, pot, skeleton=skel)
+            print("\n    PUBLICATION STRUCTURE — which compounds are measured "
+                  "on both ends is a\n    fact about who screened what "
+                  "together, not about the enzymes:")
+            print(f"    {'arm':<46} {'pairs':>5} {'1 doc':>6} "
+                  f"{'docs':>5} {'top':>5}")
+            for label, left, right, _kind, _says in ARMS:
+                pr = set(pot.get(left, {})) & set(pot.get(right, {}))
+                if not pr:
+                    continue
+                shared, docs = pair_publications(pr, left, right, pubs)
+                top = docs.most_common(1)[0][1] if docs else 0
+                print(f"    {label:<46} {len(pr):>5} {shared:>6} "
+                      f"{len(docs):>5} {top:>5}")
+            print("      1 doc = pairs whose two ends come from ONE "
+                  "publication; top = the\n      largest single "
+                  "publication's share of the arm. An arm that is one\n"
+                  "      paper is a congeneric series, and a correlation "
+                  "over it is about\n      that series. hard_negatives "
+                  "ships --publication-disjoint for this.")
             print("\n    assay type each compound's number came from "
                   f"(preference {' > '.join(POTENCY_PREFERENCE)}):")
             print_capped(mix.most_common(), 10,
