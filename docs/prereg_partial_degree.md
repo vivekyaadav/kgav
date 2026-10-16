@@ -135,3 +135,96 @@ reference values pasted rather than recalled.
 Separation is expected on small cells. The penalty bounds the coefficients,
 and a cell whose fit does not converge is reported as NOT FITTED rather than
 given a coefficient.
+
+# Verdict — P1 not rejected, P2 held, and a defect in the registered statistic
+
+Run 2026-10-17 on v0.1 by `scripts/partial_degree.py`, both scorings, both
+readings of the undefined "negative".
+
+## P1 is not rejected
+
+    negatives     cells  tested  significant after Bonferroni
+    measured         78      16  0
+    all              78      26  1   (SARS-CoV-2 M1, legacy only)
+
+**No cell clears the corrected alpha under both scorings with the same
+sign, under either reading.** P1 stands.
+
+## P2 held, on the one cell that could test it
+
+SARS-CoV-2 M1 under the all-negatives reading is significant in the legacy
+scoring (`b_c` = −0.201, p = 0.0006, corrected 0.0168) and absent in pdp
+(`b_c` = −0.022, p = 0.7033). A contribution that survives one
+parameterisation of the degree damping and vanishes under the other is the
+signature P2 named in advance.
+
+## The closest thing to a signal, which does not clear the bar
+
+SARS-CoV-2 M4, measured negatives:
+
+    scoring              b_c      b_d       LR        p    p_adj
+    entered-node-global  +0.401  -0.295   4.126   0.0422   0.6758
+    path-degree-product  +0.403  -0.215   6.765   0.0093   0.1488
+
+Same sign, near-identical magnitude, significant uncorrected under both,
+and the only cell in the table with that property. It fails Bonferroni and
+is therefore **not a result**; it is the one cell worth powering up. Note
+that M4 is also the most degree-correlated channel in
+`diagnose_scorer.py` -- and here, with degree in the model, `b_c` is
+positive while `b_d` goes negative.
+
+## The reading of "negative" decides what the model measures
+
+`b_d`, SARS-CoV-2, by how a negative is defined:
+
+    channel   measured negatives   unlabelled counted as negative
+    M1        -0.393  -0.383       +1.972  +1.956
+    M4        -0.295  -0.215       +0.560  +0.406
+    M5        -0.218  -0.203       +0.325  +0.284
+
+Negative on 5 of 7 channels under measured negatives; positive on 6 of 7
+under the other, reaching +2.23 on SARS-CoV. **Counting unlabelled
+compounds as inactive turns the model into a predictor of which compounds
+got measured at all**, which is the 92.2% shared-PMID confound in another
+costume. The GAP resolution taken in the script -- measured negatives as
+primary -- was argued from principle before the run and is now supported by
+the run.
+
+## A defect in the registered statistic, found at implementation
+
+**The registered likelihood ratio can be negative.** MERS-CoV M4 under pdp
+returned −0.031 on this release.
+
+The registration says the two models are "both penalised identically",
+meaning the same lambda -- but over different numbers of coefficients. The
+full model maximises `loglik - lambda/2 * (b_c^2 + b_d^2)`, the reduced one
+`loglik - lambda/2 * b_d^2`, so admitting `b_c` lets the fit trade `b_d`
+away against the penalty and settle at a lower DATA log-likelihood than the
+reduced model reached. Reproduced in 146 of 300 synthetic null cells shaped
+like the real ones (n ≈ 3,000, 15 positives, features correlated at 0.95),
+most negative −0.601.
+
+**It is conservative.** Those cells get p = 1, so the defect can only fail
+to reject. P1 is a null and its non-rejection survives. What it costs is
+power, precisely where channel and degree are collinear -- which is every
+cell worth testing, so the null is weaker than the corrected p-values make
+it look.
+
+The fix belongs in a new registration rather than here: take the ratio of
+the **penalised objectives**, which cannot go negative because the full
+model evaluated at `b_c = 0` is exactly the reduced model.
+
+## What this does and does not license
+
+It does not license the full regularized model. P1 predicted that and P1
+held; the criterion registered for proceeding -- a cell significant under
+both scorings with the same sign -- was not met.
+
+It does not establish that the channels are empty. Sixty-two of 78 cells
+never ran, at 2 features and a floor of 10 the events-per-variable is 5,
+and the statistic is conservative by the defect above. Three independent
+reasons the instrument is blunt, all of them stated before the result
+except the third.
+
+The one actionable item is SARS-CoV-2 M4 under measured negatives, and the
+action is more labels rather than more modelling.

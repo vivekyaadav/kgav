@@ -275,3 +275,77 @@ def test_an_untested_cell_is_reported_with_its_reason(capsys):
     assert "NO SPREAD" in out
     assert "cannot be told from the intercept" in out
     assert "below the registered floor" in out
+
+
+# ------------------------------------- the statistic can go negative, and
+# that is a property of the REGISTERED procedure rather than a coding error
+def test_the_penalised_ratio_can_go_negative_and_is_reproducible():
+    """The two models carry the same lambda over different numbers of
+    coefficients, so the full fit can trade b_d against the penalty and
+    reach a lower DATA log-likelihood than the reduced one. Measured on the
+    real run: MERS-CoV M4 under pdp returned -0.031.
+
+    Shaped like the real cells -- n about 3,000, 15 positives, channel and
+    degree correlated at 0.95 -- this happens about half the time, so a
+    test that drew one dataset would be flaky. This one asserts the RATE.
+    """
+    negatives = 0
+    trials = 0
+    for seed in range(60):
+        rng = random.Random(seed)
+        n = 2966
+        deg = [rng.gauss(0, 1) for _ in range(n)]
+        chan = [0.95 * d + (1 - 0.95 ** 2) ** 0.5 * rng.gauss(0, 1)
+                for d in deg]
+        base = math.log(15 / (n - 15))
+        y = [1 if rng.random() < 1 / (1 + math.exp(-(base + 1.9 * d))) else 0
+             for d in deg]
+        if sum(y) < 5:
+            continue
+        full = [[1.0, c, d] for c, d in zip(chan, deg)]
+        red = [[1.0, d] for d in deg]
+        bf, okf = P.fit(full, y)
+        br, okr = P.fit(red, y)
+        if not (okf and okr):
+            continue
+        trials += 1
+        if 2 * (P.loglik(full, y, bf) - P.loglik(red, y, br)) < 0:
+            negatives += 1
+    assert trials > 40
+    assert negatives > 0, "the defect no longer reproduces; the verdict " \
+        "beneath the prereg describes a procedure that is not this one"
+
+
+def test_a_negative_statistic_yields_p_of_one_not_a_crash_or_a_small_p():
+    """Conservative is the only acceptable direction here. A negative
+    statistic passed to the tail unclamped would come back as p = 1 anyway,
+    but relying on that is relying on a coincidence of erfc."""
+    chan = [0.0, 1.0] * 30
+    deg = [0.0, 1.0] * 30
+    y = [0, 1] * 30
+    cell = P.Cell("v", "M1", "s", "fitted", 60, 30)
+    got = P.evaluate(cell, chan, deg, y)
+    if got.stat is not None and got.stat < 0:
+        assert got.p == 1.0
+    assert P.chi2_sf_1df(-5.0) == 1.0
+
+
+def test_the_negative_statistic_is_explained_in_the_output(capsys):
+    """Printing `-0.031` beside `p = 1.0000` and saying nothing is the
+    shape of defect this repository keeps finding: correct about what it
+    shows, silent about what it does not."""
+    c = P.Cell("v", "M4", "s", "fitted", 2966, 15)
+    c.stat, c.p, c.p_adj = -0.031, 1.0, 1.0
+    P.negative_statistics([c])
+    out = capsys.readouterr().out
+    assert "NEGATIVE" in out
+    assert "-0.031" in out
+    assert "conservative" in out
+    assert "P1's non-rejection survives it" in out
+
+
+def test_no_message_when_every_statistic_is_sound(capsys):
+    c = P.Cell("v", "M4", "s", "fitted", 100, 30)
+    c.stat, c.p, c.p_adj = 4.0, 0.045, 0.9
+    P.negative_statistics([c])
+    assert capsys.readouterr().out == ""
