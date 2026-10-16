@@ -301,15 +301,43 @@ drug-specific ever enters", hence 12 distinct M1 values across 3,020 drugs.
 The two above are not recorded anywhere and are not what that prereg
 proposes to fix.
 
-**What is NOT yet known, and must not be inferred from the above.** How much
-of each channel's measured lift is degree, on v0.1. The probes are controlled
-graphs of a dozen nodes; they establish the mechanism and say nothing about
-its magnitude here. `scripts/diagnose_scorer.py` runs both scorings over a
-release and reports, per channel, the Spearman correlation between score and
-compound degree under each, the tie structure under each, and whether the
-ranking changes at all. Until that has run on v0.1 the correct statement is
-that the comparison is contaminated by an unmeasured amount, not that any
-particular result is wrong.
+### Measured on v0.1, by `scripts/diagnose_scorer.py`
+
+**M4 is the degree channel, and the correction does not rescue it.** Spearman
+between a channel's score and the compound's global degree:
+
+| virus | M4 legacy | M4 pdp | M5 legacy | M5 pdp |
+|---|---|---|---|---|
+| HCoV-229E | +0.685 | +0.487 | +0.539 | +0.258 |
+| MERS-CoV | +0.675 | +0.456 | +0.399 | +0.076 |
+| SARS-CoV-2 | +0.685 | +0.492 | +0.496 | +0.289 |
+| HCoV-NL63 | +0.620 | +0.284 | +0.257 | −0.095 |
+| HCoV-OC43 | +0.669 | +0.470 | +0.444 | +0.138 |
+
+Five independent viruses and M4's legacy figure sits in +0.62 to +0.69 on
+every one. That consistency is structural, not biological. M4 is also the
+channel the table above credited with its largest lifts before correction --
+MERS-CoV 11.86, HCoV-229E 8.48, HCoV-OC43 7.40 -- all of which are
+`trustworthy: False` on their own expectation.
+
+**Two channels do not rank at all.** M8 returns ONE distinct value across
+every drug it reaches (11 for SARS-CoV-2, 29 for Zika, 11 for SARS-CoV), as
+does M1 on HCoV-229E across 17. An AUC computed for those is separating
+reached from unreached, not ordering anything within reach.
+
+**The scorings disagree about the ranking, sometimes badly.** Spearman
+between the two scorings' own scores falls to +0.171 for M2 on HCoV-NL63 and
++0.310 for M3 on HCoV-HKU1. This is not a cosmetic rescaling.
+
+**Still open: four channels flip the sign of that correlation.** M2, M3, M6
+and M7 are positive under the legacy form and negative under pdp -- M2 on
+HCoV-NL63 goes +0.256 to −0.827. Two readings fit, and the measurement above
+cannot separate them: either pdp removes degree and the residual
+anti-correlates for a reason, or it is an artifact of correlating against the
+GLOBAL degree while pdp divides by the degree in the layer the channel walks.
+A compound can be globally busy and locally sparse. `diagnose_scorer.py` now
+reports both correlations side by side; until that column has been read, the
+sign flip is not evidence of anything.
 
 Nothing in `data/results` is affected yet: `baselines.SCORING_LEGACY` remains
 the default and produced every number in this document. `SCORING_PDP` exists
@@ -317,10 +345,24 @@ beside it so the two can be measured against each other. Switching the
 default is a separate decision that needs that measurement first, and a
 registration.
 
-**Neither form breaks the M1 tie block.** Two compounds with one edge each to
-the same protein have equal degrees on both sides of every metaedge, so they
-score identically under both. The degeneracy is a different defect and
-potency weighting remains its remedy.
+**Neither form breaks the M1 tie block, and that is now evidence.** Two
+compounds with one edge each to the same protein have equal degrees on both
+sides of every metaedge, so they score identically under both. Measured:
+M1's largest tie on SARS-CoV-2 goes 2,442 -> 2,380 and on Zika 195 -> 194.
+Surviving the correction means those compounds have IDENTICAL `INHIBITS`
+degree, which corroborates the prereg's "every drug whose only route is
+nsp5" from a direction that prereg did not have. The degeneracy is a
+different defect and potency weighting remains its remedy.
+
+**Other channels' ties do collapse**, and that was not predicted. M2 on
+HCoV-OC43 goes from a largest tie of 137 to 20, M3 on SARS-CoV from 114 to
+16, M3 on SARS-CoV-2 from 81 to 13. The mechanism is the same one: pdp
+divides by the compound's degree in the layer being walked, so compounds
+differing in how many OTHER edges of that predicate they hold stop being
+tied. M1's compounds hold one edge each and M2's do not. The expectation
+written into `diagnose_scorer.py` before the first run -- that this column
+would not move, and that if it did something was wrong -- generalised from
+the single-edge case and was wrong; the docstring now records that.
 
 ## The temporal protocol: the first signal above the baseline
 
