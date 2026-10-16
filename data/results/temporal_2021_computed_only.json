@@ -6,7 +6,7 @@
   "stats": {
     "edge_train": 194253,
     "edge_dropped_future": 156625,
-    "undated_dropped": 1708,
+    "undated_dropped": 1818,
     "label_train_inactive": 11987,
     "label_train_active": 1045,
     "held_out_not_a_label": 1205,
@@ -956,14 +956,14 @@
   "provenance": {
     "release": {
       "id": "v0.1",
-      "nodes_sha": "8c9de2dabfcf7aee",
-      "edges_sha": "e110053c19e9c983"
+      "nodes_sha": "4b527a17d8df2827",
+      "edges_sha": "fcb87044aed60e19"
     },
     "code": {
-      "commit": "5601ba56e2d91d5e1e7fbd131889ea671d670300",
+      "commit": "0fca57569815a83b57fe53ece1e944725b0c96f9",
       "dirty": true
     },
-    "schema_version": "0.12.0",
-    "generated_utc": "2026-10-13T23:47:59+00:00"
+    "schema_version": "0.13.0",
+    "generated_utc": "2026-10-15T21:04:22+00:00"
   }
 }

@@ -44,10 +44,10 @@
       "M3": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.523082443418558,
+        "auc": 0.5230778529425716,
         "evaluable": true,
-        "auc_ci_lo": 0.4619206509246556,
-        "auc_ci_hi": 0.5842442359124604,
+        "auc_ci_lo": 0.4619162064254535,
+        "auc_ci_hi": 0.5842394994596897,
         "imputed": true,
         "coverage_pos": 0.10112359550561797,
         "coverage_neg": 0.05433746425166826
@@ -96,15 +96,26 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.001089472967451995
       },
+      "M8": {
+        "n_pos": 89,
+        "n_neg": 7343,
+        "auc": 0.5056179775280899,
+        "evaluable": true,
+        "auc_ci_lo": 0.44506103577067047,
+        "auc_ci_hi": 0.5661749192855093,
+        "imputed": true,
+        "coverage_pos": 0.011235955056179775,
+        "coverage_neg": 0.0
+      },
       "COMBINED": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5163237326078342,
+        "auc": 0.5215981895162709,
         "evaluable": true,
-        "auc_ci_lo": 0.4553842948634319,
-        "auc_ci_hi": 0.5772631703522364,
+        "auc_ci_lo": 0.46048395406538273,
+        "auc_ci_hi": 0.582712424967159,
         "imputed": true,
-        "coverage_pos": 0.20224719101123595,
+        "coverage_pos": 0.21348314606741572,
         "coverage_neg": 0.17377093830859322
       },
       "degree": {
@@ -240,20 +251,19 @@
         "missing_predicates": []
       },
       "M8": {
-        "drugs_reached": 0,
-        "viruses_reached": [],
+        "drugs_reached": 27,
+        "viruses_reached": [
+          "NCBITaxon:2697049",
+          "NCBITaxon:64320",
+          "NCBITaxon:694009"
+        ],
         "predicates": [
           "INHIBITS",
-          "MEMBER_OF_CLASS",
           "FOLD_SIMILAR_TO",
-          "MEMBER_OF_CLASS",
           "ENCODED_BY",
           "BELONGS_TO"
         ],
-        "missing_predicates": [
-          "MEMBER_OF_CLASS",
-          "FOLD_SIMILAR_TO"
-        ]
+        "missing_predicates": []
       }
     },
     "temporal": {
@@ -362,34 +372,32 @@
         "missing_predicates": []
       },
       "M8": {
-        "drugs_reached": 0,
-        "viruses_reached": [],
+        "drugs_reached": 5,
+        "viruses_reached": [
+          "NCBITaxon:2697049",
+          "NCBITaxon:694009"
+        ],
         "predicates": [
           "INHIBITS",
-          "MEMBER_OF_CLASS",
           "FOLD_SIMILAR_TO",
-          "MEMBER_OF_CLASS",
           "ENCODED_BY",
           "BELONGS_TO"
         ],
-        "missing_predicates": [
-          "MEMBER_OF_CLASS",
-          "FOLD_SIMILAR_TO"
-        ]
+        "missing_predicates": []
       }
     }
   },
   "provenance": {
     "release": {
       "id": "v0.1",
-      "nodes_sha": "8c9de2dabfcf7aee",
-      "edges_sha": "e110053c19e9c983"
+      "nodes_sha": "4b527a17d8df2827",
+      "edges_sha": "fcb87044aed60e19"
     },
     "code": {
-      "commit": "5601ba56e2d91d5e1e7fbd131889ea671d670300",
+      "commit": "0fca57569815a83b57fe53ece1e944725b0c96f9",
       "dirty": true
     },
-    "schema_version": "0.12.0",
-    "generated_utc": "2026-10-14T00:08:07+00:00"
+    "schema_version": "0.13.0",
+    "generated_utc": "2026-10-15T21:24:29+00:00"
   }
 }
