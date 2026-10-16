@@ -810,3 +810,53 @@ def test_the_coronavirus_end_of_the_broad_set_includes_roleless_rows(tmp_path):
     bp = S.broad_publications(acts, by_tid)
     # compound 41 has an HCV enzyme row and a SARS-CoV-2 Vero row only
     assert bp[_cid(41)]
+
+
+# ------------------------------------- the prereg cites the code's own rules
+PREREG = ROOT / "docs" / "prereg_phase4_hcv.md"
+
+
+def test_the_prereg_exists_and_states_the_outcome_is_unmeasured():
+    """The one line that makes the prediction a prediction."""
+    text = PREREG.read_text()
+    assert "**The outcome has not been computed.**" in text
+
+
+def test_the_prereg_quotes_constants_the_code_actually_holds():
+    """A doc figure that drifts from the code is the failure this project
+    has already fixed twice. The prereg names two constants and one merge
+    rule by value; each is asserted against its definition."""
+    from kgav.calibration import MIN_REACHED_POSITIVES
+    from kgav.labels import DEFAULT_ACTIVE_BELOW_NM, DEFAULT_INACTIVE_ABOVE_NM
+
+    text = PREREG.read_text()
+    assert MIN_REACHED_POSITIVES == 10
+    assert "ten independent\nobservations" in text
+    assert DEFAULT_ACTIVE_BELOW_NM == DEFAULT_INACTIVE_ABOVE_NM == 10_000.0
+    assert "active at or below 10,000 nM, inactive above" in text
+    assert "shared_inchikey_skeleton:salt_or_stereo_or_tautomer" in text
+
+
+def test_the_prereg_quotes_the_schema_verbatim():
+    """The sentence the whole gate exists for. Quoted, so a schema reword
+    that changes the claim shows up here rather than in a stale document."""
+    import yaml
+    raw = (ROOT / "schema" / "kg_schema.yaml").read_text()
+    assert ("traverses from SARS-CoV-2\n  # Mpro to HCV NS3 -- same "
+            "superfamily, opposite nucleophile -- and recommends\n  # "
+            "nirmatrelvir for hepatitis C.") in raw
+    yaml.safe_load(raw)          # and the file still parses
+    assert "recommends nirmatrelvir for hepatitis C" in PREREG.read_text()
+
+
+def test_the_prereg_declares_what_it_cannot_test():
+    """Arm B has four independent observations. A reader must not be able
+    to finish this document thinking the catalytic-type gate was checked."""
+    text = PREREG.read_text()
+    assert "**The catalytic-type gate is untestable on ChEMBL 37.**" in text
+    assert "**This test can refute the gate. It cannot confirm it.**" in text
+
+
+def test_the_preference_order_in_the_prereg_matches_the_code():
+    text = PREREG.read_text()
+    assert " > ".join(S.POTENCY_PREFERENCE) in text

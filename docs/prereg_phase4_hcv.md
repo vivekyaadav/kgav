@@ -1,0 +1,190 @@
+# Pre-registration: the HCV retrospective, as the evidence permits it
+
+Written **before** the code, and committed before the measurement, because a
+prediction made afterwards is a description. If the result contradicts what
+is written here, this file stays as it is and the verdict goes beneath it.
+
+Date: 2026-10-16. Release: v0.1 (74,935 nodes / 374,795 edges, schema
+v0.13.0). Source for every figure below: ChEMBL 37, read by
+`scripts/phase4_survey_chemistry.py`, which writes nothing and recommends
+nothing.
+
+**The outcome has not been computed.** Every number in this file describes
+how much evidence exists and how it is distributed. Not one of them is a
+result. That line is the only thing that makes the prediction below a
+prediction.
+
+## What phase 4 was supposed to test
+
+The folds layer ships a catalytic-type gate whose whole job is one refusal.
+Coronavirus 3CLpro and HCV NS3 share the trypsin-like protease fold — phase
+0 measured it, and the shipped layer records 54 refused-despite-shared-fold
+pairs — and differ in the catalytic residue, cysteine against serine.
+`schema/kg_schema.yaml` states the consequence of removing the gate: M8
+"traverses from SARS-CoV-2 Mpro to HCV NS3 — same superfamily, opposite
+nucleophile — and recommends nirmatrelvir for hepatitis C".
+
+`phase0_verify_folds.py` and `ingest_folds.py` both say phases 5–10 must not
+be built if the conservation premise is refuted. Both measure ANNOTATION —
+which InterPro entries two chains share. Annotation cannot say whether a
+compound that inhibits one protease inhibits the other. Phase 4 is where the
+chemistry was to be asked, as a 2×2: hold the fold constant and vary the
+nucleophile (A against B), then hold the nucleophile constant and vary the
+fold (A against C1).
+
+## What the evidence permits, measured
+
+Compounds with a protein-level, exact-relation, unit-convertible potency at
+BOTH ends of each pair. `units` counts INDEPENDENT observations: one per
+contributing publication, plus one for each pair whose two ends come from
+different papers.
+
+    shared fold  same nucleophile  pair                      compounds  units
+    yes          yes               A   3CLpro + picorna 3C          12      4
+    yes          yes               A2  HCV NS3 + flavi NS3           0      0
+    yes          no                B   3CLpro + HCV NS3              4      4
+    yes          no                B'  3CLpro + flavi NS3            3      3
+    no           yes               C1  3CLpro + CoV PLpro           49     13
+    no           no                C2  PLpro + HCV NS3               0      0
+
+**The paired design is refused.** No arm reaches ten independent
+observations, the floor `calibration.MIN_REACHED_POSITIVES` already sets for
+a class worth evaluating. Three facts, in order of how much they cost:
+
+1. **Arm A is one paper.** Twelve compounds, ten of them with both ends in a
+   single ChEMBL document, nine from one publication. Four independent
+   observations. That is a medicinal-chemistry series, almost certainly
+   designed as a dual inhibitor, and a correlation over it would measure the
+   series.
+2. **Arm B is four.** The gate's central refusal — the pair the schema names
+   — has four paired compounds across ends holding 3,040 and 2,125.
+3. **The only well-populated cell is the one where the fold is absent.** C1,
+   two cysteine proteases of the same virus sharing no fold, carries 49
+   compounds over 13 independent observations: four times arm A's pairs.
+   Overlap tracks who screened what together, not what the enzymes have in
+   common. The COVID-era papers that ran 3CLpro ran PLpro beside it; HCV
+   protease chemistry and flavivirus NS3 chemistry never met at all, which
+   is why A2 and C2 are zero across thousands of compounds.
+
+## What is therefore NOT tested, and will not be
+
+**The catalytic-type gate is untestable on ChEMBL 37.** Arm B has four
+independent observations and arm B′ has three. M8's safety rule — the one
+thing standing between the graph and recommending nirmatrelvir for hepatitis
+C — has never been checked against chemistry and cannot be with this
+database. No result in this file bears on it.
+
+That narrows `ingest_folds`'s own gate on phases 5–10. The conservation
+premise has two halves, fold and nucleophile, and only one of them was ever
+testable here. Anywhere the project relies on the catalytic-type gate it
+should say that the gate is an untested safety measure, not a validated one.
+
+## The test that remains
+
+The broad set: compounds with a protein-level HCV NS3 potency AND at least
+one coronavirus measurement of any kind in ChEMBL 37 — enzyme or antiviral,
+any `target_type`. This is the retrospective as the literature actually ran
+it in 2020: the HCV protease inhibitors that got tested against SARS-CoV-2.
+
+    identity                    compounds   units
+    exact InChIKey (PRIMARY)           12      12
+    InChIKey skeleton (sensitivity)    17      17
+
+Compounds equal units, which is the one piece of luck in this whole survey:
+the HCV enzyme literature (2005–2015, pharma) and the coronavirus literature
+(2020 on, repurposing) are disjoint, so **every pairing is a cross-paper
+observation.** That is exactly the independence arm A lacks.
+
+It answers a WEAKER question than arm B. Arm B asks whether an HCV NS3
+inhibitor inhibits the coronavirus protease. The broad set asks whether it
+stops the coronavirus — by any mechanism, including ones that have nothing
+to do with Mpro. A reader will take "the HCV retrospective" to mean the
+enzyme test unless told otherwise, and this paragraph is the telling.
+
+### Definitions, fixed here
+
+- **Compound identity**: `INCHIKEY:<standard_inchi_key>`, the node id
+  `ingest_activities` writes. Rows without one are dropped, as the ingest
+  drops them. The 14-character skeleton — `normalize_chem.same_as_rule`'s
+  declared `shared_inchikey_skeleton:salt_or_stereo_or_tautomer` merge — is
+  the pre-declared sensitivity, not the primary.
+- **HCV NS3 potency**: median of log10 nM over protein-level rows
+  (`chembl.assay_readout` == "protein"), within one assay type chosen
+  IC50 > Ki > Kd > EC50, relation `=` only.
+- **Coronavirus activity**: `labels.classify` on each coronavirus row, with
+  its declared defaults — active at or below 10,000 nM, inactive above. The
+  implementation CALLS that function; it does not restate the rule.
+  A compound is active if classify returns "active" for at least one
+  coronavirus row.
+- **Background**: every other compound with a coronavirus measurement in the
+  same extract, classified the same way. Numerator and denominator come from
+  one query, so no second extraction can disagree with the first.
+
+## The prediction
+
+**P1.** HCV NS3 protease inhibitors are NOT enriched for coronavirus
+activity relative to background. One-sided Fisher exact test, α = 0.05,
+alternative = enrichment.
+
+This is the gate's prediction, and it is a null. That asymmetry is the whole
+character of this test and must not be lost:
+
+> **This test can refute the gate. It cannot confirm it.**
+
+A significant enrichment says the gate is deleting real signal. A
+non-significant result says nothing was detected at n = 12 — not that
+nothing is there.
+
+**P2.** A significant DEPLETION is not evidence for the gate either, and
+will not be reported as such. HCV NS3 inhibitors are a narrow chemotype of
+large macrocyclic peptidomimetics; being less active than a repurposing
+library is what that chemotype predicts regardless of any fold or
+nucleophile.
+
+## The arithmetic, done before the data
+
+Minimum actives out of n for a one-sided binomial test to reach p < 0.05,
+against a background rate the measurement has not yet produced:
+
+    background   n=12: k   as rate   n=17: k   as rate
+            5%         3       25%         4       24%
+           10%         4       33%         5       29%
+           15%         5       42%         6       35%
+           20%         6       50%         7       41%
+           25%         7       58%         8       47%
+           30%         7       58%         9       53%
+
+**The test detects roughly a three-fold enrichment and nothing finer.** At a
+15% background it needs 5 of 12. A true enrichment to 25% would be missed
+more often than not. Written here so that a null cannot later be read as a
+tight bound.
+
+## Decision rule
+
+- **Enrichment significant (P1 rejected)** → the conservation premise's
+  nucleophile rule is refuted at the level this evidence reaches. The
+  catalytic-type gate is removing signal, and phases 5–10 must not be built
+  on it as it stands. This is the outcome `ingest_folds` names.
+- **Not significant** → nothing is confirmed. Phase 4 returns NO RESULT, the
+  gate stays an untested safety measure, and that wording goes wherever the
+  project describes it.
+- **Depletion significant** → reported as a fact about the chemotype, per
+  P2, and claimed as evidence for nothing.
+
+In every branch the paired arms stay refused and the file above stands.
+
+## What would make the real test possible
+
+Not pursued here; recorded so the next person does not rediscover the dead
+end.
+
+1. **A source with cross-enzyme panels.** The missing data is one compound
+   measured on two viral proteases in one protocol. ChEMBL 37 has four such
+   compounds for the pair that matters.
+2. **A set-level design** — compare the chemical space of 3,040 3CLpro
+   inhibitors against 2,125 HCV NS3 inhibitors, requiring no paired
+   compounds at all. It tests a necessary condition rather than transfer
+   itself, and it inherits the same co-screening confound in a different
+   shape, so it needs its own control arm measured before it is registered.
+3. **A prospective assay.** Twelve compounds on two enzymes in one protocol
+   would settle arm A better than the whole of ChEMBL does.
