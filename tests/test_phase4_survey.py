@@ -179,9 +179,9 @@ def _db(path: Path, *, arm_a: int = 12, arm_b: int = 12,
                     targets)
     con.executemany("INSERT INTO assays VALUES (?,?,?,?,?)", [
         (10, 1, ("Inhibition of recombinant SARS-CoV-2 3CL protease by FRET "
-                 "assay"), "B", 1),
-        (20, 2, "Inhibition of purified human rhinovirus 3C protease", "B", 1),
-        (30, 3, "Inhibition of recombinant HCV NS3 protease, enzymatic", "B", 1),
+                 "assay"), "B", 101),
+        (20, 2, "Inhibition of purified human rhinovirus 3C protease", "B", 102),
+        (30, 3, "Inhibition of recombinant HCV NS3 protease, enzymatic", "B", 101),
         (40, 4, ("Antiviral activity against HCV in Huh-7 cells by replicon "
                  "assay"), "F", 1),
         (50, 1, "Antiviral activity against SARS-CoV-2 in Vero cells", "F", 1),
@@ -676,3 +676,42 @@ def test_the_organism_split_describes_the_usable_set(tmp_path):
     # 3clpro's usable compounds all come from one organism here, so the
     # split matches it exactly
     assert sum(orgs["3clpro"].values()) == len(pot["3clpro"])
+
+
+# ------------------------------------------------ publication structure
+def test_an_arm_whose_ends_share_a_publication_is_named_as_such(tmp_path):
+    """Control C1 carries four times arm A's pairs on the real database --
+    two cysteine proteases of one virus that share NO fold -- because the
+    same COVID-era papers ran both. Membership tracks who screened what
+    together. In the fixture, arm B's two ends are one document (101) and
+    arm A's are two (101 and 102)."""
+    _, by_tid, acts = _loaded(tmp_path)
+    pot, _, _ = S.usable_potency(acts, by_tid)
+    pubs = S.role_publications(acts, by_tid, pot)
+    arm_b = set(pot["3clpro"]) & set(pot["hcv_ns3pro"])
+    shared_b, docs_b = S.pair_publications(arm_b, "3clpro", "hcv_ns3pro", pubs)
+    assert shared_b == len(arm_b) and set(docs_b) == {101}
+
+    arm_a = set(pot["3clpro"]) & set(pot["3cpro"])
+    shared_a, docs_a = S.pair_publications(arm_a, "3clpro", "3cpro", pubs)
+    assert shared_a == 0 and set(docs_a) == {101, 102}
+
+
+def test_the_publication_table_is_printed_for_every_non_empty_arm(
+        tmp_path, monkeypatch, capsys):
+    _main(monkeypatch, _db(tmp_path / "ok.db", arm_a=12, arm_b=12))
+    out = capsys.readouterr().out
+    assert "PUBLICATION STRUCTURE" in out
+    assert "1 doc = pairs whose two ends come from ONE publication" in out
+
+
+def test_rows_that_never_had_a_role_are_not_counted_as_attrition(
+        tmp_path, monkeypatch, capsys):
+    """REGRESSION. "68,575 rows dropped" read as enormous attrition and
+    59,902 of it was no_role -- rows on ORGANISM targets and other enzymes
+    that no arm ever wanted. The attrition worth reading is among rows that
+    DID resolve to an arm role."""
+    _main(monkeypatch, _db(tmp_path / "ok.db"))
+    out = capsys.readouterr().out
+    assert "rows that never had an arm role:" in out
+    assert "rows WITH an arm role, dropped before a potency" in out
