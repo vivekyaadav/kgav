@@ -437,27 +437,44 @@ def compounds_by_role(acts: list[dict], targets: dict[int, dict],
 
 
 def polyprotein_rows(acts: list[dict], targets: dict[int, dict]
-                     ) -> tuple[Counter, dict[str, Counter]]:
-    """(resolved role -> rows, family -> unresolved description -> rows).
+                     ) -> tuple[Counter, Counter, dict[str, Counter]]:
+    """Polyprotein rows in THREE buckets, not two.
 
-    The second half is the input to the next step. A picornavirus
-    description table has to be written from the real text, the way the
-    flavivirus table was -- "measured on 2026-10-11, 19 unresolved rows
-    across three viruses, all three phrasings" -- so the text is printed
-    rather than summarised.
+    (arm role -> rows, other enzyme -> rows, family -> unknown text -> rows)
+
+    THE EARLIER TWO-BUCKET SPLIT WAS WRONG, in the way this session keeps
+    finding. "rows it did NOT resolve: 4,533" put together two different
+    things, and 1,438 of the coronavirus share were a single description
+    reading "...targets SARS-COV-2 nsp3 macrodomain...". resolve_nsp reads
+    that perfectly -- NSP_PATTERNS' first entry is the macrodomain rule --
+    and returns ("nsp3", "macrodomain"), which is simply not a protease and
+    so not an arm role. Filing it beside the picornavirus rows, which the
+    tables genuinely cannot read, made the coronavirus table look an order
+    of magnitude more broken than it is.
+
+    A row is UNKNOWN only when the family's table returned nothing, or when
+    the family has no table at all. That bucket, and only that bucket, is
+    evidence that a pattern is missing.
     """
-    resolved: Counter = Counter()
-    unresolved: dict[str, Counter] = defaultdict(Counter)
+    arm: Counter = Counter()
+    other: Counter = Counter()
+    unknown: dict[str, Counter] = defaultdict(Counter)
     for a in acts:
         t = targets.get(a["tid"])
         if t is None or not t["polyprotein"] or not t["protein_level"]:
             continue
         key = role_key(t, row_role(t, a["description"]))
         if key:
-            resolved[f"{t['family']}  {key}"] += 1
+            arm[f"{t['family']}  {key}"] += 1
+            continue
+        nsp, domain = ((None, None) if t["family"] not in DESCRIPTION_TABLE
+                       else resolve_nsp(a["description"] or "", t["family"]))
+        if nsp:
+            label = f"{nsp} {domain}" if domain else nsp
+            other[f"{t['family']}  {label}"] += 1
         else:
-            unresolved[t["family"]][a["description"] or "(no description)"] += 1
-    return resolved, unresolved
+            unknown[t["family"]][a["description"] or "(no description)"] += 1
+    return arm, other, unknown
 
 
 def broad_coronavirus_compounds(acts: list[dict], targets: dict[int, dict],
@@ -491,6 +508,9 @@ ARMS = (
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--samples", type=int, default=8,
+                    help="distinct descriptions to print per family that HAS "
+                         "a table; a family with none prints all of them")
     ap.add_argument("--db", type=Path,
                     default=ROOT / "data/raw/chembl/chembl_37/chembl_37_sqlite/chembl_37.db")
     args = ap.parse_args()
@@ -573,7 +593,7 @@ def main() -> int:
     # protease rows and produced a NOT MEASURABLE verdict that was an
     # artifact of the filter.
     poly = [t for t in targets if t["polyprotein"] and t["protein_level"]]
-    resolved, unresolved = polyprotein_rows(acts, by_tid)
+    arm, other, unknown = polyprotein_rows(acts, by_tid)
     print(f"\n  POLYPROTEIN targets: {len(poly)} target(s), "
           f"{_rows(poly):,} quantified row(s)")
     print("  The target name says polyprotein; the ASSAY DESCRIPTION says "
@@ -585,27 +605,39 @@ def main() -> int:
                            f"{t['organism'][:30]:<32} "
                            f"{rows_per_tid[t['tid']]:>7,} row(s)",
                  indent="      ", unit="more polyprotein target(s)")
-    print(f"\n    rows the description resolved to an enzyme: "
-          f"{sum(resolved.values()):,}")
-    for k, v in resolved.most_common():
+    print(f"\n    rows the description resolved to an ARM ROLE: "
+          f"{sum(arm.values()):,}")
+    for k, v in arm.most_common():
         print(f"      {k:<34} {v:>7,}")
-    unres_total = sum(sum(c.values()) for c in unresolved.values())
-    print(f"\n    rows it did NOT: {unres_total:,}")
+    print(f"\n    rows it resolved to SOME OTHER ENZYME — read correctly, "
+          f"just not a\n    protease, so no arm: {sum(other.values()):,}")
+    for k, v in other.most_common():
+        print(f"      {k:<34} {v:>7,}")
+    unk_total = sum(sum(c.values()) for c in unknown.values())
+    print(f"\n    rows the table could NOT READ AT ALL: {unk_total:,}")
+    print("    Only this bucket is evidence that a pattern is missing.")
     for family in FAMILIES:
-        c = unresolved.get(family)
+        c = unknown.get(family)
         if not c:
             continue
+        has_table = family in DESCRIPTION_TABLE
         table = ("the family's own table"
-                 if family in DESCRIPTION_TABLE
-                 else "NO DESCRIPTION TABLE EXISTS for this family")
-        print(f"      {family}  {sum(c.values()):,} row(s)  —  {table}")
+                 if has_table else "NO DESCRIPTION TABLE EXISTS for this family")
+        print(f"      {family}  {sum(c.values()):,} row(s) over "
+              f"{len(c):,} distinct description(s)  —  {table}")
         # VERBATIM AND WHOLE. Truncated to 96 characters, the commonest
         # coronavirus description read "Functional biochemical assay to
         # identify treatments for viral infectious disease that targets SA"
-        # -- cut exactly where it names the enzyme, on 1,473 rows. A gap in
-        # a pattern table cannot be judged from a description clipped before
-        # the word that matters.
-        print_capped(c.most_common(), 8,
+        # -- cut exactly where it names the enzyme. A gap in a pattern table
+        # cannot be judged from a description clipped before the word that
+        # matters.
+        #
+        # AND EVERY ONE OF THEM, for a family with no table. That family is
+        # precisely the one whose table has to be written, the text is the
+        # deliverable, and a capped sample is a table written from a guess
+        # about the lines not shown. The flavivirus table says it was closed
+        # by reading all 19 unresolved rows; this is the same situation.
+        print_capped(c.most_common(), args.samples if has_table else len(c),
                      lambda kv: f"{kv[1]:>6,}  {kv[0]}",
                      indent="        ", unit="more distinct description(s)")
 
@@ -638,6 +670,7 @@ def main() -> int:
     # 14-character skeleton. Counting by chembl_id, as the first version did,
     # reported 4 compounds across a 3,049 x 2,125 pair of ends.
     results: dict[str, set[str]] = {}
+    broadest: set[str] = set()
     for ident, skel in IDENTITIES:
         protein = compounds_by_role(acts, by_tid, protein_only=True,
                                     skeleton=skel)
@@ -664,6 +697,7 @@ def main() -> int:
 
         broad = broad_coronavirus_compounds(acts, by_tid, skeleton=skel)
         hcv_broad = protein.get("hcv_ns3pro", set()) & broad
+        broadest = max(broadest, hcv_broad, key=len)
         print(f"\n    the broad set: HCV NS3 enzyme inhibitors with ANY "
               f"coronavirus\n    measurement (enzyme or antiviral, any "
               f"target_type): {len(hcv_broad)}")
@@ -684,13 +718,28 @@ def main() -> int:
 
     clears = {k: v for k, v in results.items() if len(v) >= FLOOR}
     if not clears:
-        print(f"NOT MEASURABLE. No arm reaches {FLOOR} compounds measured at "
-              f"both ends.")
-        print(f"{FLOOR} is calibration.MIN_REACHED_POSITIVES, the floor this "
-              f"project already\nuses for a class worth evaluating; below it "
-              f"a figure describes its own\nsmall sample. Phase 4 needs "
-              f"another design -- the broad set above is the\ncandidate, and "
-              f"it tests a weaker claim.")
+        print(f"NO PAIRED ARM IS MEASURABLE. None reaches {FLOOR} compounds "
+              f"measured at both\nends. {FLOOR} is "
+              f"calibration.MIN_REACHED_POSITIVES, the floor this project "
+              f"already\nuses for a class worth evaluating; below it a figure "
+              f"describes its own\nsmall sample.")
+        # THE SCRIPT CALLED THE BROAD SET THE FALLBACK AND THEN DID NOT LOOK
+        # AT IT. The first version checked only ARMS against the floor and
+        # printed "Phase 4 needs another design -- the broad set above is
+        # the candidate" while that candidate stood at 17, above the floor,
+        # one screen higher. A verdict that names an alternative owes it the
+        # same test.
+        if len(broadest) >= FLOOR:
+            print(f"\nTHE BROAD SET DOES: {len(broadest)} compounds, at or "
+                  f"above the same floor.\nIt is the weaker claim -- whether "
+                  f"HCV NS3 inhibitors stopped a coronavirus,\nnot whether "
+                  f"they inhibited its protease -- and it is the design phase "
+                  f"4\nhas left. The prereg has to say that plainly, because "
+                  f"a reader will take\n'the HCV retrospective' to mean the "
+                  f"enzyme test unless told otherwise.")
+        else:
+            print(f"\nThe broad set does not reach it either: "
+                  f"{len(broadest)} compounds.")
         print("\nExiting 1 so this is not mistaken for a refutation of the "
               "premise.\nAn unmeasurable test is not a failed test.")
         return 1

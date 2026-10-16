@@ -355,8 +355,31 @@ def test_thin_arms_refuse_rather_than_report_a_refutation(tmp_path,
     code = _main(monkeypatch, _db(tmp_path / "thin.db", arm_a=4, arm_b=2))
     out = capsys.readouterr().out
     assert code == 1
-    assert "NOT MEASURABLE" in out
+    assert "NO PAIRED ARM IS MEASURABLE" in out
     assert "not mistaken for a refutation" in out
+
+
+def test_a_verdict_that_names_a_fallback_tests_it_too(tmp_path, monkeypatch,
+                                                      capsys):
+    """REGRESSION. The verdict checked only ARMS against the floor, then
+    printed "the broad set above is the candidate" -- while that candidate
+    stood at 17, above the same floor, one screen higher. Naming an
+    alternative without testing it is the report being silent about the
+    thing beside the thing it looked at."""
+    # arms at 4 and 4+1, broad at 10: the fallback clears the floor the
+    # arms miss, which is exactly the case the first version stayed quiet on
+    code = _main(monkeypatch, _db(tmp_path / "fallback.db", arm_a=4, arm_b=4))
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "THE BROAD SET DOES: 10 compounds" in out
+
+
+def test_a_fallback_below_the_floor_is_said_to_be_below_it(tmp_path,
+                                                           monkeypatch, capsys):
+    code = _main(monkeypatch, _db(tmp_path / "thin.db", arm_a=4, arm_b=2))
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "The broad set does not reach it either: 8 compounds" in out
 
 
 def test_a_family_with_no_targets_is_an_input_problem_not_a_finding(
@@ -449,14 +472,21 @@ def test_a_polyprotein_target_that_is_organism_typed_supplies_nothing():
     assert S.row_role(t, "Inhibition of HCV NS3 protease") is None
 
 
-def test_polyprotein_rows_are_split_into_resolved_and_unresolved(tmp_path):
+def test_polyprotein_rows_are_split_three_ways(tmp_path):
+    """REGRESSION. Two buckets put "the table read this and it is not a
+    protease" together with "the table could not read this at all", and on
+    the real database 1,438 of the coronavirus share were ONE description
+    naming the nsp3 macrodomain -- which NSP_PATTERNS reads perfectly. The
+    coronavirus table looked an order of magnitude more broken than it is,
+    and only the third bucket is evidence that a pattern is missing."""
     _, by_tid, acts = _loaded(tmp_path)
-    resolved, unresolved = S.polyprotein_rows(acts, by_tid)
-    assert resolved["Coronaviridae  3clpro"] == 1
-    # the helicase row resolved to no arm role, so it is unresolved here
-    assert any("nsp13 helicase" in d
-               for d in unresolved["Coronaviridae"])
-    assert any("3C protease" in d for d in unresolved["Picornaviridae"])
+    arm, other, unknown = S.polyprotein_rows(acts, by_tid)
+    assert arm["Coronaviridae  3clpro"] == 1
+    # the helicase row IS read -- as nsp13, which is not a protease
+    assert other["Coronaviridae  nsp13"] == 1
+    assert not any("nsp13" in d for d in unknown["Coronaviridae"])
+    # the picornavirus row is unreadable: no table exists for that family
+    assert any("3C protease" in d for d in unknown["Picornaviridae"])
 
 
 def test_the_unresolved_descriptions_are_printed_verbatim(tmp_path,
