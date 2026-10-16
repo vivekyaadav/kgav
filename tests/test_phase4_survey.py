@@ -149,7 +149,16 @@ def _db(path: Path, *, arm_a: int = 12, arm_b: int = 12,
         chembl_id TEXT, pref_name TEXT, max_phase REAL);
     CREATE TABLE compound_structures (molregno INTEGER PRIMARY KEY,
         standard_inchi_key TEXT);
+    CREATE TABLE docs (doc_id INTEGER PRIMARY KEY, year INTEGER,
+        journal TEXT, title TEXT, pubmed_id INTEGER, doi TEXT);
     """)
+    # doc_id pointed at nothing before diagnose_source_scope needed to read
+    # the other side of that join. 101 is a med-chem paper, 102 a
+    # repurposing-era one, which is the contrast both scripts are about.
+    con.executemany("INSERT INTO docs VALUES (?,?,?,?,?,?)", [
+        (101, 2023, "J Med Chem", "A series of Mpro inhibitors", 11, "d1"),
+        (102, 2020, "PLoS One", "A drug repurposing screen", 12, "d2"),
+    ])
     targets = [
         (1, "CHEMBL_COV", "3C-like proteinase",
          "Severe acute respiratory syndrome coronavirus 2", 2697049,
