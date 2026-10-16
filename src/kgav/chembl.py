@@ -60,15 +60,46 @@ from kgav.units import to_nm as _to_nm
 # Description patterns -> (nsp family, domain). Order matters: the macrodomain
 # patterns must be tested before the generic nsp3/PLpro ones, since a
 # macrodomain assay description also mentions nsp3.
+# CLOSED AGAINST THE DATABASE ON 2026-10-16, by
+# scripts/phase4_survey_chemistry.py, which printed all 13 descriptions this
+# table could not read on a coronavirus polyprotein target: 85 rows, of
+# which 80 name an enzyme in words the table did not know. Those 80 were
+# landing on the polyprotein node with target_resolution="parent_unresolved"
+# -- one node standing in for sixteen proteins, which is the chloroquine-on-
+# spike failure one level up, and it was in the shipped v0.1.
+#
+#     64  nsp5             "Chymotrypsin-like protease" (3 phrasings),
+#                          "3C like protease" with a space, "M pro" with a
+#                          space, "3-chymotrypsin-like protease"
+#      8  nsp3 macrodomain  "Mac3" -- the rule knew mac1 and nothing else
+#      6  nsp3 PLpro        NL63 "PLP2"
+#      2  nsp9              no rule existed for nsp9 at all
+#      5  (still none)      free text naming no enzyme; correctly unread
+#
+# A PARTIAL VIEW WOULD HAVE GOT THIS WRONG. Read from the eight
+# descriptions a capped report showed, the count is 61 nsp5 rows and two of
+# the phrasings above -- "M pro" and "3-chymotrypsin-like" -- stay broken.
+# The flavivirus and picornavirus tables were each closed against the
+# complete list for the same reason.
 NSP_PATTERNS: list[tuple[re.Pattern, str, str | None]] = [
-    (re.compile(r"macrodomain|mac1\b|adp[- ]ribose", re.IGNORECASE), "nsp3", "macrodomain"),
-    (re.compile(r"papain|pl[- ]?pro\b|pl protease|plpro", re.IGNORECASE), "nsp3", "PLpro"),
-    (re.compile(r"3cl|3c-like|3-cl|main protease|mpro|m-protease|m protease", re.IGNORECASE), "nsp5", None),
+    # mac1 was the only macrodomain named; SARS-CoV-2 nsp3 carries Mac1,
+    # Mac2 and Mac3, and the last of those is 8 rows of binding data.
+    (re.compile(r"macrodomain|\bmac\d\b|adp[- ]ribose", re.IGNORECASE), "nsp3", "macrodomain"),
+    # PLP1 and PLP2 are the papain-like protease domains of nsp3. The rule
+    # knew "PLpro" and "papain" and not the name the NL63 assay uses.
+    (re.compile(r"papain|pl[- ]?pro\b|pl protease|plpro|\bplp\d\b", re.IGNORECASE), "nsp3", "PLpro"),
+    # "3c-like" gains the spaced form; "chymotrypsin-like" is what 3CLpro
+    # stands for and 59 rows spell it out; "m pro" is Mpro with a space.
+    # NOT a bare "chymotrypsin": that would claim host chymotrypsin assays,
+    # the restraint FLAVI_PATTERNS states for its own bare-function rules.
+    (re.compile(r"3cl|3c[- ]?like|3-cl|chymotrypsin[- ]?like|main protease"
+                r"|mpro|m-protease|m protease|\bm\s*pro\b", re.IGNORECASE), "nsp5", None),
     (re.compile(r"rdrp|rna[- ]dependent rna pol|rna[- ]directed rna pol|nsp12", re.IGNORECASE), "nsp12", None),
     (re.compile(r"helicase|nsp13", re.IGNORECASE), "nsp13", None),
     (re.compile(r"exoribonuclease|nsp14", re.IGNORECASE), "nsp14", None),
     (re.compile(r"endoribonuclease|nendou|nsp15", re.IGNORECASE), "nsp15", None),
     (re.compile(r"2'-o-methyl|nsp16", re.IGNORECASE), "nsp16", None),
+    (re.compile(r"\bnsp9\b", re.IGNORECASE), "nsp9", None),
     (re.compile(r"nsp1\b", re.IGNORECASE), "nsp1", None),
 ]
 

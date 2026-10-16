@@ -276,7 +276,13 @@ def test_an_unknown_family_falls_back_to_the_coronavirus_table():
         == resolve_nsp("Inhibition of SARS-CoV-2 Mpro")
     assert resolve_nsp("Inhibition of SARS-CoV-2 Mpro", None) \
         == resolve_nsp("Inhibition of SARS-CoV-2 Mpro")
-    assert len(NSP_PATTERNS) == 9, "the coronavirus table is untouched"
+    # A HARD COUNT, kept deliberately. It was 9 when this test was
+    # written, to pin that the flavivirus work had not touched the
+    # coronavirus table. It is 10 since 2026-10-16, when the table was
+    # closed against the 13 descriptions it could not read on a
+    # coronavirus polyprotein target -- nsp9 had no rule at all. The
+    # count stays hard so the next change has to come here and say why.
+    assert len(NSP_PATTERNS) == 10, "the coronavirus table changed"
 
 
 # --------------------------------------------------------------------------

@@ -842,3 +842,104 @@ def test_the_other_families_tables_are_untouched():
     # family, because the fallback is the CORONAVIRUS table
     assert resolve_nsp("Inhibition of coxsackievirus B3 3C protease") \
         == (None, None)
+
+
+# --------------- NSP_PATTERNS, closed against the real descriptions it missed
+#: Every distinct assay description on a coronavirus POLYPROTEIN target that
+#: NSP_PATTERNS could not read, with its row count and the enzyme it names,
+#: as scripts/phase4_survey_chemistry.py printed them on 2026-10-16.
+#: 13 descriptions, 85 rows, nothing sampled. 80 of those rows were landing
+#: on the polyprotein node with target_resolution="parent_unresolved".
+COV_UNREAD: list[tuple[int, str, str | None, str | None]] = [
+    (31, "Inhibition of SARS coronavirus Chymotrypsin-like protease using "
+         "H-Thr-Ser-Ala-Val-Leu-Gln-Ser-Gly-Phe-Arg-Lys-NH2 as substrate by "
+         "fluorescence assay", "nsp5", None),
+    (18, "Inhibition of SARS coronavirus chymotrypsin-like protease by "
+         "fluorescence plate reader", "nsp5", None),
+    (10, "Inhibition of SARS coronavirus Chymotrypsin-like protease",
+     "nsp5", None),
+    (6, "Inhibition of human coronavirus NL63 PLP2 (amino acids 1565 to "
+        "1894) expressed in Escherichia coli BL21 (DE3) cells assessed as "
+        "reduction of AMC release using Z-RLRGG-AMC as substrate by "
+        "multimode plate reader analysis", "nsp3", "PLpro"),
+    # names no enzyme at all; correctly unread, and the only one that stays
+    (5, "antiviral activity: Several derivatives of EIDD-01931 have shown "
+        "antiviral activity in screening against various viruses. Activity "
+        "data is shown in the tables below. Norovirus SARS Coronavirus GT1 "
+        "Orbani HG23 Vero 76.", None, None),
+    (2, "Inhibition of human SARS coronavirus 3C like protease", "nsp5", None),
+    (2, "Binding affinity to 15N-labelled His6-tagged SARS-CoV-2 Mac3 (551 "
+        "to 675 residues) expressed in Escherichia coli Rosetta assessed as "
+        "chemical shift perturbations by NMR HSQC spectral analysis",
+     "nsp3", "macrodomain"),
+    (2, "Binding affinity to 15N-labelled His6-tagged SARS-CoV Mac3 (527 to "
+        "652 residue) expressed in Escherichia coli Rosetta assessed as "
+        "chemical shift perturbations by NMR HSQC spectral analysis",
+     "nsp3", "macrodomain"),
+    (2, "Binding affinity to recombinant SARS-CoV-2 Nsp9 assessed as "
+        "dissociation constant by Mass spectrometry analysis", "nsp9", None),
+    (2, "Displacement of carboxyfluorescein-labelled p53-(dG)14 from "
+        "SARS-CoV-2 Mac3 by fluorescence polarization analysis",
+     "nsp3", "macrodomain"),
+    (2, "Displacement of carboxyfluorescein-labelled bbc3-(dG)14 from "
+        "SARS-CoV-2 Mac3 by fluorescence polarization analysis",
+     "nsp3", "macrodomain"),
+    (2, "Binding affinity of SARS-Cov-2 M pro expressed in Escherichia coli "
+        "cells BL21(DE3) assessed as inhibition constant preincubated for 30 "
+        "mins followed by substrate addition of DABCYL-KTSAVLQSGFRKM-EDANS "
+        "(aBachem) measured after 15 mins", "nsp5", None),
+    (1, "Inhibition of SARS-CoV-2 3-chymotrypsin-like protease assessed as "
+        "inhibition constant", "nsp5", None),
+]
+
+
+@pytest.mark.parametrize("rows,description,nsp,domain", COV_UNREAD)
+def test_every_description_the_table_missed_now_resolves(rows, description,
+                                                         nsp, domain):
+    from kgav.chembl import resolve_nsp
+    assert resolve_nsp(description) == (nsp, domain)
+
+
+def test_the_coronavirus_table_is_closed_against_the_database():
+    """All 13 and all 85 rows accounted for, the standard the flavivirus and
+    picornavirus tables set. Read from the eight descriptions a capped
+    report happened to show, the nsp5 count is 61 and two phrasings -- "M
+    pro" and "3-chymotrypsin-like" -- stay broken."""
+    from collections import Counter
+    assert len(COV_UNREAD) == 13
+    assert sum(n for n, _, _, _ in COV_UNREAD) == 85
+    by_key: Counter = Counter()
+    for n, _, nsp, dom in COV_UNREAD:
+        by_key[f"{nsp} {dom}" if dom else str(nsp)] += n
+    assert by_key == {"nsp5": 64, "nsp3 macrodomain": 8, "nsp3 PLpro": 6,
+                      "nsp9": 2, "None": 5}
+
+
+@pytest.mark.parametrize("description", [
+    "Inhibition of alpha-chymotrypsin",        # a HOST protease
+    "Inhibition of chymotrypsin by FRET",      # bare, no "-like"
+    "Inhibition of M protein",                 # not M pro
+    "binding to 5 mM proline buffer",
+    "Inhibition of nsp10 methyltransferase",   # \bnsp1\b must not claim it
+])
+def test_the_new_rules_refuse_what_they_should(description):
+    """No bare \\bchymotrypsin\\b, the restraint FLAVI_PATTERNS states for
+    its own bare-function rules: it would claim host protease assays."""
+    from kgav.chembl import resolve_nsp
+    assert resolve_nsp(description) == (None, None)
+
+
+@pytest.mark.parametrize("description,nsp,domain", [
+    ("Inhibition of SARS-CoV-2 Mac1", "nsp3", "macrodomain"),
+    ("Inhibition of SARS-CoV-2 3CL protease", "nsp5", None),
+    ("SARS-CoV-2 PLpro inhibition", "nsp3", "PLpro"),
+    ("Inhibition of SARS-CoV-2 Mpro", "nsp5", None),
+    ("Inhibition of nsp1 translation shutdown", "nsp1", None),
+    ("Inhibition of SARS-CoV-2 nsp13 helicase", "nsp13", None),
+    ("Inhibition of RdRp", "nsp12", None),
+])
+def test_what_the_table_already_read_it_still_reads(description, nsp, domain):
+    """Widening a rule that other rules sit beside can steal their rows.
+    Every pre-existing resolution is asserted unchanged."""
+    from kgav.chembl import resolve_nsp
+    assert resolve_nsp(description) == (nsp, domain)
