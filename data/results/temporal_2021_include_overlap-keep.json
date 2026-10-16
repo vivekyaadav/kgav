@@ -3,8 +3,8 @@
   "undated_policy": "include",
   "overlap_policy": "keep",
   "stats": {
-    "edge_train": 194253,
-    "edge_dropped_future": 156625,
+    "edge_train": 194251,
+    "edge_dropped_future": 156624,
     "undated_kept": 1818,
     "label_train_inactive": 11987,
     "label_train_active": 1045,
@@ -34,13 +34,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "4b527a17d8df2827",
-      "edges_sha": "fcb87044aed60e19"
+      "edges_sha": "63ff3592d992128e"
     },
     "code": {
-      "commit": "0fca57569815a83b57fe53ece1e944725b0c96f9",
+      "commit": "e7d145100851c4cbe9b3ab6223d63ab7ead61657",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-10-15T21:05:14+00:00"
+    "generated_utc": "2026-10-16T05:21:36+00:00"
   }
 }

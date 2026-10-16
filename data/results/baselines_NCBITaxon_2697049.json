@@ -21,7 +21,7 @@
       "mrr": 0.022727272727272728
     },
     "dwpc": {
-      "n": 6424,
+      "n": 6425,
       "hits@10": 2,
       "hits@50": 4,
       "hits@100": 7,
@@ -873,19 +873,19 @@
       },
       {
         "drug": "INCHIKEY:AUZONCFQVSMFAP-UHFFFAOYSA-N",
-        "score": 0.9991719112288837
+        "score": 0.9991721854304636
       },
       {
         "drug": "INCHIKEY:KCGUGVQODCQMBI-UHFFFAOYSA-N",
-        "score": 0.9991719112288837
+        "score": 0.9991721854304636
       },
       {
         "drug": "INCHIKEY:YEFXFLLBKXHVRB-UHFFFAOYSA-N",
-        "score": 0.9991719112288837
+        "score": 0.9991721854304636
       },
       {
         "drug": "INCHIKEY:AWSVQRMBQAUCTO-UHFFFAOYSA-N",
-        "score": 0.9991719112288837
+        "score": 0.9991721854304636
       },
       {
         "drug": "INCHIKEY:NHHQJBCNYHBUSI-UHFFFAOYSA-N",
@@ -905,7 +905,7 @@
       },
       {
         "drug": "INCHIKEY:IKMDFBPHZNJCSN-UHFFFAOYSA-N",
-        "score": 0.9983438224577674
+        "score": 0.9983443708609272
       },
       {
         "drug": "INCHIKEY:AXRCEOKUDYDWLF-UHFFFAOYSA-N",
@@ -917,7 +917,7 @@
       },
       {
         "drug": "INCHIKEY:WMBWREPUVVBILR-WIYYLYMNSA-N",
-        "score": 0.9980125869493209
+        "score": 0.9980132450331126
       },
       {
         "drug": "INCHIKEY:PBCZSGKMGDDXIJ-KRUBCLEUSA-N",
@@ -937,19 +937,19 @@
       },
       {
         "drug": "INCHIKEY:JTZZSQYMACOLNN-VDWJNHBNSA-N",
-        "score": 0.9971844981782048
+        "score": 0.9971854304635761
       },
       {
         "drug": "INCHIKEY:FSOOITRATZAWMN-UHFFFAOYSA-N",
-        "score": 0.9971844981782048
+        "score": 0.9971854304635761
       },
       {
         "drug": "INCHIKEY:JHTXVOZTSTVUID-UHFFFAOYSA-N",
-        "score": 0.9971844981782048
+        "score": 0.9971854304635761
       },
       {
         "drug": "INCHIKEY:KTYWNUWPRNQPLS-UHFFFAOYSA-N",
-        "score": 0.9971844981782048
+        "score": 0.9971854304635761
       },
       {
         "drug": "INCHIKEY:JOGKUKXHTYWRGZ-UHFFFAOYSA-N",
@@ -969,7 +969,7 @@
       },
       {
         "drug": "INCHIKEY:FXNFHKRTJBSTCS-UHFFFAOYSA-N",
-        "score": 0.9963564094070885
+        "score": 0.9963576158940397
       },
       {
         "drug": "INCHIKEY:BMGQWWVMWDBQGC-IIFHNQTCSA-N",
@@ -1249,395 +1249,395 @@
       },
       {
         "drug": "INCHIKEY:YQNQNVDNTFHQSW-UHFFFAOYSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:IYCYSBUBGPYWMH-WTGUMLROSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:VJTHZJTVKMYLTF-KSVNGYGVSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:YPNMOPKKRSKBBY-KSVNGYGVSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:FZDIXMFZOFAVRI-NBCVKUGOSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:MCXZKMHXLCZKGW-NBCVKUGOSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:LCMOFELTEUWDCG-NLJXWPIHSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:ZEDCZMOBCNMHMV-NVQRDWNXSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:GIXWDMTZECRIJT-UHFFFAOYSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:CKLPUCARSNJTSJ-UHFFFAOYSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:OFPVSPQGQVRDRP-UHFFFAOYSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:XNULRSOGWPFPBL-REWPJTCUSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:LMXOHSDXUQEUSF-YECHIGJVSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:NQDGUIPILLCWMN-QTQZEZTPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:AGFBEKPJZQJQDD-VGKBRBPRSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:LQKQDYIGEWTUDG-WVSUBDOOSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:RYHYLYNZOHWCCP-NVQRDWNXSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:VGQXYMIMVTUJPT-BGIGGGFGSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:NKEHMZYMDBKRAN-WGQQHEPDSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:PUOFNQFMGJERLR-IWCJZZDYSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:IXFBJTFTIOESKB-IWCJZZDYSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:VHOOYEKZHGHINH-RVXWVPLUSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:PCTZFXJTOYFYTN-KWDXPJCYSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:FGQFLEOCJZSNGH-XKLVTHTNSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:BUCOLDBCULZAGB-XNIJJKJLSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:QEERBJGXPQZLEC-XNIJJKJLSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:AGZUAQSIFKTFLX-XNIJJKJLSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:GAPSIPQJGNYYGY-LSCFUAHRSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:QYZLZXKRRUJWJJ-SCFUHWHPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:BGQBLHRFDZEKNV-LSCFUAHRSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:PDXZFYCPOSUPKW-SCFUHWHPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:RWLGAQGPXIGRMF-SCFUHWHPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:RPGPCBUMGKYMMO-NVQRDWNXSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:RBNKGSLQRDEVJM-NVQRDWNXSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:RNFFNONAPOUQNH-LSCFUAHRSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:LIMWYHOFFMAINC-LSCFUAHRSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:GCJLBMVODVBMPB-LSCFUAHRSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:MMJSYXDNAHIHQT-SCFUHWHPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:JLANHPFULDYJQO-NVQRDWNXSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:ZHVNWPYRBLBLOS-WVSUBDOOSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:TWJPAGVSGXEDJQ-XNIJJKJLSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:KMMNCDMMIRXFMG-LSCFUAHRSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:ITZLIGFIFJAOAQ-SCFUHWHPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:NTORKQOXXBWCGU-SCFUHWHPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:LDRWCOLALVSFHP-NVQRDWNXSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:FLWQBUCOMCDYNO-FGSUIDRYSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:LYZXQPAYSGPTRV-ZDXOVATRSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:ZPOPXZDOQKBMBS-QWOIFIOOSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:ZJUKTBDSGOFHSH-WFMPWKQPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:ANPNOSKPPVUFTH-UHFFFAOYSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:ZJRJCWRBMHUFCK-UHFFFAOYSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:KWANCUULGHTJJO-SCFUHWHPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:DUBRZTPIZZHOLG-SCFUHWHPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:DUPWZILPIQWIJJ-NVQRDWNXSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:WWCXDXOWVZCXRB-SCFUHWHPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:QEHSLAPJVUIGFZ-XKLVTHTNSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:NUWDRGOGLZOYEY-BGIGGGFGSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:SMSXQXSOXDVHJX-XKLVTHTNSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:RGIUMLJFFPBJDQ-WVSUBDOOSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:WHKNPOBBVRMHQB-LSCFUAHRSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:PKFLZAFBNWONBS-SCFUHWHPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:YDKGKPHPXQMQBR-SCFUHWHPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:HFZHFJKZHPMBQZ-SCFUHWHPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:ZTSMMYJPTKWLLM-NVQRDWNXSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:WCADKSZGFPCMHL-NVQRDWNXSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:KTIXJHXTNDDBFL-WVSUBDOOSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:JUOCANSAUHUIHJ-WVSUBDOOSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:IMDHNDCVCJQCBV-WVSUBDOOSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:UBFNQXASZXCUFE-QTQZEZTPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:MPUPMILQLMPBBH-HUBRGWSESA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:MICHEQZXWLTCEE-VBHAUSMQSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:QTZUBYJSRLXUNT-VBHAUSMQSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:VACQJGZHGGHXKH-VBHAUSMQSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:VJJHEKWIBTUWDR-ZYWWQZICSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:GXLHLSYBNJKQFT-CTDWIVFPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:ORSQXNSRQPSNPN-BQOYKFDPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:ZANWIMBMDXYMTC-BQOYKFDPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:XJJNOMZIYFTWIY-BQOYKFDPSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:SMKNTXBNSBSLMX-QWOIFIOOSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:UIHKYLFEPIRLMK-MOROJQBDSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:QLRFAKZCVYOAHV-QCUYGVNKSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:KRVKCGGQOYPZIY-QCUYGVNKSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:DOSDEKZIZVAEKC-QCUYGVNKSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:WAYHLAPYJYUDFN-AEVYOOLXSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:SPMFBZXXQBXKFX-LUOSIZPJSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:XLTWYAYAFLGUEQ-OPYVMVOTSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:CPUNUFGYWFHFOF-TVDBPQCTSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:YNOYJEDXXURNIB-WVSUBDOOSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:STBVZHYGQWMMTR-DWVGVLABSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:FRBGIZZDIAVFAN-LSCFUAHRSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:HBDXINWFAZPQOO-ZDXOVATRSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:MLJVGAYSVYMPSB-MSUKGTQXSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:ZRWPUFFVAOMMNM-UHFFFAOYSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:MMOUYBCDJMEUFG-DUXPYHPUSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:QRILQPLZLMZAGU-GQCTYLIASA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:SPMFBZXXQBXKFX-HRILZFSESA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:IQCKJUKAQJINMK-HUBRGWSESA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       },
       {
         "drug": "INCHIKEY:UDFJXRJYAZANFF-VBHAUSMQSA-N",
-        "score": 0.9799602517389864
+        "score": 0.9799668874172185
       }
     ],
     "proximity": [
@@ -2447,13 +2447,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "4b527a17d8df2827",
-      "edges_sha": "fcb87044aed60e19"
+      "edges_sha": "63ff3592d992128e"
     },
     "code": {
-      "commit": "0fca57569815a83b57fe53ece1e944725b0c96f9",
+      "commit": "e7d145100851c4cbe9b3ab6223d63ab7ead61657",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-10-15T21:06:13+00:00"
+    "generated_utc": "2026-10-16T05:22:35+00:00"
   }
 }

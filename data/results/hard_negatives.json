@@ -135,7 +135,7 @@
   "metapath_reach": {
     "cross_sectional": {
       "M1": {
-        "drugs_reached": 2420,
+        "drugs_reached": 2448,
         "viruses_reached": [
           "NCBITaxon:11137",
           "NCBITaxon:1335626",
@@ -268,7 +268,7 @@
     },
     "temporal": {
       "M1": {
-        "drugs_reached": 506,
+        "drugs_reached": 533,
         "viruses_reached": [
           "NCBITaxon:1335626",
           "NCBITaxon:2697049",
@@ -391,13 +391,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "4b527a17d8df2827",
-      "edges_sha": "fcb87044aed60e19"
+      "edges_sha": "63ff3592d992128e"
     },
     "code": {
-      "commit": "0fca57569815a83b57fe53ece1e944725b0c96f9",
+      "commit": "e7d145100851c4cbe9b3ab6223d63ab7ead61657",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-10-15T21:24:29+00:00"
+    "generated_utc": "2026-10-16T05:40:56+00:00"
   }
 }
