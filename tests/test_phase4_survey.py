@@ -204,10 +204,10 @@ def _db(path: Path, *, arm_a: int = 12, arm_b: int = 12,
     del keys[56]
     acts, aid = [], 0
 
-    def add(mol, assay, units="nM"):
+    def add(mol, assay, units="nM", relation="=", stype="IC50"):
         nonlocal aid
         aid += 1
-        acts.append((aid, assay, mol, "IC50", 100.0, units, "="))
+        acts.append((aid, assay, mol, stype, 100.0, units, relation))
 
     for i in range(1, arm_a + 1):
         add(i, 10)
@@ -237,6 +237,10 @@ def _db(path: Path, *, arm_a: int = 12, arm_b: int = 12,
     add(56, 10)
     # a coronavirus polyprotein row whose description names no enzyme
     add(57, 90)
+    # measured at BOTH ends of arm A, but the 3C number is a bound: in
+    # `both`, not in `usable`
+    add(58, 10)
+    add(58, 20, relation=">")
     con.executemany("INSERT INTO molecule_dictionary VALUES (?,?,?,?)", mols)
     con.executemany("INSERT INTO compound_structures VALUES (?,?)",
                     sorted(keys.items()))
@@ -299,9 +303,10 @@ def test_a_cellular_row_is_not_an_enzyme_measurement(tmp_path):
     protein = S.compounds_by_role(acts, by_tid, protein_only=True)
     anywhere = S.compounds_by_role(acts, by_tid, protein_only=False)
     # arm A 12 + arm B 12 + the 3CLpro row filed on the polyprotein + the
-    # salt pair's free base. The structureless molecule is NOT here.
-    assert len(protein["3clpro"]) == 26
-    assert len(anywhere["3clpro"]) == 31         # + the 5 cellular
+    # salt pair's free base + the censored-3C compound. The structureless
+    # molecule is NOT here.
+    assert len(protein["3clpro"]) == 27
+    assert len(anywhere["3clpro"]) == 32         # + the 5 cellular
     assert len(protein["hcv_ns3pro"]) == 18      # arm B 12 + 5 + the salt
 
 
@@ -547,7 +552,7 @@ def test_a_row_with_no_structure_is_dropped_not_counted(tmp_path):
     assert any(a["inchikey"] is None for a in acts)
     assert S.compound_id({"inchikey": None}) is None
     protein = S.compounds_by_role(acts, by_tid)
-    assert len(protein["3clpro"]) == 26          # 56 is absent
+    assert len(protein["3clpro"]) == 27          # 56 is absent
 
 
 def test_both_identities_are_reported(tmp_path, monkeypatch, capsys):
@@ -574,3 +579,100 @@ def test_the_unclaimed_targets_are_named_when_none_took_a_role(
     out = capsys.readouterr().out
     assert "What the 1 unclaimed targets are called" in out
     assert "Capsid protein VP1" in out
+
+
+# ------------------------------ a usable arm is smaller than a measured one
+def test_a_censored_row_is_in_both_but_not_in_usable(tmp_path):
+    """REGRESSION IN WAITING. The arms were sized on membership -- a
+    compound with a protein-level row at each end -- and the verdict read
+    that number. A ">" is a bound, not a measurement, and a correlation
+    cannot read it. Sizing a protocol on membership sizes one that cannot
+    run; the fixture's compound 58 has an exact 3CLpro IC50 and a censored
+    3C one."""
+    _, by_tid, acts = _loaded(tmp_path)
+    protein = S.compounds_by_role(acts, by_tid)
+    pot, drops, _ = S.usable_potency(acts, by_tid)
+    both = protein["3clpro"] & protein["3cpro"]
+    usable = set(pot["3clpro"]) & set(pot["3cpro"])
+    assert _cid(58) in both and _cid(58) not in usable
+    assert len(usable) == len(both) - 1
+    assert drops["censored_relation"] == 1
+
+
+def test_the_potency_rule_is_a_median_not_the_best_value(tmp_path):
+    """chembl.py records chloroquine's 160 nM pseudovirus number beating its
+    real 7,000 nM by 44x in a best-potency selection. A median over the
+    protein-level rows cannot be carried by one outlier that way."""
+    p = _db(tmp_path / "ok.db")
+    con = sqlite3.connect(p)
+    # three 3CLpro rows for one compound: 10, 100 and 100000 nM
+    con.execute("INSERT INTO activities VALUES (9101, 10, 1, 'IC50', 10.0, "
+                "'nM', '=')")
+    con.execute("INSERT INTO activities VALUES (9102, 10, 1, 'IC50', 100000.0, "
+                "'nM', '=')")
+    con.commit()
+    targets = S.load_targets(con)
+    acts = S.load_activities(con, [t["tid"] for t in targets])
+    con.close()
+    pot, _, _ = S.usable_potency(acts, {t["tid"]: t for t in targets})
+    # log10 of 10, 100, 100000 -> 1, 2, 5; median 2, i.e. 100 nM
+    assert pot["3clpro"][_cid(1)] == 2.0
+
+
+def test_one_assay_type_at_a_time(tmp_path):
+    """An IC50 and a Ki are not the same quantity. The preference order
+    picks one and the mix is reported, so a prereg argues with the order
+    rather than inheriting an average of two different measurements."""
+    p = _db(tmp_path / "ok.db")
+    con = sqlite3.connect(p)
+    con.execute("INSERT INTO activities VALUES (9201, 10, 2, 'Ki', 1.0, "
+                "'nM', '=')")
+    con.commit()
+    targets = S.load_targets(con)
+    acts = S.load_activities(con, [t["tid"] for t in targets])
+    con.close()
+    pot, _, mix = S.usable_potency(acts, {t["tid"]: t for t in targets})
+    # the IC50 at 100 nM wins over the Ki at 1 nM: preference, not potency
+    assert pot["3clpro"][_cid(2)] == 2.0
+    assert mix["3clpro  IC50"] >= 1
+    assert S.POTENCY_PREFERENCE[0] == "IC50"
+
+
+def test_the_design_covers_all_four_cells_of_the_two_by_two():
+    """A and B hold the fold constant and vary the nucleophile, so on their
+    own they say nothing about whether the FOLD does any work. The controls
+    are the other two cells: same nucleophile with no shared fold, and
+    neither."""
+    kinds = {label: kind for label, _, _, kind, _ in S.ARMS}
+    assert sum(k == "allowed" for k in kinds.values()) == 2
+    assert sum(k == "refused" for k in kinds.values()) == 2
+    assert sum(k == "control" for k in kinds.values()) == 2
+    assert any("CoV PLpro" in lbl and kinds[lbl] == "control" for lbl in kinds)
+
+
+def test_a_control_never_decides_the_verdict(tmp_path, monkeypatch, capsys):
+    """A control is not a claim the premise makes. If one cleared the floor
+    and an arm did not, reporting MEASURABLE would be measuring the wrong
+    thing."""
+    controls = [lbl for lbl, _, _, kind, _ in S.ARMS if kind == "control"]
+    _main(monkeypatch, _db(tmp_path / "ok.db", arm_a=12, arm_b=12))
+    out = capsys.readouterr().out
+    assert "MEASURABLE." in out
+    for lbl in controls:
+        assert f"  {lbl}  n=" not in out
+
+
+def test_the_organism_split_describes_the_usable_set(tmp_path):
+    """REGRESSION. Counted over every role-resolved row, this table said
+    3clpro drew on 31 compounds while the arm beside it used 26 -- a split
+    describing a set the protocol does not read."""
+    _, by_tid, acts = _loaded(tmp_path)
+    pot, _, _ = S.usable_potency(acts, by_tid)
+    orgs = S.role_organisms(acts, by_tid, pot)
+    for key, counter in orgs.items():
+        # a compound measured under two organisms is counted under each, so
+        # the split can exceed the role's compound count but never fall short
+        assert sum(counter.values()) >= len(pot[key])
+    # 3clpro's usable compounds all come from one organism here, so the
+    # split matches it exactly
+    assert sum(orgs["3clpro"].values()) == len(pot["3clpro"])
