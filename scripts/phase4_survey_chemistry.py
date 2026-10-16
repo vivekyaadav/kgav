@@ -585,6 +585,36 @@ def role_publications(acts: list[dict], targets: dict[int, dict],
     return out
 
 
+def independent_units(pair: set[str], left: str, right: str,
+                      pubs: dict[str, dict[str, set]]) -> int:
+    """How many INDEPENDENT observations an arm really holds.
+
+    THE UNIT IS THE PUBLICATION, NOT THE COMPOUND. Nine analogues from one
+    medicinal-chemistry series, measured on two enzymes in one paper, are
+    one observation about those enzymes and nine about that series. A
+    correlation over them measures the series.
+
+    A pair whose two ends come from the same document is attributed to that
+    document; pairs sharing a document collapse to one unit. A pair whose
+    ends come from different papers is nobody's series, so it counts on its
+    own -- that is the kind of observation the premise is actually about.
+
+    This project already separates evidence by publication:
+    hard_negatives ships --publication-disjoint, and docs/evaluation.md
+    records why.
+    """
+    docs: set = set()
+    loose = 0
+    for cid in pair:
+        shared = (pubs.get(left, {}).get(cid, set())
+                  & pubs.get(right, {}).get(cid, set()))
+        if shared:
+            docs.add(min(shared))
+        else:
+            loose += 1
+    return len(docs) + loose
+
+
 def pair_publications(pair: set[str], left: str, right: str,
                       pubs: dict[str, dict[str, set]]) -> tuple[int, Counter]:
     """(pairs whose two ends share a publication, documents by arm share).
@@ -859,6 +889,7 @@ def main() -> int:
     # 14-character skeleton. Counting by chembl_id, as the first version did,
     # reported 4 compounds across a 3,049 x 2,125 pair of ends.
     results: dict[str, set[str]] = {}
+    units: dict[str, int] = {}
     broadest: set[str] = set()
     for ident, skel in IDENTITIES:
         protein = compounds_by_role(acts, by_tid, protein_only=True,
@@ -908,21 +939,24 @@ def main() -> int:
                   "on both ends is a\n    fact about who screened what "
                   "together, not about the enzymes:")
             print(f"    {'arm':<46} {'pairs':>5} {'1 doc':>6} "
-                  f"{'docs':>5} {'top':>5}")
+                  f"{'docs':>5} {'top':>5} {'units':>6}")
             for label, left, right, _kind, _says in ARMS:
                 pr = set(pot.get(left, {})) & set(pot.get(right, {}))
                 if not pr:
                     continue
                 shared, docs = pair_publications(pr, left, right, pubs)
                 top = docs.most_common(1)[0][1] if docs else 0
+                units[label] = independent_units(pr, left, right, pubs)
                 print(f"    {label:<46} {len(pr):>5} {shared:>6} "
-                      f"{len(docs):>5} {top:>5}")
+                      f"{len(docs):>5} {top:>5} {units[label]:>6}")
             print("      1 doc = pairs whose two ends come from ONE "
                   "publication; top = the\n      largest single "
-                  "publication's share of the arm. An arm that is one\n"
-                  "      paper is a congeneric series, and a correlation "
-                  "over it is about\n      that series. hard_negatives "
-                  "ships --publication-disjoint for this.")
+                  "publication's share; units = INDEPENDENT observations, "
+                  "one\n      per contributing paper plus one for each "
+                  "cross-paper pair. Nine\n      analogues of one series "
+                  "measured on two enzymes in one paper are one\n"
+                  "      observation about the enzymes and nine about the "
+                  "series.")
             print("\n    assay type each compound's number came from "
                   f"(preference {' > '.join(POTENCY_PREFERENCE)}):")
             print_capped(mix.most_common(), 10,
@@ -959,13 +993,34 @@ def main() -> int:
               f"chemistry.\nExiting 2.")
         return 2
 
-    clears = {k: v for k, v in results.items() if len(v) >= FLOOR}
+    # THE FLOOR IS APPLIED TO THE INDEPENDENT UNIT, NOT TO THE COMPOUND.
+    # The first version read the raw pair count and printed "MEASURABLE,
+    # A n=12" four lines below a table saying 10 of those 12 pairs sat in
+    # one document and one paper supplied 9. Ten observations that are one
+    # paper are not ten observations, and a verdict that prints the
+    # publication structure and then ignores it is the same silence this
+    # whole survey keeps finding.
+    #
+    # FLOOR is calibration.MIN_REACHED_POSITIVES, reused rather than
+    # re-chosen -- but applying it to publications rather than to measured
+    # actives is an EXTENSION of what that constant was written for, and
+    # saying so is the point of this comment.
+    clears = {k: v for k, v in results.items()
+              if len(v) >= FLOOR and units.get(k, 0) >= FLOOR}
+    thin = {k: v for k, v in results.items()
+            if len(v) >= FLOOR and units.get(k, 0) < FLOOR}
     if not clears:
-        print(f"NO PAIRED ARM IS MEASURABLE. None reaches {FLOOR} compounds "
-              f"measured at both\nends. {FLOOR} is "
-              f"calibration.MIN_REACHED_POSITIVES, the floor this project "
-              f"already\nuses for a class worth evaluating; below it a figure "
-              f"describes its own\nsmall sample.")
+        print(f"NO PAIRED ARM IS MEASURABLE. None reaches {FLOOR} INDEPENDENT "
+              f"observations.\n{FLOOR} is calibration.MIN_REACHED_POSITIVES, "
+              f"the floor this project already\nuses for a class worth "
+              f"evaluating; here it is applied to publications,\nbecause "
+              f"analogues of one series measured in one paper are one "
+              f"observation\nabout the enzymes and many about the series.")
+        for k, v in thin.items():
+            print(f"\n  {k}\n    reaches {len(v)} compounds but only "
+                  f"{units.get(k, 0)} independent observation(s) — a "
+                  f"congeneric\n    series, and a correlation over it would "
+                  f"measure that series.")
         # THE SCRIPT CALLED THE BROAD SET THE FALLBACK AND THEN DID NOT LOOK
         # AT IT. The first version checked only ARMS against the floor and
         # printed "Phase 4 needs another design -- the broad set above is
@@ -987,9 +1042,11 @@ def main() -> int:
               "premise.\nAn unmeasurable test is not a failed test.")
         return 1
 
-    print(f"MEASURABLE. {len(clears)} arm(s) reach the {FLOOR}-compound floor:")
+    print(f"MEASURABLE. {len(clears)} arm(s) reach the {FLOOR}-observation "
+          f"floor:")
     for label in clears:
-        print(f"  {label}  n={len(clears[label])}")
+        print(f"  {label}  n={len(clears[label])} compounds, "
+              f"{units.get(label, 0)} independent observation(s)")
     print("\nNext: docs/prereg_phase4_hcv.md, written against these counts "
           "and committed\nBEFORE the code that measures the arms. The "
           "prediction the premise makes is\nthat arm A relates and arm B "
