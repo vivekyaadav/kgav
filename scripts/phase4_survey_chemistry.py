@@ -226,7 +226,27 @@ REQUIRED_COLUMNS = {
                    "standard_units", "standard_relation"),
     "assays": ("assay_id", "tid", "description", "assay_type", "doc_id"),
     "molecule_dictionary": ("molregno", "chembl_id", "pref_name", "max_phase"),
+    "compound_structures": ("molregno", "standard_inchi_key"),
 }
+
+# TWO COMPOUND IDENTITIES, BOTH THE PROJECT'S OWN.
+#
+# The first version counted compounds by molecule_dictionary.chembl_id and
+# found 4 compounds across arm B's 3,049 x 2,125 ends. A ChEMBL id is a
+# REGISTRATION, not a molecule: a free base and its hydrochloride, or the
+# same compound entered twice, carry different ids. This project never uses
+# that id as identity -- ingest_activities keys every SmallMolecule node
+# `INCHIKEY:<standard_inchi_key>` and drops a row with no key.
+#
+# The skeleton is the first 14 characters, the InChIKey's connectivity
+# block. normalize_chem.same_as_rule already declares two compounds sharing
+# it to be one node, with merge_rule
+# "shared_inchikey_skeleton:salt_or_stereo_or_tautomer". So the arms are
+# reported at both: the exact key is the graph's node, the skeleton is the
+# graph's own declared merge, and the gap between them is how much of an
+# arm is salt or stereo bookkeeping rather than chemistry.
+IDENTITIES = (("exact InChIKey  (the graph's node id)", False),
+              ("InChIKey skeleton  (its declared SAME_AS merge)", True))
 
 
 def _any(patterns: tuple[str, ...], text: str) -> bool:
@@ -305,7 +325,7 @@ def load_targets(con: sqlite3.Connection) -> list[dict]:
     return out
 
 
-ACTIVITY_FIELDS = ("tid", "compound", "drug_name", "max_phase",
+ACTIVITY_FIELDS = ("tid", "compound", "inchikey", "drug_name", "max_phase",
                    "standard_type", "standard_value", "standard_units",
                    "standard_relation", "description", "assay_type")
 
@@ -331,12 +351,14 @@ def load_activities(con: sqlite3.Connection, tids: list[int]) -> list[dict]:
     qmarks = ",".join("?" * len(tids))
     types = ",".join("?" * len(QUANT_TYPES))
     rows = con.execute(f"""
-        SELECT a.tid, md.chembl_id, md.pref_name, md.max_phase,
-               act.standard_type, act.standard_value, act.standard_units,
-               act.standard_relation, a.description, a.assay_type
+        SELECT a.tid, md.chembl_id, cs.standard_inchi_key, md.pref_name,
+               md.max_phase, act.standard_type, act.standard_value,
+               act.standard_units, act.standard_relation, a.description,
+               a.assay_type
         FROM activities act
         JOIN assays a ON act.assay_id = a.assay_id
         JOIN molecule_dictionary md ON act.molregno = md.molregno
+        LEFT JOIN compound_structures cs ON md.molregno = cs.molregno
         WHERE a.tid IN ({qmarks})
           AND act.standard_value IS NOT NULL
           AND act.standard_type IN ({types})
@@ -376,8 +398,22 @@ def role_key(t: dict, role: str | None = None) -> str | None:
     return role
 
 
+def compound_id(a: dict, *, skeleton: bool = False) -> str | None:
+    """The compound this row is about, as the GRAPH identifies compounds.
+
+    None when ChEMBL holds no structure for it -- ingest_activities drops
+    those rows too, under the counter `no_inchikey`, so a survey that
+    counted them would be counting compounds the graph will never build.
+    """
+    key = a.get("inchikey")
+    if not key:
+        return None
+    return key[:14] if skeleton else f"INCHIKEY:{key}"
+
+
 def compounds_by_role(acts: list[dict], targets: dict[int, dict],
-                      *, protein_only: bool = True) -> dict[str, set[str]]:
+                      *, protein_only: bool = True,
+                      skeleton: bool = False) -> dict[str, set[str]]:
     """role key -> the compounds measured on it, one entry per compound."""
     out: dict[str, set[str]] = defaultdict(set)
     for a in acts:
@@ -387,13 +423,16 @@ def compounds_by_role(acts: list[dict], targets: dict[int, dict],
         key = role_key(t, row_role(t, a["description"]))
         if key is None:
             continue
+        cid = compound_id(a, skeleton=skeleton)
+        if cid is None:
+            continue
         if to_nm(a["standard_value"], a["standard_units"]) is None:
             continue
         if protein_only:
             where, _ = assay_readout(a["description"] or "", a["assay_type"])
             if where != "protein":
                 continue
-        out[key].add(a["compound"])
+        out[key].add(cid)
     return out
 
 
@@ -417,11 +456,12 @@ def polyprotein_rows(acts: list[dict], targets: dict[int, dict]
         if key:
             resolved[f"{t['family']}  {key}"] += 1
         else:
-            unresolved[t["family"]][(a["description"] or "")[:96]] += 1
+            unresolved[t["family"]][a["description"] or "(no description)"] += 1
     return resolved, unresolved
 
 
-def broad_coronavirus_compounds(acts: list[dict], targets: dict[int, dict]) -> set[str]:
+def broad_coronavirus_compounds(acts: list[dict], targets: dict[int, dict],
+                                *, skeleton: bool = False) -> set[str]:
     """Compounds with ANY coronavirus measurement, enzyme or antiviral.
 
     Arms A and B need both ends measured on the enzyme. This set is the
@@ -433,8 +473,9 @@ def broad_coronavirus_compounds(acts: list[dict], targets: dict[int, dict]) -> s
     out: set[str] = set()
     for a in acts:
         t = targets.get(a["tid"])
-        if t is not None and t["family"] == "Coronaviridae":
-            out.add(a["compound"])
+        cid = compound_id(a, skeleton=skeleton)
+        if cid is not None and t is not None and t["family"] == "Coronaviridae":
+            out.add(cid)
     return out
 
 
@@ -494,14 +535,26 @@ def main() -> int:
                      key=lambda t: (t["role"] or "~", t["pref_name"]))
         roled = [t for t in fam if t["role"]]
         poly_here = [t for t in fam if t["polyprotein"]]
+        neither = [t for t in fam if not t["role"] and not t["polyprotein"]]
         print(f"  {family}  —  {len(roled)} named for a protease, "
-              f"{len(poly_here)} polyprotein, "
-              f"{len(fam) - len(roled) - len(poly_here)} neither")
+              f"{len(poly_here)} polyprotein, {len(neither)} neither")
         print_capped(roled, 14,
                      lambda t: (f"{t['chembl_id']:<14} {role_key(t):<13} "
                                 f"{'' if t['protein_level'] else 'EXCLUDED '}"
                                 f"{t['target_type']:<16} {t['pref_name'][:44]}"),
                      indent="      ", unit="more named for a protease")
+        # A FAMILY WITH NO ROLED TARGET PRINTED NOTHING AT ALL, which is how
+        # "Picornaviridae -- 0 named for a protease" arrived with 74 targets
+        # standing behind it and no way to see what they were called. If the
+        # patterns claimed none of them, the names are the evidence for
+        # whether that is right.
+        if not roled and neither:
+            print(f"      none claimed. What the {len(neither)} unclaimed "
+                  f"targets are called:")
+            print_capped(sorted(neither, key=lambda t: t["pref_name"]), 10,
+                         lambda t: f"  {t['target_type']:<16} "
+                                   f"{t['pref_name'][:56]}",
+                         indent="      ", unit="more unclaimed target(s)")
 
     # ------------------------------------------------------- the chemistry
     acts = load_activities(con, [t["tid"] for t in targets])
@@ -546,7 +599,13 @@ def main() -> int:
                  if family in DESCRIPTION_TABLE
                  else "NO DESCRIPTION TABLE EXISTS for this family")
         print(f"      {family}  {sum(c.values()):,} row(s)  —  {table}")
-        print_capped(c.most_common(), 6,
+        # VERBATIM AND WHOLE. Truncated to 96 characters, the commonest
+        # coronavirus description read "Functional biochemical assay to
+        # identify treatments for viral infectious disease that targets SA"
+        # -- cut exactly where it names the enzyme, on 1,473 rows. A gap in
+        # a pattern table cannot be judged from a description clipped before
+        # the word that matters.
+        print_capped(c.most_common(), 8,
                      lambda kv: f"{kv[1]:>6,}  {kv[0]}",
                      indent="        ", unit="more distinct description(s)")
 
@@ -568,35 +627,51 @@ def main() -> int:
                            f"{rows_per_tid[t['tid']]:>7,} row(s)",
                  indent="      ", unit="more excluded target(s)")
 
-    protein = compounds_by_role(acts, by_tid, protein_only=True)
-    anywhere = compounds_by_role(acts, by_tid, protein_only=False)
+    no_key = sum(1 for a in acts if not a.get("inchikey"))
     print(f"\n{len(acts):,} quantified rows on those targets "
-          f"({', '.join(QUANT_TYPES)})\n")
-    print("compounds per role — protein-level readout is what the arms use; "
-          "`any`\nincludes cellular rows filed against the same enzyme:")
-    print(f"  {'role':<16} {'protein':>9} {'any readout':>13}")
-    for key in sorted(set(protein) | set(anywhere)):
-        print(f"  {key:<16} {len(protein.get(key, ())):>9,} "
-              f"{len(anywhere.get(key, ())):>13,}")
+          f"({', '.join(QUANT_TYPES)}); {no_key:,} carry no InChIKey and are "
+          f"dropped,\nas ingest_activities drops them under `no_inchikey`.")
 
     # ------------------------------------------------------------ the arms
-    print("\nTHE ARMS — compounds measured at BOTH ends, on the enzyme:")
-    print(f"  {'arm':<44} {'n':>6}   what the gate says")
-    results = {}
-    for label, left, right, says in ARMS:
-        both = protein.get(left, set()) & protein.get(right, set())
-        results[label] = both
-        print(f"  {label:<44} {len(both):>6}   {says}")
+    # AT BOTH IDENTITIES. A ChEMBL id is a registration, not a molecule; the
+    # graph's node id is INCHIKEY:<key> and its declared SAME_AS merge is the
+    # 14-character skeleton. Counting by chembl_id, as the first version did,
+    # reported 4 compounds across a 3,049 x 2,125 pair of ends.
+    results: dict[str, set[str]] = {}
+    for ident, skel in IDENTITIES:
+        protein = compounds_by_role(acts, by_tid, protein_only=True,
+                                    skeleton=skel)
+        anywhere = compounds_by_role(acts, by_tid, protein_only=False,
+                                     skeleton=skel)
+        print(f"\n=== {ident}")
+        print("  compounds per role — protein-level readout is what the arms "
+              "use; `any`\n  includes cellular rows filed against the same "
+              "enzyme:")
+        print(f"    {'role':<16} {'protein':>9} {'any readout':>13}")
+        for key in sorted(set(protein) | set(anywhere)):
+            print(f"    {key:<16} {len(protein.get(key, ())):>9,} "
+                  f"{len(anywhere.get(key, ())):>13,}")
 
-    broad = broad_coronavirus_compounds(acts, by_tid)
-    hcv_broad = protein.get("hcv_ns3pro", set()) & broad
-    print(f"\n  the broad set: HCV NS3 enzyme inhibitors with ANY coronavirus "
-          f"measurement\n  (enzyme or antiviral, any target_type): "
-          f"{len(hcv_broad)}")
-    print("  This is the retrospective as the literature ran it in 2020. It "
-          "answers a\n  weaker question than arm B -- whether the compounds "
-          "stopped the virus, not\n  whether they inhibited Mpro -- and is "
-          "reported so a thin arm B has a\n  fallback rather than a dead end.")
+        print("\n  THE ARMS — compounds measured at BOTH ends, on the enzyme:")
+        print(f"    {'arm':<44} {'n':>6}   what the gate says")
+        for label, left, right, says in ARMS:
+            both = protein.get(left, set()) & protein.get(right, set())
+            # The widest identity wins: a compound the graph would merge is
+            # one compound, and refusing on the narrower count would refuse
+            # a measurable arm over salt bookkeeping.
+            results[label] = max(results.get(label, set()), both, key=len)
+            print(f"    {label:<44} {len(both):>6}   {says}")
+
+        broad = broad_coronavirus_compounds(acts, by_tid, skeleton=skel)
+        hcv_broad = protein.get("hcv_ns3pro", set()) & broad
+        print(f"\n    the broad set: HCV NS3 enzyme inhibitors with ANY "
+              f"coronavirus\n    measurement (enzyme or antiviral, any "
+              f"target_type): {len(hcv_broad)}")
+    print("\n  The broad set is the retrospective as the literature ran it in "
+          "2020. It\n  answers a weaker question than arm B -- whether the "
+          "compounds stopped the\n  virus, not whether they inhibited Mpro -- "
+          "and is reported so a thin arm B\n  has a fallback rather than a "
+          "dead end.")
 
     # --------------------------------------------------------- the verdict
     print()

@@ -18,6 +18,11 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _cid(molregno: int) -> str:
+    """The graph's compound id for a fixture molecule."""
+    return f"INCHIKEY:{molregno:014d}-AAAAAAAAAA-N"
+
+
 def _survey():
     sys.path.insert(0, str(ROOT / "scripts"))
     return import_module("phase4_survey_chemistry")
@@ -142,6 +147,8 @@ def _db(path: Path, *, arm_a: int = 12, arm_b: int = 12,
         standard_units TEXT, standard_relation TEXT);
     CREATE TABLE molecule_dictionary (molregno INTEGER PRIMARY KEY,
         chembl_id TEXT, pref_name TEXT, max_phase REAL);
+    CREATE TABLE compound_structures (molregno INTEGER PRIMARY KEY,
+        standard_inchi_key TEXT);
     """)
     targets = [
         (1, "CHEMBL_COV", "3C-like proteinase",
@@ -185,6 +192,12 @@ def _db(path: Path, *, arm_a: int = 12, arm_b: int = 12,
                  "FRET assay"), "B", 1),
     ])
     mols = [(i, f"CHEMBL{i:06d}", f"drug{i}", 0.0) for i in range(1, 61)]
+    # One InChIKey per molregno, except: 54 and 55 are a salt pair sharing a
+    # skeleton, and 56 has no structure row at all.
+    keys = {i: f"{i:014d}-AAAAAAAAAA-N" for i in range(1, 61)}
+    keys[54] = f"{99:014d}-AAAAAAAAAA-N"
+    keys[55] = f"{99:014d}-BBBBBBBBBB-N"
+    del keys[56]
     acts, aid = [], 0
 
     def add(mol, assay, units="nM"):
@@ -212,7 +225,15 @@ def _db(path: Path, *, arm_a: int = 12, arm_b: int = 12,
     # row must come back unresolved rather than be read with the
     # coronavirus table
     add(53, 80)
+    # a salt pair: the free base measured on 3CLpro, the salt on HCV NS3.
+    # One compound to the graph; two ChEMBL registrations.
+    add(54, 10)
+    add(55, 30)
+    # no structure row, so no InChIKey: dropped, as the ingest drops it
+    add(56, 10)
     con.executemany("INSERT INTO molecule_dictionary VALUES (?,?,?,?)", mols)
+    con.executemany("INSERT INTO compound_structures VALUES (?,?)",
+                    sorted(keys.items()))
     con.executemany("INSERT INTO activities VALUES (?,?,?,?,?,?,?)", acts)
     con.commit()
     con.close()
@@ -271,17 +292,18 @@ def test_a_cellular_row_is_not_an_enzyme_measurement(tmp_path):
     _, by_tid, acts = _loaded(tmp_path)
     protein = S.compounds_by_role(acts, by_tid, protein_only=True)
     anywhere = S.compounds_by_role(acts, by_tid, protein_only=False)
-    # arm A 12 + arm B 12 + the one 3CLpro row filed on the polyprotein
-    assert len(protein["3clpro"]) == 25
-    assert len(anywhere["3clpro"]) == 30         # + the 5 cellular
-    assert len(protein["hcv_ns3pro"]) == 17      # arm B 12 + the 5
+    # arm A 12 + arm B 12 + the 3CLpro row filed on the polyprotein + the
+    # salt pair's free base. The structureless molecule is NOT here.
+    assert len(protein["3clpro"]) == 26
+    assert len(anywhere["3clpro"]) == 31         # + the 5 cellular
+    assert len(protein["hcv_ns3pro"]) == 18      # arm B 12 + 5 + the salt
 
 
 def test_an_organism_level_target_reaches_no_role(tmp_path):
     """The HCV replicon compound must not appear as an NS3 inhibitor."""
     _, by_tid, acts = _loaded(tmp_path)
     protein = S.compounds_by_role(acts, by_tid, protein_only=False)
-    assert "CHEMBL000060" not in protein.get("hcv_ns3pro", set())
+    assert _cid(60) not in protein.get("hcv_ns3pro", set())
 
 
 def test_the_broad_set_keeps_the_cellular_coronavirus_rows(tmp_path):
@@ -309,7 +331,7 @@ def test_an_unconvertible_unit_is_dropped_rather_than_guessed(tmp_path):
     acts = S.load_activities(con, [t["tid"] for t in targets])
     con.close()
     protein = S.compounds_by_role(acts, {t["tid"]: t for t in targets})
-    assert "CHEMBL000059" not in protein["3clpro"]
+    assert _cid(59) not in protein["3clpro"]
 
 
 # ------------------------------------------------------------- the verdict
@@ -452,5 +474,73 @@ def test_a_polyprotein_compound_reaches_an_arm_role(tmp_path):
     3CLpro measurement is filed against the polyprotein target."""
     _, by_tid, acts = _loaded(tmp_path)
     protein = S.compounds_by_role(acts, by_tid, protein_only=True)
-    assert "CHEMBL000051" in protein["3clpro"]
-    assert "CHEMBL000052" not in protein["3clpro"]   # the helicase row
+    assert _cid(51) in protein["3clpro"]
+    assert _cid(52) not in protein["3clpro"]   # the helicase row
+
+
+# ------------------------------------------------- compound identity
+def test_a_chembl_id_is_a_registration_not_a_molecule(tmp_path):
+    """REGRESSION, and why arm B first read 4 across a 3,049 x 2,125 pair.
+    A free base and its salt are two ChEMBL registrations and one molecule;
+    ingest_activities keys every SmallMolecule node INCHIKEY:<key>, so the
+    survey counts the same way. Here molregno 54 is measured on 3CLpro and
+    55 on HCV NS3, sharing a skeleton: one compound in the graph."""
+    _, by_tid, acts = _loaded(tmp_path)
+    exact = S.compounds_by_role(acts, by_tid)
+    skel = S.compounds_by_role(acts, by_tid, skeleton=True)
+    arm_b_exact = exact["3clpro"] & exact["hcv_ns3pro"]
+    arm_b_skel = skel["3clpro"] & skel["hcv_ns3pro"]
+    assert len(arm_b_skel) == len(arm_b_exact) + 1
+    assert f"{99:014d}" in arm_b_skel
+
+
+def test_the_skeleton_is_the_graphs_own_declared_merge():
+    """Not a looser match invented here: normalize_chem.same_as_rule returns
+    shared_inchikey_skeleton:salt_or_stereo_or_tautomer for exactly this."""
+    from kgav.normalize_chem import same_as_rule
+
+    class _C:
+        def __init__(self, k):
+            self.inchikey, self.inchikey_skel = k, k[:14]
+    a, b = _C(f"{99:014d}-AAAAAAAAAA-N"), _C(f"{99:014d}-BBBBBBBBBB-N")
+    assert same_as_rule(a, b) == \
+        "shared_inchikey_skeleton:salt_or_stereo_or_tautomer"
+    assert S.compound_id({"inchikey": a.inchikey}, skeleton=True) \
+        == a.inchikey_skel
+
+
+def test_a_row_with_no_structure_is_dropped_not_counted(tmp_path):
+    """ingest_activities drops these under `no_inchikey`. A survey that
+    counted them would be sizing an arm out of compounds the graph will
+    never build a node for."""
+    _, by_tid, acts = _loaded(tmp_path)
+    assert any(a["inchikey"] is None for a in acts)
+    assert S.compound_id({"inchikey": None}) is None
+    protein = S.compounds_by_role(acts, by_tid)
+    assert len(protein["3clpro"]) == 26          # 56 is absent
+
+
+def test_both_identities_are_reported(tmp_path, monkeypatch, capsys):
+    _main(monkeypatch, _db(tmp_path / "ok.db"))
+    out = capsys.readouterr().out
+    assert "exact InChIKey  (the graph's node id)" in out
+    assert "InChIKey skeleton  (its declared SAME_AS merge)" in out
+    assert "carry no InChIKey and are dropped" in out
+
+
+def test_the_unclaimed_targets_are_named_when_none_took_a_role(
+        tmp_path, monkeypatch, capsys):
+    """REGRESSION. "Picornaviridae -- 0 named for a protease" printed with
+    74 targets behind it and no way to see what they were called. If the
+    patterns claimed none of them, their names are the evidence."""
+    p = tmp_path / "unclaimed.db"
+    _db(p)
+    con = sqlite3.connect(p)
+    con.execute("UPDATE target_dictionary SET pref_name = 'Capsid protein "
+                "VP1' WHERE chembl_id = 'CHEMBL_RV'")
+    con.commit()
+    con.close()
+    _main(monkeypatch, p)
+    out = capsys.readouterr().out
+    assert "What the 1 unclaimed targets are called" in out
+    assert "Capsid protein VP1" in out
