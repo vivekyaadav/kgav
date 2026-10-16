@@ -271,3 +271,88 @@ It pairs a pre-2019 picornavirus 3C series with coronavirus 3CLpro data —
 a broad-spectrum protease programme, which is exactly the kind of paper that
 would measure both, and exactly why nine of its twelve compounds are one
 document.
+
+---
+
+# Verdict — NO RESULT, and two defects in the registration
+
+2026-10-16, measured by `scripts/phase4_hcv_retrospective.py` on chembl_37,
+after this file was committed. The decision rule registered above requires
+P1 to be rejected at the PRIMARY identity. It is not.
+
+    identity            n    active   rate    background   p (enrichment)
+    exact InChIKey     11     7        63.6%   44.4%        0.1630   PRIMARY
+    InChIKey skeleton  14    10        71.4%   44.0%        0.0364   sensitivity
+
+**P1 is not rejected. Phase 4 returns NO RESULT.** Nothing is confirmed, the
+catalytic-type gate remains an untested safety measure, and the paired arms
+stay refused.
+
+## The sensitivity crossed alpha, and it is not the result
+
+The skeleton identity reads p = 0.0364. It was pre-declared as the
+sensitivity and not the primary, in this file, before the numbers existed —
+and the reason it is not promoted now is the reason it was written down
+then: an identity chosen after seeing which one clears 0.05 is not an
+identity, it is a result looking for a protocol.
+
+It is also one compound wide:
+
+    n=14, 10 active   p = 0.0364   <- observed
+    n=14,  9 active   p = 0.1049
+    n=11,  8 active   p = 0.0560
+    n=11,  7 active   p = 0.1630   <- observed
+
+A single compound moving from active to inactive takes the significant
+reading to 0.105. Nothing should be built on a figure with that spread.
+
+## Two defects in the registration, both mine
+
+**The registered n was wrong.** This file's table says the broad set is 12
+compounds at the exact identity and 17 at the skeleton. The test ran on 11
+and 14. The definitions section defines the HCV end by the potency rules —
+protein-level, relation `=` only, median within one assay type — and the
+counts in the table were quoted from the survey's MEMBERSHIP line, which
+applies none of them. The definition and the count in one document
+disagreed, which is the same defect as the two floors one paragraph apart
+that the survey's own verdict had.
+
+It does not change the decision: both n clear the floor, the code
+implemented the definition rather than the quoted count, and the primary is
+not significant at either. But the registered sample size was wrong before
+anything was measured.
+
+**The power table did not span the real background.** It tabulated
+backgrounds of 5% to 30% and the measured background is 44.4% — compounds
+with a coronavirus measurement in ChEMBL are largely compounds somebody made
+FOR a coronavirus, so about half of them work. At the real background the
+test needs 9 of 11 (1.84x) or 10 of 14 (1.62x), not the "roughly three-fold"
+this file registered. The claim was conservative in the wrong direction and
+the table should have been computed against a background estimated first.
+
+## What the direction means, and what it does not
+
+The tilt is towards REFUTING the gate: 63.6% against 44.4%, in the direction
+that says HCV NS3 inhibitors do carry coronavirus activity and the
+catalytic-type refusal removes real signal. That is the uncomfortable
+direction and it is recorded as such. It is not significant at the registered
+rule and it is not a finding.
+
+**An unregistered confound, noticed after the fact and labelled as such.**
+An HCV NS3 inhibitor only enters this set if somebody tested it against a
+coronavirus, and compounds get tested because they look promising. Selection
+into the set correlates with the outcome being measured, which would inflate
+the enrichment. This was not in the registration and cannot be corrected
+retrospectively; a properly powered test would need a panel where the set
+was chosen before the outcome was known.
+
+## Decision
+
+Per the rule above: **NO RESULT.** No wording in the project changes except
+that the gate is described as untested, which this file already required.
+Phases 5-10 gain no licence from phase 4 and lose none.
+
+What would settle it is the same thing `docs/evaluation.md` already asks
+for and `diagnose_source_scope.py` now explains: a screening panel that
+measures a library against both enzymes, chosen before the outcome, and
+published somewhere a database like ChEMBL would read.

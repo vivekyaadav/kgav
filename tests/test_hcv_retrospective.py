@@ -205,3 +205,45 @@ def test_it_writes_no_results_file():
     src = (ROOT / "scripts" / "phase4_hcv_retrospective.py").read_text()
     assert "write_results" not in src
     assert "Read-only. Writes nothing" in src
+
+
+# ------------------------------------------------------------- the verdict
+def test_the_verdict_is_recorded_beneath_the_prereg():
+    """The house shape: the body stays as written and the verdict goes
+    under it, as docs/prereg_temporal_auc.md does."""
+    heads = [l for l in PREREG.read_text().splitlines() if l.startswith("# ")]
+    assert heads[0].startswith("# Pre-registration")
+    assert heads[-1].startswith("# Verdict")
+
+
+def test_the_sensitivity_is_not_promoted_to_the_result():
+    """p = 0.0364 at the skeleton identity, p = 0.1630 at the registered
+    primary. An identity chosen after seeing which one clears 0.05 is not
+    an identity."""
+    text = PREREG.read_text()
+    assert "**P1 is not rejected. Phase 4 returns NO RESULT.**" in text
+    assert "0.0364" in text and "it is not the result" in text
+    assert "0.1630   PRIMARY" in text
+
+
+def test_the_verdict_records_that_the_registered_n_was_wrong():
+    """The table said 12 and 17; the test ran on 11 and 14, because the
+    definitions section and the quoted counts disagreed. A verdict that
+    quietly used the real n would hide a defect in its own protocol."""
+    text = PREREG.read_text()
+    assert "**The registered n was wrong.**" in text
+    assert "The test ran on 11\nand 14" in text
+
+
+def test_the_verdict_records_the_unregistered_confound():
+    """Selection into the set correlates with the outcome, and it cuts
+    AGAINST the direction the data tilts. A caveat list that only contains
+    caveats favouring the author's prior is not a caveat list."""
+    text = PREREG.read_text()
+    assert "An unregistered confound, noticed after the fact" in text
+    assert "would inflate\nthe enrichment" in text
+
+
+def test_the_fragility_is_stated_in_the_verdict():
+    text = PREREG.read_text()
+    assert "n=14,  9 active   p = 0.1049" in text
