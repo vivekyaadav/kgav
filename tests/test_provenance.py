@@ -9,10 +9,14 @@ import json
 import re
 from pathlib import Path
 
+import subprocess
+
 from kgav.provenance import (
+    GENERATED_PREFIXES,
     PROVENANCE_KEY,
     check_dir,
     check_file,
+    code_commit,
     release_fingerprint,
     write_results,
 )
@@ -374,3 +378,112 @@ def test_the_reproducing_block_cuts_the_split_before_reading_it():
     assert repro.index("scripts/temporal_split.py") < \
         repro.index("scripts/hard_negatives.py"), (
         "the training graph must be cut before the script that reads it runs")
+
+
+# ------------------------------------- the flag that reported on its output
+#
+# THESE BUILD THEIR OWN GIT REPOSITORY. Two earlier attempts did not.
+#
+#   1. Unit tests fed a parser hand-written porcelain strings. They passed
+#      and the fix did not work: the real output reaches the parser with its
+#      leading space stripped, so the column the parser slices at is off by
+#      one and the exclusion matched nothing.
+#   2. Integration tests ran against this repository and skipped when the
+#      tree was dirty -- which is to say they skipped whenever someone was
+#      editing provenance.py. Both broken versions passed them, by skipping.
+#
+# A tree the test owns has neither problem: it is always clean to begin with,
+# and the command under test is the real one.
+def _repo(tmp_path: Path) -> Path:
+    """A miniature of this repository's layout, committed."""
+    root = tmp_path / "repo"
+    (root / "data" / "results").mkdir(parents=True)
+    (root / "src" / "kgav").mkdir(parents=True)
+    (root / "data" / "results" / "metapath_comparison.json").write_text("{}\n")
+    (root / "src" / "kgav" / "labels.py").write_text("x = 1\n")
+    run = lambda *a: subprocess.run(a, cwd=root, check=True,
+                                    capture_output=True, text=True)
+    run("git", "init", "-q", "-b", "main")
+    run("git", "config", "user.email", "t@example.com")
+    run("git", "config", "user.name", "t")
+    run("git", "add", "-A")
+    run("git", "commit", "-q", "-m", "seed")
+    assert code_commit(root)["dirty"] is False, "the fixture starts dirty"
+    return root
+
+
+def test_writing_a_results_file_does_not_make_the_CODE_dirty(tmp_path):
+    """THE DEFECT. data/results/*.json are tracked, so the first results file
+    a run writes dirties the tree, and every stamp after it recorded
+    dirty: True -- 13 of the 14 files in the 2026-10-16 regeneration, the one
+    False being merely the first written. A flag that is True whatever
+    happens cannot distinguish a clean run from a dirty one."""
+    root = _repo(tmp_path)
+    (root / "data" / "results" / "metapath_comparison.json").write_text('{"a":1}')
+    assert code_commit(root)["dirty"] is False
+
+
+def test_a_NEW_results_file_is_excluded_too(tmp_path):
+    """A run that writes a results file for the first time shows it as `??`,
+    not ` M`. A parser would have to read the second status column right as
+    well; a pathspec covers untracked paths already."""
+    root = _repo(tmp_path)
+    (root / "data" / "results" / "baselines_NCBITaxon_11137.json").write_text("{}")
+    assert code_commit(root)["dirty"] is False
+
+
+def test_a_real_code_change_is_still_dirty(tmp_path):
+    """The exclusion must not swallow the thing the field exists for."""
+    root = _repo(tmp_path)
+    (root / "data" / "results" / "metapath_comparison.json").write_text('{"a":1}')
+    assert code_commit(root)["dirty"] is False
+    (root / "src" / "kgav" / "labels.py").write_text("x = 2\n")
+    assert code_commit(root)["dirty"] is True
+
+
+def test_an_untracked_source_file_is_dirty(tmp_path):
+    """`??` outside the results directory is an uncommitted change like any
+    other -- a script that exists only in the working tree can be the code
+    that produced the numbers."""
+    root = _repo(tmp_path)
+    (root / "src" / "kgav" / "scratch.py").write_text("y = 1\n")
+    assert code_commit(root)["dirty"] is True
+
+
+def test_the_commit_is_the_one_the_tree_is_on(tmp_path):
+    """Pointing `root` elsewhere must move BOTH fields, or a test could pass
+    while the function still read this repository."""
+    root = _repo(tmp_path)
+    head = subprocess.run(("git", "rev-parse", "HEAD"), cwd=root, check=True,
+                          capture_output=True, text=True).stdout.strip()
+    assert code_commit(root)["commit"] == head
+    assert code_commit()["commit"] != head
+
+
+def test_the_exclusion_is_a_pathspec_not_a_string_comparison():
+    """The parser this replaced miscounted a column and matched nothing. A
+    pathspec is handed to git, which owns the path semantics."""
+    import kgav.provenance as prov
+    assert prov._EXCLUDE == (":(exclude)data/results",)
+    src = (ROOT / "src" / "kgav" / "provenance.py").read_text()
+    assert "_porcelain_paths" not in src, (
+        "the hand-rolled parser is back; it is what got this wrong")
+
+
+def test_the_excluded_path_is_the_directory_the_scripts_actually_write():
+    """A path that no longer matches where results land would restore the
+    old behaviour silently."""
+    assert GENERATED_PREFIXES == ("data/results",)
+    for rel in GENERATED_PREFIXES:
+        assert (ROOT / rel).is_dir()
+    assert list((ROOT / "data" / "results").glob("*.json")), \
+        "nothing is written there, so the exclusion guards nothing"
+
+
+def test_code_commit_returns_the_two_keys_with_usable_types():
+    """Not an assertion about THIS tree's cleanliness -- the suite runs in
+    both states."""
+    got = code_commit()
+    assert set(got) == {"commit", "dirty"}
+    assert got["commit"] is None or re.fullmatch(r"[0-9a-f]{40}", got["commit"])
+    assert got["dirty"] in (True, False, None)
