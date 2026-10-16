@@ -134,7 +134,7 @@ def test_role_key_separates_hcv_from_the_other_flaviviruses():
 
 # ------------------------------------------------------------ the database
 def _db(path: Path, *, arm_a: int = 12, arm_b: int = 12,
-        picornavirus: bool = True) -> Path:
+        picornavirus: bool = True, broad_docs: int = 0) -> Path:
     """A ChEMBL-shaped file with a known answer, so the SQL really runs."""
     con = sqlite3.connect(path)
     con.executescript("""
@@ -221,6 +221,17 @@ def _db(path: Path, *, arm_a: int = 12, arm_b: int = 12,
         add(i, 50)
     # replicon-only, on the ORGANISM target
     add(60, 40)
+    # the broad set's independent observations: each compound has an HCV
+    # enzyme number and a coronavirus cellular one from its OWN document
+    for j in range(broad_docs):
+        aid_assay = 200 + j
+        con.execute("INSERT INTO assays VALUES (?,?,?,?,?)",
+                    (aid_assay, 1, "Antiviral activity against SARS-CoV-2 in "
+                                   "Vero cells", "F", 500 + j))
+        add(200 + j, 30)
+        add(200 + j, aid_assay)
+        mols.append((200 + j, f"CHEMBL{200 + j:06d}", f"broad{j}", 0.0))
+        keys[200 + j] = f"{200 + j:014d}-AAAAAAAAAA-N"
     # on the coronavirus POLYPROTEIN target: one row the description
     # resolves to 3CLpro, one it resolves to the helicase (not an arm role)
     add(51, 60)
@@ -379,10 +390,12 @@ def test_a_verdict_that_names_a_fallback_tests_it_too(tmp_path, monkeypatch,
     thing beside the thing it looked at."""
     # arms at 4 and 4+1, broad at 10: the fallback clears the floor the
     # arms miss, which is exactly the case the first version stayed quiet on
-    code = _main(monkeypatch, _db(tmp_path / "fallback.db", arm_a=4, arm_b=4))
+    code = _main(monkeypatch, _db(tmp_path / "fallback.db", arm_a=4, arm_b=4,
+                                  broad_docs=12))
     out = capsys.readouterr().out
     assert code == 1
-    assert "THE BROAD SET DOES: 10 compounds" in out
+    assert "THE BROAD SET DOES:" in out
+    assert "independent" in out
 
 
 def test_a_fallback_below_the_floor_is_said_to_be_below_it(tmp_path,
@@ -390,7 +403,8 @@ def test_a_fallback_below_the_floor_is_said_to_be_below_it(tmp_path,
     code = _main(monkeypatch, _db(tmp_path / "thin.db", arm_a=4, arm_b=2))
     out = capsys.readouterr().out
     assert code == 1
-    assert "The broad set does not reach it either: 8 compounds" in out
+    assert "THE BROAD SET DOES NOT EITHER: 8 compounds over 6" in out
+    assert "a fact about the evidence, not about the premise" in out
 
 
 def test_a_family_with_no_targets_is_an_input_problem_not_a_finding(
@@ -772,3 +786,27 @@ def test_an_arm_that_clears_on_compounds_but_not_units_is_named(
     assert code == 1
     assert "NO PAIRED ARM IS MEASURABLE" in out
     assert "independent observation(s) — a congeneric" in out
+
+
+def test_the_broad_set_is_held_to_the_same_floor_as_the_arms(tmp_path):
+    """REGRESSION. The arms moved to independent observations and the broad
+    set kept being judged on compounds -- two floors one paragraph apart,
+    in the verdict the units rule was written to make consistent."""
+    _, by_tid, acts = _loaded(tmp_path)
+    pot, _, _ = S.usable_potency(acts, by_tid)
+    broad = S.broad_coronavirus_compounds(acts, by_tid)
+    hcv_broad = set(pot["hcv_ns3pro"]) & broad
+    pubs = {"hcv_ns3pro": S.role_publications(acts, by_tid, pot)["hcv_ns3pro"],
+            "_coronavirus": S.broad_publications(acts, by_tid)}
+    units = S.independent_units(hcv_broad, "hcv_ns3pro", "_coronavirus", pubs)
+    assert 0 < units < len(hcv_broad)
+
+
+def test_the_coronavirus_end_of_the_broad_set_includes_roleless_rows(tmp_path):
+    """role_publications cannot answer this one: the broad set's
+    coronavirus end is deliberately ANY measurement, including the
+    ORGANISM-target antiviral rows that take no role at all."""
+    _, by_tid, acts = _loaded(tmp_path)
+    bp = S.broad_publications(acts, by_tid)
+    # compound 41 has an HCV enzyme row and a SARS-CoV-2 Vero row only
+    assert bp[_cid(41)]

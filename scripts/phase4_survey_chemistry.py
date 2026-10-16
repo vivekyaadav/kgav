@@ -644,6 +644,24 @@ def pair_publications(pair: set[str], left: str, right: str,
     return shared, docs
 
 
+def broad_publications(acts: list[dict], targets: dict[int, dict],
+                       *, skeleton: bool = False) -> dict[str, set]:
+    """compound -> the documents supplying its coronavirus rows, of any kind.
+
+    role_publications cannot answer this: the broad set's coronavirus end
+    is deliberately ANY measurement, including the ORGANISM-target
+    antiviral rows that have no role at all.
+    """
+    out: dict[str, set] = defaultdict(set)
+    for a in acts:
+        t = targets.get(a["tid"])
+        cid = compound_id(a, skeleton=skeleton)
+        if (cid is not None and t is not None
+                and t["family"] == "Coronaviridae" and a["doc_id"] is not None):
+            out[cid].add(a["doc_id"])
+    return out
+
+
 def broad_coronavirus_compounds(acts: list[dict], targets: dict[int, dict],
                                 *, skeleton: bool = False) -> set[str]:
     """Compounds with ANY coronavirus measurement, enzyme or antiviral.
@@ -891,6 +909,7 @@ def main() -> int:
     results: dict[str, set[str]] = {}
     units: dict[str, int] = {}
     broadest: set[str] = set()
+    broadest_units = 0
     for ident, skel in IDENTITIES:
         protein = compounds_by_role(acts, by_tid, protein_only=True,
                                     skeleton=skel)
@@ -972,12 +991,27 @@ def main() -> int:
                              lambda kv: f"  {kv[0][:44]:<46} {kv[1]:>6,}",
                              indent="      ", unit="more organism(s)")
 
+        # THE BROAD SET WAS HELD TO A DIFFERENT FLOOR THAN THE ARMS, in the
+        # same verdict block. The arms moved to independent observations
+        # and this one kept being judged on compounds -- two floors, one
+        # paragraph apart, which is the inconsistency the units rule was
+        # introduced to remove. Its publication structure is computed the
+        # same way, over a coronavirus end that is deliberately ANY
+        # measurement and so has no role to look up.
         broad = broad_coronavirus_compounds(acts, by_tid, skeleton=skel)
         hcv_broad = protein.get("hcv_ns3pro", set()) & broad
-        broadest = max(broadest, hcv_broad, key=len)
+        bpubs = {"hcv_ns3pro": role_publications(acts, by_tid, pot,
+                                                 skeleton=skel)
+                 .get("hcv_ns3pro", {}),
+                 "_coronavirus": broad_publications(acts, by_tid,
+                                                    skeleton=skel)}
+        bu = independent_units(hcv_broad, "hcv_ns3pro", "_coronavirus", bpubs)
+        if len(hcv_broad) >= len(broadest):
+            broadest, broadest_units = hcv_broad, bu
         print(f"\n    the broad set: HCV NS3 enzyme inhibitors with ANY "
               f"coronavirus\n    measurement (enzyme or antiviral, any "
-              f"target_type): {len(hcv_broad)}")
+              f"target_type): {len(hcv_broad)} compound(s),"
+              f"\n    {bu} independent observation(s)")
     print("\n  The broad set is the retrospective as the literature ran it in "
           "2020. It\n  answers a weaker question than arm B -- whether the "
           "compounds stopped the\n  virus, not whether they inhibited Mpro -- "
@@ -1027,17 +1061,21 @@ def main() -> int:
         # the candidate" while that candidate stood at 17, above the floor,
         # one screen higher. A verdict that names an alternative owes it the
         # same test.
-        if len(broadest) >= FLOOR:
-            print(f"\nTHE BROAD SET DOES: {len(broadest)} compounds, at or "
-                  f"above the same floor.\nIt is the weaker claim -- whether "
-                  f"HCV NS3 inhibitors stopped a coronavirus,\nnot whether "
-                  f"they inhibited its protease -- and it is the design phase "
-                  f"4\nhas left. The prereg has to say that plainly, because "
-                  f"a reader will take\n'the HCV retrospective' to mean the "
+        if broadest_units >= FLOOR:
+            print(f"\nTHE BROAD SET DOES: {len(broadest)} compounds over "
+                  f"{broadest_units} independent\nobservation(s), at or above "
+                  f"the same floor. It is the weaker claim -- whether HCV\n"
+                  f"NS3 inhibitors stopped a coronavirus, not whether they "
+                  f"inhibited its\nprotease -- and it is the design phase 4 "
+                  f"has left. The prereg has to say\nthat plainly, because a "
+                  f"reader will take 'the HCV retrospective' to mean\nthe "
                   f"enzyme test unless told otherwise.")
         else:
-            print(f"\nThe broad set does not reach it either: "
-                  f"{len(broadest)} compounds.")
+            print(f"\nTHE BROAD SET DOES NOT EITHER: {len(broadest)} "
+                  f"compounds over {broadest_units}\nindependent "
+                  f"observation(s). Nothing in phase 4 as designed is "
+                  f"measurable on\nChEMBL 37 -- which is a fact about the "
+                  f"evidence, not about the premise.")
         print("\nExiting 1 so this is not mistaken for a refutation of the "
               "premise.\nAn unmeasurable test is not a failed test.")
         return 1
