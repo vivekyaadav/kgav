@@ -728,21 +728,23 @@ def degree_relative(per: dict[str, dict], degree_key: str = DEGREE_KEY) -> None:
         #             float("inf"), which json.dumps writes as `Infinity` and
         #             would make every results file invalid JSON.
         #
-        #  base < 1   SARS-CoV-2 cross-sectional: degree lift 0.45, p=0.99 --
-        #             WORSE than random. M4's 4.44x against it reads as
-        #             decisive and is 4.44 * 0.45 = 1.99, p=0.14. Beating a
+        #  base < 1   SARS-CoV-2 cross-sectional: degree lift 0.54, p=0.9622
+        #             -- WORSE than random. M4's 3.71x against it reads as
+        #             decisive and is 3.71 * 0.54 = 1.99, p=0.1401. Beating a
         #             sub-random baseline is not an achievement, so the ratio
         #             is marked unreadable rather than shown bare.
         m["beats_degree"] = m["lift"] > base
         m["lift_vs_degree"] = (m["lift"] / base) if base else None
         # Readable means the DENOMINATOR is a real effect. When degree is
         # itself at chance the ratio divides by noise, so it describes rather
-        # than tests -- SARS-CoV-2 cross-sectional reads M4 at 4.44x a degree
-        # lift of 0.45 (p=0.99), which is M4 lift 1.99 at p=0.14. My first
-        # threshold here was `base >= 1.0`, which wrongly flagged the clean
-        # SARS-CoV-2 temporal row where degree sits at 0.93, p=0.63: that is
-        # degree AT CHANCE, which is the condition a real result needs, not a
-        # defect in it.
+        # than tests -- SARS-CoV-2 cross-sectional reads M4 at 3.71x a degree
+        # lift of 0.54 (p=0.9622), which is M4 lift 1.99 at p=0.1401. My
+        # first threshold here was `base >= 1.0`, which wrongly flagged the
+        # SARS-CoV-2 temporal `include` row where degree sits at 0.97,
+        # p=0.5909: that is degree AT CHANCE, which is the condition a real
+        # result needs, not a defect in it. (Under `computed_only` the same
+        # baseline is 1.15, p=0.4262, and clears `base >= 1.0` anyway -- it
+        # is the `include` policy that the old threshold mis-flagged.)
         dp = (deg or {}).get("p_value")
         m["vs_degree_readable"] = dp is not None and dp < SIGNIFICANCE
 
