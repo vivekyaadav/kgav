@@ -228,3 +228,53 @@ except the third.
 
 The one actionable item is SARS-CoV-2 M4 under measured negatives, and the
 action is more labels rather than more modelling.
+
+## Addendum — the verdict's own recommendation does not survive measurement
+
+The verdict above says the one actionable item is SARS-CoV-2 M4 and that
+"the action is more labels rather than more modelling". Sized by
+`scripts/label_headroom.py` on 2026-10-17, that recommendation is wrong,
+and wrong in a way that matters more than the cell it was about.
+
+**Required labelled-set size for 80% power at the corrected alpha, against
+the most any panel over this graph could supply** -- the channel's reach,
+since a compound no metapath arrives at cannot enter the regression however
+well it is screened:
+
+    cell                ceiling   needed   ratio
+    SARS-CoV-2 M4         2,982    3,869    1.30x
+    SARS-CoV-2 M5         2,192    6,504    2.97x
+    SARS-CoV-2 M1         3,021   17,748    5.87x
+    SARS-CoV   M7            93    1,038   11.16x
+    SARS-CoV-2 M2         1,133   24,962   22.03x
+    SARS-CoV-2 M7           232   11,117   47.92x
+    SARS-CoV-2 M6           232   11,182   48.20x
+    SARS-CoV-2 M3           836   55,025   65.82x
+
+**Zero of eight.** Labelling every compound every channel already reaches
+would not bring one cell to 80% power. The binding constraint is REACH, not
+labels, and a second screening panel helps only insofar as it brings
+compounds the graph can already route to.
+
+M4 is the near miss at 1.30x, short by 887 compounds. That is the one place
+where a modest extension of reach -- not of labels -- would change the
+answer.
+
+**The scoring choice is worth real power.** The required count is lower
+under pdp on four of five cells where both fit, because pdp decorrelates
+the channel from degree and the `(1 - rho^2)` term rewards that directly:
+
+    SARS-CoV-2 M4   rho +0.775 -> +0.575   needed  6,534 -> 3,869
+    SARS-CoV-2 M2   rho +0.565 -> -0.032   needed  398,194 -> 24,962
+
+A sixteen-fold difference in required labels from the scoring alone. That
+is the strongest argument yet for switching the default, and it is still
+not a reason to switch it without a registration.
+
+**Caveat, and it is the load-bearing one.** Every `needed` figure is
+derived from a coefficient estimated on a cell that was not significant.
+An effect size taken from a null result is the weakest possible input to a
+power calculation, and the column should be read as an order of magnitude.
+What survives that caveat is the ordering and the scale: the shortfalls run
+from 1.3x to 66x, and no plausible revision of a coefficient moves a 48x
+cell into reach.
