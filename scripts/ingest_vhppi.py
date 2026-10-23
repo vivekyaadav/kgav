@@ -52,14 +52,42 @@ def main() -> int:
     print(f"  {len(taxon_map)} viral taxids mapped to "
           f"{len(set(taxon_map.values()))} species")
 
-    files = sorted(args.vhppi_dir.glob("vhn_*.tab27"))
+    # TWO SOURCES, ONE LAYER. This globbed vhn_*.tab27 only, and
+    # data/raw/vhppi also held intact.zip -- 1.35 GB, dated 2026-01-14,
+    # never read, because the pattern did not match it. The seven vhn files
+    # are one coronavirus each and no flavivirus file was ever fetched,
+    # which is why Zika produced zero edges while being in the taxon map
+    # since 2026-10-12. The broader source sat beside the narrower one and
+    # nothing said so.
+    #
+    # They share a predicate and a layer, and assemble_release already
+    # merges one fact from two sources into one edge carrying both
+    # ("infores:string|infores:virhostnet"). What must NOT be shared is the
+    # label: an IntAct row recorded as infores:virhostnet is a false
+    # provenance claim, and the tier ablation reads these labels.
+    groups = [("infores:virhostnet", sorted(args.vhppi_dir.glob("vhn_*.tab27"))),
+              ("infores:intact", sorted(args.vhppi_dir.glob("intact_*.tab27")))]
+    files = [f for _src, fs in groups for f in fs]
     if not files:
-        raise SystemExit(f"no vhn_*.tab27 files in {args.vhppi_dir}")
+        raise SystemExit(
+            f"no vhn_*.tab27 or intact_*.tab27 files in {args.vhppi_dir}.\n"
+            f"If intact.zip is present, scripts/filter_intact.py cuts the "
+            f"viral rows out of it.")
     print(f"\nparsing {len(files)} MITAB files")
+    for src, fs in groups:
+        if fs:
+            print(f"  {src:<24} {len(fs)} file(s): "
+                  f"{', '.join(f.name for f in fs)}")
 
     em = Emit()
-    s = ingest_mitab(em, files, index, taxon_map,
-                     source="infores:virhostnet", default_date=args.date)
+    s = Counter()
+    for src, fs in groups:
+        if not fs:
+            continue
+        part = ingest_mitab(em, fs, index, taxon_map,
+                            source=src, default_date=args.date)
+        print(f"\n  {src}: {part['rows']:,} rows -> {part['edges']:,} edges")
+        s += part
 
     print(f"  {s['rows']:,} rows -> {s['edges']:,} edges")
     print(f"  {s['direct']:,} direct interaction, {s['co_complex']:,} co-complex/"
