@@ -677,8 +677,14 @@ python scripts/temporal_split.py --cutoff 2021 --undated include   # LAST: the
 python scripts/temporal_split.py --cutoff 2021 --undated include \
     --overlap-policy keep || true
 
-# 2. per-virus baselines -- one file each, all eight taxa in config/viruses.yaml
-for t in 2697049 694009 1335626 11137 277944 31631 290028 64320; do
+# 2. per-virus baselines -- one file each, all SIXTEEN taxa in
+#    config/viruses.yaml. It was eight until 2026-10-23, when the remaining
+#    flaviviruses were promoted. Six of the eight added here have no
+#    HOST_FACTOR_FOR edge, so their host-mediated channels are empty by
+#    construction; the file is still written, and an empty channel recorded
+#    is what lets a later ingest show up as a change.
+for t in 2697049 694009 1335626 11137 277944 31631 290028 64320 \
+         11060 11053 11069 11070 11082 11072 11089 11084; do
     python scripts/run_baselines.py --virus "NCBITaxon:$t"
 done
 

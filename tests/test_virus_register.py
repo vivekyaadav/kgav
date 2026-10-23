@@ -88,6 +88,42 @@ BUILT = (
     # the virus they are filed under (392 vs 355) for several times the
     # handling.
     "Zika",
+    # ------------------------------------------------------------------
+    # THE REMAINING EIGHT FLAVIVIRUSES, promoted 2026-10-23.
+    #
+    # Section 0 was clear for all eight first: every chain_source accession
+    # present in the file that supplies it, every chain count equal to the
+    # register's claim, every gene symbol resolved. That check is what the
+    # 2026-10-11 attempt skipped.
+    #
+    # WHAT UNBLOCKED THEM was not new data. UniProt had retired the
+    # TrEMBL-only species proteomes for seven of the nine flaviviruses, and
+    # six of those seven described their strain-curated chains in prose
+    # without declaring extra_accessions -- DENV-2's own comment calls that
+    # "the MERS mechanism, which this entry documented and did not apply".
+    # Declaring it reaches the chains without the retired file.
+    #
+    # DENV-2's earlier objection does not apply to this promotion. It was
+    # held back because 1,013 of its 1,483 protein rows are one PubChem
+    # campaign with no PMID, so --publication-disjoint cannot withhold them
+    # and its M1 would flatter itself. That is an argument about the scoring
+    # evaluation. These are promoted for the pathway analysis, which reads
+    # TARGETS, PARTICIPATES_IN and HOST_FACTOR_FOR and never touches those
+    # rows. The objection stands for M1 and should be re-made there.
+    #
+    # SIX OF THE EIGHT HAVE NO HOST-FACTOR DATA AND ARE EXPECTED TO HAVE
+    # NONE. ORCS carries screens for DENV-2 and West Nile only; DENV-1,
+    # DENV-3, DENV-4 and Yellow fever have no screen in this release, and
+    # JEV and TBEV have no genome-wide screen in the literature at all.
+    # They will report "NO screen reached this taxon" in the landscape,
+    # which is the honest shape of the scope and the reason they are built:
+    # a virus absent from the register cannot say that about itself.
+    #
+    # Each is ONE STRAIN'S polyprotein reassigned to the species taxon.
+    # "DENV-1 NS3" here is strain 408685's NS3. That is what chain_source
+    # has always meant and it belongs in the methods section.
+    "DENV-2", "DENV-1", "DENV-3", "DENV-4",
+    "West Nile", "JEV", "Yellow fever", "TBEV",
 )
 
 # THE FOUR "CANDIDATE" HITS dryrun_promote REPORTS FOR THIS PROMOTION ARE
@@ -108,7 +144,17 @@ BUILT = (
 
 
 def test_surveyed_viruses_are_not_built(doc):
-    """ingest_spine reads `viruses:` only. Nothing in `surveyed:` may leak."""
+    """ingest_spine reads `viruses:` only. Nothing in `surveyed:` may leak.
+
+    Still meaningful with `surveyed:` empty, which it has been since the
+    2026-10-23 promotion: the gate is what the next entry added there will
+    be checked against. The key must stay present and be a LIST -- a bare
+    `surveyed:` parses as None and this would raise rather than pass.
+    """
+    assert isinstance(doc["surveyed"], list), (
+        "`surveyed:` parsed as "
+        f"{type(doc['surveyed']).__name__}; write `surveyed: []`, not a "
+        "bare key")
     built = {v["taxon"] for v in doc["viruses"]}
     assert not built & {v["taxon"] for v in doc["surveyed"]}
 
