@@ -268,8 +268,25 @@ def targets_for(virus: dict) -> list[tuple[Path, str, bool]]:
 
 def fetch_virus(virus: dict, *, force: bool, dry_run: bool,
                 fetch=fetch_bytes) -> int:
-    """Fetch one virus's files. Returns the number of problems found."""
+    """Fetch one virus's files. Returns the number of problems found.
+
+    A FAILED PROTEOME IS NOT ALWAYS A PROBLEM. When the register declares
+    extra_accessions, those curated entries REPLACE the proteome in
+    ingest_spine -- the proteome file is not read at all. UniProt retired
+    the TrEMBL-only flavivirus species proteomes, so six entries now fetch
+    their EXTRA file successfully and their proteome not at all, which is
+    the intended outcome.
+
+    This counted every failure, so that run printed "6 problem(s)" and
+    "Nothing was written for a refused file" after writing six files
+    correctly -- telling the reader the ingest was broken when it had done
+    exactly what it should. It also used one word for two causes: REFUSED
+    means the content disagreed with the register, FAILED means the query
+    returned nothing, and only the first is a reason to distrust a source.
+    """
     problems = 0
+    outcomes: dict[bool, str] = {}
+    substituted = bool(virus.get("extra_accessions"))
     for target, url, is_extra in targets_for(virus):
         label = f"{virus['name']} {'EXTRA' if is_extra else 'proteome'}"
         print(f"\n  {label}: {target.name}")
@@ -284,7 +301,9 @@ def fetch_virus(virus: dict, *, force: bool, dry_run: bool,
             report = inspect(raw)
         except Exception as e:                       # noqa: BLE001 - reported
             print(f"    FAILED: {e}")
-            problems += 1
+            outcomes[is_extra] = "failed"
+            if not (substituted and not is_extra):
+                problems += 1
             continue
 
         found = check_against_register(report, virus, is_extra=is_extra)
@@ -296,9 +315,25 @@ def fetch_virus(virus: dict, *, force: bool, dry_run: bool,
             for p in found:
                 print(f"    REFUSED: {p}")
             problems += len(found)
+            outcomes[is_extra] = "refused"
             continue
         write_with_provenance(target, raw, url, report, virus["name"])
         print(f"    wrote {len(raw):,} bytes + {sidecar_path(target).name}")
+        outcomes[is_extra] = "written"
+
+    # SAY SO, rather than leaving a FAILED line as the last word on a virus
+    # that is in fact ready. The EXTRA file is what ingest_spine reads.
+    if substituted and outcomes.get(False) == "failed":
+        extra_state = outcomes.get(True, "already on disk")
+        if extra_state in ("written", "already on disk"):
+            print(f"    -> {virus['name']} is READY: the proteome is not "
+                  f"read for this entry;\n       extra_accessions "
+                  f"{virus['extra_accessions']} replace it, and that file "
+                  f"is {extra_state}.")
+        else:
+            print(f"    -> {virus['name']} is NOT ready: the proteome "
+                  f"failed and its replacement\n       "
+                  f"({'EXTRA_' + virus['taxon']}.json.gz) is {extra_state}.")
     return problems
 
 
@@ -379,7 +414,11 @@ def main(argv=None) -> int:
         return 0
     print(f"\n{problems} problem(s)")
     if problems:
-        print("Nothing was written for a refused file. A proteome that "
+        print("A REFUSED file is one whose contents disagree with the "
+              "register; nothing was\nwritten for it. A FAILED fetch for an "
+              "entry whose extra_accessions replace the\nproteome is not "
+              "counted here, because that file is never read.\n")
+        print("A proteome that "
               "disagrees with the register would be consumed silently.")
     return 1 if problems else 0
 
