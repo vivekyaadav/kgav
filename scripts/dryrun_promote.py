@@ -27,6 +27,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -66,7 +67,7 @@ def _phase0_targets() -> dict:
         return {}
 
 
-def _hardcoded_counts() -> list[tuple[str, int, str]]:
+def _hardcoded_counts() -> list[tuple[str, int, str, int | None]]:
     """Assertions that pin the number of built viruses.
 
     test_surveyed_viruses_are_not_built asserts len(doc["viruses"]) == 7. A
@@ -79,7 +80,8 @@ def _hardcoded_counts() -> list[tuple[str, int, str]]:
         for n, line in enumerate(path.read_text().splitlines(), 1):
             m = pat.search(line)
             if m:
-                out.append((f"{path.name}:{n}", int(m.group(1)), line.strip()))
+                out.append((f"{path.name}:{n}", int(m.group(1)),
+                            line.strip(), None))
 
     # AND THE NAMED SET THAT REPLACED THE COUNT. test_virus_register.BUILT
     # lists every virus the build is meant to contain. Reporting only the
@@ -120,7 +122,16 @@ def _hardcoded_counts() -> list[tuple[str, int, str]]:
                 ref = f"{path.name}:{n}"
                 if any(ref == e[0] for e in out):
                     continue
-                out.append((ref, None, line.strip()))
+                # WHICH count matched, carried through to the report. The
+                # scan looks for two numbers -- the built-virus count and the
+                # size of the taxon map -- and the report used to name the
+                # first one for every hit. So a line reading `== 12` printed
+                # under "compares against 8", and the label contradicted the
+                # evidence directly beneath it. The scan was right; only the
+                # sentence was wrong, which is the failure this repository
+                # keeps finding and the one most likely to make a reader
+                # discount a real break as noise.
+                out.append((ref, None, line.strip(), built_now))
 
     tv = ROOT / "tests" / "test_virus_register.py"
     if tv.exists():
@@ -135,7 +146,7 @@ def _hardcoded_counts() -> list[tuple[str, int, str]]:
                 out.append((
                     f"test_virus_register.py:{node.lineno} BUILT",
                     len(names),
-                    f"BUILT names {len(names)}: {', '.join(names)}"))
+                    f"BUILT names {len(names)}: {', '.join(names)}", None))
     return out
 
 
@@ -300,7 +311,11 @@ def main() -> int:
         # silence.
         print("\n  FETCH THEM WITH:")
         for e in moving:
-            print(f"    python scripts/fetch_raw.py --virus {e['name']}")
+            # QUOTED. `--virus West Nile` parses as --virus=West plus a
+            # stray positional and exits 2; the command this prints is meant
+            # to be pasted.
+            print(f"    python scripts/fetch_raw.py "
+                  f"--virus {shlex.quote(e['name'])}")
         print("\n  fetch_raw validates the response shape, checks the entry's "
               "Chain count\n  against this register's chain_source, and "
               "refuses to write a file that\n  disagrees -- so a bad download "
@@ -436,10 +451,14 @@ def main() -> int:
     counts = _hardcoded_counts()
     if not counts:
         print("  no test pins the number of built viruses")
-    for ref, n, line in counts:
+    n_viruses, n_taxa = len(cfg["viruses"]), len(declared_taxa(cfg))
+    for ref, n, line, matched in counts:
         if n is None:
+            what = ("the current built count" if matched == n_viruses
+                    else "the current taxon-map size" if matched == n_taxa
+                    else "a current count")
             print(f"  {'CANDIDATE':<11} {ref}  compares against "
-                  f"{len(cfg['viruses'])}, the current built count")
+                  f"{matched}, {what}")
         else:
             verdict = "OK" if n == len(promoted["viruses"]) else "WOULD FAIL"
             print(f"  {verdict:<11} {ref}  pins {n}, would be "
@@ -532,9 +551,22 @@ def main() -> int:
                   " M8 emits\n  nothing today for that reason as well as the "
                   "unlisted layer -- two\n  faults wearing one label.")
         else:
-            print("  Two or more families are already built, so the layer "
-                  "being unlisted in\n  LAYER_PRECEDENCE is now the only "
-                  "thing keeping M8 empty.")
+            # THIS USED TO ASSERT THAT folds WAS UNLISTED. It was true when
+            # written and stopped being true in f1b5afe, which added `folds`
+            # to LAYER_PRECEDENCE; the build now assembles the layer and
+            # ships FOLD_SIMILAR_TO edges. A dry run that states a stale
+            # blocker sends the reader to fix something already fixed, so
+            # the listing is read rather than remembered.
+            if "folds" in LAYER_PRECEDENCE:
+                print("  Two or more families are already built and `folds` "
+                      "IS listed in\n  LAYER_PRECEDENCE (index "
+                      f"{LAYER_PRECEDENCE.index('folds')}), so neither of M8's "
+                      "old blockers applies.\n  What M8 emits is now a "
+                      "question for the gate, not for this register.")
+            else:
+                print("  Two or more families are already built, so the layer "
+                      "being unlisted in\n  LAYER_PRECEDENCE is now the only "
+                      "thing keeping M8 empty.")
 
     print("\n" + "=" * 78)
     print("WHAT THIS DOES NOT DO")

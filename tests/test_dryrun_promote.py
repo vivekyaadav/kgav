@@ -1,0 +1,146 @@
+"""Three defects in the dry run's own report.
+
+THE SCRIPT EXISTS so a wrong assumption costs a read instead of a rebuild.
+That makes its report the product, and a report that mislabels its evidence
+is the failure this repository keeps finding -- here in the tool written to
+catch it.
+
+Driven end to end rather than through its internals: what is being checked
+is the rendered text a person reads before deciding to rebuild.
+"""
+from __future__ import annotations
+
+import sys
+from importlib import import_module
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "src"))
+
+
+@pytest.fixture(scope="module")
+def report(tmp_path_factory) -> str:
+    """The full dry-run text for promoting DENV-2 and West Nile."""
+    import io
+    from contextlib import redirect_stdout
+
+    mod = import_module("dryrun_promote")
+    argv = ["dryrun_promote.py", "--promote", "DENV-2", "West Nile",
+            "--proteomes", str(tmp_path_factory.mktemp("none"))]
+    buf = io.StringIO()
+    old = sys.argv
+    sys.argv = argv
+    try:
+        with redirect_stdout(buf):
+            mod.main()
+    finally:
+        sys.argv = old
+    return buf.getvalue()
+
+
+def _labelled(report: str) -> list[tuple[str, str]]:
+    """(label line, evidence line) for every CANDIDATE in section 3."""
+    lines = report.splitlines()
+    return [(lines[i], lines[i + 1]) for i, l in enumerate(lines)
+            if "CANDIDATE" in l and i + 1 < len(lines)]
+
+
+# ------------------------------------------- 1. the label contradicted itself
+def test_a_candidate_names_the_count_it_actually_matched():
+    """It scanned for TWO numbers and named the first one for every hit.
+
+    A line reading `== 12` printed under "compares against 8, the current
+    built count" -- the label contradicting the evidence directly beneath
+    it. The scan was right; only the sentence was wrong, and that is the
+    kind of wrong that makes a reader discount a real break as noise.
+    """
+    import dryrun_promote as dp
+    import yaml
+    from kgav.virus_register import declared_taxa
+
+    cfg = yaml.safe_load((ROOT / "config/viruses.yaml").read_text())
+    n_viruses, n_taxa = len(cfg["viruses"]), len(declared_taxa(cfg))
+    assert n_viruses != n_taxa, (
+        "if these coincide this test cannot see a mislabel; pick another "
+        "fixture rather than deleting the test")
+
+    dp._CFG_CACHE.clear()
+    dp._CFG_CACHE.update(cfg)
+    for ref, n, line, matched in dp._hardcoded_counts():
+        if n is None:
+            assert f"== {matched}" in line.replace("==", "== ").replace(
+                "==  ", "== "), f"{ref}: label says {matched}, line is {line}"
+
+
+def test_the_two_counts_are_reported_under_different_names(report):
+    labelled = _labelled(report)
+    assert labelled, "no CANDIDATE rows; this fixture cannot test the labels"
+    for label, evidence in labelled:
+        num = label.split("compares against ")[1].split(",")[0].strip()
+        assert f"== {num}" in evidence, (
+            f"label claims {num} but the evidence line is: {evidence}")
+
+
+def test_the_taxon_map_size_is_not_called_the_built_count(report):
+    for label, evidence in _labelled(report):
+        if "== 12" in evidence:
+            assert "taxon-map size" in label, label
+            assert "built count" not in label, label
+
+
+# ------------------------------------------- 2. a command that cannot be run
+def test_the_fetch_command_quotes_a_name_containing_a_space(report):
+    """`--virus West Nile` parses as --virus=West plus a stray positional
+    and exits 2. The line is printed to be pasted."""
+    assert "--virus 'West Nile'" in report
+    assert "--virus West Nile" not in report
+
+
+def test_virus_is_one_string_per_flag_so_the_quoting_matters():
+    """Guards the reason: if --virus ever took nargs='+', the quoting
+    would be unnecessary and this pair of tests should be revisited rather
+    than silently kept."""
+    src = (ROOT / "scripts" / "fetch_raw.py").read_text()
+    block = src[src.index('"--virus"'):]
+    block = block[:block.index(")")]
+    assert 'action="append"' in block
+    assert "nargs" not in block
+
+
+# ------------------------------------------- 3. a blocker that was fixed
+def test_the_m8_note_reads_the_layer_listing_instead_of_asserting_it(report):
+    """It said `folds` was unlisted in LAYER_PRECEDENCE. True when written,
+    false since f1b5afe added it -- the build assembles the layer and ships
+    FOLD_SIMILAR_TO edges. A dry run stating a stale blocker sends the
+    reader to fix something already fixed."""
+    from kgav.assemble import LAYER_PRECEDENCE
+    assert "folds" in LAYER_PRECEDENCE, (
+        "if folds is ever removed, the other branch is correct again and "
+        "this test should assert that instead")
+    assert "`folds` IS listed" in report
+    assert "the only thing keeping M8 empty" not in report
+
+
+def test_the_m8_note_would_still_report_a_real_blocker(monkeypatch):
+    """The fix must not have turned the warning off, only made it read the
+    listing. Removing folds must bring the original sentence back."""
+    import io
+    from contextlib import redirect_stdout
+
+    import dryrun_promote as dp
+    monkeypatch.setattr(dp, "LAYER_PRECEDENCE",
+                        [x for x in dp.LAYER_PRECEDENCE if x != "folds"])
+    buf = io.StringIO()
+    old = sys.argv
+    sys.argv = ["dryrun_promote.py", "--promote", "DENV-2"]
+    try:
+        with redirect_stdout(buf):
+            dp.main()
+    finally:
+        sys.argv = old
+    out = buf.getvalue()
+    if "FAMILIES IN THE BUILD" in out:
+        assert "the only thing keeping M8 empty" in out
