@@ -92,6 +92,26 @@ def census(g: Graph) -> dict:
             has_inhibits.add(node)
     both = has_targets & has_inhibits
     neither = molecules - has_targets - has_inhibits
+    # HOW MUCH OF THE UNREACHABLE SET A DRUG-TARGET SOURCE COULD REACH.
+    # 86% of the molecules carry no human target, and "add another source"
+    # is only worth doing if that source covers them. DrugCentral, IUPHAR
+    # and DrugBank curate APPROVED and clinical-stage drugs, not bulk
+    # screening compounds, so the clinical phase of the unreachable set is
+    # the ceiling on what they could add -- measured here rather than
+    # guessed at.
+    phases: Counter = Counter()
+    for m in (molecules - has_targets):
+        ph = (g.nodes[m].get("properties") or {}).get("max_phase")
+        if ph is None:
+            phases["unknown"] += 1
+        elif ph >= 4:
+            phases["approved"] += 1
+        elif ph >= 2:
+            phases["clinical"] += 1
+        elif ph >= 1:
+            phases["phase 1"] += 1
+        else:
+            phases["preclinical"] += 1
     # A PARTITION, and `both` is NOT a part of it. The first version
     # returned four counts that read as four buckets; on v0.1 they summed
     # to 21,714 against 21,667 molecules, because the 47 compounds with
@@ -108,6 +128,7 @@ def census(g: Graph) -> dict:
         + len(neither),
         "target_edges": sum(len(g.out.get((TARGETS, m), ())) for m in has_targets),
         "directed_edges": directed,
+        "untargeted_by_phase": phases,
     }
 
 
@@ -305,7 +326,18 @@ def main(argv=None) -> int:
     print(f"\n    The landscape covers {share:.1%} of the molecules. The rest")
     print("    have no human target in this graph, so they have no pathway to")
     print("    place them in. That is a property of the source, not a bug.")
-    print(f"\n    {c['target_edges']:,} TARGETS edges, of which "
+    ph = c["untargeted_by_phase"]
+    reachable = ph["approved"] + ph["clinical"]
+    print(f"    Of the {sum(ph.values()):,} with no human target:")
+    for k in ("approved", "clinical", "phase 1", "preclinical", "unknown"):
+        if ph[k]:
+            print(f"      {ph[k]:8,}  {k}")
+    print(f"\n    A curated drug-target source (DrugCentral, IUPHAR,")
+    print(f"    DrugBank) covers approved and clinical-stage drugs, so")
+    print(f"    {reachable:,} is the CEILING on what one could add here,")
+    print(f"    not {sum(ph.values()):,}. The preclinical and unknown rest")
+    print(f"    are bulk screening compounds no such source curates.\n")
+    print(f"    {c['target_edges']:,} TARGETS edges, of which "
           f"{c['directed_edges']:,} state a direction.")
     print("    The rest are potency without agonist/antagonist, so targeting")
     print("    a dependency factor is NOT a claim that the drug would help.\n")
