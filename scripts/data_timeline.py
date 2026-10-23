@@ -125,6 +125,12 @@ def covered(release: Path) -> tuple[Counter, dict, dict]:
     years: Counter = Counter()
     by_source: dict[str, Counter] = {}
     dates: dict[str, set] = {}
+    # (year, the edge's sources) -> count. Which sources are one-date is
+    # not known until the pass ends, and the histogram has to exclude
+    # their EDGES rather than their YEARS -- see the comment at the call
+    # site. Keeping the combination lets that be decided afterwards
+    # without re-reading the file or double-counting a merged edge.
+    combos: Counter = Counter()
     path = release / "edges.jsonl"
     with open(path) as fh:
         for line in fh:
@@ -135,11 +141,35 @@ def covered(release: Path) -> tuple[Counter, dict, dict]:
             key = str(y) if y else "undated"
             years[key] += 1
             raw = str(e.get("first_asserted_date") or "")
-            for src in str(e.get("primary_knowledge_source") or "?").split("|"):
+            srcs = str(e.get("primary_knowledge_source") or "?").split("|")
+            for src in srcs:
                 by_source.setdefault(src, Counter())[key] += 1
                 if y:
                     dates.setdefault(src, set()).add(raw)
-    return years, by_source, dates
+            if y:
+                combos[(key, tuple(sorted(set(srcs))))] += 1
+    return years, by_source, dates, combos
+
+
+def histogram(combos: Counter, stamped: dict) -> Counter:
+    """Year -> edges, excluding edges whose date is only a one-date stamp.
+
+    ANY, NOT ALL. An edge asserted by both a one-date source and a source
+    that dates its edges carries a real date -- assemble keeps the earliest,
+    so the per-edge source is what set it -- and belongs in the bars. Only
+    an edge every one of whose sources stamps is excluded.
+
+    Separated from main() because no realistic fixture distinguishes `any`
+    from `all`: a merged edge dated differently from the stamp puts a second
+    date in the stamped source's set, which stops it being one-date at all.
+    The rule is therefore tested here, directly, rather than through output
+    that cannot express the case.
+    """
+    out: Counter = Counter()
+    for (year, srcs), n in combos.items():
+        if any(s_ not in stamped for s_ in srcs):
+            out[year] += n
+    return out
 
 
 def main(argv=None) -> int:
@@ -174,7 +204,7 @@ def main(argv=None) -> int:
             print(f"no release at {args.release}; "
                   f"run make rebuild for the evidence section")
             return 0 if args.acquired else 2
-        years, by_source, dates = covered(args.release)
+        years, by_source, dates, combos = covered(args.release)
         total = sum(years.values())
         print("COVERED — when the evidence was first asserted")
         print("  from first_asserted_date on the assembled edges. Assembly "
@@ -207,9 +237,15 @@ def main(argv=None) -> int:
 
         stamped = {s_: next(iter(d)) for s_, d in dates.items()
                    if len(d) == 1 and _n_dated(s_) >= 2}
-        stamp_years = {v[:4] for v in stamped.values()}
-        per_edge = {y: n for y, n in years.items()
-                    if y != "undated" and y not in stamp_years}
+        # EXCLUDE THE STAMPED SOURCES' EDGES, NOT THEIR YEARS. The first
+        # version dropped every year a one-date source landed in, so the
+        # 2020, 2023 and 2024 bars vanished entirely -- taking ORCS's
+        # per-edge 2023 and 2024 screens and ChEMBL's 2020 rows with them.
+        # 2020 is the year most SARS-CoV-2 evidence was published, so the
+        # fix for a misleading histogram deleted the most important bar in
+        # it. An edge counts here when at least ONE of its sources dates
+        # its edges individually.
+        per_edge = histogram(combos, stamped)
         if stamped:
             print("  NOT DRAWN BELOW -- every dated edge from these sources "
                   "carries the SAME date.\n  That is typically the file's "
@@ -221,7 +257,7 @@ def main(argv=None) -> int:
                 print(f"    {s_:<34}{n:>9,}  all dated {d}")
             print()
         if per_edge:
-            print("  per-edge dates only")
+            print(f"  per-edge dates only ({sum(per_edge.values()):,} edges)")
             width = max(per_edge.values(), default=1)
             for y in sorted(per_edge):
                 n = per_edge[y]

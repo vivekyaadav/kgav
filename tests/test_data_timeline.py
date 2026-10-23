@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import json
 import sys
+from collections import Counter
 from contextlib import redirect_stdout
 from importlib import import_module
 from pathlib import Path
@@ -102,7 +103,7 @@ def test_edge_years_come_from_the_assembled_release(tmp_path):
     rel = _release(tmp_path, [_edge("infores:a", "2019-05-05"),
                               _edge("infores:a", "2021-01-01"),
                               _edge("infores:b", "2019-01-01")])
-    years, by_source, _dates = dt.covered(rel)
+    years, by_source, _dates, _c = dt.covered(rel)
     assert years == {"2019": 2, "2021": 1}
     assert set(by_source) == {"infores:a", "infores:b"}
     assert by_source["infores:a"] == {"2019": 1, "2021": 1}
@@ -113,7 +114,7 @@ def test_a_merged_edge_is_counted_under_both_sources(tmp_path):
     sources assert. Counting that as one unnamed source would hide both."""
     rel = _release(tmp_path, [_edge("infores:string|infores:virhostnet",
                                     "2020-02-02")])
-    _years, by_source, _dates = dt.covered(rel)
+    _years, by_source, _dates, _c = dt.covered(rel)
     assert set(by_source) == {"infores:string", "infores:virhostnet"}
 
 
@@ -124,7 +125,7 @@ def test_an_undated_edge_is_counted_as_undated_not_dropped(tmp_path):
     rel = _release(tmp_path, [_edge("infores:a", None),
                               _edge("infores:a", ""),
                               _edge("infores:a", "2020-01-01")])
-    years, _by, _dates = dt.covered(rel)
+    years, _by, _dates, _c = dt.covered(rel)
     assert years["undated"] == 2
 
 
@@ -139,7 +140,7 @@ def test_the_undated_share_is_reported_with_the_split_policy(tmp_path):
 def test_a_malformed_date_is_undated_rather_than_a_year(tmp_path):
     rel = _release(tmp_path, [_edge("infores:a", "n/a"),
                               _edge("infores:a", "20x1-01-01")])
-    years, _by, _dates = dt.covered(rel)
+    years, _by, _dates, _c = dt.covered(rel)
     assert years == {"undated": 2}
 
 
@@ -171,7 +172,7 @@ def test_the_1970_placeholder_is_undated_not_a_year(tmp_path):
     from kgav.temporal import PLACEHOLDER_DATE
     rel = _release(tmp_path, [_edge("infores:a", PLACEHOLDER_DATE),
                               _edge("infores:a", "2020-01-01")])
-    years, by_source, _ = dt.covered(rel)
+    years, by_source, _d, _c = dt.covered(rel)
     assert "1970" not in years
     assert years["undated"] == 1
     assert by_source["infores:a"]["undated"] == 1
@@ -255,3 +256,80 @@ def test_a_one_date_source_stays_so_when_it_also_has_placeholders(tmp_path):
     assert "ONE DATE" in out
     hist = out[out.index("per-edge dates only"):out.index("by source")]
     assert "2023" not in hist, hist
+
+
+def test_a_year_a_one_date_source_lands_in_is_not_itself_deleted(tmp_path):
+    """THE FIX FOR THE HISTOGRAM DELETED THE MOST IMPORTANT BAR IN IT.
+
+    Excluding every year a one-date source touched dropped 2020, 2023 and
+    2024 outright -- ORCS dates its screens per edge and runs to 2024,
+    ChEMBL to 2025, and 2020 is the year most SARS-CoV-2 evidence was
+    published. What must be excluded is the stamped source's EDGES.
+    """
+    rel = _release(tmp_path,
+                   [_edge("infores:string", "2023-08-28")] * 4
+                   + [_edge("infores:biogrid-orcs", "2023-06-01"),
+                      _edge("infores:biogrid-orcs", "2024-06-01")])
+    out = _run("--root", str(tmp_path), "--release", str(rel), "--evidence")
+    hist = out[out.index("per-edge dates only"):out.index("by source")]
+    assert "2023" in hist, "ORCS's own 2023 edge was deleted with STRING's"
+    assert "2024" in hist
+    # and STRING's four are still out of the bars
+    assert "        4  " not in hist
+
+
+def test_the_histogram_says_how_many_edges_it_covers(tmp_path):
+    """A bar chart that silently omits part of the graph is the shape this
+    whole section keeps getting wrong. The count makes it auditable."""
+    rel = _release(tmp_path,
+                   [_edge("infores:string", "2023-08-28")] * 4
+                   + [_edge("infores:chembl", "2001-01-01"),
+                      _edge("infores:chembl", "2004-01-01")])
+    out = _run("--root", str(tmp_path), "--release", str(rel), "--evidence")
+    assert "per-edge dates only (2 edges)" in out
+
+
+def test_an_edge_merged_from_a_stamped_and_a_dated_source_is_kept(tmp_path):
+    """assemble writes "infores:string|infores:virhostnet" for one fact two
+    sources assert. An edge whose sources include one that dates its edges
+    has a real date and belongs in the bars."""
+    rel = _release(tmp_path,
+                   [_edge("infores:string|infores:chembl", "2001-01-01")]
+                   + [_edge("infores:string", "2023-08-28")] * 3)
+    _y, _b, _d, combos = dt.covered(rel)
+    assert combos[("2001", ("infores:chembl", "infores:string"))] == 1
+    out = _run("--root", str(tmp_path), "--release", str(rel), "--evidence")
+    hist = out[out.index("per-edge dates only"):out.index("by source")]
+    assert "2001" in hist
+
+
+def test_a_merged_edge_is_not_double_counted_in_the_histogram(tmp_path):
+    """by_source counts it once per source; the histogram must count the
+    EDGE once, or a bar exceeds the number of edges in that year."""
+    rel = _release(tmp_path,
+                   [_edge("infores:chembl|infores:uniprot", "2001-01-01")])
+    out = _run("--root", str(tmp_path), "--release", str(rel), "--evidence")
+    assert "per-edge dates only (1 edges)" in out
+
+
+# ------------------------------------------- the rule, tested directly
+def test_an_edge_with_one_per_edge_source_is_in_the_bars():
+    """ANY, not ALL. assemble keeps the EARLIEST date, so when a one-date
+    source and a per-edge source assert the same fact, the per-edge source
+    is what set the date."""
+    combos = Counter({("2001", ("infores:chembl", "infores:string")): 7})
+    assert dt.histogram(combos, {"infores:string": "2023-08-28"}) == {"2001": 7}
+
+
+def test_an_edge_all_of_whose_sources_stamp_is_excluded():
+    combos = Counter({("2023", ("infores:string", "infores:virhostnet")): 5})
+    stamped = {"infores:string": "2023-08-28",
+               "infores:virhostnet": "2024-01-01"}
+    assert dt.histogram(combos, stamped) == {}
+
+
+def test_years_accumulate_across_source_combinations():
+    combos = Counter({("2001", ("infores:chembl",)): 3,
+                      ("2001", ("infores:uniprot",)): 4,
+                      ("2001", ("infores:string",)): 9})
+    assert dt.histogram(combos, {"infores:string": "x"}) == {"2001": 7}
