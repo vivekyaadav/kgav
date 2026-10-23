@@ -704,3 +704,58 @@ def test_a_virus_with_no_extra_accessions_is_unaffected(tmp_path):
     em2 = _run(cfg, d)
     assert em2.notes["proteome_missing:West Nile"] == 0
     assert em2.notes["curated_accessions_substituted:West Nile"] == 0
+
+
+def test_a_declared_symbol_produces_the_gene_node_uniprot_omits(tmp_path):
+    """West Nile's P06935 carries no `genes` field, so without the register
+    declaring one there is no Gene node, no ENCODED_BY and no BELONGS_TO --
+    and M1 cannot reach the taxon. Zika had the same gap and declares POLY
+    for Q32ZE1; this is the same fix for the same reason."""
+    cfg = {"taxon": "11082", "name": "West Nile", "family": "Flaviviridae",
+           "full_name": "West Nile virus", "proteome_id": "UP000008600",
+           "gene_symbol": {"P06935": "POLY"}}
+    d = tmp_path / "p"
+    d.mkdir()
+    entry = _entry("P06935", chains=3)
+    del entry["genes"]                      # as UniProt ships it
+    _write(d, "UP000008600", [entry])
+    em = _run(cfg, d)
+    assert em.notes["gene_symbol_declared:West Nile"] == 1
+    assert "KGAV:GENE_11082_POLY" in em.nodes
+    assert [e for e in em.edges if e["predicate"] == "ENCODED_BY"]
+
+
+def test_without_the_declaration_there_is_no_gene_node(tmp_path):
+    """The state the dry run reported, kept as the contrast."""
+    cfg = {"taxon": "11082", "name": "West Nile", "family": "Flaviviridae",
+           "full_name": "West Nile virus", "proteome_id": "UP000008600"}
+    d = tmp_path / "p"
+    d.mkdir()
+    entry = _entry("P06935", chains=3)
+    del entry["genes"]
+    _write(d, "UP000008600", [entry])
+    em = _run(cfg, d)
+    assert not [n for n in em.nodes if n.startswith("KGAV:GENE_11082")]
+    assert not [e for e in em.edges if e["predicate"] == "ENCODED_BY"]
+
+
+def test_west_niles_poly_does_not_merge_with_zikas(tmp_path):
+    """Both declare POLY. The Gene curie carries the taxon, so they are two
+    nodes -- asserted against the builder rather than read off the format."""
+    d = tmp_path / "p"
+    d.mkdir()
+    for tax, pid, stem in (("11082", "P06935", "UP000008600"),
+                           ("64320", "Q32ZE1", "UP000054557")):
+        entry = _entry(pid, chains=2)
+        del entry["genes"]
+        _write(d, stem, [entry])
+    em = Emit()
+    for tax, pid, stem, nm in (
+            ("11082", "P06935", "UP000008600", "West Nile"),
+            ("64320", "Q32ZE1", "UP000054557", "Zika")):
+        ingest_virus(em, {"taxon": tax, "name": nm, "family": "Flaviviridae",
+                          "full_name": nm, "proteome_id": stem,
+                          "gene_symbol": {pid: "POLY"}},
+                     DEFAULTS, PROV, d)
+    genes = sorted(n for n in em.nodes if n.startswith("KGAV:GENE_"))
+    assert genes == ["KGAV:GENE_11082_POLY", "KGAV:GENE_64320_POLY"]

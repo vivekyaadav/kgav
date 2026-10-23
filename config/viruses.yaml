@@ -604,6 +604,29 @@ surveyed:
     # difference between "not needed" and "forgotten".
     chain_source: {accession: P06935, taxon: "11082", chains: 13,
                    verified: "2026-09-17"}
+    # THE SAME GAP ZIKA HAD, and declared the same way. dryrun_promote
+    # reported, 2026-10-23:
+    #
+    #   gene symbols: 0 from UniProt, 0 declared, 1 missing
+    #   NO GENE SYMBOL ANYWHERE: ['P06935'] ... ingest_spine emits no Gene
+    #   node -- no ENCODED_BY, no BELONGS_TO, and M1 cannot reach this taxon
+    #
+    # UniProt carries no `genes` field on this entry, as it carries none on
+    # Zika's Q32ZE1. Not a fiction to fill a path: the ORF is real and
+    # encodes the polyprotein all thirteen mature peptides are cut from, so
+    # POLY names the one gene they share and every chain's ENCODED_BY
+    # resolves to it.
+    #
+    # PER ACCESSION, following the Zika entry, though here there is only one
+    # to name: UP000008600 holds a single entry. Zika needed the per-
+    # accession form because Q32ZE1 and P0DXN9 are two genes and a single
+    # virus-level symbol had merged them.
+    #
+    # NO MERGE WITH ZIKA'S POLY: ingest_spine keys Gene nodes as
+    # KGAV:GENE_<taxon>_<symbol>, so this is KGAV:GENE_11082_POLY against
+    # Zika's KGAV:GENE_64320_POLY. Checked, not assumed.
+    gene_symbol:
+      P06935: POLY
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
     mondo: null

@@ -216,3 +216,125 @@ def test_the_clear_message_does_not_claim_a_proteome_is_cached(tmp_path):
     out = _section0(d, "DENV-2")
     assert "has what ingest_spine reads" in out
     assert "has its proteome cached" not in out
+
+
+# ------------------------- 5. one canned reason for five different blocks
+def _fake_poly(d: Path, stem: str, acc: str, genes: bool) -> None:
+    import gzip
+    import json
+    d.mkdir(parents=True, exist_ok=True)
+    e = {"primaryAccession": acc,
+         "entryType": "UniProtKB reviewed (Swiss-Prot)",
+         "proteinDescription": {"recommendedName": {
+             "fullName": {"value": "Genome polyprotein"}}},
+         "sequence": {"value": "MNNQ"},
+         "entryAudit": {"firstPublicDate": "2008-01-01"},
+         "features": [{"type": "Chain", "featureId": f"PRO_{i}",
+                       "description": f"NS{i}",
+                       "location": {"start": {"value": 1 + i * 50},
+                                    "end": {"value": 50 + i * 50}}}
+                      for i in range(13)]}
+    if genes:
+        e["genes"] = [{"geneName": {"value": "POLY"}}]
+    (d / f"{stem}.json.gz").write_bytes(
+        gzip.compress(json.dumps({"results": [e]}).encode()))
+
+
+def test_a_missing_gene_symbol_is_not_described_as_a_missing_proteome(
+        tmp_path, monkeypatch):
+    """West Nile was blocked on 2026-10-23 with its proteome present and
+    validated -- 13 chains on P06935, printed two lines above -- and the
+    report then said "ingest_spine would record proteome_missing". The
+    cause was stated correctly and contradicted in the same section."""
+    import yaml
+
+    import dryrun_promote as dp
+
+    cfg = yaml.safe_load((ROOT / "config/viruses.yaml").read_text())
+    for e in cfg["surveyed"]:
+        if e["name"] == "West Nile":
+            e.pop("gene_symbol", None)          # the state before the fix
+    path = tmp_path / "viruses.yaml"
+    path.write_text(yaml.safe_dump(cfg))
+    dp._CFG_CACHE.clear()
+
+    d = tmp_path / "p"
+    _fake_poly(d, "UP000008600", "P06935", genes=False)
+    out = _section0_cfg(dp, path, d, "West Nile")
+    assert "BLOCKED" in out
+    assert "THE PROTEOME IS FINE" in out
+    assert "would record proteome_missing" not in out
+
+
+def test_a_block_no_download_fixes_offers_no_download(tmp_path):
+    """It printed a fetch command for every virus being promoted whenever
+    anything was blocked, so a missing gene symbol got a command that would
+    re-download a file already correct."""
+    import yaml
+
+    import dryrun_promote as dp
+
+    cfg = yaml.safe_load((ROOT / "config/viruses.yaml").read_text())
+    for e in cfg["surveyed"]:
+        if e["name"] == "West Nile":
+            e.pop("gene_symbol", None)
+    path = tmp_path / "viruses.yaml"
+    path.write_text(yaml.safe_dump(cfg))
+    dp._CFG_CACHE.clear()
+
+    d = tmp_path / "p"
+    _fake_poly(d, "UP000008600", "P06935", genes=False)
+    out = _section0_cfg(dp, path, d, "West Nile")
+    assert "FETCH THEM WITH" not in out
+
+
+def test_a_missing_proteome_still_offers_the_download(tmp_path):
+    """The split must not have removed the fetch hint where it belongs."""
+    import dryrun_promote as dp
+    dp._CFG_CACHE.clear()
+    out = _section0(tmp_path / "empty", "West Nile")
+    assert "FETCH THEM WITH" in out
+    assert "would record proteome_missing" in out
+
+
+def _section0_cfg(dp, config: Path, proteomes: Path, *promote: str) -> str:
+    import io
+    from contextlib import redirect_stdout
+    buf = io.StringIO()
+    old = sys.argv
+    sys.argv = ["dryrun_promote.py", "--promote", *promote,
+                "--config", str(config), "--proteomes", str(proteomes)]
+    try:
+        with redirect_stdout(buf):
+            dp.main()
+    finally:
+        sys.argv = old
+        dp._CFG_CACHE.clear()
+    out = buf.getvalue()
+    return out[out.index("0. PRECONDITIONS"):out.index("WHICH CHANNELS")]
+
+
+# ------------------------------------------- 6. the declaration that fixes it
+def test_west_nile_declares_the_polyprotein_gene_symbol():
+    """UniProt carries no `genes` field on the flavivirus polyprotein entry,
+    exactly as for Zika's Q32ZE1. POLY names the real ORF all thirteen
+    mature peptides are cut from -- not a fiction to fill a path."""
+    import yaml
+    cfg = yaml.safe_load((ROOT / "config/viruses.yaml").read_text())
+    wnv = next(e for e in (cfg["viruses"] + cfg["surveyed"])
+               if e["name"] == "West Nile")
+    assert wnv["gene_symbol"] == {"P06935": "POLY"}
+
+
+def test_the_two_flavivirus_poly_genes_are_different_nodes():
+    """ingest_spine keys Gene nodes KGAV:GENE_<taxon>_<symbol>, so West
+    Nile's POLY and Zika's POLY cannot merge into one gene."""
+    import yaml
+    cfg = yaml.safe_load((ROOT / "config/viruses.yaml").read_text())
+    entries = {e["name"]: e for e in cfg["viruses"] + cfg["surveyed"]}
+    wnv, zika = entries["West Nile"], entries["Zika"]
+    assert "POLY" in wnv["gene_symbol"].values()
+    assert "POLY" in zika["gene_symbol"].values()
+    assert wnv["taxon"] != zika["taxon"]
+    assert (f"KGAV:GENE_{wnv['taxon']}_POLY"
+            != f"KGAV:GENE_{zika['taxon']}_POLY")

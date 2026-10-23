@@ -220,7 +220,7 @@ def main() -> int:
         xfile = args.proteomes / f"EXTRA_{e['taxon']}.json.gz"
         substitutes = bool(extras) and xfile.exists()
         if not ok and not substitutes:
-            blocked.append(e["name"])
+            blocked.append((e["name"], "proteome"))
         state = "ok " if ok else ("n/a" if substitutes else "ABSENT")
         print(f"  {state:<7} {e['name']:<14} {pid}.json.gz"
               + ("   not read: the curated accessions below replace it"
@@ -229,7 +229,7 @@ def main() -> int:
         if extras:
             xok = xfile.exists()
             if not xok:
-                blocked.append(e["name"])
+                blocked.append((e["name"], "extra"))
             print(f"  {'ok ' if xok else 'ABSENT':<7} {'':<14} "
                   f"EXTRA_{e['taxon']}.json.gz  for {', '.join(extras)}")
 
@@ -251,7 +251,7 @@ def main() -> int:
                           f"and no extra_accessions declares it, so the "
                           f"chains\n          this virus needs are "
                           f"unreachable")
-                    blocked.append(e["name"])
+                    blocked.append((e["name"], "chain_accession"))
                 chains = [x for x in entries
                           if x.get("primaryAccession") == acc
                           for f in x.get("features", [])
@@ -293,37 +293,80 @@ def main() -> int:
                           f"declares none, so ingest_spine emits no Gene node "
                           f"-- no\n          ENCODED_BY, no BELONGS_TO, and "
                           f"M1 cannot reach this taxon at all")
-                    blocked.append(e["name"])
+                    blocked.append((e["name"], "no_gene"))
                 elif uncovered:
                     print(f"          note: {uncovered} get no Gene node, so "
                           f"those proteins alone are\n          unreachable "
                           f"by M1. The taxon is still reachable via the rest.")
             except (OSError, ValueError) as exc:
                 print(f"          UNREADABLE: {exc}")
-                blocked.append(e["name"])
+                blocked.append((e["name"], "unreadable"))
 
+    # ONE CANNED PARAGRAPH USED TO FOLLOW EVERY BLOCK, and it described a
+    # missing proteome. West Nile was blocked on 2026-10-23 with its proteome
+    # present and validated -- 13 chains on P06935, printed two lines above --
+    # because P06935 carries no gene symbol. The report stated the real cause
+    # correctly and then contradicted it with "ingest_spine would record
+    # proteome_missing", which is the label-against-evidence failure this
+    # script was itself patched for a commit ago. Each reason now explains
+    # only what it is.
+    REASONS = {
+        "proteome":
+            "  ingest_spine would record proteome_missing and build an "
+            "OrganismTaxon with no\n  proteins. ingest_chembl would then "
+            "query the new taxa, emit INHIBITS edges\n  to proteins no layer "
+            "created, and fail its schema check -- after which\n"
+            "  assemble_release still writes a release, invalidating every "
+            "results file for\n  no new facts. Fetch the proteome(s) first.",
+        "extra":
+            "  The register declares extra_accessions whose EXTRA file is "
+            "absent. Those\n  curated entries REPLACE the proteome, so "
+            "without the file the chains this\n  virus needs do not exist in "
+            "the build. Fetch it.",
+        "chain_accession":
+            "  The proteome is present but does not contain the accession "
+            "chain_source\n  names, and no extra_accessions declares it. The "
+            "file is not the one the\n  register describes; re-check the "
+            "proteome id before fetching again.",
+        "no_gene":
+            "  THE PROTEOME IS FINE. Its entry carries no gene symbol and the "
+            "register\n  declares none, so ingest_spine emits no Gene node "
+            "and M1 cannot reach the\n  taxon. No download fixes this: "
+            "declare the symbol in config/viruses.yaml,\n  as the Zika entry "
+            "does for Q32ZE1. The host-mediated channels (M2, M4,\n  M5, M6) "
+            "do not pass through a Gene node and are unaffected either way.",
+        "unreadable":
+            "  The file on disk could not be parsed. Refetch it with --force.",
+    }
     if blocked:
-        print(f"\n  BLOCKED: {', '.join(sorted(set(blocked)))}")
-        print("  ingest_spine would record proteome_missing and build an "
-              "OrganismTaxon with no\n  proteins. ingest_chembl would then "
-              "query the new taxa, emit INHIBITS edges\n  to proteins no "
-              "layer created, and fail its schema check -- after which\n"
-              "  assemble_release still writes a release, invalidating every "
-              "results file for\n  no new facts. Fetch the proteome(s) "
-              "first.")
+        print(f"\n  BLOCKED: {', '.join(sorted({n for n, _ in blocked}))}")
+        for key in ("proteome", "extra", "chain_accession", "no_gene",
+                    "unreadable"):
+            names = sorted({n for n, r in blocked if r == key})
+            if names:
+                print(f"\n  {', '.join(names)} --")
+                print(REASONS[key])
         # WAS: "There is no fetcher in this repo, so whatever produced the
         # existing files should produce these". True when written, false since
         # scripts/fetch_raw.py landed, and a precondition section telling the
         # reader there is no way to satisfy the precondition is worse than
         # silence.
-        print("\n  FETCH THEM WITH:")
-        for e in moving:
-            # QUOTED. `--virus West Nile` parses as --virus=West plus a
-            # stray positional and exits 2; the command this prints is meant
-            # to be pasted.
-            print(f"    python scripts/fetch_raw.py "
-                  f"--virus {shlex.quote(e['name'])}")
-        print("\n  fetch_raw validates the response shape, checks the entry's "
+        # ONLY THE ONES A DOWNLOAD FIXES. This listed every virus being
+        # promoted whenever anything was blocked, so a virus blocked for a
+        # missing gene symbol -- which no fetch supplies -- was handed a
+        # fetch command that would re-download a file already correct.
+        fetchable = sorted({n for n, r in blocked
+                            if r in ("proteome", "extra", "chain_accession",
+                                     "unreadable")})
+        if fetchable:
+            print("\n  FETCH THEM WITH:")
+            for n in fetchable:
+                # QUOTED. `--virus West Nile` parses as --virus=West plus a
+                # stray positional and exits 2; the command this prints is
+                # meant to be pasted.
+                print(f"    python scripts/fetch_raw.py "
+                      f"--virus {shlex.quote(n)}")
+            print("\n  fetch_raw validates the response shape, checks the entry's "
               "Chain count\n  against this register's chain_source, and "
               "refuses to write a file that\n  disagrees -- so a bad download "
               "cannot reach ingest_spine. `make check-raw`\n  re-validates "
