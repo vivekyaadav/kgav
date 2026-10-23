@@ -33,6 +33,7 @@ from kgav.curated import (  # noqa: E402
     CuratedRowError,
     ingest_curated,
     read_table,
+    resolve_symbols,
     validate_row,
 )
 from kgav.emit import Emit  # noqa: E402
@@ -54,6 +55,56 @@ def built_taxa(spine: Path) -> set[str]:
     return out
 
 
+def gene_symbols(host: Path, spine: Path) -> dict[str, str]:
+    """{NCBIGene CURIE: symbol} from the built Gene nodes."""
+    out = {}
+    for rel in (host, spine):
+        p = rel / "nodes.jsonl"
+        if not p.exists():
+            continue
+        for line in p.read_text().splitlines():
+            if not line.strip():
+                continue
+            n = json.loads(line)
+            if n.get("class") == "Gene":
+                sym = (n.get("properties") or {}).get("symbol")
+                if sym:
+                    out[n["id"]] = sym
+    return out
+
+
+def resolve_mode(args) -> int:
+    """Turn a list of gene symbols into a TSV skeleton with real ids.
+
+    Prints the skeleton to stdout so it can be redirected into
+    data/raw/curated_screens/<paper>.tsv and filled in.
+    """
+    symbols = [l for l in args.resolve.read_text().splitlines() if l.strip()]
+    genes = gene_symbols(args.host, args.spine)
+    if not genes:
+        print(f"no Gene nodes under {args.host} or {args.spine}; build the "
+              f"host layer first")
+        return 2
+    resolved, unresolved, ambiguous = resolve_symbols(symbols, genes)
+    print(f"# {len(resolved)}/{len(symbols)} symbols resolved against "
+          f"{len(genes):,} Gene nodes", file=sys.stderr)
+    if ambiguous:
+        print(f"# {len(ambiguous)} AMBIGUOUS, left out:", file=sys.stderr)
+        for s, ids in sorted(ambiguous.items()):
+            print(f"#   {s}: {ids}", file=sys.stderr)
+    if unresolved:
+        print(f"# {len(unresolved)} UNRESOLVED, left out. A hit whose gene is "
+              f"not in the host layer can never become an edge; aliases are "
+              f"not handled, so check these by hand:", file=sys.stderr)
+        for s in unresolved:
+            print(f"#   {s}", file=sys.stderr)
+    print("ncbi_gene_id\ttaxon\tdirection\tpmid\tgene_symbol\tcell_line\t"
+          "screen_type\teffect_size")
+    for sym, gid in sorted(resolved.items(), key=lambda kv: kv[0]):
+        print(f"{gid.removeprefix('NCBIGene:')}\t\t\t\t{sym}\t\t\t")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--tables", type=Path,
@@ -65,7 +116,13 @@ def main(argv=None) -> int:
     ap.add_argument("--out", type=Path,
                     default=ROOT / "data" / "releases" / "v0.1-curated")
     ap.add_argument("--inspect", action="store_true")
+    ap.add_argument("--resolve", type=Path, default=None,
+                    help="a file of gene SYMBOLS, one per line; prints a TSV "
+                         "skeleton with their NCBIGene ids filled in")
     args = ap.parse_args(argv)
+
+    if args.resolve:
+        return resolve_mode(args)
 
     tables = sorted(args.tables.glob("*.tsv")) if args.tables.exists() else []
     if not tables:

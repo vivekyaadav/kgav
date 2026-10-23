@@ -108,6 +108,44 @@ def validate_row(row: dict, n: int) -> dict:
     }
 
 
+def resolve_symbols(symbols, gene_nodes: dict[str, str]
+                    ) -> tuple[dict[str, str], list[str], dict[str, list[str]]]:
+    """Gene SYMBOLS -> NCBIGene ids, from the graph's own Gene nodes.
+
+    WHY THIS IS NOT A LOOKUP TABLE SOMEWHERE ELSE. validate_row refuses a
+    symbol because build_gene_to_proteins keys on NCBIGene CURIEs, so the
+    curator has to supply ids -- and typing a few hundred ids off a
+    supplementary table by hand is the single likeliest way a wrong edge
+    enters this layer. The host layer already carries `symbol` on every
+    Gene node, so the ids come from the graph the edges will land in,
+    exactly, with nothing to look up and nothing to guess.
+
+    Returns (resolved, unresolved, ambiguous). An UNRESOLVED symbol is
+    worth as much as a resolved one: a screen hit whose gene is not in the
+    host layer can never become an edge, and knowing that before
+    transcribing the row saves the work. Matching is case-insensitive;
+    ALIASES ARE NOT HANDLED -- a screen writing HRD1 where UniProt writes
+    SYVN1 comes back unresolved, and that is reported rather than guessed.
+    """
+    by_symbol: dict[str, list[str]] = {}
+    for gid, sym in gene_nodes.items():
+        if sym:
+            by_symbol.setdefault(sym.strip().upper(), []).append(gid)
+    resolved, unresolved, ambiguous = {}, [], {}
+    for raw in symbols:
+        s = str(raw).strip()
+        if not s:
+            continue
+        hits = by_symbol.get(s.upper())
+        if not hits:
+            unresolved.append(s)
+        elif len(hits) > 1:
+            ambiguous[s] = sorted(hits)
+        else:
+            resolved[s] = hits[0]
+    return resolved, unresolved, ambiguous
+
+
 def ingest_curated(em, rows: list[dict], gene_to_protein: dict[str, list[str]],
                    known_taxa: set[str] | None = None,
                    default_date: str = "1970-01-01") -> Counter:
