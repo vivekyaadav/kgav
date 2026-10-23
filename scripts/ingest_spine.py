@@ -284,27 +284,52 @@ def ingest_virus(em: Emit, cfg: dict, defaults: dict, prov: dict, proteome_dir: 
                          else cfg["is_enveloped"])
 
     pfile = proteome_dir / f"{cfg['proteome_id']}.json.gz"
-    if not pfile.exists():
-        em.notes[f"proteome_missing:{name}"] += 1
-        return stats
-
-    entries = load_proteome(pfile)
+    extra = proteome_dir / f"EXTRA_{tax}.json.gz"
 
     # Swiss-Prot sometimes curates a reference ISOLATE rather than the species
     # node, leaving the species proteome TrEMBL-only and therefore without any
     # Chain annotation. Where config pins explicit accessions, they are loaded
-    # alongside and their taxon_id is rewritten to the species, so cross-viral
-    # metapaths resolve against one taxon per virus.
-    extra = proteome_dir / f"EXTRA_{tax}.json.gz"
+    # and their taxon_id is rewritten to the species, so cross-viral metapaths
+    # resolve against one taxon per virus.
+    #
+    # THE ORDER HERE IS THE FIX. This read the proteome first and returned
+    # early when its file was absent, so the EXTRA file was never reached --
+    # and DENV-2's register entry says, in as many words, that
+    # "UP000095876.json.gz must still exist, because the pfile.exists() guard
+    # returns early before the EXTRA file is consulted". Its contents are then
+    # discarded on the line that assigns `entries = curated`.
+    #
+    # That held while the file was downloadable. On 2026-10-23 UniProt
+    # returned an empty result set for UP000095876 -- an identically formed
+    # query for West Nile's UP000008600 returned its entry the same minute --
+    # so DENV-2 became permanently unbuildable, blocked on a file whose
+    # contents the build throws away. Requiring a file nothing reads is the
+    # wrong check; what the entry needs is its curated accessions.
+    curated: list = []
     if cfg.get("extra_accessions") and extra.exists():
-        curated = load_proteome(extra)
         keep = set(cfg["extra_accessions"])
-        curated = [e for e in curated if e.get("primaryAccession") in keep]
+        curated = [e for e in load_proteome(extra)
+                   if e.get("primaryAccession") in keep]
+        if not curated:
+            # EXTRA is present and holds none of the pinned accessions. The
+            # substitution below would otherwise set `entries` to [] and
+            # build a virus with no proteins out of a file that was there.
+            em.notes[f"curated_accessions_absent:{name}"] += 1
+
+    if not pfile.exists() and not curated:
+        em.notes[f"proteome_missing:{name}"] += 1
+        return stats
+
+    if curated:
         # Curated entries REPLACE the proteome rather than augmenting it.
         # Accession-level merging leaves both copies, since the TrEMBL and
         # Swiss-Prot entries for the same protein have different accessions.
         entries = curated
         em.notes[f"curated_accessions_substituted:{name}"] += len(curated)
+        if not pfile.exists():
+            em.notes[f"proteome_absent_curated_only:{name}"] += 1
+    else:
+        entries = load_proteome(pfile)
     seen_chains: dict[str, str] = {}          # normalised label -> node id
     parent_len: dict[str, int] = {}
 
