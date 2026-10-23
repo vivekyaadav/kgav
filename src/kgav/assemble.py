@@ -61,8 +61,13 @@ EquivalenceFn = Callable[[Any, Any], bool]
 #: the qualifiers. It exists because ORCS carries no screen for DENV-1,
 #: DENV-3, DENV-4, JEV or TBEV, and for the flaviviruses it does carry the
 #: published screens outnumber it.
+#: `gtop` sits ABOVE `hosttargets` because both write TARGETS and only one
+#: of them knows the direction. The Guide to PHARMACOLOGY curates `action`
+#: on essentially every interaction; ChEMBL's bulk activity table records
+#: potency and leaves direction unstated on 12,155 of v0.1's 14,381 edges.
+#: Earlier wins a qualifier conflict, so the curated action wins.
 LAYER_PRECEDENCE = ["spine", "host", "vhppi", "orcs", "curated", "chembl",
-                    "selectivity",
+                    "selectivity", "gtop",
                     "hosttargets", "similarity", "ncats", "folds"]
 
 
