@@ -102,6 +102,13 @@ rebuild:
 rebuild-plan:
 	python scripts/rebuild_release.py --plan
 
+# WHAT THE GRAPH IS BUILT FROM, in two timelines that are easy to conflate:
+# when each raw input landed here, and what period the evidence covers. A
+# file downloaded yesterday can carry evidence from 1998, so one date
+# without the other misleads in opposite directions.
+data-timeline:
+	python scripts/data_timeline.py
+
 clean:
 	find . -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
 	rm -rf .pytest_cache .ruff_cache *.egg-info build dist
