@@ -1,0 +1,309 @@
+#!/usr/bin/env python
+"""The druggable host-factor landscape, without a scorer.
+
+WHY THIS IS A DIFFERENT QUESTION FROM THE ONE THAT FAILED. Every protocol in
+docs/evaluation.md asked which drug works against a virus. That needs the
+antiviral labels, 92.2% of which share a publication with the evidence edge
+that was supposed to predict them, and no channel survived the control.
+
+This asks what the drugged human proteome overlaps with what each virus
+depends on. It reads TARGETS, PARTICIPATES_IN and HOST_FACTOR_FOR, and it
+never touches HAS_ANTIVIRAL_ACTIVITY_AGAINST or any other label predicate.
+The shared-PMID confound has nothing to attach to here.
+
+THE CONFOUND MOVES RATHER THAN VANISHING, and that is the whole reason for
+the matched test below. Well-studied proteins carry more pathway
+annotations, are likelier to be drug targets, AND are likelier to come out
+of a CRISPR screen with enough coverage to be called a dependency factor.
+An over-representation test against the whole proteome measures that, not
+biology. So every enrichment is reported twice: naive, and against a
+background sampled to match the observed degree distribution. The gap
+between them is a measurement, not a footnote.
+
+EVERY MOLECULE IS ACCOUNTED FOR. The graph holds far more small molecules
+than carry a human target, and a landscape over the subset that silently
+called itself "all drugs" would be the defect this repository keeps
+finding. The census prints the whole population and names what each part
+can and cannot contribute.
+
+WHAT THIS CANNOT SAY. ChEMBL's bulk activity table records potency, not
+whether a compound agonises or antagonises its target. Inhibiting a
+dependency factor should block infection; activating one should not. So
+"drug targets a dependency factor" is not "drug would help", and the census
+reports how many edges carry a known direction so the gap is visible.
+
+USAGE
+
+  python scripts/pathway_landscape.py
+  python scripts/pathway_landscape.py --virus NCBITaxon:2697049
+  python scripts/pathway_landscape.py --permutations 10000
+
+Read-only. Writes nothing, ranks no drug, recommends no compound.
+"""
+from __future__ import annotations
+
+import argparse
+import random
+import sys
+from collections import Counter, defaultdict
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from kgav.baselines import Graph  # noqa: E402
+from kgav.schema import load_schema  # noqa: E402
+
+# THE ONE IMPLEMENTATION, imported. A second copy of an exact hypergeometric
+# tail would drift from the one Phase 4 validated against scipy over 400
+# random tables.
+from phase4_hcv_retrospective import fisher_one_sided  # noqa: E402
+
+TARGETS = "TARGETS"
+PARTICIPATES_IN = "PARTICIPATES_IN"
+HOST_FACTOR_FOR = "HOST_FACTOR_FOR"
+DEPENDENCY = "dependency"
+DEGREE_BINS = 10
+MIN_PATHWAY_TARGETS = 5
+DEFAULT_PERMUTATIONS = 2000
+
+
+# ------------------------------------------------------------------ census
+def census(g: Graph) -> dict:
+    """Every small molecule, by what it can contribute.
+
+    Printed before anything else because the analysable set is a minority
+    of the graph's molecules, and a landscape that reported only the
+    minority while calling it "all drugs" would be false in the first line.
+    """
+    molecules = {n for n in g.nodes if g.klass(n) == "SmallMolecule"}
+    has_targets, has_inhibits, directed = set(), set(), 0
+    for (pred, node), edges in g.out.items():
+        if node not in molecules:
+            continue
+        if pred == TARGETS:
+            has_targets.add(node)
+            for _nbr, e in edges:
+                q = e.get("qualifiers") or {}
+                if q.get("direction") and q["direction"] != "unknown":
+                    directed += 1
+        elif pred == "INHIBITS":
+            has_inhibits.add(node)
+    both = has_targets & has_inhibits
+    neither = molecules - has_targets - has_inhibits
+    return {
+        "molecules": len(molecules),
+        "analysable": len(has_targets),
+        "inhibits_only": len(has_inhibits - has_targets),
+        "both": len(both),
+        "neither": len(neither),
+        "target_edges": sum(len(g.out.get((TARGETS, m), ())) for m in has_targets),
+        "directed_edges": directed,
+    }
+
+
+# ------------------------------------------------------------- the surface
+def drug_targets(g: Graph) -> set[str]:
+    """Human proteins reached by at least one TARGETS edge."""
+    out = set()
+    for (pred, node), edges in g.out.items():
+        if pred != TARGETS:
+            continue
+        for nbr, _e in edges:
+            if g.klass(nbr) == "Protein":
+                out.add(nbr)
+    return out
+
+
+def dependency_factors(g: Graph, virus: str) -> set[str]:
+    """Proteins the virus DEPENDS on, by CRISPR screen.
+
+    The direction qualifier is required, not assumed: a restriction factor
+    is the opposite claim, and pooling the two would make every count mean
+    nothing.
+    """
+    out = set()
+    for (pred, node), edges in g.out.items():
+        if pred != HOST_FACTOR_FOR:
+            continue
+        for nbr, e in edges:
+            if nbr != virus:
+                continue
+            if (e.get("qualifiers") or {}).get("direction") == DEPENDENCY:
+                out.add(node)
+    return out
+
+
+def pathway_members(g: Graph, cap: int | None) -> dict[str, set[str]]:
+    """{pathway: proteins in it}, dropping pathways over the schema's cap.
+
+    The cap is the schema's own `max_pathway_members`, for the reason
+    baselines._oversized_pathways gives: a GO term with 1,389 members makes
+    every drug adjacent to every host factor, and an enrichment over it
+    measures the annotation, not the biology.
+    """
+    members: dict[str, set[str]] = defaultdict(set)
+    for (pred, node), edges in g.out.items():
+        if pred != PARTICIPATES_IN:
+            continue
+        for nbr, _e in edges:
+            members[nbr].add(node)
+    if cap:
+        members = {p: m for p, m in members.items() if len(m) <= cap}
+    return dict(members)
+
+
+# --------------------------------------------------- the matched test
+def degree_bins(g: Graph, universe: set[str], bins: int = DEGREE_BINS
+                ) -> dict[str, int]:
+    """Assign each protein to a degree quantile bin.
+
+    Quantiles rather than equal-width: node degree is heavy-tailed, so
+    equal-width bins would put almost everything in the first one and match
+    nothing.
+    """
+    ordered = sorted(universe, key=lambda n: g.degree.get(n, 0))
+    out = {}
+    n = len(ordered)
+    for i, node in enumerate(ordered):
+        out[node] = min(bins - 1, i * bins // n) if n else 0
+    return out
+
+
+def matched_null(observed: set[str], universe: set[str],
+                 bins: dict[str, int], hits: set[str], draws: int,
+                 rng: random.Random) -> list[int]:
+    """Overlap with `hits` for `draws` degree-matched random sets.
+
+    Each draw takes, from every degree bin, as many proteins as `observed`
+    has in that bin. So the null set looks like the drug-target set in
+    study volume and differs only in which proteins it picked.
+    """
+    by_bin: dict[int, list[str]] = defaultdict(list)
+    for node in universe:
+        by_bin[bins[node]].append(node)
+    want = Counter(bins[n] for n in observed if n in bins)
+    out = []
+    for _ in range(draws):
+        total = 0
+        for b, k in want.items():
+            pool = by_bin[b]
+            if k >= len(pool):
+                total += sum(1 for p in pool if p in hits)
+                continue
+            total += sum(1 for p in rng.sample(pool, k) if p in hits)
+        out.append(total)
+    return out
+
+
+def empirical_p(observed: int, null: list[int]) -> float:
+    """One-sided, with the +1 correction.
+
+    Without it a p of 0 is reportable, which claims more precision than the
+    number of permutations can support.
+    """
+    at_least = sum(1 for v in null if v >= observed)
+    return (at_least + 1) / (len(null) + 1)
+
+
+# ----------------------------------------------------------------- report
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--release", type=Path, default=ROOT / "data/releases/v0.1")
+    ap.add_argument("--virus", default=None)
+    ap.add_argument("--permutations", type=int, default=DEFAULT_PERMUTATIONS)
+    ap.add_argument("--seed", type=int, default=0)
+    args = ap.parse_args(argv)
+
+    if not (args.release / "nodes.jsonl").exists():
+        print(f"no release at {args.release}")
+        return 2
+
+    schema = load_schema()
+    g = Graph.load(args.release, symmetry=schema.symmetry())
+    rng = random.Random(args.seed)
+
+    print("PATHWAY LANDSCAPE. No scorer, no ranking, no antiviral label.")
+    print("Reads TARGETS, PARTICIPATES_IN and HOST_FACTOR_FOR only.\n")
+    print(f"release {args.release.name} | {len(g.nodes):,} nodes\n")
+
+    c = census(g)
+    print("  CENSUS — every small molecule in the graph")
+    print(f"    {c['molecules']:8,}  small molecules in total")
+    print(f"    {c['analysable']:8,}  carry a human TARGETS edge  <- the "
+          f"analysable set")
+    print(f"    {c['inhibits_only']:8,}  carry INHIBITS only, no human target")
+    print(f"    {c['neither']:8,}  carry neither")
+    print(f"    {c['both']:8,}  carry both")
+    share = c["analysable"] / c["molecules"] if c["molecules"] else 0
+    print(f"\n    The landscape covers {share:.1%} of the molecules. The rest")
+    print("    have no human target in this graph, so they have no pathway to")
+    print("    place them in. That is a property of the source, not a bug.")
+    print(f"\n    {c['target_edges']:,} TARGETS edges, of which "
+          f"{c['directed_edges']:,} state a direction.")
+    print("    The rest are potency without agonist/antagonist, so targeting")
+    print("    a dependency factor is NOT a claim that the drug would help.\n")
+
+    targets = drug_targets(g)
+    universe = {n for n in g.nodes if g.klass(n) == "Protein"}
+    members = pathway_members(g, schema.retrieval_limits.get(
+        "max_pathway_members"))
+    in_pathways = {p for ms in members.values() for p in ms}
+    print(f"  DRUGGED PROTEOME")
+    print(f"    {len(targets):,} distinct human proteins carry a TARGETS edge")
+    print(f"    {len(members):,} pathways at or under the schema's "
+          f"{schema.retrieval_limits.get('max_pathway_members')}-member cap")
+    print(f"    {len(targets & in_pathways):,} of the targets sit in at least "
+          f"one such pathway\n")
+
+    viruses = [args.virus] if args.virus else sorted(
+        n for n in g.nodes if g.klass(n) == "OrganismTaxon")
+    print("  OVERLAP WITH DEPENDENCY FACTORS, naive against degree-matched")
+    print(f"  {args.permutations:,} permutations, seed {args.seed}\n")
+    print(f"    {'virus':<18} {'dep':>6} {'drugged':>8} {'exp':>7} "
+          f"{'ratio':>6} {'p naive':>9} {'p matched':>10}")
+    any_virus = False
+    for virus in viruses:
+        deps = dependency_factors(g, virus)
+        if not deps:
+            continue
+        any_virus = True
+        hit = targets & deps
+        # Naive: is the drugged proteome enriched for dependency factors
+        # against the whole protein universe?
+        a = len(hit)
+        b = len(targets) - a
+        cc = len(deps - targets)
+        d = len(universe) - a - b - cc
+        p_naive = fisher_one_sided(a, b, cc, d, greater=True)
+        bins = degree_bins(g, universe)
+        null = matched_null(targets, universe, bins, deps,
+                            args.permutations, rng)
+        exp = sum(null) / len(null) if null else 0.0
+        p_match = empirical_p(a, null)
+        ratio = a / exp if exp else float("inf")
+        print(f"    {virus:<18} {len(deps):6,} {a:8,} {exp:7.1f} "
+              f"{ratio:6.2f} {p_naive:9.2e} {p_match:10.4f}")
+    if not any_virus:
+        print("    NO VIRUS HAS DEPENDENCY FACTORS in this release, so there")
+        print("    is no overlap to measure. That is the finding, not an")
+        print("    empty table.")
+        return 1
+
+    print()
+    print("  'exp' is how many dependency factors a DEGREE-MATCHED random")
+    print("  protein set of the same size hits. Where the matched p is far")
+    print("  weaker than the naive one, the naive test was measuring study")
+    print("  volume: well-studied proteins are both likelier to be drugged")
+    print("  and likelier to be called dependency factors.")
+    print()
+    print("  Nothing here ranks a drug or claims one would work. Direction is")
+    print("  unknown on most TARGETS edges, and a CRISPR dependency factor is")
+    print("  a target worth inhibiting, not evidence that any given compound")
+    print("  does inhibit it.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
