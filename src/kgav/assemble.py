@@ -54,7 +54,15 @@ EquivalenceFn = Callable[[Any, Any], bool]
 #: shares with a measured layer should lose. It was absent from this list
 #: entirely until schema 0.13.0, which with ingest_folds writing to an
 #: unread directory is the full reason M8 reached nothing.
-LAYER_PRECEDENCE = ["spine", "host", "vhppi", "orcs", "chembl", "selectivity",
+#: `curated` sits directly below `orcs` because it carries the same kind of
+#: claim from weaker provenance: HOST_FACTOR_FOR hand-transcribed from a
+#: paper's supplementary table by one person, evidence tier 2, against a
+#: database export at tier 1. Where the two assert the same fact, ORCS wins
+#: the qualifiers. It exists because ORCS carries no screen for DENV-1,
+#: DENV-3, DENV-4, JEV or TBEV, and for the flaviviruses it does carry the
+#: published screens outnumber it.
+LAYER_PRECEDENCE = ["spine", "host", "vhppi", "orcs", "curated", "chembl",
+                    "selectivity",
                     "hosttargets", "similarity", "ncats", "folds"]
 
 
