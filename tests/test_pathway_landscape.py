@@ -384,3 +384,56 @@ def test_degree_bins_breaks_ties_on_the_node_id():
     assert "for node in sorted(universe)" in src
     assert "wanted = sorted(want.items())" in src, \
         "a Counter iterates in insertion order; it must be sorted too"
+
+
+# ------------------------------- what a new source could actually reach
+def test_the_unreachable_set_is_broken_down_by_clinical_phase(tmp_path):
+    """"Add another source" is only worth doing if that source covers the
+    molecules that are missing. DrugCentral, IUPHAR and DrugBank curate
+    approved and clinical-stage drugs, not bulk screening compounds, so
+    the phase mix of the untargeted set is the ceiling on what they could
+    add."""
+    rel = _release(tmp_path)
+    nodes = [json.loads(l) for l in
+             (rel / "nodes.jsonl").read_text().splitlines()]
+    for n in nodes:
+        if n["id"] == "INCHIKEY:I0":
+            n["properties"]["max_phase"] = 4
+        elif n["id"] == "INCHIKEY:I1":
+            n["properties"]["max_phase"] = 2
+        elif n["id"] == "INCHIKEY:N0":
+            n["properties"]["max_phase"] = 0
+    (rel / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
+    c = L.census(_graph(rel))
+    ph = c["untargeted_by_phase"]
+    assert ph["approved"] == 1
+    assert ph["clinical"] == 1
+    assert ph["preclinical"] == 1
+    assert sum(ph.values()) == c["molecules"] - c["analysable"]
+
+
+def test_the_ceiling_is_approved_plus_clinical_not_the_whole_gap(
+        tmp_path, capsys):
+    """Reporting the whole untargeted count as addressable would overstate
+    what a curated source can do by an order of magnitude."""
+    rel = _release(tmp_path)
+    nodes = [json.loads(l) for l in
+             (rel / "nodes.jsonl").read_text().splitlines()]
+    for n in nodes:
+        if n["id"].startswith("INCHIKEY:I"):
+            n["properties"]["max_phase"] = 4
+    (rel / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
+    L.main(["--release", str(rel), "--permutations", "50"])
+    out = capsys.readouterr().out
+    assert "is the CEILING on what one could add here" in out
+    assert "bulk screening compounds no such source curates" in out
+
+
+def test_a_molecule_with_no_phase_is_unknown_not_preclinical(tmp_path):
+    """Absent is not zero. ChEMBL leaves max_phase null for most of its
+    compounds, and filing those as preclinical would assert something the
+    source does not say."""
+    c = L.census(_graph(_release(tmp_path)))
+    ph = c["untargeted_by_phase"]
+    assert ph["unknown"] > 0
+    assert ph["preclinical"] == 0
