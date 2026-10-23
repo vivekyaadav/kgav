@@ -394,6 +394,50 @@ viruses:
 # reviewed entry, PRO_ chain ids present, start/end coordinates present.
 # ---------------------------------------------------------------------------
 surveyed:
+  # ===================================================================
+  # THE 2026-10-23 PROTEOME RETIREMENT
+  # ===================================================================
+  # fetch_raw returned the same failure for seven of the nine flavivirus
+  # proteome ids on 2026-10-23:
+  #
+  #     FAILED: 'results' is empty -- the query matched nothing
+  #
+  # UP000095813 (DENV-1), UP000095814 (DENV-3), UP000096325 (DENV-4),
+  # UP000095876 (DENV-2), UP000095892 (JEV), UP000097551 (Yellow fever),
+  # UP000096153 (TBEV).
+  #
+  # Two still resolve: Zika's UP000054557 and West Nile's UP000008600.
+  # Those two are the SPECIES-CURATED Swiss-Prot proteomes -- the ones
+  # whose chain_source.taxon equals the species taxon and which need no
+  # isolate mapping. Every id that failed is one of the TrEMBL-only
+  # species placeholders this file already describes, in six separate
+  # entries, as having "a single protein and zero Chain features". The
+  # split is exact, so this is a batch retirement at UniProt rather than
+  # seven unrelated accidents.
+  #
+  # WHY IT ONLY BLOCKED SIX OF THE SEVEN. ingest_spine reads
+  # EXTRA_<species taxon>.json.gz when the entry declares
+  # extra_accessions, and those curated entries REPLACE the proteome.
+  # DENV-2 declared them, so its chains survive the retirement. The other
+  # six documented the identical situation in prose -- "the mature
+  # peptides are curated under strain N" -- and never declared anything,
+  # which is what DENV-2's own comment calls "THE MERS MECHANISM, WHICH
+  # THIS ENTRY DOCUMENTED AND DID NOT APPLY". Six more entries had the
+  # same gap and the same comment.
+  #
+  # Each now declares extra_accessions holding the accession its
+  # chain_source already names and verified. proteome_id is kept rather
+  # than deleted: it records what used to supply these and makes the
+  # retirement legible if a later UniProt release restores it.
+  #
+  # NOT ESTABLISHED: why UniProt dropped them -- retired, renumbered, or
+  # merged. Guessing a replacement id into this file would be the
+  # assumption the extra_accessions mechanism removes the need for.
+  #
+  # Coronaviruses are untouched. SARS-CoV and HCoV-HKU1 also pin strain
+  # chain sources and need no extra_accessions, because their species
+  # proteomes contain the strain entries.
+  # ===================================================================
   # MEASURED 2026-10-11. Zika was promoted out of here on 2026-10-12 and its
   # entry now sits in `viruses:` above. DENV-2 stays, and the figures below
   # are why the order was Zika first -- note that DENV-2 is NOT next on
@@ -535,6 +579,13 @@ surveyed:
     # exist, because the pfile.exists() guard returns early before the EXTRA
     # file is consulted.
     extra_accessions: [P29990]
+    # FALLBACK ONLY, as for the six below: UniProt's own `genes` value wins
+    # when the entry has one. Added 2026-10-23 because Section 0 never
+    # checked this entry -- its gene-symbol check ran only when the PROTEOME
+    # file existed, and DENV-2's is substituted -- so P29990's symbol status
+    # was unexamined while the entry read as clear.
+    gene_symbol:
+      P29990: POLY
     curation_note: "chains live on strain 31634's P29990, which has no proteome xref; pulled via EXTRA_11060.json.gz and reassigned to species 11060"
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
@@ -553,6 +604,20 @@ surveyed:
     isolate_taxa: ["408685"]
     chain_source: {accession: P27909, taxon: "408685", chains: 14,
                    verified: "2026-09-17"}
+    # RETIRED PROTEOME -- see "THE 2026-10-23 PROTEOME RETIREMENT" above.
+    # The chains are reached through extra_accessions; the proteome_id is
+    # kept as the record of what used to supply them.
+    extra_accessions: [P27909]
+    # FALLBACK ONLY: ingest_spine._gene_symbol returns UniProt's
+    # `genes` value when the entry has one and reaches this
+    # declaration only when it does not. Flavivirus polyprotein
+    # entries generally carry none -- Zika's Q32ZE1 and West
+    # Nile's P06935 both needed it -- but P27909 has NOT been read
+    # from a downloaded file, because the file could not be
+    # fetched here. The dry run's "N from UniProt, M declared"
+    # line says which was used.
+    gene_symbol:
+      P27909: POLY
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
     mondo: null
@@ -571,6 +636,20 @@ surveyed:
     isolate_taxa: ["408870"]
     chain_source: {accession: P27915, taxon: "408870", chains: 13,
                    verified: "2026-09-17"}
+    # RETIRED PROTEOME -- see "THE 2026-10-23 PROTEOME RETIREMENT" above.
+    # The chains are reached through extra_accessions; the proteome_id is
+    # kept as the record of what used to supply them.
+    extra_accessions: [P27915]
+    # FALLBACK ONLY: ingest_spine._gene_symbol returns UniProt's
+    # `genes` value when the entry has one and reaches this
+    # declaration only when it does not. Flavivirus polyprotein
+    # entries generally carry none -- Zika's Q32ZE1 and West
+    # Nile's P06935 both needed it -- but P27915 has NOT been read
+    # from a downloaded file, because the file could not be
+    # fetched here. The dry run's "N from UniProt, M declared"
+    # line says which was used.
+    gene_symbol:
+      P27915: POLY
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
     mondo: null
@@ -588,6 +667,20 @@ surveyed:
     isolate_taxa: ["408689"]
     chain_source: {accession: Q2YHF2, taxon: "408689", chains: 13,
                    verified: "2026-09-17"}
+    # RETIRED PROTEOME -- see "THE 2026-10-23 PROTEOME RETIREMENT" above.
+    # The chains are reached through extra_accessions; the proteome_id is
+    # kept as the record of what used to supply them.
+    extra_accessions: [Q2YHF2]
+    # FALLBACK ONLY: ingest_spine._gene_symbol returns UniProt's
+    # `genes` value when the entry has one and reaches this
+    # declaration only when it does not. Flavivirus polyprotein
+    # entries generally carry none -- Zika's Q32ZE1 and West
+    # Nile's P06935 both needed it -- but Q2YHF2 has NOT been read
+    # from a downloaded file, because the file could not be
+    # fetched here. The dry run's "N from UniProt, M declared"
+    # line says which was used.
+    gene_symbol:
+      Q2YHF2: POLY
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
     mondo: null
@@ -644,6 +737,20 @@ surveyed:
     isolate_taxa: ["11073"]
     chain_source: {accession: P27395, taxon: "11073", chains: 13,
                    verified: "2026-09-17"}
+    # RETIRED PROTEOME -- see "THE 2026-10-23 PROTEOME RETIREMENT" above.
+    # The chains are reached through extra_accessions; the proteome_id is
+    # kept as the record of what used to supply them.
+    extra_accessions: [P27395]
+    # FALLBACK ONLY: ingest_spine._gene_symbol returns UniProt's
+    # `genes` value when the entry has one and reaches this
+    # declaration only when it does not. Flavivirus polyprotein
+    # entries generally carry none -- Zika's Q32ZE1 and West
+    # Nile's P06935 both needed it -- but P27395 has NOT been read
+    # from a downloaded file, because the file could not be
+    # fetched here. The dry run's "N from UniProt, M declared"
+    # line says which was used.
+    gene_symbol:
+      P27395: POLY
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
     mondo: null
@@ -661,6 +768,20 @@ surveyed:
     isolate_taxa: ["11090"]
     chain_source: {accession: P03314, taxon: "11090", chains: 13,
                    verified: "2026-09-17"}
+    # RETIRED PROTEOME -- see "THE 2026-10-23 PROTEOME RETIREMENT" above.
+    # The chains are reached through extra_accessions; the proteome_id is
+    # kept as the record of what used to supply them.
+    extra_accessions: [P03314]
+    # FALLBACK ONLY: ingest_spine._gene_symbol returns UniProt's
+    # `genes` value when the entry has one and reaches this
+    # declaration only when it does not. Flavivirus polyprotein
+    # entries generally carry none -- Zika's Q32ZE1 and West
+    # Nile's P06935 both needed it -- but P03314 has NOT been read
+    # from a downloaded file, because the file could not be
+    # fetched here. The dry run's "N from UniProt, M declared"
+    # line says which was used.
+    gene_symbol:
+      P03314: POLY
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
     mondo: null
@@ -678,6 +799,20 @@ surveyed:
     isolate_taxa: ["70733"]
     chain_source: {accession: Q01299, taxon: "70733", chains: 13,
                    verified: "2026-09-17"}
+    # RETIRED PROTEOME -- see "THE 2026-10-23 PROTEOME RETIREMENT" above.
+    # The chains are reached through extra_accessions; the proteome_id is
+    # kept as the record of what used to supply them.
+    extra_accessions: [Q01299]
+    # FALLBACK ONLY: ingest_spine._gene_symbol returns UniProt's
+    # `genes` value when the entry has one and reaches this
+    # declaration only when it does not. Flavivirus polyprotein
+    # entries generally carry none -- Zika's Q32ZE1 and West
+    # Nile's P06935 both needed it -- but Q01299 has NOT been read
+    # from a downloaded file, because the file could not be
+    # fetched here. The dry run's "N from UniProt, M declared"
+    # line says which was used.
+    gene_symbol:
+      Q01299: POLY
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
     mondo: null

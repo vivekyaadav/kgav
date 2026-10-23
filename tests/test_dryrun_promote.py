@@ -338,3 +338,103 @@ def test_the_two_flavivirus_poly_genes_are_different_nodes():
     assert wnv["taxon"] != zika["taxon"]
     assert (f"KGAV:GENE_{wnv['taxon']}_POLY"
             != f"KGAV:GENE_{zika['taxon']}_POLY")
+
+
+# ---------------------- 7. the substituted entry was never actually checked
+def test_a_substituted_entry_is_inspected_not_skipped(tmp_path):
+    """Section 0's checks were gated on `if ok:` -- the PROTEOME file
+    existing. DENV-2's is substituted, so it printed "n/a" and then nothing:
+    no chain count, and no gene-symbol check, the one that caught West Nile.
+    It read as clear because nothing had looked."""
+    d = tmp_path / "p"
+    _fake_poly(d, "EXTRA_11060", "P29990", genes=False)
+    out = _section0(d, "DENV-2")
+    assert "from EXTRA_11060.json.gz" in out
+    assert "CHAIN features on P29990" in out
+    assert "gene symbols:" in out
+
+
+def test_a_substituted_entry_with_no_symbol_anywhere_still_blocks(tmp_path):
+    """The check must not merely run -- it must reach the same verdict it
+    would for a normal proteome."""
+    import yaml
+
+    import dryrun_promote as dp
+    cfg = yaml.safe_load((ROOT / "config/viruses.yaml").read_text())
+    for e in cfg["surveyed"]:
+        if e["name"] == "DENV-2":
+            e.pop("gene_symbol", None)
+    path = tmp_path / "viruses.yaml"
+    path.write_text(yaml.safe_dump(cfg))
+    dp._CFG_CACHE.clear()
+    d = tmp_path / "p"
+    _fake_poly(d, "EXTRA_11060", "P29990", genes=False)
+    out = _section0_cfg(dp, path, d, "DENV-2")
+    assert "NO GENE SYMBOL ANYWHERE" in out
+    assert "BLOCKED" in out
+
+
+# ------------------- 8. the register, after the 2026-10-23 retirement
+def _flaviviruses():
+    import yaml
+    c = yaml.safe_load((ROOT / "config/viruses.yaml").read_text())
+    return [v for v in c["viruses"] + c["surveyed"]
+            if v.get("family") == "Flaviviridae"]
+
+
+def test_every_flavivirus_on_a_strain_accession_declares_it():
+    """THE DEFECT, SIX TIMES OVER. Seven of nine flavivirus proteome ids
+    returned an empty result set from UniProt on 2026-10-23 -- every one of
+    the TrEMBL-only species placeholders the register itself describes as
+    having "a single protein and zero Chain features". The two that still
+    resolve, Zika's UP000054557 and West Nile's UP000008600, are
+    species-curated Swiss-Prot proteomes.
+
+    DENV-2 was the only one of the seven that declared extra_accessions, so
+    it was the only one whose chains could be reached without the retired
+    file. The other six documented the same gap in prose and never applied
+    the mechanism -- which is what DENV-2's own comment calls "the MERS
+    mechanism, which this entry documented and did not apply".
+
+    Coronaviruses are deliberately out of scope here: SARS-CoV and
+    HCoV-HKU1 also pin strain chain sources and need no extra_accessions,
+    because their species proteomes contain the strain entries.
+    """
+    missing = []
+    for v in _flaviviruses():
+        cs = v.get("chain_source") or {}
+        if cs.get("taxon") in (None, v["taxon"]):
+            continue                      # species-curated, nothing to reach
+        acc = cs["accession"]
+        if acc not in (v.get("extra_accessions") or []):
+            missing.append(f"{v['name']}: chains on {acc} "
+                           f"(strain {cs['taxon']}), extra_accessions="
+                           f"{v.get('extra_accessions')}")
+    assert not missing, missing
+
+
+def test_a_declared_extra_accession_is_the_one_carrying_the_chains():
+    """extra_accessions REPLACES the proteome, so an extra list that does
+    not include chain_source.accession substitutes entries without the
+    chains and builds a virus with none."""
+    for v in _flaviviruses():
+        extras = v.get("extra_accessions") or []
+        if not extras:
+            continue
+        acc = (v.get("chain_source") or {}).get("accession")
+        assert acc in extras, f"{v['name']}: {acc} not in {extras}"
+
+
+def test_a_declared_gene_symbol_names_an_accession_the_entry_uses():
+    """A symbol keyed on an accession the build never loads is dead
+    config that reads as coverage."""
+    for v in _flaviviruses():
+        declared = v.get("gene_symbol") or {}
+        if not declared:
+            continue
+        known = set(v.get("extra_accessions") or [])
+        known.add((v.get("chain_source") or {}).get("accession"))
+        if v["name"] == "Zika":
+            known.add("P0DXN9")       # the uORF isoform, same gene
+        unknown = set(declared) - known
+        assert not unknown, f"{v['name']}: {unknown} not loaded by this entry"
