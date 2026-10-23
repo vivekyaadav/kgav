@@ -43,6 +43,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from kgav.pipeline import LAYERS, layer_dir
+from kgav.temporal import PLACEHOLDER_DATE, edge_year
 
 # A version a source states about itself, read from the path rather than
 # guessed. ChEMBL numbers its releases and puts the number in the directory.
@@ -105,27 +106,40 @@ def acquired(root: Path) -> list[dict]:
     return rows
 
 
-def covered(release: Path) -> tuple[Counter, dict]:
-    """Edge counts by year of first_asserted_date, and by source.
+def covered(release: Path) -> tuple[Counter, dict, dict]:
+    """Edge counts by year, by source, and the distinct dates per source.
 
     Read from the assembled edges rather than from any layer's own report,
     because assembly merges an edge from two sources and keeps the EARLIEST
     date -- so a per-layer count would double-count and date it late.
+
+    UNDATED IS temporal.edge_year's DEFINITION, NOT A SECOND ONE. The first
+    version of this read the year off the string, so the 1970-01-01
+    placeholder -- which src/kgav/temporal.py names PLACEHOLDER_DATE and
+    every ingest writes when it has no date -- appeared as 6,287 edges of
+    1970 evidence, and `undated` read 0 for every source. The repository
+    already decides this question in one place and assemble._earliest
+    already special-cases the same string; a second answer here would be
+    the duplication that comment was written about.
     """
     years: Counter = Counter()
     by_source: dict[str, Counter] = {}
+    dates: dict[str, set] = {}
     path = release / "edges.jsonl"
     with open(path) as fh:
         for line in fh:
             if not line.strip():
                 continue
             e = json.loads(line)
-            d = str(e.get("first_asserted_date") or "")
-            y = d[:4] if len(d) >= 4 and d[:4].isdigit() else "undated"
-            years[y] += 1
+            y = edge_year(e)
+            key = str(y) if y else "undated"
+            years[key] += 1
+            raw = str(e.get("first_asserted_date") or "")
             for src in str(e.get("primary_knowledge_source") or "?").split("|"):
-                by_source.setdefault(src, Counter())[y] += 1
-    return years, by_source
+                by_source.setdefault(src, Counter())[key] += 1
+                if y:
+                    dates.setdefault(src, set()).add(raw)
+    return years, by_source, dates
 
 
 def main(argv=None) -> int:
@@ -160,7 +174,7 @@ def main(argv=None) -> int:
             print(f"no release at {args.release}; "
                   f"run make rebuild for the evidence section")
             return 0 if args.acquired else 2
-        years, by_source = covered(args.release)
+        years, by_source, dates = covered(args.release)
         total = sum(years.values())
         print("COVERED — when the evidence was first asserted")
         print("  from first_asserted_date on the assembled edges. Assembly "
@@ -173,28 +187,62 @@ def main(argv=None) -> int:
         undated = years.get("undated", 0)
         if undated:
             print(f"  {undated:,} edges ({undated / total:.1%}) carry NO "
-                  f"usable date. The temporal split\n  at 2021 decides these "
-                  f"by its --undated policy, not by evidence.")
+                  f"usable date -- {PLACEHOLDER_DATE}, which every ingest "
+                  f"writes when it\n  has none. The temporal split at 2021 "
+                  f"decides these by its --undated policy,\n  not by "
+                  f"evidence.")
         print()
-        width = max((v for k, v in years.items() if k != "undated"),
-                    default=1)
-        for y in named:
-            n = years[y]
-            bar = "#" * max(1, round(40 * n / width))
-            print(f"    {y}  {n:>8,}  {bar}")
+        # A SOURCE THAT STAMPS EVERY EDGE WITH ONE DATE IS NOT DATED.
+        # ingest_host writes string_release_date to all 141,019 STRING
+        # edges and ingest_vhppi defaults all of its own to 2024-01-01 --
+        # the FILE's release date, not when any fact was established.
+        # Drawn in the histogram those make a single year tower over every
+        # real one and read as a discovery burst, so they are separated
+        # out and reported as what they are.
+        # TWO OR MORE DATED EDGES, or there is nothing to observe: one
+        # edge trivially has one date, and calling that a stamp said
+        # chembl stamps its edges on a fixture holding a single chembl row.
+        def _n_dated(src):
+            return sum(v for k, v in by_source[src].items() if k != "undated")
+
+        stamped = {s_: next(iter(d)) for s_, d in dates.items()
+                   if len(d) == 1 and _n_dated(s_) >= 2}
+        stamp_years = {v[:4] for v in stamped.values()}
+        per_edge = {y: n for y, n in years.items()
+                    if y != "undated" and y not in stamp_years}
+        if stamped:
+            print("  NOT DRAWN BELOW -- every dated edge from these sources "
+                  "carries the SAME date.\n  That is typically the file's "
+                  "release date rather than when any fact was\n  "
+                  "established, and in a histogram it towers over every real "
+                  "year:")
+            for s_, d in sorted(stamped.items(), key=lambda kv: kv[1]):
+                n = sum(v for k, v in by_source[s_].items() if k != "undated")
+                print(f"    {s_:<34}{n:>9,}  all dated {d}")
+            print()
+        if per_edge:
+            print("  per-edge dates only")
+            width = max(per_edge.values(), default=1)
+            for y in sorted(per_edge):
+                n = per_edge[y]
+                bar = "#" * max(1, round(40 * n / width))
+                print(f"    {y}  {n:>8,}  {bar}")
         print("\n  by source, earliest dated edge first")
         order = sorted(by_source,
                        key=lambda s: min((y for y in by_source[s]
                                           if y != "undated"), default="9999"))
         print(f"    {'source':<34}{'edges':>9}  {'first':<7}{'last':<7}"
-              f"{'undated':>9}")
+              f"{'undated':>9}  dating")
         for src in order:
             c = by_source[src]
             dated = sorted(y for y in c if y != "undated")
+            kind = ("none" if not dated
+                    else "ONE DATE" if src in stamped
+                    else "per-edge")
             print(f"    {src:<34}{sum(c.values()):>9,}  "
                   f"{(dated[0] if dated else '-'):<7}"
                   f"{(dated[-1] if dated else '-'):<7}"
-                  f"{c.get('undated', 0):>9,}")
+                  f"{c.get('undated', 0):>9,}  {kind}")
     return 0
 
 
