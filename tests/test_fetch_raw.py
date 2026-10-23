@@ -433,3 +433,98 @@ def test_check_flags_a_missing_proteome_for_a_built_virus_only(
         assert pid not in out, (
             f"{pid} belongs to a surveyed virus; a missing proteome there is "
             f"not a problem to report")
+
+
+# ------------------- a failed fetch for a file nothing reads is not a problem
+#
+# UniProt retired the TrEMBL-only flavivirus species proteomes on or before
+# 2026-10-23. Six entries then fetched their EXTRA file correctly and their
+# proteome not at all -- the intended outcome, because extra_accessions
+# REPLACE the proteome in ingest_spine. The run printed:
+#
+#     6 problem(s)
+#     Nothing was written for a refused file.
+#
+# after writing six files correctly. It reported a working ingest as broken,
+# and used one word, "problem", for a refusal (contents disagree with the
+# register -- distrust the source) and an empty result (the file is gone,
+# and for these entries irrelevant).
+
+def _gone(url):
+    raise RuntimeError("'results' is empty -- the query matched nothing")
+
+
+def test_a_retired_proteome_is_not_a_problem_when_extras_replace_it(
+        register, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(fr, "PROTEOMES", tmp_path)
+    d = _virus(register, "DENV-2")
+    problems = fr.fetch_virus(
+        d, force=True, dry_run=False,
+        fetch=lambda url: DENV2_EXTRA if "accession" in url else _gone(url))
+    assert problems == 0, "the only file ingest_spine reads was written"
+    assert (tmp_path / "EXTRA_11060.json.gz").exists()
+    assert not (tmp_path / "UP000095876.json.gz").exists()
+
+
+def test_the_virus_is_reported_ready_not_left_on_a_failure_line(
+        register, tmp_path, monkeypatch, capsys):
+    """A FAILED line as the last word on a virus that is in fact ready is
+    what sent the reader looking for a broken ingest."""
+    monkeypatch.setattr(fr, "PROTEOMES", tmp_path)
+    d = _virus(register, "DENV-2")
+    fr.fetch_virus(d, force=True, dry_run=False,
+                   fetch=lambda url: DENV2_EXTRA if "accession" in url
+                   else _gone(url))
+    out = capsys.readouterr().out
+    assert "DENV-2 is READY" in out
+    assert "extra_accessions" in out
+
+
+def test_both_files_failing_is_still_a_problem(register, tmp_path,
+                                               monkeypatch, capsys):
+    """The replacement has to actually arrive. Not counting the proteome
+    must not mean counting nothing."""
+    monkeypatch.setattr(fr, "PROTEOMES", tmp_path)
+    d = _virus(register, "DENV-2")
+    problems = fr.fetch_virus(d, force=True, dry_run=False, fetch=_gone)
+    assert problems == 1, "the EXTRA failure is the real one"
+    out = capsys.readouterr().out
+    assert "DENV-2 is NOT ready" in out
+
+
+def test_a_virus_with_no_substitute_still_reports_its_failure(
+        register, tmp_path, monkeypatch):
+    """West Nile declares no extra_accessions, so nothing replaces its
+    proteome and a failed fetch is exactly as serious as before."""
+    monkeypatch.setattr(fr, "PROTEOMES", tmp_path)
+    w = _virus(register, "West Nile")
+    assert fr.fetch_virus(w, force=True, dry_run=False, fetch=_gone) == 1
+
+
+def test_a_refused_file_is_still_counted_for_a_substituted_entry(
+        register, tmp_path, monkeypatch, capsys):
+    """REFUSED means the contents disagree with the register. That is a
+    reason to distrust the source whatever else the entry has, and must not
+    be swept up by the leniency for a replaced proteome."""
+    monkeypatch.setattr(fr, "PROTEOMES", tmp_path)
+    d = _virus(register, "DENV-2")
+    bad_extra = _body([_entry("P29990", [])])        # zero chains
+    problems = fr.fetch_virus(
+        d, force=True, dry_run=False,
+        fetch=lambda url: bad_extra if "accession" in url else _gone(url))
+    assert problems >= 1
+    out = capsys.readouterr().out
+    assert "REFUSED" in out
+    assert not (tmp_path / "EXTRA_11060.json.gz").exists()
+
+
+def test_the_summary_separates_refused_from_failed():
+    """Two causes had one word. REFUSED means the contents disagree with
+    the register, which is a reason to distrust the source; FAILED means
+    the query returned nothing, which for a replaced proteome is expected.
+    Asserted against the source because main() reaches the network."""
+    src = (ROOT / "scripts" / "fetch_raw.py").read_text()
+    assert "A REFUSED file is one whose contents disagree" in src
+    assert "because that file is never read" in src
+    assert '"Nothing was written for a refused file. A proteome that "' \
+        not in src, "the old conflated sentence is gone"
