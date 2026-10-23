@@ -92,12 +92,20 @@ def census(g: Graph) -> dict:
             has_inhibits.add(node)
     both = has_targets & has_inhibits
     neither = molecules - has_targets - has_inhibits
+    # A PARTITION, and `both` is NOT a part of it. The first version
+    # returned four counts that read as four buckets; on v0.1 they summed
+    # to 21,714 against 21,667 molecules, because the 47 compounds with
+    # both edge kinds are already inside `analysable`. The test asserted
+    # the four summed and passed, because the fixture had no compound with
+    # both -- the defect was in the fixture, not only in the arithmetic.
     return {
         "molecules": len(molecules),
         "analysable": len(has_targets),
         "inhibits_only": len(has_inhibits - has_targets),
         "both": len(both),
         "neither": len(neither),
+        "parts_sum": len(has_targets) + len(has_inhibits - has_targets)
+        + len(neither),
         "target_edges": sum(len(g.out.get((TARGETS, m), ())) for m in has_targets),
         "directed_edges": directed,
     }
@@ -114,6 +122,19 @@ def drug_targets(g: Graph) -> set[str]:
             if g.klass(nbr) == "Protein":
                 out.add(nbr)
     return out
+
+
+def human_proteins(g: Graph) -> set[str]:
+    """Proteins that could in principle be drugged or be a host factor.
+
+    The first version sampled the null from EVERY Protein node, viral ones
+    included. A viral protein can never be a human drug target nor a host
+    dependency factor, so each one added to a degree bin is a guaranteed
+    miss that lowers the matched expectation and flatters the observed
+    overlap. The universe is the human proteome.
+    """
+    return {n for n in g.nodes
+            if g.klass(n) == "Protein" and not g.is_viral(n)}
 
 
 def dependency_factors(g: Graph, virus: str) -> set[str]:
@@ -235,7 +256,11 @@ def main(argv=None) -> int:
           f"analysable set")
     print(f"    {c['inhibits_only']:8,}  carry INHIBITS only, no human target")
     print(f"    {c['neither']:8,}  carry neither")
-    print(f"    {c['both']:8,}  carry both")
+    print(f"    {'':8}  ---")
+    print(f"    {c['parts_sum']:8,}  those three partition the population")
+    print(f"    {c['both']:8,}  of the analysable set ALSO carry INHIBITS "
+          f"(a subset, not a fourth part)")
+    assert c["parts_sum"] == c["molecules"], "the census must partition"
     share = c["analysable"] / c["molecules"] if c["molecules"] else 0
     print(f"\n    The landscape covers {share:.1%} of the molecules. The rest")
     print("    have no human target in this graph, so they have no pathway to")
@@ -246,7 +271,7 @@ def main(argv=None) -> int:
     print("    a dependency factor is NOT a claim that the drug would help.\n")
 
     targets = drug_targets(g)
-    universe = {n for n in g.nodes if g.klass(n) == "Protein"}
+    universe = human_proteins(g)
     members = pathway_members(g, schema.retrieval_limits.get(
         "max_pathway_members"))
     in_pathways = {p for ms in members.values() for p in ms}
@@ -264,9 +289,11 @@ def main(argv=None) -> int:
     print(f"    {'virus':<18} {'dep':>6} {'drugged':>8} {'exp':>7} "
           f"{'ratio':>6} {'p naive':>9} {'p matched':>10}")
     any_virus = False
+    uncovered = []
     for virus in viruses:
         deps = dependency_factors(g, virus)
         if not deps:
+            uncovered.append(virus)
             continue
         any_virus = True
         hit = targets & deps
@@ -290,6 +317,19 @@ def main(argv=None) -> int:
         print("    is no overlap to measure. That is the finding, not an")
         print("    empty table.")
         return 1
+
+    # A VIRUS THAT DROPS OUT OF THE TABLE IS A SCOPE LIMIT, NOT A BLANK.
+    # The first version skipped these silently, so a reader counted five
+    # rows against eight taxa and had nothing to tell them why.
+    if uncovered:
+        print()
+        print(f"    {len(uncovered)} of {len(viruses)} taxa have NO dependency "
+              f"factor at all and are absent above:")
+        for v in uncovered:
+            print(f"      {v}")
+        print("    The CRISPR layer does not cover them, so the landscape")
+        print("    has nothing to say about those taxa. That is a scope")
+        print("    limit of the source and belongs in the paper's methods.")
 
     print()
     print("  'exp' is how many dependency factors a DEGREE-MATCHED random")

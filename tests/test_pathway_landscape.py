@@ -55,6 +55,11 @@ def _release(tmp_path: Path, n_drugged=6, n_undrugged=10, n_deps=4) -> Path:
         c = f"INCHIKEY:I{i}"
         nodes.append({"id": c, "class": "SmallMolecule", "properties": {}})
         edges.append((c, "INHIBITS", "UniProtKB:VIRAL", {}))
+    # A COMPOUND WITH BOTH. The first fixture had none, so the census test
+    # asserted that four counts summed to the population and passed; on
+    # v0.1, where 47 compounds carry both, they summed to 21,714 against
+    # 21,667. The fixture is what let that through.
+    edges.append(("INCHIKEY:T0", "INHIBITS", "UniProtKB:VIRAL", {}))
     for i in range(5):
         nodes.append({"id": f"INCHIKEY:N{i}", "class": "SmallMolecule",
                       "properties": {}})
@@ -73,19 +78,27 @@ def _graph(rel: Path):
 
 
 # ----------------------------------------------------------------- census
-def test_the_census_accounts_for_every_molecule(tmp_path):
-    """THE FIRST LINE OF THE PAPER. 21,667 molecules exist; only those with
-    a human target can be placed in a pathway. A census whose parts did not
-    sum would let the analysable minority be reported as the whole."""
+def test_the_census_partitions_the_population(tmp_path):
+    """THE FIRST LINE OF THE PAPER, and it was wrong. `both` is a SUBSET of
+    the analysable set, not a fourth bucket: the three parts partition, and
+    adding `both` over-counts. On v0.1 that printed 21,714 against 21,667
+    molecules."""
     g = _graph(_release(tmp_path))
     c = L.census(g)
     assert c["molecules"] == 6 + 3 + 5
-    assert c["analysable"] == 6
+    assert c["analysable"] == 6          # includes the one with both
     assert c["inhibits_only"] == 3
     assert c["neither"] == 5
-    assert c["both"] == 0
+    assert c["both"] == 1
+    assert c["parts_sum"] == c["molecules"]
     assert c["analysable"] + c["inhibits_only"] + c["neither"] + c["both"] \
-        == c["molecules"]
+        != c["molecules"], "the four must NOT sum; that was the bug"
+
+
+def test_both_is_inside_the_analysable_set(tmp_path):
+    g = _graph(_release(tmp_path))
+    c = L.census(g)
+    assert c["both"] <= c["analysable"]
 
 
 def test_the_census_counts_edges_that_state_a_direction(tmp_path):
@@ -229,3 +242,54 @@ def test_it_states_what_it_cannot_say(tmp_path, capsys):
 def test_a_missing_release_exits_two(tmp_path, capsys):
     assert L.main(["--release", str(tmp_path / "nope")]) == 2
     assert "no release at" in capsys.readouterr().out
+
+
+# --------------------------------- defects found on the first v0.1 run
+def test_the_null_universe_excludes_viral_proteins(tmp_path):
+    """A viral protein can never be a human drug target nor a host
+    dependency factor, so every one left in a degree bin is a guaranteed
+    miss that lowers the matched expectation and flatters the observed
+    overlap. The first version sampled from every Protein node."""
+    g = _graph(_release(tmp_path))
+    universe = L.human_proteins(g)
+    assert "UniProtKB:VIRAL" not in universe
+    assert all(not g.is_viral(n) for n in universe)
+    every_protein = {n for n in g.nodes if g.klass(n) == "Protein"}
+    assert universe < every_protein, "the fixture must contain a viral one"
+
+
+def test_a_taxon_with_no_dependency_factors_is_named_not_dropped(
+        tmp_path, capsys):
+    """Three of eight taxa dropped out of the v0.1 table in silence, so a
+    reader counted five rows against eight and had nothing to tell them
+    why. The CRISPR layer's coverage is a scope limit for the paper."""
+    rel = _release(tmp_path)
+    nodes = [json.loads(l) for l in
+             (rel / "nodes.jsonl").read_text().splitlines()]
+    nodes.append({"id": "NCBITaxon:64320", "class": "OrganismTaxon",
+                  "properties": {}})
+    (rel / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
+    L.main(["--release", str(rel), "--permutations", "50"])
+    out = capsys.readouterr().out
+    assert "NCBITaxon:64320" in out
+    assert "NO dependency" in out
+    assert "scope" in out
+
+
+def test_the_census_assertion_fires_if_the_parts_stop_partitioning(tmp_path):
+    """The printed census carries its own check. If a future edge kind
+    breaks the partition, the run must stop rather than print numbers that
+    do not add up."""
+    src = (ROOT / "scripts" / "pathway_landscape.py").read_text()
+    assert 'assert c["parts_sum"] == c["molecules"]' in src
+
+
+def test_main_actually_uses_the_human_only_universe():
+    """A test on the helper alone is decorative: reverting the call site
+    back to every Protein node left all 21 tests green. The caller is what
+    decides which universe the null samples from."""
+    src = (ROOT / "scripts" / "pathway_landscape.py").read_text()
+    body = src.split('def main(', 1)[1]
+    assert "universe = human_proteins(g)" in body
+    assert 'g.klass(n) == "Protein"' not in body, \
+        "main is building its own universe again, viral proteins included"
