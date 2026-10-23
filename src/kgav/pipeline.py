@@ -112,23 +112,46 @@ def availability(layer: Layer, root: Path,
     return True, ""
 
 
+def layer_dir(root: Path, name: str) -> Path:
+    """Where assemble_release looks for this layer's output."""
+    return root / "data" / "releases" / f"v0.1-{name}"
+
+
 def plan(root: Path, env: dict | None = None) -> list[dict]:
     """The steps a rebuild would run, in order, each with its verdict.
 
     Returned rather than printed so the caller decides what to do with a
     skip, and so a test can read the order without parsing output.
+
+    `existing` IS THE THIRD STATE, and leaving it out made this module's own
+    report wrong on the day it shipped. assemble_release builds its layer set
+    as `{k: v for k, v in declared.items() if v.exists()}` -- whatever
+    directory is on disk, regardless of whether the ingest ran this time. So
+    a skipped layer whose directory already exists is NOT absent from the
+    release; it is REUSED, carried over from whenever it was last written.
+
+    That is the more dangerous of the two skips. An absent layer makes a
+    metapath reach nothing, which at least shows up as a zero. A reused one
+    produces plausible numbers from a graph that no longer matches the
+    register -- promote a virus, skip the orcs ingest, and the new taxon is
+    built with no host factors while every count reads correctly.
     """
     steps: list[dict] = []
     for phase in (1, 3):
         for layer in (x for x in LAYERS if x.phase == phase):
             ok, why = availability(layer, root, env)
+            d = layer_dir(root, layer.name)
             steps.append({"kind": "layer", "name": layer.name,
                           "script": layer.script, "phase": phase,
                           "run": ok, "reason": why,
-                          "required": layer.required})
+                          "required": layer.required,
+                          "existing": d.exists(),
+                          "written": (d.stat().st_mtime if d.exists()
+                                      else None)})
         steps.append({"kind": "assemble", "name": "assemble",
                       "script": ASSEMBLE, "phase": phase + 1,
-                      "run": True, "reason": "", "required": True})
+                      "run": True, "reason": "", "required": True,
+                      "existing": False, "written": None})
     return steps
 
 

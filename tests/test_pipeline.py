@@ -191,3 +191,85 @@ def test_the_plan_flag_runs_nothing(tmp_path, monkeypatch):
     (tmp_path / "data/raw/host/x").write_bytes(b"")
     assert mod.main(["--root", str(tmp_path), "--plan"]) == 0
     assert called == []
+
+
+# ------------------------------------- the third state: reused, not absent
+#
+# assemble_release builds its layer set as
+#   layers = {k: v for k, v in declared.items() if v.exists()}
+# so a skipped INGEST whose directory is already on disk does not drop the
+# layer -- it carries the old one forward. The first version of this module
+# reported every skip as "absent from the release", which was wrong for
+# exactly the case that matters most.
+
+def _ready(root: Path) -> None:
+    """Minimum for the driver to agree to start."""
+    (root / "data/raw/proteomes").mkdir(parents=True, exist_ok=True)
+    (root / "data/raw/host").mkdir(parents=True, exist_ok=True)
+    (root / "data/raw/proteomes/UP1.json.gz").write_bytes(b"")
+    (root / "data/raw/host/x").write_bytes(b"")
+
+
+def test_a_skipped_layer_with_a_directory_on_disk_is_reused(tmp_path):
+    _ready(tmp_path)
+    (tmp_path / "data/releases/v0.1-orcs").mkdir(parents=True)
+    step = next(s for s in plan(tmp_path, env={}) if s["name"] == "orcs")
+    assert not step["run"]
+    assert step["existing"] is True
+    assert step["written"] is not None
+
+
+def test_a_skipped_layer_with_no_directory_is_absent(tmp_path):
+    _ready(tmp_path)
+    step = next(s for s in plan(tmp_path, env={}) if s["name"] == "orcs")
+    assert not step["run"] and step["existing"] is False
+
+
+def test_the_report_separates_reuse_from_absence(tmp_path, capsys):
+    """THE CORRECTION. One of these produces a zero you can see; the other
+    produces plausible numbers from a stale graph."""
+    from importlib import import_module
+    _ready(tmp_path)
+    (tmp_path / "data/releases/v0.1-orcs").mkdir(parents=True)
+    mod = import_module("rebuild_release")
+    assert mod.main(["--root", str(tmp_path), "--plan"]) == 0
+    out = capsys.readouterr().out
+    assert "REUSE      orcs" in out
+    assert "REUSED, not rebuilt: orcs" in out
+    assert "absent     vhppi" in out
+    assert "orcs" not in out.split("ABSENT from the release")[1].split("\n")[0]
+
+
+def test_the_report_no_longer_calls_every_skip_absent(tmp_path, capsys):
+    from importlib import import_module
+    _ready(tmp_path)
+    (tmp_path / "data/releases/v0.1-orcs").mkdir(parents=True)
+    mod = import_module("rebuild_release")
+    mod.main(["--root", str(tmp_path), "--plan"])
+    out = capsys.readouterr().out
+    assert "Skipped layers are absent from the release" not in out
+
+
+def test_the_reuse_warning_names_the_register_as_the_risk(tmp_path, capsys):
+    """Promote a virus, skip the orcs ingest, and the new taxon is built
+    with no host factors while every count reads correctly. That is the
+    failure the warning exists for, so it says it."""
+    from importlib import import_module
+    _ready(tmp_path)
+    (tmp_path / "data/releases/v0.1-orcs").mkdir(parents=True)
+    mod = import_module("rebuild_release")
+    mod.main(["--root", str(tmp_path), "--plan"])
+    out = capsys.readouterr().out
+    assert "config/viruses.yaml" in out
+    assert "will look complete anyway" in out
+
+
+def test_layer_dir_matches_what_assemble_reads():
+    """Derived from assemble_release rather than restated, so a change to
+    its naming fails here instead of making every reuse check a no-op."""
+    from kgav.pipeline import layer_dir
+    src = (ROOT / "scripts" / "assemble_release.py").read_text()
+    assert 'f"v0.1-{name}"' in src, (
+        "assemble_release no longer names layer directories this way; "
+        "layer_dir is now checking for something that never exists")
+    assert layer_dir(Path("/r"), "orcs") == Path("/r/data/releases/v0.1-orcs")
