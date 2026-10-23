@@ -96,19 +96,36 @@ const edges: Edge[] = [
 // release has 8 since Zika), Protein 20,759 (20,775), Gene 19,181 (19,182)
 // and Compound 12,821 against 21,667, low by 41%.
 //
-// tests/test_web_counts.py now reads this array and compares it to
-// MANIFEST.json, so the next drift fails the suite instead of being read as
-// a real figure. That test is the reason these may be typed by hand at all.
+// AND AGAIN on 2026-10-23, when the remaining eight flaviviruses were
+// promoted: Virus 8 against 16, Protein 20,775 (20,888), Gene 19,182
+// (19,190), Compound 21,667 (25,383). Three drifts now. These are hand-typed
+// because the page is a static prototype with no build step that reads the
+// release; the test below is what makes that tolerable.
 //
-// Disease (3 nodes) is deliberately not a filter here, so these five sum to
-// 74,868 against a release of 74,871. The three are the gap.
+// tests/test_web_counts.py reads this array and compares it to
+// MANIFEST.json, so a drift fails the suite instead of being read as a real
+// figure. That test is the reason these may be typed by hand at all.
+//
+// WHAT IS NOT SHOWN, and the arithmetic that says so. The previous version
+// of this comment claimed "Disease (3 nodes) is deliberately not a filter
+// here, so these five sum to 74,868 against a release of 74,871. The three
+// are the gap." The sum was right and the rest was not: that release held
+// 74,935 nodes, so the gap was 67 -- Disease 3 AND TargetClass 64, which the
+// comment did not mention. A stated reconciliation that does not reconcile
+// is worse than none, because it reads as having been checked.
+//
+// Today: these five sum to 78,713 against a release of 78,782. The gap is
+// 69 = Disease 3 + TargetClass 66. Neither is a filter because neither is a
+// layer a user would browse by. test_the_filters_account_for_every_node
+// checks that sum against the manifest, so a node class added later cannot
+// go silently unshown.
 const RELEASE = "v0.1";
 const filters: { label: NodeType; count: number }[] = [
-  { label: "Virus", count: 8 },
-  { label: "Protein", count: 20_775 },
-  { label: "Gene", count: 19_182 },
+  { label: "Virus", count: 16 },
+  { label: "Protein", count: 20_888 },
+  { label: "Gene", count: 19_190 },
   { label: "Pathway", count: 13_236 },
-  { label: "Compound", count: 21_667 },
+  { label: "Compound", count: 25_383 },
 ];
 
 function AppButton({ children, active = false, onClick }: { children: React.ReactNode; active?: boolean; onClick?: () => void }) {
