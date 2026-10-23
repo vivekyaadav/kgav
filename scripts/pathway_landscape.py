@@ -209,7 +209,13 @@ def degree_bins(g: Graph, universe: set[str], bins: int = DEGREE_BINS
     equal-width bins would put almost everything in the first one and match
     nothing.
     """
-    ordered = sorted(universe, key=lambda n: g.degree.get(n, 0))
+    # THE NODE ID IS PART OF THE KEY, not decoration. Degree is heavily
+    # tied -- thousands of proteins share a low degree -- and sorting on
+    # degree alone leaves ties in whatever order the SET yielded, which
+    # python varies between processes through string hash randomisation.
+    # Three runs of this script on one release and one seed returned
+    # SARS-CoV-2 expectations of 353.3, 352.6 and 352.4.
+    ordered = sorted(universe, key=lambda n: (g.degree.get(n, 0), n))
     out = {}
     n = len(ordered)
     for i, node in enumerate(ordered):
@@ -226,14 +232,23 @@ def matched_null(observed: set[str], universe: set[str],
     has in that bin. So the null set looks like the drug-target set in
     study volume and differs only in which proteins it picked.
     """
+    # SORTED, for the same reason degree_bins sorts: rng.sample draws by
+    # position, so a pool in set order makes the seed stop determining the
+    # draw. A figure in a paper has to come back the same on a rerun.
     by_bin: dict[int, list[str]] = defaultdict(list)
-    for node in universe:
+    for node in sorted(universe):
         by_bin[bins[node]].append(node)
     want = Counter(bins[n] for n in observed if n in bins)
+    # SORTED AGAIN, and this one is the subtlest of the three. A Counter
+    # iterates in INSERTION order, and it was built by walking `observed`,
+    # which is a set -- so the bins came out in a different sequence per
+    # process, rng.sample was called in a different order, and the draws
+    # differed even after the pools themselves were sorted.
+    wanted = sorted(want.items())
     out = []
     for _ in range(draws):
         total = 0
-        for b, k in want.items():
+        for b, k in wanted:
             pool = by_bin[b]
             if k >= len(pool):
                 total += sum(1 for p in pool if p in hits)

@@ -9,6 +9,7 @@ killed the scoring is the same one that inflates a naive enrichment.
 from __future__ import annotations
 
 import json
+import os
 import random
 import sys
 from importlib import import_module
@@ -337,3 +338,49 @@ def test_the_coverage_table_flags_a_taxon_nothing_screened(tmp_path, capsys):
     assert "HOST-FACTOR COVERAGE" in out
     assert "NO screen reached this taxon" in out
     assert "restriction hits only has data" in out
+
+
+# ------------------------------------------------- reproducibility
+def test_the_same_seed_gives_the_same_answer_across_processes():
+    """THE DEFECT THREE v0.1 RUNS EXPOSED. One release, one seed, and
+    SARS-CoV-2's matched expectation came back 353.3, then 352.6, then
+    352.4. Degree is heavily tied, so sorting on degree alone left ties in
+    SET order, and the pools rng.sample draws from were built by iterating
+    a set -- both vary between processes through string hash
+    randomisation.
+
+    A figure in a paper has to come back the same on a rerun, so this runs
+    the computation under three different PYTHONHASHSEEDs and requires one
+    answer. An in-process test cannot catch this: set order is stable
+    within a process, which is exactly why it survived twenty-two tests.
+    """
+    import subprocess
+    prog = (
+        "import sys; sys.path.insert(0, 'scripts');"
+        "import random;"
+        "from pathway_landscape import degree_bins, matched_null;"
+        "deg = {'P' + str(i): (i % 5) for i in range(60)};"
+        "G = type('G', (), {'degree': deg});"
+        "u = {'P' + str(i) for i in range(60)};"
+        "b = degree_bins(G(), u, bins=4);"
+        "print(matched_null({'P1','P7','P13','P22'}, u, b,"
+        " {'P2','P9','P21','P33'}, 8, random.Random(0)))"
+    )
+    out = set()
+    for hashseed in ("0", "1", "2", "12345"):
+        env = {**os.environ, "PYTHONHASHSEED": hashseed}
+        r = subprocess.run([sys.executable, "-c", prog], cwd=str(ROOT),
+                           capture_output=True, text=True, env=env)
+        assert r.returncode == 0, r.stderr
+        out.add(r.stdout.strip())
+    assert len(out) == 1, f"seed 0 gave {len(out)} different answers: {out}"
+
+
+def test_degree_bins_breaks_ties_on_the_node_id():
+    """Thousands of proteins share a low degree. Without the id in the
+    key, which bin a tied protein lands in is set order."""
+    src = (ROOT / "scripts" / "pathway_landscape.py").read_text()
+    assert "key=lambda n: (g.degree.get(n, 0), n)" in src
+    assert "for node in sorted(universe)" in src
+    assert "wanted = sorted(want.items())" in src, \
+        "a Counter iterates in insertion order; it must be sorted too"
