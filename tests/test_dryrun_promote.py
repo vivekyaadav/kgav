@@ -21,6 +21,46 @@ sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "src"))
 
 
+# ---------------------------------------------------------------- fixtures
+#
+# THESE BUILD THEIR OWN REGISTER. They used to promote DENV-2 and West Nile
+# straight out of config/viruses.yaml, which worked only while those two sat
+# in `surveyed:`. The 2026-10-23 promotion emptied that section and every one
+# of them errored -- not because dryrun_promote changed, but because a test
+# that knows which section a virus lives in asserts the register's shape as a
+# side effect of asserting something else. test_virus_register.py carries the
+# same warning about the same mistake.
+#
+# So the subject is a register these tests construct: the named viruses moved
+# back into `surveyed:`, everything else untouched. What is under test is the
+# dry run's behaviour on a promotable entry, which is true wherever the real
+# register happens to have put it today.
+def _as_surveyed(cfg: dict, *names: str) -> dict:
+    import copy
+    cfg = copy.deepcopy(cfg)
+    moving = [v for v in cfg["viruses"] if v["name"] in names]
+    assert len(moving) == len(names), (
+        f"not in viruses:: {set(names) - {v['name'] for v in moving}}")
+    cfg["viruses"] = [v for v in cfg["viruses"] if v["name"] not in names]
+    cfg["surveyed"] = (cfg.get("surveyed") or []) + moving
+    return cfg
+
+
+def _register(tmp: Path, *names: str, edit=None) -> Path:
+    """config/viruses.yaml with `names` moved back to `surveyed:`."""
+    import yaml
+    cfg = _as_surveyed(
+        yaml.safe_load((ROOT / "config/viruses.yaml").read_text()), *names)
+    if edit is not None:
+        edit(cfg)
+    tmp.mkdir(parents=True, exist_ok=True)
+    path = tmp / "viruses.yaml"
+    path.write_text(yaml.safe_dump(cfg))
+    import dryrun_promote as dp
+    dp._CFG_CACHE.clear()
+    return path
+
+
 @pytest.fixture(scope="module")
 def report(tmp_path_factory) -> str:
     """The full dry-run text for promoting DENV-2 and West Nile."""
@@ -28,7 +68,10 @@ def report(tmp_path_factory) -> str:
     from contextlib import redirect_stdout
 
     mod = import_module("dryrun_promote")
+    tmp = tmp_path_factory.mktemp("reg")
+    cfg = _register(tmp, "DENV-2", "West Nile")
     argv = ["dryrun_promote.py", "--promote", "DENV-2", "West Nile",
+            "--config", str(cfg),
             "--proteomes", str(tmp_path_factory.mktemp("none"))]
     buf = io.StringIO()
     old = sys.argv
@@ -124,7 +167,7 @@ def test_the_m8_note_reads_the_layer_listing_instead_of_asserting_it(report):
     assert "the only thing keeping M8 empty" not in report
 
 
-def test_the_m8_note_would_still_report_a_real_blocker(monkeypatch):
+def test_the_m8_note_would_still_report_a_real_blocker(monkeypatch, tmp_path):
     """The fix must not have turned the warning off, only made it read the
     listing. Removing folds must bring the original sentence back."""
     import io
@@ -133,9 +176,11 @@ def test_the_m8_note_would_still_report_a_real_blocker(monkeypatch):
     import dryrun_promote as dp
     monkeypatch.setattr(dp, "LAYER_PRECEDENCE",
                         [x for x in dp.LAYER_PRECEDENCE if x != "folds"])
+    cfg = _register(tmp_path / "_r", "DENV-2")
     buf = io.StringIO()
     old = sys.argv
-    sys.argv = ["dryrun_promote.py", "--promote", "DENV-2"]
+    sys.argv = ["dryrun_promote.py", "--promote", "DENV-2",
+                "--config", str(cfg)]
     try:
         with redirect_stdout(buf):
             dp.main()
@@ -152,10 +197,11 @@ def _section0(proteomes: Path, *promote: str) -> str:
     from contextlib import redirect_stdout
 
     mod = import_module("dryrun_promote")
+    cfg = _register(proteomes.parent / "_reg", *promote)
     buf = io.StringIO()
     old = sys.argv
     sys.argv = ["dryrun_promote.py", "--promote", *promote,
-                "--proteomes", str(proteomes)]
+                "--config", str(cfg), "--proteomes", str(proteomes)]
     try:
         with redirect_stdout(buf):
             mod.main()
@@ -246,17 +292,13 @@ def test_a_missing_gene_symbol_is_not_described_as_a_missing_proteome(
     validated -- 13 chains on P06935, printed two lines above -- and the
     report then said "ingest_spine would record proteome_missing". The
     cause was stated correctly and contradicted in the same section."""
-    import yaml
-
     import dryrun_promote as dp
 
-    cfg = yaml.safe_load((ROOT / "config/viruses.yaml").read_text())
-    for e in cfg["surveyed"]:
-        if e["name"] == "West Nile":
-            e.pop("gene_symbol", None)          # the state before the fix
-    path = tmp_path / "viruses.yaml"
-    path.write_text(yaml.safe_dump(cfg))
-    dp._CFG_CACHE.clear()
+    def _strip(cfg):
+        for e in cfg["surveyed"]:
+            if e["name"] == "West Nile":
+                e.pop("gene_symbol", None)
+    path = _register(tmp_path / "_r", "West Nile", edit=_strip)
 
     d = tmp_path / "p"
     _fake_poly(d, "UP000008600", "P06935", genes=False)
@@ -270,17 +312,13 @@ def test_a_block_no_download_fixes_offers_no_download(tmp_path):
     """It printed a fetch command for every virus being promoted whenever
     anything was blocked, so a missing gene symbol got a command that would
     re-download a file already correct."""
-    import yaml
-
     import dryrun_promote as dp
 
-    cfg = yaml.safe_load((ROOT / "config/viruses.yaml").read_text())
-    for e in cfg["surveyed"]:
-        if e["name"] == "West Nile":
-            e.pop("gene_symbol", None)
-    path = tmp_path / "viruses.yaml"
-    path.write_text(yaml.safe_dump(cfg))
-    dp._CFG_CACHE.clear()
+    def _strip(cfg):
+        for e in cfg["surveyed"]:
+            if e["name"] == "West Nile":
+                e.pop("gene_symbol", None)
+    path = _register(tmp_path / "_r", "West Nile", edit=_strip)
 
     d = tmp_path / "p"
     _fake_poly(d, "UP000008600", "P06935", genes=False)
@@ -357,16 +395,13 @@ def test_a_substituted_entry_is_inspected_not_skipped(tmp_path):
 def test_a_substituted_entry_with_no_symbol_anywhere_still_blocks(tmp_path):
     """The check must not merely run -- it must reach the same verdict it
     would for a normal proteome."""
-    import yaml
-
     import dryrun_promote as dp
-    cfg = yaml.safe_load((ROOT / "config/viruses.yaml").read_text())
-    for e in cfg["surveyed"]:
-        if e["name"] == "DENV-2":
-            e.pop("gene_symbol", None)
-    path = tmp_path / "viruses.yaml"
-    path.write_text(yaml.safe_dump(cfg))
-    dp._CFG_CACHE.clear()
+
+    def _strip(cfg):
+        for e in cfg["surveyed"]:
+            if e["name"] == "DENV-2":
+                e.pop("gene_symbol", None)
+    path = _register(tmp_path / "_r", "DENV-2", edit=_strip)
     d = tmp_path / "p"
     _fake_poly(d, "EXTRA_11060", "P29990", genes=False)
     out = _section0_cfg(dp, path, d, "DENV-2")

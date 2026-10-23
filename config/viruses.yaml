@@ -350,198 +350,6 @@ viruses:
     mondo: null
     mondo_source: null
 
-  # ------------------------------------------------------------------------
-  # DENV-2 AND ZIKA WERE PROMOTED HERE ON 2026-10-11 AND MOVED BACK THE SAME
-  # DAY. The measurements that drove both decisions are kept with the entries
-  # in `surveyed:` below, because they are the evidence for the next attempt.
-  #
-  # The promotion was argued from "DENV-2: top PMID holds 1% of dated rows
-  # across 135 publications", which is computed over all 8,748 activity rows.
-  # 7,227 of those are cellular or organism-level and never reach a chain.
-  # Measured over the 1,483 that M1 traverses, 1,013 are one PubChem
-  # capping-enzyme campaign carrying no pubmed_id -- so
-  # --publication-disjoint, the control that moved cross-sectional M1 from
-  # 0.660 to 0.499, cannot withhold 68% of DENV-2's evidence. The same
-  # measurement on the coronaviruses reads 4.7%, which is why row 4 of
-  # docs/evaluation.md stands and DENV-2 would not have.
-  #
-  # It was also not buildable: ingest_spine reads a local proteome cache and
-  # neither file was present, so both viruses built an OrganismTaxon with
-  # zero proteins, ingest_chembl then emitted 1,881 DANGLING edges and
-  # refused to write, and assemble_release still produced a release --
-  # invalidating every results file in exchange for two orphan nodes.
-  # dryrun_promote.py Section 0 now refuses that before it happens.
-  # ------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# SURVEYED, NOT BUILT. Measured 2026-09-17; no ingest reads this list yet.
-# ingest_spine.py reads `viruses:` only, so nothing here changes the v1 build.
-# An entry graduates by being moved into `viruses:` above.
-#
-# WHY THIS SECTION IS HERE RATHER THAN IN A NOTE. Six of these seven are
-# curated under a strain taxon -- West Nile is the exception -- and the
-# species taxon returns a TrEMBL proteome with ONE protein and no Chain
-# features. That is the MERS trap at six times the scale. Recording the
-# strain taxa now, validated by the same rule as the coronaviruses, is what
-# stops the next build rediscovering it.
-#
-# It was nine entries, seven strain-curated, until DENV-2 and Zika were
-# promoted on 2026-10-11. These counts are maintained by hand and the test
-# test_surveyed_viruses_are_not_built does not check them, so they are worth
-# distrusting if they disagree with the list below.
-#
-# Every chain_source below was verified against UniProt on the date shown:
-# reviewed entry, PRO_ chain ids present, start/end coordinates present.
-# ---------------------------------------------------------------------------
-surveyed:
-  # ===================================================================
-  # THE 2026-10-23 PROTEOME RETIREMENT
-  # ===================================================================
-  # fetch_raw returned the same failure for seven of the nine flavivirus
-  # proteome ids on 2026-10-23:
-  #
-  #     FAILED: 'results' is empty -- the query matched nothing
-  #
-  # UP000095813 (DENV-1), UP000095814 (DENV-3), UP000096325 (DENV-4),
-  # UP000095876 (DENV-2), UP000095892 (JEV), UP000097551 (Yellow fever),
-  # UP000096153 (TBEV).
-  #
-  # Two still resolve: Zika's UP000054557 and West Nile's UP000008600.
-  # Those two are the SPECIES-CURATED Swiss-Prot proteomes -- the ones
-  # whose chain_source.taxon equals the species taxon and which need no
-  # isolate mapping. Every id that failed is one of the TrEMBL-only
-  # species placeholders this file already describes, in six separate
-  # entries, as having "a single protein and zero Chain features". The
-  # split is exact, so this is a batch retirement at UniProt rather than
-  # seven unrelated accidents.
-  #
-  # WHY IT ONLY BLOCKED SIX OF THE SEVEN. ingest_spine reads
-  # EXTRA_<species taxon>.json.gz when the entry declares
-  # extra_accessions, and those curated entries REPLACE the proteome.
-  # DENV-2 declared them, so its chains survive the retirement. The other
-  # six documented the identical situation in prose -- "the mature
-  # peptides are curated under strain N" -- and never declared anything,
-  # which is what DENV-2's own comment calls "THE MERS MECHANISM, WHICH
-  # THIS ENTRY DOCUMENTED AND DID NOT APPLY". Six more entries had the
-  # same gap and the same comment.
-  #
-  # Each now declares extra_accessions holding the accession its
-  # chain_source already names and verified. proteome_id is kept rather
-  # than deleted: it records what used to supply these and makes the
-  # retirement legible if a later UniProt release restores it.
-  #
-  # NOT ESTABLISHED: why UniProt dropped them -- retired, renumbered, or
-  # merged. Guessing a replacement id into this file would be the
-  # assumption the extra_accessions mechanism removes the need for.
-  #
-  # Coronaviruses are untouched. SARS-CoV and HCoV-HKU1 also pin strain
-  # chain sources and need no extra_accessions, because their species
-  # proteomes contain the strain entries.
-  # ===================================================================
-  # MEASURED 2026-10-11. Zika was promoted out of here on 2026-10-12 and its
-  # entry now sits in `viruses:` above. DENV-2 stays, and the figures below
-  # are why the order was Zika first -- note that DENV-2 is NOT next on
-  # volume: the attribution table further down shows its advantage is parity.
-  #
-  #           protein rows  distinct PMIDs  no PMID       top assay
-  #   Zika             355              18      0  (0%)     104 (29%)
-  #   DENV-2         1,483              32  1,013 (68%)   1,013 (68%)
-  #
-  # Only the `protein` rows reach a chain. DENV-2's 1,013 are one PubChem
-  # capping-enzyme campaign (CHEMBL1794550) with no pubmed_id, and
-  # --publication-disjoint can never withhold an edge that has no PMID to
-  # share -- so DENV-2 would post a better-looking M1 than SARS-CoV-2 by
-  # having nothing to be disjoint from. Zika's rows all carry PMIDs and its
-  # top assay is 29%, so the control can act on all of them.
-  #
-  # GATE 1 -- THE FILES. Now a command rather than a note:
-  #
-  #   python scripts/fetch_raw.py --virus Zika
-  #   python scripts/fetch_raw.py --virus DENV-2
-  #
-  # Re-read from rest.uniprot.org on 2026-10-11, and both claims below held:
-  #
-  #   Zika    UP000054557 returns 2 entries -- Q32ZE1 and P0DXN9 -- and
-  #           Q32ZE1 carries 13 CHAIN features with exact positions. One file
-  #           is enough, and chain_source's count is correct.
-  #   DENV-2  UP000095876 AND EXTRA_11060.json.gz. P29990 carries 13 CHAIN
-  #           features, is filed under strain 31634, and has NO proteome
-  #           cross-reference of any kind, so no proteome download produces
-  #           it; extra_accessions below is the MERS mechanism for that.
-  #           fetch_raw REFUSES to write the proteome alone and says so.
-  #
-  # Both chain_source counts still read 13, matching `verified: 2026-09-17` a
-  # month later -- and fetch_raw now checks that on every fetch, so the date
-  # is a tested claim rather than a remembered one.
-  #
-  # GATE 2 -- THE NAMES, and it is one decision, not nine. chembl.NSP_PATTERNS
-  # and ingest_spine._nsp_number name coronavirus proteins. Measured against
-  # the real chain labels, which are IDENTICAL on Q32ZE1 and P29990 -- UniProt
-  # annotates the family from one controlled vocabulary, so a single rule
-  # covers all nine flaviviruses here and there is no per-virus curation:
-  #
-  #   11 of 13 chains      protein_family = None, so chembl.py:113 skips them
-  #   NS5                  -> nsp12 on BOTH sides, right by accident
-  #   NS1                  -> nsp1, a different protein in another family
-  #
-  # CLOSED 2026-10-11. chain_family() on the spine side and FLAVI_PATTERNS on
-  # the activity side now name each family's own proteins, kept apart because
-  # folds.py refuses to equate a cysteine protease with a serine one. Measured
-  # on the real ChEMBL database, rows reaching the chain lookup that resolve
-  # to a chain the spine emits:
-  #
-  #                  before      after
-  #   DENV-2       4  (0.3%)   1,471 (99.2%)
-  #   Zika         9  (2.5%)     349 (98.3%)
-  #   West Nile    0  (0.0%)     183 (99.5%)
-  #
-  # NS2B-NS3, the most-studied flavivirus drug target, was unreachable before
-  # and is 315 of Zika's 355 rows. Nothing about the current release changed:
-  # these viruses are surveyed, and ingest_spine reads `viruses:` only.
-  #
-  # ATTRIBUTION, MEASURED 2026-10-11. A row's taxon comes from ChEMBL
-  # target_dictionary.tax_id and the description gets no vote, so what the
-  # description names was counted separately. Of the rows on the protein path:
-  #
-  #                      names its own virus   generic   other sp.
-  #   Zika        355         355 (100.0%)           0          0
-  #   West Nile   184         184 (100.0%)           0          0
-  #   DENV-2    1,483         392  (26.4%)       1,045         46
-  #
-  # DENV-2's 392 READS 340 IN THE FIRST RUN OF THAT SCRIPT. The difference is
-  # a regex gap of mine, not a change in the data: 52 rows landed in a
-  # "names no virus" bucket while saying "Dengue serotype-2", "dengue 2" and
-  # "dengue2 virus", shapes the original pattern could not match because it
-  # required "virus" between "dengue" and the digit. It surfaced only because
-  # the bucket's text got printed beside its count. All 52 carry a pubmed_id.
-  #
-  # The wrong-species worry turned out SMALL: 46 rows, 3.1%, all on "Genome
-  # polyprotein" targets (CHEMBL5980, CHEMBL3559678), so coarse target
-  # curation rather than misfiling. Five sampled strings had suggested
-  # something much larger and did not support it.
-  #
-  # WHAT IS TRUE AFTER BOTH CORRECTIONS. 1,045 of DENV-2's rows (70.5%) name
-  # no species -- overwhelmingly the PubChem capping-enzyme screen, which is
-  # also the 1,013 rows with no pubmed_id, so unattributable and unwithholdable
-  # are the same rows. DENV-2's usable share is 392 against Zika's 355: its
-  # raw 4.2x row advantage collapses to 1.1x, which is parity, NOT a deficit.
-  # An earlier version of this note said 340 and "FEWER than Zika's"; that was
-  # wrong in DENV-2's favour and is corrected here.
-  #
-  # SO THE ORDER STANDS ON HANDLING, NOT VOLUME. Zika first because it needs
-  # one proteome file, its chain_source is species-level, 100% of its rows
-  # name it, and none must be excluded. DENV-2 needs UP000095876 AND
-  # EXTRA_11060 (P29990 has no proteome cross-reference at all), its
-  # chain_source is strain 31634, and 74% of its substrate has to be set aside
-  # -- the same amount of usable evidence for several times the handling.
-  # West Nile is the better second: 184 rows, 100% named, 0% PMID-less, one
-  # species-level proteome.
-  # scripts/diagnose_serotype_attribution.py reproduces all of this.
-  #
-  # ORCS is ready: orcs.VIRUS_PATTERNS now matches dengue serotype 2, Zika,
-  # West Nile and yellow fever, and 7 of the 11 flavivirus screens pass
-  # is_virus_resistance_screen. VirHostNet has no flavivirus files downloaded.
-  # ------------------------------------------------------------------------
   - taxon: "11060"
     name: DENV-2
     family: Flaviviridae
@@ -832,3 +640,203 @@ provenance:
   taxonomy_source: "infores:ncbi-taxonomy"
   disease_source: "infores:mondo"
   evidence_tier: 1
+
+
+  # ------------------------------------------------------------------------
+  # DENV-2 AND ZIKA WERE PROMOTED HERE ON 2026-10-11 AND MOVED BACK THE SAME
+  # DAY. The measurements that drove both decisions are kept with the entries
+  # in `surveyed:` below, because they are the evidence for the next attempt.
+  #
+  # The promotion was argued from "DENV-2: top PMID holds 1% of dated rows
+  # across 135 publications", which is computed over all 8,748 activity rows.
+  # 7,227 of those are cellular or organism-level and never reach a chain.
+  # Measured over the 1,483 that M1 traverses, 1,013 are one PubChem
+  # capping-enzyme campaign carrying no pubmed_id -- so
+  # --publication-disjoint, the control that moved cross-sectional M1 from
+  # 0.660 to 0.499, cannot withhold 68% of DENV-2's evidence. The same
+  # measurement on the coronaviruses reads 4.7%, which is why row 4 of
+  # docs/evaluation.md stands and DENV-2 would not have.
+  #
+  # It was also not buildable: ingest_spine reads a local proteome cache and
+  # neither file was present, so both viruses built an OrganismTaxon with
+  # zero proteins, ingest_chembl then emitted 1,881 DANGLING edges and
+  # refused to write, and assemble_release still produced a release --
+  # invalidating every results file in exchange for two orphan nodes.
+  # dryrun_promote.py Section 0 now refuses that before it happens.
+  # ------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# SURVEYED, NOT BUILT. Measured 2026-09-17; no ingest reads this list yet.
+# ingest_spine.py reads `viruses:` only, so nothing here changes the v1 build.
+# An entry graduates by being moved into `viruses:` above.
+#
+# WHY THIS SECTION IS HERE RATHER THAN IN A NOTE. Six of these seven are
+# curated under a strain taxon -- West Nile is the exception -- and the
+# species taxon returns a TrEMBL proteome with ONE protein and no Chain
+# features. That is the MERS trap at six times the scale. Recording the
+# strain taxa now, validated by the same rule as the coronaviruses, is what
+# stops the next build rediscovering it.
+#
+# It was nine entries, seven strain-curated, until DENV-2 and Zika were
+# promoted on 2026-10-11. These counts are maintained by hand and the test
+# test_surveyed_viruses_are_not_built does not check them, so they are worth
+# distrusting if they disagree with the list below.
+#
+# Every chain_source below was verified against UniProt on the date shown:
+# reviewed entry, PRO_ chain ids present, start/end coordinates present.
+# ---------------------------------------------------------------------------
+surveyed: []
+  # EMPTY SINCE 2026-10-23. All eight entries were promoted into `viruses:`
+  # above and moved there verbatim, with the measurements and curation notes
+  # that justified each one. The section is kept rather than deleted because
+  # the next virus considered goes here first, and because
+  # test_surveyed_viruses_are_not_built indexes this key directly -- a bare
+  # `surveyed:` parses as None, not as an empty list, and would break it.
+  # ===================================================================
+  # THE 2026-10-23 PROTEOME RETIREMENT
+  # ===================================================================
+  # fetch_raw returned the same failure for seven of the nine flavivirus
+  # proteome ids on 2026-10-23:
+  #
+  #     FAILED: 'results' is empty -- the query matched nothing
+  #
+  # UP000095813 (DENV-1), UP000095814 (DENV-3), UP000096325 (DENV-4),
+  # UP000095876 (DENV-2), UP000095892 (JEV), UP000097551 (Yellow fever),
+  # UP000096153 (TBEV).
+  #
+  # Two still resolve: Zika's UP000054557 and West Nile's UP000008600.
+  # Those two are the SPECIES-CURATED Swiss-Prot proteomes -- the ones
+  # whose chain_source.taxon equals the species taxon and which need no
+  # isolate mapping. Every id that failed is one of the TrEMBL-only
+  # species placeholders this file already describes, in six separate
+  # entries, as having "a single protein and zero Chain features". The
+  # split is exact, so this is a batch retirement at UniProt rather than
+  # seven unrelated accidents.
+  #
+  # WHY IT ONLY BLOCKED SIX OF THE SEVEN. ingest_spine reads
+  # EXTRA_<species taxon>.json.gz when the entry declares
+  # extra_accessions, and those curated entries REPLACE the proteome.
+  # DENV-2 declared them, so its chains survive the retirement. The other
+  # six documented the identical situation in prose -- "the mature
+  # peptides are curated under strain N" -- and never declared anything,
+  # which is what DENV-2's own comment calls "THE MERS MECHANISM, WHICH
+  # THIS ENTRY DOCUMENTED AND DID NOT APPLY". Six more entries had the
+  # same gap and the same comment.
+  #
+  # Each now declares extra_accessions holding the accession its
+  # chain_source already names and verified. proteome_id is kept rather
+  # than deleted: it records what used to supply these and makes the
+  # retirement legible if a later UniProt release restores it.
+  #
+  # NOT ESTABLISHED: why UniProt dropped them -- retired, renumbered, or
+  # merged. Guessing a replacement id into this file would be the
+  # assumption the extra_accessions mechanism removes the need for.
+  #
+  # Coronaviruses are untouched. SARS-CoV and HCoV-HKU1 also pin strain
+  # chain sources and need no extra_accessions, because their species
+  # proteomes contain the strain entries.
+  # ===================================================================
+  # MEASURED 2026-10-11. Zika was promoted out of here on 2026-10-12 and its
+  # entry now sits in `viruses:` above. DENV-2 stays, and the figures below
+  # are why the order was Zika first -- note that DENV-2 is NOT next on
+  # volume: the attribution table further down shows its advantage is parity.
+  #
+  #           protein rows  distinct PMIDs  no PMID       top assay
+  #   Zika             355              18      0  (0%)     104 (29%)
+  #   DENV-2         1,483              32  1,013 (68%)   1,013 (68%)
+  #
+  # Only the `protein` rows reach a chain. DENV-2's 1,013 are one PubChem
+  # capping-enzyme campaign (CHEMBL1794550) with no pubmed_id, and
+  # --publication-disjoint can never withhold an edge that has no PMID to
+  # share -- so DENV-2 would post a better-looking M1 than SARS-CoV-2 by
+  # having nothing to be disjoint from. Zika's rows all carry PMIDs and its
+  # top assay is 29%, so the control can act on all of them.
+  #
+  # GATE 1 -- THE FILES. Now a command rather than a note:
+  #
+  #   python scripts/fetch_raw.py --virus Zika
+  #   python scripts/fetch_raw.py --virus DENV-2
+  #
+  # Re-read from rest.uniprot.org on 2026-10-11, and both claims below held:
+  #
+  #   Zika    UP000054557 returns 2 entries -- Q32ZE1 and P0DXN9 -- and
+  #           Q32ZE1 carries 13 CHAIN features with exact positions. One file
+  #           is enough, and chain_source's count is correct.
+  #   DENV-2  UP000095876 AND EXTRA_11060.json.gz. P29990 carries 13 CHAIN
+  #           features, is filed under strain 31634, and has NO proteome
+  #           cross-reference of any kind, so no proteome download produces
+  #           it; extra_accessions below is the MERS mechanism for that.
+  #           fetch_raw REFUSES to write the proteome alone and says so.
+  #
+  # Both chain_source counts still read 13, matching `verified: 2026-09-17` a
+  # month later -- and fetch_raw now checks that on every fetch, so the date
+  # is a tested claim rather than a remembered one.
+  #
+  # GATE 2 -- THE NAMES, and it is one decision, not nine. chembl.NSP_PATTERNS
+  # and ingest_spine._nsp_number name coronavirus proteins. Measured against
+  # the real chain labels, which are IDENTICAL on Q32ZE1 and P29990 -- UniProt
+  # annotates the family from one controlled vocabulary, so a single rule
+  # covers all nine flaviviruses here and there is no per-virus curation:
+  #
+  #   11 of 13 chains      protein_family = None, so chembl.py:113 skips them
+  #   NS5                  -> nsp12 on BOTH sides, right by accident
+  #   NS1                  -> nsp1, a different protein in another family
+  #
+  # CLOSED 2026-10-11. chain_family() on the spine side and FLAVI_PATTERNS on
+  # the activity side now name each family's own proteins, kept apart because
+  # folds.py refuses to equate a cysteine protease with a serine one. Measured
+  # on the real ChEMBL database, rows reaching the chain lookup that resolve
+  # to a chain the spine emits:
+  #
+  #                  before      after
+  #   DENV-2       4  (0.3%)   1,471 (99.2%)
+  #   Zika         9  (2.5%)     349 (98.3%)
+  #   West Nile    0  (0.0%)     183 (99.5%)
+  #
+  # NS2B-NS3, the most-studied flavivirus drug target, was unreachable before
+  # and is 315 of Zika's 355 rows. Nothing about the current release changed:
+  # these viruses are surveyed, and ingest_spine reads `viruses:` only.
+  #
+  # ATTRIBUTION, MEASURED 2026-10-11. A row's taxon comes from ChEMBL
+  # target_dictionary.tax_id and the description gets no vote, so what the
+  # description names was counted separately. Of the rows on the protein path:
+  #
+  #                      names its own virus   generic   other sp.
+  #   Zika        355         355 (100.0%)           0          0
+  #   West Nile   184         184 (100.0%)           0          0
+  #   DENV-2    1,483         392  (26.4%)       1,045         46
+  #
+  # DENV-2's 392 READS 340 IN THE FIRST RUN OF THAT SCRIPT. The difference is
+  # a regex gap of mine, not a change in the data: 52 rows landed in a
+  # "names no virus" bucket while saying "Dengue serotype-2", "dengue 2" and
+  # "dengue2 virus", shapes the original pattern could not match because it
+  # required "virus" between "dengue" and the digit. It surfaced only because
+  # the bucket's text got printed beside its count. All 52 carry a pubmed_id.
+  #
+  # The wrong-species worry turned out SMALL: 46 rows, 3.1%, all on "Genome
+  # polyprotein" targets (CHEMBL5980, CHEMBL3559678), so coarse target
+  # curation rather than misfiling. Five sampled strings had suggested
+  # something much larger and did not support it.
+  #
+  # WHAT IS TRUE AFTER BOTH CORRECTIONS. 1,045 of DENV-2's rows (70.5%) name
+  # no species -- overwhelmingly the PubChem capping-enzyme screen, which is
+  # also the 1,013 rows with no pubmed_id, so unattributable and unwithholdable
+  # are the same rows. DENV-2's usable share is 392 against Zika's 355: its
+  # raw 4.2x row advantage collapses to 1.1x, which is parity, NOT a deficit.
+  # An earlier version of this note said 340 and "FEWER than Zika's"; that was
+  # wrong in DENV-2's favour and is corrected here.
+  #
+  # SO THE ORDER STANDS ON HANDLING, NOT VOLUME. Zika first because it needs
+  # one proteome file, its chain_source is species-level, 100% of its rows
+  # name it, and none must be excluded. DENV-2 needs UP000095876 AND
+  # EXTRA_11060 (P29990 has no proteome cross-reference at all), its
+  # chain_source is strain 31634, and 74% of its substrate has to be set aside
+  # -- the same amount of usable evidence for several times the handling.
+  # West Nile is the better second: 184 rows, 100% named, 0% PMID-less, one
+  # species-level proteome.
+  # scripts/diagnose_serotype_attribution.py reproduces all of this.
+  #
+  # ORCS is ready: orcs.VIRUS_PATTERNS now matches dengue serotype 2, Zika,
+  # West Nile and yellow fever, and 7 of the 11 flavivirus screens pass
+  # is_virus_resistance_screen. VirHostNet has no flavivirus files downloaded.
+  # ------------------------------------------------------------------------
