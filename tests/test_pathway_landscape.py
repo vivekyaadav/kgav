@@ -293,3 +293,47 @@ def test_main_actually_uses_the_human_only_universe():
     assert "universe = human_proteins(g)" in body
     assert 'g.klass(n) == "Protein"' not in body, \
         "main is building its own universe again, viral proteins included"
+
+
+def test_coverage_separates_no_screen_from_restriction_only(tmp_path):
+    """THE DISTINCTION THE v0.1 RUN COULD NOT MAKE. Three taxa dropped out
+    of the overlap table and the report said only that they had no
+    dependency factor. A taxon nothing screened and a taxon whose every hit
+    was a restriction factor look identical from there, and they call for
+    completely different work."""
+    g = _graph(_release(tmp_path, n_deps=2))
+    cov = L.host_factor_coverage(g)
+    c = cov["NCBITaxon:2697049"]
+    assert c["dependency"] == 2
+    assert c["restriction"] == 1
+    assert "NCBITaxon:64320" not in cov, "a taxon with no screen is absent"
+
+
+def test_an_unstated_direction_is_counted_not_dropped(tmp_path):
+    """A HOST_FACTOR_FOR edge with no direction is neither a dependency nor
+    a restriction claim, and silently discarding it would make the totals
+    disagree with the graph."""
+    rel = _release(tmp_path)
+    edges = [json.loads(l) for l in
+             (rel / "edges.jsonl").read_text().splitlines()]
+    edges.append({"subject": "UniProtKB:H9", "predicate": "HOST_FACTOR_FOR",
+                  "object": "NCBITaxon:2697049", "qualifiers": {},
+                  "primary_knowledge_source": "infores:biogrid-orcs",
+                  "evidence_tier": 1, "first_asserted_date": "2021-01-01"})
+    (rel / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in edges))
+    cov = L.host_factor_coverage(_graph(rel))
+    assert cov["NCBITaxon:2697049"]["unstated"] == 1
+
+
+def test_the_coverage_table_flags_a_taxon_nothing_screened(tmp_path, capsys):
+    rel = _release(tmp_path)
+    nodes = [json.loads(l) for l in
+             (rel / "nodes.jsonl").read_text().splitlines()]
+    nodes.append({"id": "NCBITaxon:11060", "class": "OrganismTaxon",
+                  "properties": {}})
+    (rel / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
+    L.main(["--release", str(rel), "--permutations", "50"])
+    out = capsys.readouterr().out
+    assert "HOST-FACTOR COVERAGE" in out
+    assert "NO screen reached this taxon" in out
+    assert "restriction hits only has data" in out

@@ -156,6 +156,31 @@ def dependency_factors(g: Graph, virus: str) -> set[str]:
     return out
 
 
+def host_factor_coverage(g: Graph) -> dict[str, Counter]:
+    """{taxon: Counter of HOST_FACTOR_FOR directions}.
+
+    WHY THIS IS PRINTED RATHER THAN INFERRED. The overlap table drops a
+    taxon with no DEPENDENCY factor, and on v0.1 three dropped: HCoV-HKU1,
+    SARS-CoV and Zika. "No dependency factor" has at least two causes that
+    look identical from outside -- no screen ever reached the taxon, or
+    screens reached it and every hit was a RESTRICTION factor, which is the
+    opposite claim. Those call for completely different work, so the report
+    separates them instead of leaving the reader to guess.
+
+    Zika in particular is matched by src/kgav/orcs.py's VIRUS_PATTERNS,
+    added 2026-10-11, so a zero there is a finding about the build rather
+    than about the virus.
+    """
+    out: dict[str, Counter] = defaultdict(Counter)
+    for (pred, node), edges in g.out.items():
+        if pred != HOST_FACTOR_FOR:
+            continue
+        for nbr, e in edges:
+            d = (e.get("qualifiers") or {}).get("direction") or "unstated"
+            out[nbr][d] += 1
+    return dict(out)
+
+
 def pathway_members(g: Graph, cap: int | None) -> dict[str, set[str]]:
     """{pathway: proteins in it}, dropping pathways over the schema's cap.
 
@@ -284,6 +309,22 @@ def main(argv=None) -> int:
 
     viruses = [args.virus] if args.virus else sorted(
         n for n in g.nodes if g.klass(n) == "OrganismTaxon")
+
+    cov = host_factor_coverage(g)
+    kinds = sorted({k for c in cov.values() for k in c} | {DEPENDENCY})
+    print("  HOST-FACTOR COVERAGE, per taxon")
+    print(f"    {'taxon':<18} " + " ".join(f"{k:>12}" for k in kinds)
+          + f" {'total':>7}")
+    for v in viruses:
+        c = cov.get(v, Counter())
+        total = sum(c.values())
+        flag = "" if total else "   <- NO screen reached this taxon"
+        print(f"    {v:<18} " + " ".join(f"{c.get(k, 0):12,}" for k in kinds)
+              + f" {total:7,}{flag}")
+    print("    A taxon absent from the overlap table below has no DEPENDENCY")
+    print("    factor. That is not the same as having no screen: a taxon with")
+    print("    restriction hits only has data and the opposite finding, and")
+    print("    the two need different work.\n")
     print("  OVERLAP WITH DEPENDENCY FACTORS, naive against degree-matched")
     print(f"  {args.permutations:,} permutations, seed {args.seed}\n")
     print(f"    {'virus':<18} {'dep':>6} {'drugged':>8} {'exp':>7} "
