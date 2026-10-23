@@ -206,20 +206,27 @@ def main() -> int:
         pid = e.get("proteome_id")
         pfile = args.proteomes / f"{pid}.json.gz"
         ok = pfile.exists()
-        if not ok:
-            blocked.append(e["name"])
-        print(f"  {'ok ' if ok else 'ABSENT':<7} {e['name']:<14} "
-              f"{pid}.json.gz")
         cs = e.get("chain_source") or {}
         acc = cs.get("accession")
         extras = e.get("extra_accessions") or []
 
         # THE EXTRA FILE, WHEN THE REGISTER DECLARES ONE. ingest_spine reads
         # EXTRA_<species taxon>.json.gz and its curated entries REPLACE the
-        # proteome -- but the pfile.exists() guard returns early first, so
-        # both files are required.
+        # proteome. It used to return early on a missing proteome file before
+        # reaching the EXTRA one, so both were required -- and this section
+        # reported BLOCKED on that basis. ingest_spine now consults the
+        # curated accessions first, so a declared-and-present EXTRA file
+        # stands on its own and the proteome becomes optional for that entry.
+        xfile = args.proteomes / f"EXTRA_{e['taxon']}.json.gz"
+        substitutes = bool(extras) and xfile.exists()
+        if not ok and not substitutes:
+            blocked.append(e["name"])
+        state = "ok " if ok else ("n/a" if substitutes else "ABSENT")
+        print(f"  {state:<7} {e['name']:<14} {pid}.json.gz"
+              + ("   not read: the curated accessions below replace it"
+                 if substitutes and not ok else ""))
+
         if extras:
-            xfile = args.proteomes / f"EXTRA_{e['taxon']}.json.gz"
             xok = xfile.exists()
             if not xok:
                 blocked.append(e["name"])
@@ -322,7 +329,11 @@ def main() -> int:
               "cannot reach ingest_spine. `make check-raw`\n  re-validates "
               "what is already on disk without network.")
     else:
-        print("\n  every promoted virus has its proteome cached")
+        # NOT "has its proteome cached". An entry whose curated accessions
+        # replace the proteome clears this section without that file, and
+        # saying otherwise would send someone looking for a download that
+        # the build does not read.
+        print("\n  every promoted virus has what ingest_spine reads")
 
     other = []
     unavailable: set[str] = set()

@@ -144,3 +144,75 @@ def test_the_m8_note_would_still_report_a_real_blocker(monkeypatch):
     out = buf.getvalue()
     if "FAMILIES IN THE BUILD" in out:
         assert "the only thing keeping M8 empty" in out
+
+
+# ----------------------------- 4. a precondition that read the wrong thing
+def _section0(proteomes: Path, *promote: str) -> str:
+    import io
+    from contextlib import redirect_stdout
+
+    mod = import_module("dryrun_promote")
+    buf = io.StringIO()
+    old = sys.argv
+    sys.argv = ["dryrun_promote.py", "--promote", *promote,
+                "--proteomes", str(proteomes)]
+    try:
+        with redirect_stdout(buf):
+            mod.main()
+    finally:
+        sys.argv = old
+    out = buf.getvalue()
+    return out[out.index("0. PRECONDITIONS"):out.index("WHICH CHANNELS")]
+
+
+def _fake(d: Path, stem: str, acc: str) -> None:
+    import gzip
+    import json
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{stem}.json.gz").write_bytes(gzip.compress(json.dumps(
+        {"results": [{"primaryAccession": acc,
+                      "entryType": "UniProtKB reviewed (Swiss-Prot)",
+                      "proteinDescription": {"recommendedName": {
+                          "fullName": {"value": "Genome polyprotein"}}},
+                      "genes": [{"geneName": {"value": "POLY"}}],
+                      "sequence": {"value": "MNNQ"},
+                      "entryAudit": {"firstPublicDate": "2008-01-01"},
+                      "features": []}]}).encode()))
+
+
+def test_a_substituted_proteome_no_longer_blocks(tmp_path):
+    """DENV-2's UP000095876 returned nothing from UniProt on 2026-10-23
+    while West Nile's UP000008600 returned its entry the same minute. The
+    register says the file's contents are replaced by EXTRA_11060, so
+    requiring it blocked the promotion on a download nothing reads."""
+    d = tmp_path / "p"
+    _fake(d, "EXTRA_11060", "P29990")
+    out = _section0(d, "DENV-2")
+    assert "BLOCKED" not in out
+    assert "n/a" in out
+    assert "the curated accessions below replace it" in out
+
+
+def test_a_missing_proteome_with_no_substitute_still_blocks(tmp_path):
+    """West Nile declares no extra_accessions, so nothing replaces its
+    proteome and the precondition must still fire."""
+    out = _section0(tmp_path / "empty", "West Nile")
+    assert "BLOCKED" in out
+    assert "ABSENT" in out
+
+
+def test_a_missing_extra_file_still_blocks(tmp_path):
+    """DENV-2 with neither file: the substitute is declared but absent."""
+    out = _section0(tmp_path / "empty", "DENV-2")
+    assert "BLOCKED" in out
+
+
+def test_the_clear_message_does_not_claim_a_proteome_is_cached(tmp_path):
+    """It said "every promoted virus has its proteome cached", which is
+    false for an entry that clears without one -- and would send someone
+    looking for a download the build does not read."""
+    d = tmp_path / "p"
+    _fake(d, "EXTRA_11060", "P29990")
+    out = _section0(d, "DENV-2")
+    assert "has what ingest_spine reads" in out
+    assert "has its proteome cached" not in out

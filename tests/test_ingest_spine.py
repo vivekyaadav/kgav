@@ -11,8 +11,9 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
-from ingest_spine import build
+from ingest_spine import build, ingest_virus
 
+from kgav.emit import Emit
 from kgav.schema import load_schema
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -556,3 +557,150 @@ def test_no_script_defines_its_own_emit():
             if isinstance(n, ast.ClassDef) and n.name == "Emit":
                 offenders.append(str(p.relative_to(root)))
     assert not offenders, f"Emit redefined outside src/kgav/emit.py: {offenders}"
+
+
+# ------------------------------- the proteome guard checked the wrong thing
+#
+# DENV-2's register entry says in as many words that "UP000095876.json.gz must
+# still exist, because the pfile.exists() guard returns early before the EXTRA
+# file is consulted" -- and then the substitution line throws its contents
+# away. On 2026-10-23 UniProt returned an empty result set for UP000095876,
+# while an identically formed query for West Nile's UP000008600 returned its
+# entry the same minute, so DENV-2 became unbuildable: blocked on a file
+# nothing reads.
+
+def _entry(acc, name="Genome polyprotein", chains=2, gene="POLY"):
+    return {"primaryAccession": acc,
+            "entryType": "UniProtKB reviewed (Swiss-Prot)",
+            "proteinDescription": {"recommendedName": {"fullName":
+                                                       {"value": name}}},
+            "genes": [{"geneName": {"value": gene}}],
+            "sequence": {"value": "MNNQRKKARN"},
+            "entryAudit": {"firstPublicDate": "2008-01-01"},
+            "features": [_chain(f"PRO_900000{i}", f"Protein NS{i+1}", 1 + i * 60)
+                         for i in range(chains)]}
+
+
+def _write(d: Path, stem: str, entries: list) -> None:
+    (d / f"{stem}.json.gz").write_bytes(
+        gzip.compress(json.dumps({"results": entries}).encode()))
+
+
+@pytest.fixture
+def curated_cfg():
+    return {"taxon": "11060", "name": "DENV-2", "family": "Flaviviridae",
+            "full_name": "Dengue virus type 2",
+            "proteome_id": "UP000095876",
+            "extra_accessions": ["P29990"],
+            "isolate_taxa": ["31634"]}
+
+
+# The real blocks, read from config/viruses.yaml rather than invented, so a
+# field added there fails here instead of being quietly absent.
+_CFG = yaml.safe_load(CONFIG.read_text())
+DEFAULTS = _CFG["defaults"]
+PROV = _CFG["provenance"]
+
+
+def _run(cfg, d):
+    em = Emit()
+    ingest_virus(em, cfg, DEFAULTS, PROV, d)
+    return em
+
+
+def test_curated_accessions_build_the_virus_without_the_proteome(
+        curated_cfg, tmp_path):
+    """THE FIX. The proteome file is absent and unobtainable; the curated
+    accessions are present and are what the build actually consumes."""
+    d = tmp_path / "p"
+    d.mkdir()
+    _write(d, "EXTRA_11060", [_entry("P29990")])
+    em = _run(curated_cfg, d)
+    assert em.notes["proteome_missing:DENV-2"] == 0
+    assert em.notes["curated_accessions_substituted:DENV-2"] == 1
+    assert em.notes["proteome_absent_curated_only:DENV-2"] == 1
+    assert any(n["id"] == "UniProtKB:P29990" for n in em.nodes.values())
+
+
+def test_the_absence_is_recorded_not_silent(curated_cfg, tmp_path):
+    """Building from a substitute is a different provenance from building
+    from the declared proteome, and the run must be able to say so."""
+    d = tmp_path / "p"
+    d.mkdir()
+    _write(d, "EXTRA_11060", [_entry("P29990")])
+    em = _run(curated_cfg, d)
+    assert em.notes["proteome_absent_curated_only:DENV-2"] == 1
+
+
+def test_a_present_proteome_does_not_raise_the_absent_note(curated_cfg,
+                                                           tmp_path):
+    d = tmp_path / "p"
+    d.mkdir()
+    _write(d, "UP000095876", [_entry("A0A000", chains=0)])
+    _write(d, "EXTRA_11060", [_entry("P29990")])
+    em = _run(curated_cfg, d)
+    assert em.notes["curated_accessions_substituted:DENV-2"] == 1
+    assert em.notes["proteome_absent_curated_only:DENV-2"] == 0
+
+
+def test_curated_entries_still_replace_the_proteome(curated_cfg, tmp_path):
+    """Unchanged behaviour: substitution, not augmentation. The TrEMBL and
+    Swiss-Prot copies of one protein have different accessions, so merging
+    would leave both."""
+    d = tmp_path / "p"
+    d.mkdir()
+    _write(d, "UP000095876", [_entry("A0A000", name="Polyprotein (TrEMBL)")])
+    _write(d, "EXTRA_11060", [_entry("P29990")])
+    em = _run(curated_cfg, d)
+    accs = {n["id"] for n in em.nodes.values() if n["id"].startswith("UniProtKB:")}
+    assert "UniProtKB:P29990" in accs
+    assert "UniProtKB:A0A000" not in accs
+
+
+def test_neither_file_is_still_proteome_missing(curated_cfg, tmp_path):
+    """The guard must not have been loosened into never firing."""
+    d = tmp_path / "p"
+    d.mkdir()
+    em = _run(curated_cfg, d)
+    assert em.notes["proteome_missing:DENV-2"] == 1
+    assert not [n for n in em.nodes.values()
+                if n["id"].startswith("UniProtKB:")]
+
+
+def test_an_extra_file_holding_none_of_the_pinned_accessions(curated_cfg,
+                                                             tmp_path):
+    """A LATENT BUG THIS EXPOSED. With the proteome present and EXTRA holding
+    no pinned accession, the old code set entries = [] and built the virus
+    with zero proteins out of two files that were both there."""
+    d = tmp_path / "p"
+    d.mkdir()
+    _write(d, "UP000095876", [_entry("A0A000")])
+    _write(d, "EXTRA_11060", [_entry("Q99999")])      # not P29990
+    em = _run(curated_cfg, d)
+    assert em.notes["curated_accessions_absent:DENV-2"] == 1
+    accs = {n["id"] for n in em.nodes.values() if n["id"].startswith("UniProtKB:")}
+    assert "UniProtKB:A0A000" in accs, "falls back to the proteome, not to nothing"
+
+
+def test_no_proteome_and_an_unmatched_extra_is_missing_not_empty(curated_cfg,
+                                                                 tmp_path):
+    d = tmp_path / "p"
+    d.mkdir()
+    _write(d, "EXTRA_11060", [_entry("Q99999")])
+    em = _run(curated_cfg, d)
+    assert em.notes["curated_accessions_absent:DENV-2"] == 1
+    assert em.notes["proteome_missing:DENV-2"] == 1
+
+
+def test_a_virus_with_no_extra_accessions_is_unaffected(tmp_path):
+    """West Nile declares none and must behave exactly as before."""
+    cfg = {"taxon": "11082", "name": "West Nile", "family": "Flaviviridae",
+           "full_name": "West Nile virus", "proteome_id": "UP000008600"}
+    d = tmp_path / "p"
+    d.mkdir()
+    em = _run(cfg, d)
+    assert em.notes["proteome_missing:West Nile"] == 1
+    _write(d, "UP000008600", [_entry("P06935")])
+    em2 = _run(cfg, d)
+    assert em2.notes["proteome_missing:West Nile"] == 0
+    assert em2.notes["curated_accessions_substituted:West Nile"] == 0
