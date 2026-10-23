@@ -196,3 +196,84 @@ def test_an_empty_directory_is_not_an_error(tmp_path, capsys):
     D = import_module("ingest_curated")
     assert D.main(["--tables", str(tmp_path / "none")]) == 1
     assert "not an error" in capsys.readouterr().out
+
+
+# --------------------------------------------------- symbol resolution
+from kgav.curated import resolve_symbols  # noqa: E402
+
+GENES = {"NCBIGene:7157": "TP53", "NCBIGene:9694": "EMC2",
+         "NCBIGene:6400": "SEL1L", "NCBIGene:55735": "TMEM41B"}
+
+
+def test_symbols_resolve_from_the_graphs_own_gene_nodes():
+    """The ids come from the graph the edges will land in, so there is
+    nothing to look up and nothing to guess. Typing a few hundred ids off
+    a supplementary table is the likeliest way a wrong edge enters here."""
+    got, unresolved, ambiguous = resolve_symbols(["TP53", "EMC2"], GENES)
+    assert got == {"TP53": "NCBIGene:7157", "EMC2": "NCBIGene:9694"}
+    assert unresolved == [] and ambiguous == {}
+
+
+def test_matching_ignores_case_and_surrounding_space():
+    got, _, _ = resolve_symbols([" tp53 ", "Emc2"], GENES)
+    assert set(got.values()) == {"NCBIGene:7157", "NCBIGene:9694"}
+
+
+def test_an_unresolved_symbol_is_returned_not_dropped():
+    """It is worth as much as a resolved one: a hit whose gene is not in
+    the host layer can never become an edge, and knowing that before
+    transcribing the row saves the work."""
+    got, unresolved, _ = resolve_symbols(["TP53", "NOTAGENE"], GENES)
+    assert got == {"TP53": "NCBIGene:7157"}
+    assert unresolved == ["NOTAGENE"]
+
+
+def test_an_alias_comes_back_unresolved_rather_than_guessed():
+    """A screen writing HRD1 where UniProt writes SYVN1 is a real case.
+    Guessing the mapping would be exactly the fabrication this layer
+    exists to prevent."""
+    _, unresolved, _ = resolve_symbols(["HRD1"], {"NCBIGene:84447": "SYVN1"})
+    assert unresolved == ["HRD1"]
+
+
+def test_an_ambiguous_symbol_is_flagged_and_left_out():
+    """Two genes sharing a symbol cannot be resolved by this function, and
+    picking one would be silent and wrong."""
+    genes = {"NCBIGene:1": "DUP", "NCBIGene:2": "DUP"}
+    got, _, ambiguous = resolve_symbols(["DUP"], genes)
+    assert got == {}
+    assert ambiguous == {"DUP": ["NCBIGene:1", "NCBIGene:2"]}
+
+
+def test_blank_lines_are_ignored():
+    got, unresolved, _ = resolve_symbols(["TP53", "", "   "], GENES)
+    assert len(got) == 1 and unresolved == []
+
+
+def test_resolve_mode_prints_a_fillable_skeleton(tmp_path, capsys):
+    D = import_module("ingest_curated")
+    host = tmp_path / "host"
+    host.mkdir()
+    import json as _json
+    (host / "nodes.jsonl").write_text("\n".join(
+        _json.dumps({"id": gid, "class": "Gene", "properties": {"symbol": s}})
+        for gid, s in GENES.items()))
+    syms = tmp_path / "s.txt"
+    syms.write_text("TP53\nEMC2\nNOTAGENE\n")
+    assert D.main(["--resolve", str(syms), "--host", str(host),
+                   "--spine", str(tmp_path / "none")]) == 0
+    cap = capsys.readouterr()
+    assert cap.out.splitlines()[0].startswith("ncbi_gene_id\ttaxon\tdirection")
+    assert "7157\t\t\t\tTP53" in cap.out
+    assert "NOTAGENE" not in cap.out          # not in the TSV body
+    assert "UNRESOLVED" in cap.err            # but reported
+    assert "NOTAGENE" in cap.err
+
+
+def test_resolve_mode_refuses_without_a_built_host_layer(tmp_path, capsys):
+    D = import_module("ingest_curated")
+    syms = tmp_path / "s.txt"
+    syms.write_text("TP53\n")
+    assert D.main(["--resolve", str(syms), "--host", str(tmp_path / "a"),
+                   "--spine", str(tmp_path / "b")]) == 2
+    assert "build the host layer first" in capsys.readouterr().out
