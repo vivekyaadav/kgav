@@ -167,9 +167,17 @@ def test_layer_order_is_deterministic(layers):
 
 
 def test_precedence_covers_every_layer():
-    assert set(LAYER_PRECEDENCE) == {"spine", "host", "vhppi", "orcs", "chembl",
-                                     "selectivity", "hosttargets", "similarity",
-                                     "ncats", "folds"}
+    assert set(LAYER_PRECEDENCE) == {"spine", "host", "vhppi", "orcs",
+                                     "curated", "chembl", "selectivity",
+                                     "hosttargets", "similarity", "ncats",
+                                     "folds"}
+
+
+def test_curated_ranks_below_orcs():
+    """Same claim, weaker provenance: HOST_FACTOR_FOR hand-transcribed from
+    a supplementary table at evidence tier 2, against a database export at
+    tier 1. Earlier wins a qualifier conflict, so ORCS must come first."""
+    assert LAYER_PRECEDENCE.index("curated") > LAYER_PRECEDENCE.index("orcs")
 
 
 def test_folds_is_last_because_it_is_computed():
