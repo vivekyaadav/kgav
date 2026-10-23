@@ -51,9 +51,16 @@ def main(argv=None) -> int:
             print(f"  phase {s['phase']}  ASSEMBLE   {s['script']}")
         elif s["run"]:
             print(f"  phase {s['phase']}  run        {s['name']}")
+        elif s["required"]:
+            print(f"  phase {s['phase']}  REQUIRED   {s['name']}"
+                  f"  -- {s['reason']}")
+        elif s["existing"]:
+            when = time.strftime("%Y-%m-%d %H:%M",
+                                 time.localtime(s["written"]))
+            print(f"  phase {s['phase']}  REUSE      {s['name']}"
+                  f"  -- {s['reason']}; keeping the layer written {when}")
         else:
-            tag = "REQUIRED" if s["required"] else "skip"
-            print(f"  phase {s['phase']}  {tag:<10} {s['name']}"
+            print(f"  phase {s['phase']}  absent     {s['name']}"
                   f"  -- {s['reason']}")
     print()
 
@@ -66,12 +73,29 @@ def main(argv=None) -> int:
               "assemble_release\nwould write a release anyway.")
         return 2
 
-    if skipped:
-        print("Skipped layers are absent from the release that comes out of "
-              "this run.")
-        print("Any metapath that needs one reaches nothing, and the counts "
-              "still look right.")
-        print()
+    # TWO KINDS OF SKIP, AND THIS SAID ONLY ONE OF THEM. assemble_release
+    # builds its layer set from whatever v0.1-* directories exist, so a
+    # skipped ingest whose directory is already on disk does not drop the
+    # layer -- it carries the old one forward. The first version of this
+    # message claimed every skipped layer was absent from the release, which
+    # was wrong for exactly the case that matters most.
+    reused = [s for s in skipped if s["existing"]]
+    absent = [s for s in skipped if not s["existing"]]
+    if absent:
+        print("ABSENT from the release this run produces: "
+              f"{', '.join(s['name'] for s in absent)}")
+        print("  No directory on disk, so assemble_release skips them. Any "
+              "metapath that\n  needs one reaches nothing, and the counts "
+              "still look right.\n")
+    if reused:
+        print("REUSED, not rebuilt: "
+              f"{', '.join(s['name'] for s in reused)}")
+        print("  assemble_release reads every v0.1-* directory that exists, "
+              "so these are\n  carried forward from when they were last "
+              "written. That is correct only if\n  nothing they depend on "
+              "has changed. If you have edited config/viruses.yaml --\n"
+              "  promoted a virus, say -- a reused layer has no data for it "
+              "and the build\n  will look complete anyway.\n")
 
     if args.plan:
         print("--plan: nothing was run.")
@@ -99,8 +123,11 @@ def main(argv=None) -> int:
 
     print(f"\n{'=' * 70}")
     print(f"rebuild complete in {time.time() - t0:.0f}s")
-    if skipped:
-        print(f"WITHOUT: {', '.join(s['name'] for s in skipped)}")
+    if absent:
+        print(f"WITHOUT: {', '.join(s['name'] for s in absent)}")
+    if reused:
+        print(f"REUSED (not rebuilt this run): "
+              f"{', '.join(s['name'] for s in reused)}")
     print("Results in data/results were computed from the previous release "
           "and are\nnow stale. `make check-results` reports which.")
     return 0
