@@ -54,9 +54,14 @@ NOTES: dict[str, tuple[str, str]] = {
         "No nodes, and none expected: every edge carries `publications` as "
         "a list of PMID CURIEs. Vestigial in the same way as CellLine.")),
     "VirusStrain": ("2026-10-24", (
-        "Genuinely absent, and with it the whole resistance axis -- "
-        "HAS_STRAIN and CONFERS_RESISTANCE_TO. Stanford's CoV-RDB covers "
-        "SARS-CoV-2 resistance; flaviviruses have far less.")),
+        "NOT vestigial the way CellLine is, despite the qualifier above. "
+        "HAS_ANTIVIRAL_ACTIVITY_AGAINST records a strain as free text -- "
+        "'USA-WA1/2020' -- which names it and cannot be joined on, so "
+        "CONFERS_RESISTANCE_TO has nothing to hang off and the resistance "
+        "axis is absent. The qualifier is where a future ingest would get "
+        "the strain names; it is not a substitute for the nodes. "
+        "Stanford's CoV-RDB covers SARS-CoV-2 resistance; flaviviruses "
+        "have far less.")),
     "Variant": ("2026-10-24", (
         "Genuinely absent, and with it HAS_VARIANT and OCCURS_IN. Needed "
         "before any 'this mutation confers resistance' claim.")),
