@@ -83,6 +83,25 @@ check-raw:
 fetch-raw:
 	python scripts/fetch_raw.py --all-built
 
+# REBUILD THE RELEASE FROM THE RAW INPUTS, IN DEPENDENCY ORDER.
+#
+# Not a list of commands here, because the order is not a straight line:
+# selectivity, similarity and gtop read the ASSEMBLED release rather than the
+# per-layer ones, so assemble_release runs in the middle and again at the end.
+# Typed out by hand that goes wrong silently -- the layer still builds, from
+# the PREVIOUS release, and nothing says so. src/kgav/pipeline.py holds the
+# order as data; scripts/rebuild_release.py executes it.
+#
+# A layer whose raw inputs are absent is skipped and named. A layer whose
+# inputs are present and which then fails stops the run, because the next
+# assemble would write a release missing it while every count still read
+# correctly.
+rebuild:
+	python scripts/rebuild_release.py
+
+rebuild-plan:
+	python scripts/rebuild_release.py --plan
+
 clean:
 	find . -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
 	rm -rf .pytest_cache .ruff_cache *.egg-info build dist
