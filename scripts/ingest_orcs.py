@@ -24,6 +24,9 @@ from kgav.aliases import AliasIndex
 from kgav.emit import Emit
 from kgav.orcs import (
     build_gene_to_proteins,
+    per_taxon,
+    screen_heading,
+    unbuilt_taxa,
     ingest_screens,
     is_virus_resistance_screen,
     polarity_mode,
@@ -78,8 +81,17 @@ def main() -> int:
     screens = json.loads((args.orcs_dir / "screens_all.json").read_text())
     candidates = [s for s in screens if virus_taxon(s)]
     usable = [s for s in candidates if is_virus_resistance_screen(s)]
-    print(f"{len(screens):,} human screens | {len(candidates)} coronavirus | "
-          f"{len(usable)} virus-resistance")
+    # THE LABEL HERE READ "coronavirus" AND WAS WRONG. virus_taxon matches
+    # every pattern in config/viruses.yaml, and the flavivirus patterns
+    # landed 2026-10-11, so this count has included them since. A heading
+    # that names one family while counting two is the same defect this
+    # repository keeps finding: a number that is correct and a label that
+    # says something else about it.
+    by_taxon: dict[str, int] = {}
+    for s in candidates:
+        by_taxon[virus_taxon(s)] = by_taxon.get(virus_taxon(s), 0) + 1
+    print(screen_heading(len(screens), len(candidates), len(by_taxon),
+                         len(usable)))
 
     modes = {"screen_level": 0, "signed": 0, "unresolvable": 0}
     for s in usable:
@@ -127,14 +139,48 @@ def main() -> int:
     if overrides:
         print(f"\n{len(overrides)} polarity override(s) from "
               f"{args.overrides.name}; those screens are fetched too")
+    # The taxa the spine actually built. A screen for a virus that is not in
+    # `viruses:` is out of scope, not a graph fault -- see ingest_screens.
+    known_taxa = {n.split(":", 1)[1] for n in index.nodes
+                  if n.startswith("NCBITaxon:")}
+
     em = Emit()
     s = ingest_screens(em, usable, gene_rows, gene_to_protein,
-                       "infores:biogrid-orcs", overrides)
+                       "infores:biogrid-orcs", overrides,
+                       known_taxa=known_taxa)
 
     print(f"\n{s['edges']:,} edges from {s['screens_used']} screens")
     print(f"  {s['dependency']:,} dependency, {s['restriction']:,} restriction")
+    print("\n  per taxon")
+    print(f"    {'taxon':<22} {'screens':>7} {'depend':>8} {'restrict':>9} "
+          f"{'total':>8}")
+    for t, nscreens, dep, res, total in per_taxon(s):
+        flag = "   <- screens but NO EDGE" if nscreens and not total else ""
+        print(f"    NCBITaxon:{t:<12} {nscreens:>7,} {dep:>8,} {res:>9,} "
+              f"{total:>8,}{flag}")
+    built_with_data = {t for t, _n, _d, _r, tot in per_taxon(s) if tot}
+    silent = sorted(known_taxa - built_with_data - {"9606"})
+    if silent:
+        print(f"\n    {len(silent)} built taxa got NO edge from this run: "
+              f"{', '.join('NCBITaxon:' + t for t in silent)}")
+        print("    No screen reached them. That is a source limit, not a "
+              "failed join.")
+
+    unbuilt = unbuilt_taxa(s)
+    if unbuilt:
+        print(f"\n  OUT OF SCOPE — {s['taxon_not_built']} screen(s) matched a "
+              f"virus the spine does not build:")
+        for t, n in unbuilt:
+            print(f"    NCBITaxon:{t:<12} {n:>3} screen(s) skipped")
+        print("    These are in `surveyed:` not `viruses:` in "
+              "config/viruses.yaml.")
+        print("    Promoting one builds its node and these screens land; "
+              "until then")
+        print("    they are skipped rather than emitted as dangling edges.")
+
     print("\n  skipped:")
-    for k in ("not_a_resistance_screen", "polarity_unresolvable", "no_gene_data",
+    for k in ("not_a_resistance_screen", "taxon_not_built",
+              "polarity_unresolvable", "no_gene_data",
               "no_hits", "uncalibrated_sign", "gene_not_in_graph",
               "no_direction", "duplicate", "override_applied",
               "positive_is_dependency", "positive_is_restriction",

@@ -16,6 +16,9 @@ from kgav.orcs import (
     gene_direction,
     ingest_screens,
     is_virus_resistance_screen,
+    per_taxon,
+    screen_heading,
+    unbuilt_taxa,
     polarity_mode,
     screen_date,
     screen_type,
@@ -343,3 +346,130 @@ def test_the_flavivirus_patterns_do_not_disturb_the_coronaviruses():
                            ("Virus: HCoV-HKU1", "290028"),
                            ("Middle East respiratory syndrome coronavirus", "1335626")):
         assert virus_taxon({"CONDITION_NAME": text}) == expected, text
+
+
+# ------------------------------------------- scope, not corruption (DENV-2)
+#
+# WHAT HAPPENED. The flavivirus patterns matched DENV-2 screens, ingest_screens
+# emitted 90 HOST_FACTOR_FOR edges to NCBITaxon:11060, and the spine had never
+# built that node because DENV-2 sits in `surveyed:` rather than `viruses:`.
+# The schema check reported 90 DANGLING violations and the driver returned
+# before writing, so 11,022 good edges for seven other viruses went with them.
+# The output read as graph corruption; it was a scope mismatch.
+
+DENV2 = "Virus: Dengue virus 2 (strain 16681)"
+G2P = {"NCBIGene:7879": ["UniProtKB:P51149"]}
+ROWS = {"1": [_gene("RAB7A", "7879", 3.0)]}
+
+
+def test_a_screen_for_an_unbuilt_taxon_is_skipped_and_counted():
+    em = Emit()
+    s = ingest_screens(em, [_screen(condition=DENV2)], ROWS, G2P,
+                       "infores:biogrid-orcs", known_taxa={"2697049"})
+    assert em.edges == []
+    assert s["taxon_not_built"] == 1
+    assert s["edges"] == 0
+
+
+def test_the_unbuilt_taxon_is_named_not_just_counted():
+    """"1 screen skipped" does not tell you which virus to promote."""
+    em = Emit()
+    s = ingest_screens(em, [_screen(condition=DENV2)], ROWS, G2P,
+                       "infores:biogrid-orcs", known_taxa={"2697049"})
+    assert unbuilt_taxa(s) == [("11060", 1)]
+
+
+def test_one_unbuilt_taxon_does_not_discard_every_other_virus():
+    """THE REGRESSION. This is the whole point of the gate: 90 dangling
+    DENV-2 edges cost 11,022 good ones for seven other viruses, because the
+    schema check is all-or-nothing and ran over the whole batch."""
+    em = Emit()
+    s = ingest_screens(
+        em,
+        [_screen(sid="1", condition=DENV2),
+         _screen(sid="2", condition="Virus: SARS-CoV-2 (isolate USA-WA1/2020)")],
+        {"1": [_gene("RAB7A", "7879", 3.0)],
+         "2": [_gene("RAB7A", "7879", 3.0)]},
+        G2P, "infores:biogrid-orcs", known_taxa={"2697049"})
+    assert s["edges"] == 1, "the built virus must still produce its edge"
+    assert s["taxon_not_built"] == 1
+    assert [e["object"] for e in em.edges] == ["NCBITaxon:2697049"]
+
+
+def test_no_known_taxa_means_no_gate():
+    """Callers that have not got a spine to check against are unchanged."""
+    em = Emit()
+    s = ingest_screens(em, [_screen(condition=DENV2)], ROWS, G2P,
+                       "infores:biogrid-orcs")
+    assert s["edges"] == 1 and s["taxon_not_built"] == 0
+
+
+def test_an_unbuilt_taxon_emits_nothing_that_could_dangle():
+    """The schema check must have nothing left to fail on."""
+    em = Emit()
+    ingest_screens(em, [_screen(condition=DENV2)], ROWS, G2P,
+                   "infores:biogrid-orcs", known_taxa={"2697049"})
+    assert not [e for e in em.edges if e["object"] == "NCBITaxon:11060"]
+
+
+# ------------------------------------------------------- the per-taxon table
+def test_the_per_taxon_rows_partition_the_edge_total():
+    """One total for eight viruses cannot answer "which viruses have data",
+    which is the question the flavivirus work exists to ask."""
+    em = Emit()
+    s = ingest_screens(
+        em,
+        [_screen(sid="1", condition="Virus: SARS-CoV-2 (isolate USA-WA1/2020)"),
+         _screen(sid="2", condition="Virus: HCoV-OC43 (Human coronavirus OC43)")],
+        {"1": [_gene("RAB7A", "7879", 3.0)],
+         "2": [_gene("RAB7A", "7879", 3.0)]},
+        G2P, "infores:biogrid-orcs")
+    rows = per_taxon(s)
+    assert sum(r[4] for r in rows) == s["edges"]
+    assert {r[0] for r in rows} == {"2697049", "31631"}
+
+
+def test_dependency_and_restriction_split_per_taxon():
+    """BOTH poles must be present or this test cannot see the split at all.
+
+    The first version of this used a dependency-only fixture, and collapsing
+    the per-taxon buckets into one still passed it -- a test that could not
+    fail for the reason it was written. RAB7A +11.31 is a dependency hit and
+    TBK1 -3.33 a restriction hit in the same signed screen.
+    """
+    em = Emit()
+    rows = {"1": [_gene("RAB7A", "7879", 11.31), _gene("TBK1", "29110", -3.33)]}
+    s = ingest_screens(
+        em, [_screen(sid="1",
+                     rationale="Increased/decreased resistance to virus")],
+        rows,
+        {"NCBIGene:7879": ["UniProtKB:P51149"],
+         "NCBIGene:29110": ["UniProtKB:Q9UHD2"]},
+        "infores:biogrid-orcs")
+    row = next(r for r in per_taxon(s) if r[0] == "2697049")
+    assert row[2] == 1, "one dependency hit"
+    assert row[3] == 1, "one restriction hit"
+    assert row[2] + row[3] == row[4] == s["edges"] == 2
+
+
+def test_a_taxon_with_a_screen_but_no_edge_is_distinguishable_from_no_screen():
+    """A failed join and an absent source need different work, and a table
+    that only lists taxa with edges silently merges them."""
+    em = Emit()
+    s = ingest_screens(
+        em, [_screen(sid="1", condition="Virus: SARS-CoV-2 (isolate USA-WA1/2020)")],
+        {"1": [_gene("NOPE", "999999", 3.0)]},      # gene not in the graph
+        G2P, "infores:biogrid-orcs")
+    assert s["edges"] == 0
+    row = next(r for r in per_taxon(s) if r[0] == "2697049")
+    assert row[1] == 1 and row[4] == 0, "screen counted, zero edges, still listed"
+
+
+def test_the_screen_count_label_no_longer_claims_coronavirus():
+    """virus_taxon matches every configured pattern, and the flavivirus ones
+    landed 2026-10-11. A heading naming one family while counting two is the
+    defect this repository keeps finding."""
+    line = screen_heading(1952, 100, 8, 86)
+    assert "coronavirus" not in line
+    assert "100 matched a configured virus (8 taxa)" in line
+    assert "1,952 human screens" in line
