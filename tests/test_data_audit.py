@@ -219,3 +219,36 @@ def test_the_clinical_remedies_are_recorded(key):
     twice."""
     assert key in da.NOTES
     assert "drug_indication" in da.NOTES[key][1] or "mondo" in da.NOTES[key][1]
+
+
+def test_a_note_does_not_contradict_the_line_above_it(tmp_path):
+    """VirusStrain printed "stored as a `virus_strain` qualifier" and then
+    "Genuinely absent" directly beneath. Both were true for different
+    reasons -- the strain is named in free text and cannot be joined on --
+    but as printed they disagreed, which is the label-against-evidence
+    defect this repository keeps finding, here in the tool built to find
+    it."""
+    rel = _rel(tmp_path, [MOL, TAX],
+               [{"subject": "INCHIKEY:C0",
+                 "predicate": "HAS_ANTIVIRAL_ACTIVITY_AGAINST",
+                 "object": "NCBITaxon:2697049",
+                 "qualifiers": {"virus_strain": "USA-WA1/2020",
+                                "assay_type": "cell_based_antiviral"}}])
+    out = _run(rel)
+    block = out[out.index("VirusStrain"):out.index("Variant")]
+    assert "stored as a `virus_strain` qualifier" in block
+    assert "Genuinely absent" not in block
+    assert "cannot be joined on" in block
+
+
+def test_a_truly_vestigial_class_still_says_so(tmp_path):
+    """The fix must not have removed the distinction. CellLine IS
+    vestigial; VirusStrain is not."""
+    rel = _rel(tmp_path, [PRO, TAX],
+               [{"subject": "UniProtKB:P0", "predicate": "HOST_FACTOR_FOR",
+                 "object": "NCBITaxon:2697049",
+                 "qualifiers": {"direction": "dependency",
+                                "cell_line": "CVCL_0063"}}])
+    out = _run(rel)
+    block = out[out.index("CellLine"):out.index("Publication")]
+    assert "none expected" in block
