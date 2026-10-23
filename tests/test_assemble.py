@@ -169,8 +169,8 @@ def test_layer_order_is_deterministic(layers):
 def test_precedence_covers_every_layer():
     assert set(LAYER_PRECEDENCE) == {"spine", "host", "vhppi", "orcs",
                                      "curated", "chembl", "selectivity",
-                                     "hosttargets", "similarity", "ncats",
-                                     "folds"}
+                                     "gtop", "hosttargets", "similarity",
+                                     "ncats", "folds"}
 
 
 def test_curated_ranks_below_orcs():
@@ -178,6 +178,16 @@ def test_curated_ranks_below_orcs():
     a supplementary table at evidence tier 2, against a database export at
     tier 1. Earlier wins a qualifier conflict, so ORCS must come first."""
     assert LAYER_PRECEDENCE.index("curated") > LAYER_PRECEDENCE.index("orcs")
+
+
+def test_gtop_ranks_above_hosttargets():
+    """Same TARGETS edge, and only one of the two layers knows which way it
+    runs. hosttargets takes direction from ChEMBL, where 12,155 of 14,381
+    edges state none because the bulk activity table records potency and
+    only drug_mechanism carries action_type. GtP curates `action` on
+    essentially every interaction. Earlier wins a qualifier conflict, so a
+    curated direction must not be overwritten by an absent one."""
+    assert LAYER_PRECEDENCE.index("gtop") < LAYER_PRECEDENCE.index("hosttargets")
 
 
 def test_folds_is_last_because_it_is_computed():
@@ -628,3 +638,32 @@ def test_a_viral_node_without_a_taxon_is_not_silently_grouped_with_host():
     a.nodes = {"X": {"class": "Protein", "properties": {"is_viral": True}}}
     a.edges = {}
     assert orphan_detail(a)["Protein"] == {"viral taxon unknown": 1}
+
+
+def test_every_ingest_script_writes_where_assemble_reads():
+    """The folds bug, generalised: a layer written to the wrong name.
+
+    ingest_folds.py defaulted to `v0.2-folds` while assemble_release.py
+    builds its layer paths as `v0.1-{name}` from LAYER_PRECEDENCE. The
+    layer was listed, the script ran, the directory existed -- and assemble
+    skipped it, because the two names only had to agree and nothing checked
+    that they did. The counts all still looked right.
+
+    So: the --out default of every ingest driver must be the directory
+    assemble will look for, derived from the script's own filename exactly
+    the way the precedence guard above derives it.
+    """
+    import re
+    bad = []
+    for f in sorted((ROOT / "scripts").glob("ingest_*.py")):
+        name = f.stem.removeprefix("ingest_").replace("_", "")
+        block = re.search(r'add_argument\(\s*"--out".*?\)\n', f.read_text(),
+                          re.S)
+        if block is None:
+            bad.append(f"{f.name}: no --out argument")
+            continue
+        found = re.search(r"v0\.\d+-[a-z0-9-]+", block.group(0))
+        if found is None or found.group(0) != f"v0.1-{name}":
+            bad.append(f"{f.name}: --out default {found and found.group(0)!r}, "
+                       f"assemble reads 'v0.1-{name}'")
+    assert not bad, bad
