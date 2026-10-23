@@ -109,6 +109,14 @@ rebuild-plan:
 data-timeline:
 	python scripts/data_timeline.py
 
+# WHAT THE SCHEMA DECLARES AGAINST WHAT THE RELEASE HOLDS. assemble_release
+# lists what IS there, so a declared class with no nodes prints no line and
+# a reader counting lines sees a complete graph. This prints the absences,
+# derived from the schema rather than a list kept here, and carries the
+# recorded remedy for each gap so it is not worked out twice.
+data-audit:
+	python scripts/data_audit.py
+
 clean:
 	find . -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
 	rm -rf .pytest_cache .ruff_cache *.egg-info build dist
