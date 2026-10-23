@@ -102,7 +102,7 @@ def test_edge_years_come_from_the_assembled_release(tmp_path):
     rel = _release(tmp_path, [_edge("infores:a", "2019-05-05"),
                               _edge("infores:a", "2021-01-01"),
                               _edge("infores:b", "2019-01-01")])
-    years, by_source = dt.covered(rel)
+    years, by_source, _dates = dt.covered(rel)
     assert years == {"2019": 2, "2021": 1}
     assert set(by_source) == {"infores:a", "infores:b"}
     assert by_source["infores:a"] == {"2019": 1, "2021": 1}
@@ -113,7 +113,7 @@ def test_a_merged_edge_is_counted_under_both_sources(tmp_path):
     sources assert. Counting that as one unnamed source would hide both."""
     rel = _release(tmp_path, [_edge("infores:string|infores:virhostnet",
                                     "2020-02-02")])
-    _years, by_source = dt.covered(rel)
+    _years, by_source, _dates = dt.covered(rel)
     assert set(by_source) == {"infores:string", "infores:virhostnet"}
 
 
@@ -124,7 +124,7 @@ def test_an_undated_edge_is_counted_as_undated_not_dropped(tmp_path):
     rel = _release(tmp_path, [_edge("infores:a", None),
                               _edge("infores:a", ""),
                               _edge("infores:a", "2020-01-01")])
-    years, _ = dt.covered(rel)
+    years, _by, _dates = dt.covered(rel)
     assert years["undated"] == 2
 
 
@@ -139,7 +139,7 @@ def test_the_undated_share_is_reported_with_the_split_policy(tmp_path):
 def test_a_malformed_date_is_undated_rather_than_a_year(tmp_path):
     rel = _release(tmp_path, [_edge("infores:a", "n/a"),
                               _edge("infores:a", "20x1-01-01")])
-    years, _ = dt.covered(rel)
+    years, _by, _dates = dt.covered(rel)
     assert years == {"undated": 2}
 
 
@@ -159,3 +159,99 @@ def test_evidence_without_a_release_says_so_rather_than_printing_nothing(
     out = _run("--root", str(tmp_path), "--release", str(tmp_path / "none"),
                "--acquired")
     assert "ACQUIRED" in out
+
+
+# ------------------- the placeholder, and the blanket release stamp
+def test_the_1970_placeholder_is_undated_not_a_year(tmp_path):
+    """IT READ AS 6,287 EDGES OF 1970 EVIDENCE. Every ingest writes
+    1970-01-01 when it has no date -- src/kgav/temporal.py names it
+    PLACEHOLDER_DATE and edge_year returns None for it -- so reading the
+    year off the string invented an oldest year and reported `undated` as
+    0 for every source."""
+    from kgav.temporal import PLACEHOLDER_DATE
+    rel = _release(tmp_path, [_edge("infores:a", PLACEHOLDER_DATE),
+                              _edge("infores:a", "2020-01-01")])
+    years, by_source, _ = dt.covered(rel)
+    assert "1970" not in years
+    assert years["undated"] == 1
+    assert by_source["infores:a"]["undated"] == 1
+
+
+def test_the_undated_definition_is_temporals_not_a_second_one():
+    """assemble._earliest special-cases the same string, and its comment is
+    about exactly this duplication. A second answer here would drift."""
+    from kgav.temporal import edge_year
+    src = (ROOT / "scripts" / "data_timeline.py").read_text()
+    assert "from kgav.temporal import" in src
+    assert "edge_year(e)" in src
+    assert edge_year({"first_asserted_date": "1970-01-01"}) is None
+
+
+def test_a_single_edge_source_is_not_called_a_one_date_source(tmp_path):
+    """One edge trivially has one date. Calling that a stamp reported that
+    chembl stamps its edges, on a fixture holding a single chembl row."""
+    rel = _release(tmp_path, [_edge("infores:chembl", "2001-01-01")])
+    out = _run("--root", str(tmp_path), "--release", str(rel), "--evidence")
+    assert "ONE DATE" not in out
+
+
+def test_a_source_stamping_one_date_on_every_edge_is_marked(tmp_path):
+    """ingest_host writes string_release_date to all 141,019 STRING edges
+    and ingest_vhppi defaults all of its own to 2024-01-01. That is the
+    FILE's release date, not when a fact was established, and drawn in the
+    histogram it towers over every real year as a discovery burst."""
+    rel = _release(tmp_path, [_edge("infores:string", "2023-08-28")] * 5
+                   + [_edge("infores:chembl", "2001-01-01"),
+                      _edge("infores:chembl", "2004-01-01")])
+    out = _run("--root", str(tmp_path), "--release", str(rel), "--evidence")
+    assert "ONE DATE" in out
+    assert "all dated 2023-08-28" in out
+    assert "the file's release" in out
+
+
+def test_a_stamped_year_is_kept_out_of_the_histogram(tmp_path):
+    rel = _release(tmp_path, [_edge("infores:string", "2023-08-28")] * 5
+                   + [_edge("infores:chembl", "2001-01-01"),
+                      _edge("infores:chembl", "2004-01-01")])
+    out = _run("--root", str(tmp_path), "--release", str(rel), "--evidence")
+    # just the bars: the by-source table below legitimately shows 2023
+    # for the ONE DATE row, which is the point of that column.
+    hist = out[out.index("per-edge dates only"):out.index("by source")]
+    assert "2001" in hist
+    assert "2023" not in hist, hist
+
+
+def test_a_source_with_real_spread_is_not_called_a_stamp(tmp_path):
+    rel = _release(tmp_path, [_edge("infores:chembl", "2001-01-01"),
+                              _edge("infores:chembl", "2004-01-01")])
+    out = _run("--root", str(tmp_path), "--release", str(rel), "--evidence")
+    assert "per-edge" in out
+    assert "ONE DATE" not in out
+
+
+def test_a_fully_undated_source_is_called_none_not_a_stamp(tmp_path):
+    """kgav-computed's 3,384 similarity edges have no date at all. Calling
+    that a stamp would imply a release date exists for them."""
+    from kgav.temporal import PLACEHOLDER_DATE
+    rel = _release(tmp_path,
+                   [_edge("infores:kgav-computed", PLACEHOLDER_DATE)] * 3)
+    out = _run("--root", str(tmp_path), "--release", str(rel), "--evidence")
+    assert "none" in out
+    assert "ONE DATE" not in out
+
+
+def test_a_one_date_source_stays_so_when_it_also_has_placeholders(tmp_path):
+    """The placeholder must not count as a second distinct date. STRING
+    happens to have none, but a source carrying a release stamp on its
+    dated rows and 1970-01-01 on the rest would otherwise look like it
+    dates its edges -- and be drawn in the histogram."""
+    from kgav.temporal import PLACEHOLDER_DATE
+    rel = _release(tmp_path,
+                   [_edge("infores:string", "2023-08-28")] * 3
+                   + [_edge("infores:string", PLACEHOLDER_DATE)]
+                   + [_edge("infores:chembl", "2001-01-01"),
+                      _edge("infores:chembl", "2004-01-01")])
+    out = _run("--root", str(tmp_path), "--release", str(rel), "--evidence")
+    assert "ONE DATE" in out
+    hist = out[out.index("per-edge dates only"):out.index("by source")]
+    assert "2023" not in hist, hist
