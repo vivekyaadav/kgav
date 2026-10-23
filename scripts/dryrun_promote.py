@@ -233,12 +233,23 @@ def main() -> int:
             print(f"  {'ok ' if xok else 'ABSENT':<7} {'':<14} "
                   f"EXTRA_{e['taxon']}.json.gz  for {', '.join(extras)}")
 
-        if ok:
+        # READ WHICHEVER FILE WILL SUPPLY THE ENTRIES. This was `if ok:`,
+        # so every check below -- chain count, chain-source presence, gene
+        # symbols -- ran only when the PROTEOME file existed. An entry whose
+        # curated accessions replace a retired proteome therefore passed
+        # Section 0 entirely unexamined: DENV-2 printed "n/a" and then
+        # nothing, and the gene-symbol check that caught West Nile never ran
+        # for it. A precondition section that goes quiet on the entries it
+        # cannot reach the usual way is the failure this script keeps being
+        # patched for.
+        source_file = pfile if ok else (xfile if substitutes else None)
+        if source_file is not None:
             try:
-                entries = (json.loads(gzip.decompress(pfile.read_bytes()))
+                entries = (json.loads(gzip.decompress(source_file.read_bytes()))
                            .get("results", []))
-                print(f"          {len(entries)} entries; register claims "
-                      f"{cs.get('chains')} chains on {acc}")
+                via = "" if ok else f" (from {source_file.name})"
+                print(f"          {len(entries)} entries{via}; register "
+                      f"claims {cs.get('chains')} chains on {acc}")
                 # DOES THE FILE ACTUALLY CONTAIN THE CHAIN SOURCE? This is
                 # the check that would have caught DENV-2 locally. P29990
                 # has no proteome cross-reference at all and is filed under
