@@ -281,8 +281,24 @@ def build_gene_to_proteins(edges_paths) -> dict[str, list[str]]:
 
 def ingest_screens(em, screens: list[dict], gene_rows: dict[str, list[dict]],
                    gene_to_protein: dict[str, list[str]], source: str,
-                   overrides: dict[str, str] | None = None) -> Counter:
-    """Emit HOST_FACTOR_FOR edges from per-screen gene-level results."""
+                   overrides: dict[str, str] | None = None,
+                   known_taxa: set[str] | None = None) -> Counter:
+    """Emit HOST_FACTOR_FOR edges from per-screen gene-level results.
+
+    `known_taxa` is the set of taxa the spine actually built, and it exists
+    because of what happened without it. The flavivirus patterns matched
+    DENV-2 screens, this function emitted 90 edges to NCBITaxon:11060, and
+    the spine had never built that node because DENV-2 sits in `surveyed:`
+    rather than `viruses:`. The schema check then reported 90 DANGLING
+    violations and the driver returned before writing -- so 11,022 perfectly
+    good edges for seven other viruses were discarded along with them, and
+    the output read as graph corruption rather than what it was.
+
+    A screen for a virus the spine does not build is a SCOPE MISMATCH. It is
+    counted per taxon and reported by name, the way src/kgav/curated.py has
+    always handled the same situation, so the run still writes and the
+    unbuilt taxon shows up as a decision to make rather than a failure.
+    """
     stats: Counter = Counter()
     overrides = overrides or {}
     seen: set[tuple] = set()
@@ -295,6 +311,10 @@ def ingest_screens(em, screens: list[dict], gene_rows: dict[str, list[dict]],
             continue
         if not is_virus_resistance_screen(screen):
             stats["not_a_resistance_screen"] += 1
+            continue
+        if known_taxa is not None and taxon not in known_taxa:
+            stats["taxon_not_built"] += 1
+            stats[f"unbuilt:{taxon}"] += 1
             continue
 
         mode, fixed = polarity_mode(screen)
@@ -372,6 +392,49 @@ def ingest_screens(em, screens: list[dict], gene_rows: dict[str, list[dict]],
                         pmids=[f"PMID:{pmid}"] if pmid.isdigit() else None)
                 stats["edges"] += 1
                 stats[direction] += 1
+                stats[f"taxon:{taxon}:{direction}"] += 1
+        stats[f"screens:{taxon}"] += 1
         stats["screens_used"] += 1
 
     return stats
+
+
+def screen_heading(n_screens: int, n_candidates: int, n_taxa: int,
+                   n_usable: int) -> str:
+    """The driver's first line.
+
+    IT USED TO SAY "coronavirus". virus_taxon matches every pattern in
+    config/viruses.yaml and the flavivirus patterns landed 2026-10-11, so
+    the count had included them for twelve days while the label named one
+    family. The number was right and the word next to it was not, which is
+    the failure this repository keeps finding; it lives in a function now so
+    a test can read the rendered string instead of scraping the source.
+    """
+    return (f"{n_screens:,} human screens | {n_candidates} matched a "
+            f"configured virus ({n_taxa} taxa) | {n_usable} virus-resistance")
+
+
+def per_taxon(stats: Counter) -> list[tuple[str, int, int, int, int]]:
+    """(taxon, screens, dependency, restriction, total), commonest first.
+
+    WHY THIS IS NOT LEFT TO THE READER. The run printed one total and one
+    dependency/restriction split for every virus at once, so "11,112 edges"
+    was true and said nothing about which viruses had data -- the question
+    the flavivirus work exists to answer. A taxon with a screen that yielded
+    no edge is DIFFERENT from a taxon with no screen, and a single total
+    cannot distinguish them, so both appear here.
+    """
+    taxa = {k.split(":")[1] for k in stats if k.startswith("taxon:")}
+    taxa |= {k.split(":", 1)[1] for k in stats if k.startswith("screens:")}
+    rows = []
+    for t in taxa:
+        dep = stats.get(f"taxon:{t}:dependency", 0)
+        res = stats.get(f"taxon:{t}:restriction", 0)
+        rows.append((t, stats.get(f"screens:{t}", 0), dep, res, dep + res))
+    return sorted(rows, key=lambda r: (-r[4], r[0]))
+
+
+def unbuilt_taxa(stats: Counter) -> list[tuple[str, int]]:
+    """(taxon, screens skipped) for taxa the spine did not build."""
+    return sorted(((k.split(":", 1)[1], v) for k, v in stats.items()
+                   if k.startswith("unbuilt:")), key=lambda r: (-r[1], r[0]))
