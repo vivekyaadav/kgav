@@ -545,3 +545,84 @@ def test_an_answer_that_drops_the_pathway_caveat_fails_verification():
                   facts=[fact, str(warning)],
                   citable_edge_ids=["E1"], required_warnings=[warning])
     assert not any(f.code == "warning_dropped" for f in kept.failures)
+
+
+# ------------------------------------------------- multiplicity correction
+def test_the_threshold_is_corrected_for_every_test_the_run_performed(tmp_path):
+    """Eight taxa in two directions is sixteen tests, not one.
+
+    At an uncorrected 0.05 a run this size turns up a finding from noise
+    roughly every other time, and this module exists to stop the agent
+    claiming more than was measured. Producing the false claim itself would
+    be the same failure wearing a lab coat.
+    """
+    taxa = {f"NCBITaxon:{i}": dict(_row(), p_matched_less=0.9)
+            for i in range(8)}
+    land = _load(tmp_path, taxa)
+    assert land.n_tests == 16
+    assert land.alpha == pytest.approx(0.05 / 16)
+    assert all(t.alpha == land.alpha for t in land.tested())
+
+
+def test_one_direction_counts_one_test_per_taxon(tmp_path):
+    land = _load(tmp_path, {V: _row(), OTHER: _row()})
+    assert land.n_tests == 2 and land.alpha == pytest.approx(0.025)
+
+
+def test_the_correction_is_named_in_the_protocol(tmp_path):
+    land = _load(tmp_path, {V: _row(), OTHER: _row()})
+    assert "Bonferroni-corrected for 2 tests" in land.protocol
+    assert "0.0250" in land.protocol
+
+
+def test_a_nominal_finding_that_does_not_survive_correction_is_not_claimed(
+        tmp_path):
+    """West Nile's real shape: 0 of 18 against 3.1, lower tail about 0.045.
+
+    Uncorrected that reads as depletion. Across sixteen tests it is nothing,
+    and the agent must not announce it.
+    """
+    taxa = {f"NCBITaxon:{i}": dict(_row(), p_matched_less=0.9)
+            for i in range(7)}
+    taxa[V] = dict(_row(n_dep=18, n_obs=0, expected=3.1, p_matched=1.0),
+                   p_matched_less=0.045)
+    land = _load(tmp_path, taxa)
+    t = land.for_virus(V)
+    assert t.depletion_tested
+    assert not t.depleted
+    assert land.depleted() == []
+    assert "FEWER" not in guards.pathway_caveat(land, V)
+
+
+def test_a_finding_that_does_survive_correction_is_claimed(tmp_path):
+    """The branch must stay reachable, or the correction is just a mute."""
+    taxa = {f"NCBITaxon:{i}": dict(_row(), p_matched_less=0.9)
+            for i in range(7)}
+    taxa[V] = dict(_row(n_dep=1800, n_obs=40, expected=310.0, p_matched=1.0),
+                   p_matched_less=0.0005)
+    land = _load(tmp_path, taxa)
+    assert land.for_virus(V).depleted
+    assert "FEWER dependency factors than chance predicts" in \
+        guards.pathway_caveat(land, V)
+
+
+def test_enrichment_is_judged_against_the_same_corrected_threshold(tmp_path):
+    """Both directions, one rule. Two thresholds would be harder to state
+    than either and impossible for a reader to hold."""
+    taxa = {f"NCBITaxon:{i}": dict(_row(), p_matched_less=0.9)
+            for i in range(7)}
+    taxa[V] = dict(_row(n_obs=90, expected=44.0, p_matched=0.02),
+                   p_matched_less=0.99)
+    land = _load(tmp_path, taxa)
+    assert not land.for_virus(V).enriched   # 0.02 > 0.05/16
+    assert land.enriched() == []
+
+
+def test_an_empty_landscape_does_not_divide_by_zero(tmp_path):
+    """n_tests floors at 1. Without it alpha is 0.05/0 on a release where
+    no taxon has a dependency factor, which is a crash in a caveat."""
+    land = _load(tmp_path, {})
+    assert land.n_tests == 1
+    assert land.alpha == pytest.approx(0.05)
+    assert land.protocol and land.summary()
+    assert guards.pathway_caveat(land, V)
