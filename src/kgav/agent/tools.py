@@ -716,13 +716,74 @@ class GraphTools:
         target_edges = [e for e in self.out.get(("TARGETS", compound), [])
                         if not self._is_viral(e["object"])]
         if not target_edges:
+            # WHY IT HAS NO HUMAN TARGET MATTERS, and the graph knows which
+            # of two very different reasons applies. pathway_landscape's
+            # census already partitions the population this way: 3,002
+            # molecules carry a human TARGETS edge, 3,689 carry INHIBITS
+            # only, and 18,692 carry neither.
+            #
+            # Remdesivir is the second kind. Answering it with "most small
+            # molecules here carry an activity measurement and no target
+            # annotation" is true of the population and false about the
+            # compound: its target is annotated, well-evidenced, and viral.
+            # A direct-acting antiviral has no host pathway because of what
+            # it is, not because the source is thin, and conflating the two
+            # tells a reader the graph is missing something when it is not.
+            inhibits = self.out.get(("INHIBITS", compound), [])
+            if inhibits:
+                viral = sorted({e["object"] for e in inhibits
+                                if self._is_viral(e["object"])})
+                # The schema puts object_constraints {is_viral: true} on
+                # INHIBITS, so a non-viral object is a release that does not
+                # satisfy its own schema. Dropping those silently would make
+                # a broken release look like a thin one -- the same
+                # conflation this branch exists to end -- so they are
+                # counted and named instead.
+                rogue = sorted({e["object"] for e in inhibits
+                                if not self._is_viral(e["object"])})
+                if viral:
+                    bad = ("" if not rogue else
+                           f" {len(rogue)} further INHIBITS edge(s) point at "
+                           f"a NON-viral protein "
+                           f"({', '.join(self._label(r) for r in rogue)}), "
+                           f"which the schema's object_constraints forbid: "
+                           f"this release does not satisfy its own schema, "
+                           f"and those edges are reported rather than "
+                           f"dropped.")
+                    return ToolResult(
+                        False, "pathways", warnings=base_warnings,
+                        edge_ids=[e["_id"] for e in inhibits],
+                        note=(f"{self._label(compound)} has no HUMAN target "
+                              f"in this graph, so there is no host pathway "
+                              f"to place it in — but it does inhibit "
+                              f"{len(viral)} viral protein(s): "
+                              f"{', '.join(self._label(v) for v in viral)}. "
+                              f"It is direct-acting here, so a host-pathway "
+                              f"census is not the question for it; ask for "
+                              f"its mechanism instead. This is a property "
+                              f"of the compound, not a gap in the "
+                              f"source.{bad}"))
+                if rogue:
+                    return ToolResult(
+                        False, "pathways", warnings=base_warnings,
+                        edge_ids=[e["_id"] for e in inhibits],
+                        note=(f"{self._label(compound)} has no TARGETS edge, "
+                              f"and its {len(rogue)} INHIBITS edge(s) point "
+                              f"at non-viral protein(s) "
+                              f"({', '.join(self._label(r) for r in rogue)}) "
+                              f"— which the schema's object_constraints on "
+                              f"INHIBITS forbid. This release does not "
+                              f"satisfy its own schema, so no pathway "
+                              f"census is attempted; run "
+                              f"scripts/validate_release.py."))
             return ToolResult(
                 False, "pathways", warnings=base_warnings,
                 note=f"{self._label(compound)} has no human target in this "
-                     f"graph, so there is no pathway to place it in. That is "
-                     f"a property of the source and not a finding about the "
-                     f"compound: most small molecules here carry an activity "
-                     f"measurement and no target annotation.")
+                     f"graph, and no viral one either, so there is no "
+                     f"pathway to place it in. That is a property of the "
+                     f"source and not a finding about the compound: most "
+                     f"small molecules here carry an activity measurement "
+                     f"and no target annotation at all.")
 
         n_directed = sum(
             1 for e in target_edges
