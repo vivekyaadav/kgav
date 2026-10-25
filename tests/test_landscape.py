@@ -222,6 +222,29 @@ def test_the_summary_counts_only_the_testable_taxa(tmp_path):
     s = land.summary()
     assert "1 testable taxa" in s
     assert "untested" in s and OTHER in s
+    # The figures themselves, not just the shape of the sentence. Without
+    # this the summary could print "ratios 0.00-0.00" over every taxon and
+    # every other assertion here would still hold -- a test passing because
+    # it does not exercise the case it is named for.
+    assert f"{40 / 44.0:.2f}" in s
+    assert "0.81" in s and V in s
+
+
+def test_the_summary_prints_the_range_over_the_powered_taxa(tmp_path):
+    """Both ends of it, and neither from an underpowered taxon."""
+    land = _load(tmp_path, {V: _row(n_obs=40, expected=44.0, p_matched=0.81),
+                            OTHER: _row(n_obs=9, expected=10.0, p_matched=0.73),
+                            "NCBITaxon:11137": _row(n_obs=0, expected=0.4,
+                                                    p_matched=1.0)})
+    s = land.summary()
+    assert f"{40 / 44.0:.2f}" in s and f"{9 / 10.0:.2f}" in s
+    assert "0.00" not in s
+    assert "2 testable taxa" in s
+    # The taxon that comes CLOSEST to clearing the null, not the one furthest
+    # from it. Only the smallest p supports the "none below 0.05" beside it;
+    # quoting the largest would put a number next to a claim it cannot carry.
+    assert "0.73" in s and OTHER in s
+    assert "0.81" not in s
 
 
 def test_the_summary_does_not_claim_a_null_when_nothing_is_testable(tmp_path):
@@ -357,6 +380,50 @@ def test_the_ranking_caveat_and_the_pathway_caveat_are_both_present(
     out = GraphTools(graph_dir, landscape=land).triage(["INCHIKEY:NIRMA"], V)
     labels = [getattr(w, "label", "") for w in out.warnings]
     assert "RANKING" in labels and "PATHWAY ROUTE" in labels
+
+
+# ----------------------------------------- a retrieved host-directed route
+HOST_PATH = [{"id": "INCHIKEY:X", "class": "SmallMolecule", "properties": {}},
+             {"id": "UniProtKB:Q99720", "class": "Protein",
+              "properties": {"gene_symbol": "SIGMAR1", "is_viral": False}},
+             {"id": V, "class": "OrganismTaxon",
+              "properties": {"label": "SARS-CoV-2",
+                             "family": "Coronaviridae"}}]
+
+
+def test_a_host_directed_path_carries_the_pathway_caveat(tmp_path):
+    """explain() shows routes, and a route shown is the pathway hypothesis.
+
+    This path was added with the ranking and went untested: a mutation
+    deleting the whole branch left every other test passing.
+    """
+    land = _load(tmp_path, {V: _row(n_obs=40, expected=44.0, p_matched=0.81)})
+    out = guards.path_warnings(HOST_PATH, "M4 pathway-mediated",
+                               landscape=land, virus=V)
+    labels = [getattr(w, "label", "") for w in out]
+    assert "PATHWAY ROUTE" in labels
+    assert any("40 of 200" in str(w) for w in out)
+
+
+def test_a_direct_acting_path_does_not_carry_it(tmp_path):
+    """M1 is not the pathway route, so the caveat would be noise there."""
+    land = _load(tmp_path, {V: _row()})
+    out = guards.path_warnings(HOST_PATH, "M1 direct-acting",
+                               landscape=land, virus=V)
+    assert "PATHWAY ROUTE" not in [getattr(w, "label", "") for w in out]
+
+
+def test_a_host_directed_path_without_a_landscape_adds_nothing(tmp_path):
+    """Supplied-only here, unlike the ranking, and the asymmetry is tested.
+
+    A retrieved path already carries HOST-DIRECTED ROUTE with its measured
+    channel performance, and showing one orders nothing. triage() is where
+    silence would be the failure, and it attaches the caveat unconditionally.
+    """
+    out = guards.path_warnings(HOST_PATH, "M4 pathway-mediated")
+    labels = [getattr(w, "label", "") for w in out]
+    assert "PATHWAY ROUTE" not in labels
+    assert "HOST-DIRECTED ROUTE" in labels
 
 
 # ------------------------------------------------ and it must reach the user
