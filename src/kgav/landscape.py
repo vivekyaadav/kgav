@@ -190,6 +190,13 @@ class TaxonOverlap:
         if self.ratio < 1.0 and not self.depletion_tested:
             head += ("; the run measured the enrichment tail only, so the "
                      "sub-1 ratio is not a measured depletion")
+        elif self.ratio < 1.0:
+            # Tested downward and found nothing is a result, not a reason to
+            # go quiet. Saying only "not enriched" beside a ratio of 0.27
+            # leaves the reader to supply the other half themselves.
+            head += (f"; tested downward too and not depleted, lower-tail p "
+                     f"{self.p_matched_less:.4f} against a threshold of "
+                     f"{self.alpha:.4f}")
         if not self.ratio_readable:
             head += (f"; and with only {self.expected:.1f} expected, below "
                      f"{MIN_EXPECTED_HITS:.0f}, even a zero overlap would be "
@@ -325,6 +332,18 @@ class Landscape:
                 f"{t.p_matched_less:.4f})" for t in self.depleted())
                 + " clears the null downward: fewer dependency factors are "
                   "drugged than chance predicts.")
+        else:
+            # A MEASURED NULL IN THE OTHER DIRECTION IS A RESULT, and this
+            # branch is the whole return on measuring the lower tail. Without
+            # it the summary fell silent about depletion the moment it became
+            # measurable: the "not tested" clause switched off and the
+            # "clears downward" clause never fired, so the reader learned
+            # less from a run that had done more work.
+            down = min(self._sorted(), key=lambda t: t.p_matched_less)
+            tail += (f" Nor depleted in any: the strongest lower tail is "
+                     f"{down.virus} at p {down.p_matched_less:.4f}, above "
+                     f"the corrected threshold. The ratios sit below 1 "
+                     f"throughout and none of them is a measured depletion.")
 
         if enriched:
             names = ", ".join(f"{t.virus} (ratio {t.ratio:.2f}, p "
@@ -344,7 +363,8 @@ class Landscape:
                 f"{len(tested)} taxa with dependency factors — ratios "
                 f"{lo:.2f}–{hi:.2f}, and the closest any taxon comes to "
                 f"clearing the null is {closest.virus} at matched p "
-                f"{closest.p_matched:.2f}, none below {ALPHA}.{tail}")
+                f"{closest.p_matched:.2f}, none below the corrected "
+                f"{self.alpha:.4f}.{tail}")
 
     def report(self) -> list[str]:
         lines = [f"pathway landscape: {self.release or 'unknown release'}"

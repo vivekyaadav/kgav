@@ -585,6 +585,10 @@ def pathway_caveat(landscape, virus: str | None = None) -> str:
         # it at length twice in one caveat is how a reader learns to skim
         # past the caveats.
         head += " That is not a measured depletion: only the enrichment tail was computed."
+    elif overlap.ratio < 1.0:
+        head += (f" It was tested downward as well and is not depleted "
+                 f"either: lower-tail p {overlap.p_matched_less:.4f} against "
+                 f"a corrected threshold of {overlap.alpha:.4f}.")
     if not overlap.ratio_readable:
         head += (f" The ratio is also not readable downward for this taxon — "
                  f"with {overlap.expected:.1f} expected, below "
