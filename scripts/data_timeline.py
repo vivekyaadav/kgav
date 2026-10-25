@@ -46,8 +46,13 @@ from kgav.pipeline import LAYERS, layer_dir
 from kgav.temporal import PLACEHOLDER_DATE, edge_year
 
 # A version a source states about itself, read from the path rather than
-# guessed. ChEMBL numbers its releases and puts the number in the directory.
-VERSION_IN_PATH = re.compile(r"(chembl_\d+)")
+# guessed. ChEMBL numbers its releases and puts the number in the directory;
+# STRING puts its release in every filename
+# (9606.protein.links.detailed.v12.0.txt.gz) and this reported `-` for the
+# host layer because only the ChEMBL spelling was known. A version sitting
+# in a filename and reported as absent is the weakest kind of wrong: it
+# sends someone to establish a fact the file already states.
+VERSION_IN_PATH = re.compile(r"\b(chembl_\d+|v\d+\.\d+)\b")
 
 
 def _when(p: Path) -> str:
