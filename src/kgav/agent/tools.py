@@ -31,6 +31,10 @@ from kgav.schema import load_schema
 MAX_NEIGHBOURS = 50
 MAX_PATHS = 20
 MAX_SUBGRAPH_EDGES = 100
+# Pathways LISTED by pathways(), not pathways considered. Every one found is
+# counted and the overflow is reported with how many of it carry a dependency
+# factor, so the cap bounds the output without hiding the census.
+MAX_PATHWAYS = 25
 
 
 @dataclass
@@ -105,9 +109,17 @@ class GraphTools:
         # ranking refuses. Same shape as the agent holding one calibration
         # for every virus -- a fact declared in one place and consumed in
         # one of two.
+        _schema = load_schema()
         self._constraints: dict[str, dict] = {
             name: (mp.get("constraints") or {})
-            for name, mp in load_schema().metapaths.items()}
+            for name, mp in _schema.metapaths.items()}
+        # THE SAME CAP THE SCORER AND THE LANDSCAPE USE, read from the schema
+        # rather than restated. pathways() must exclude the same oversized
+        # pathways pathway_landscape.py excludes, or the agent would describe
+        # a route through a 1,389-member pathway that the measured null it
+        # quotes never considered.
+        self._max_pathway_members: int | None = (
+            _schema.retrieval_limits.get("max_pathway_members"))
         self.nodes: dict[str, dict] = {}
         self.edges: list[dict] = []
         self.out: dict[tuple[str, str], list[dict]] = defaultdict(list)
@@ -635,6 +647,186 @@ class GraphTools:
                          f"graph and were not ranked: {', '.join(missing)}")
         return ToolResult(True, "triage", data=scored, verbalised=lines,
                           warnings=warns, note=f"{len(missing)} unranked" if missing else "")
+
+    def _is_viral(self, node_id: str) -> bool:
+        """Whether a node is a viral protein, from its own properties.
+
+        A missing node is not viral: an absent id cannot be asserted to be
+        anything, and treating it as viral would silently drop it from a
+        human-protein census.
+        """
+        n = self.nodes.get(node_id)
+        if not n:
+            return False
+        return bool((n.get("properties") or {}).get("is_viral"))
+
+    def _dependency_factors(self, virus: str) -> set[str]:
+        """Proteins this virus DEPENDS on, by CRISPR screen.
+
+        The direction qualifier is required rather than assumed: a
+        restriction factor is the opposite claim, and pooling the two makes
+        every count below mean nothing. Same definition as
+        pathway_landscape.dependency_factors, because the agent must not
+        count a different set from the one the measured null was computed
+        over.
+        """
+        out = set()
+        for e in self.inv.get(("HOST_FACTOR_FOR", virus), []):
+            if (e.get("qualifiers") or {}).get("direction") == "dependency":
+                out.add(e["subject"])
+        return out
+
+    def pathways(self, compound: str, virus: str,
+                 limit: int = MAX_PATHWAYS) -> ToolResult:
+        """Which pathways this compound's targets sit in, and whether the
+        virus depends on any member.
+
+        WHY THIS IS NOT explain(). _find_paths walks M1 and M2 only, so the
+        pathway metapath the schema declares as M4 is never traversed by the
+        agent at all -- a question about pathway membership had no answer
+        before this, only a silence that read like a negative. And a path
+        sampler would be the wrong answer even once M4 were walked: it
+        returns MAX_PATHS instances chosen by iteration order, which tells a
+        reader nothing about how many pathways there are, how many were
+        skipped, or which of the compound's targets contributed none. The
+        question here is a census, so the answer is counted, and every
+        absence in it is reported as an absence.
+
+        WHAT IT REFUSES TO IMPLY. Membership is not benefit. Most TARGETS
+        edges record potency with no direction, so the compound may activate
+        a protein the virus depends on as easily as inhibit it, and the
+        caveat says so from the edges actually used. The measured
+        degree-matched null rides along too: on this release the drugged
+        proteome is no likelier to hit a dependency factor than chance, so a
+        pathway hit is context, not evidence.
+        """
+        verdict = guards.check(guards.QueryKind.EXPLAIN, virus,
+                               calibration=self.calibration_for(virus))
+        base_warnings = list(verdict.warnings) + [guards.caveat(
+            "pathway_route", guards.pathway_caveat(self.landscape, virus))]
+
+        if compound not in self.nodes:
+            return ToolResult(False, "pathways", warnings=base_warnings,
+                              note=f"{compound} is not in this graph, so it "
+                                   f"has no targets to place in a pathway.")
+
+        # Human targets only. A viral protein can be hit by a compound and is
+        # never a host pathway member, so including one would put a viral
+        # protein in a census of the human proteome.
+        target_edges = [e for e in self.out.get(("TARGETS", compound), [])
+                        if not self._is_viral(e["object"])]
+        if not target_edges:
+            return ToolResult(
+                False, "pathways", warnings=base_warnings,
+                note=f"{self._label(compound)} has no human target in this "
+                     f"graph, so there is no pathway to place it in. That is "
+                     f"a property of the source and not a finding about the "
+                     f"compound: most small molecules here carry an activity "
+                     f"measurement and no target annotation.")
+
+        n_directed = sum(
+            1 for e in target_edges
+            if (e.get("qualifiers") or {}).get("direction"))
+        deps = self._dependency_factors(virus)
+        cap = self._max_pathway_members
+
+        # pathway id -> {members, this compound's targets in it}
+        hits: dict[str, dict] = {}
+        oversized: set[str] = set()
+        no_pathway: list[str] = []
+        edge_ids = [e["_id"] for e in target_edges]
+
+        for te in target_edges:
+            prot = te["object"]
+            memberships = self.out.get(("PARTICIPATES_IN", prot), [])
+            placed = False
+            for pe in memberships:
+                pw = pe["object"]
+                if pw not in hits and pw not in oversized:
+                    members = {m["subject"]
+                               for m in self.inv.get(("PARTICIPATES_IN", pw), [])}
+                    # THE SAME CAP THE LANDSCAPE APPLIED. Quoting a measured
+                    # null computed over capped pathways while reporting an
+                    # uncapped one would be two different questions under one
+                    # answer.
+                    if cap is not None and len(members) > cap:
+                        oversized.add(pw)
+                        continue
+                    hits[pw] = {"members": members, "targets": set(),
+                                "edges": []}
+                if pw in oversized:
+                    continue
+                hits[pw]["targets"].add(prot)
+                hits[pw]["edges"].append(pe["_id"])
+                placed = True
+            if not placed:
+                no_pathway.append(prot)
+
+        rows = []
+        for pw, h in hits.items():
+            dep_members = sorted(h["members"] & deps)
+            rows.append({
+                "pathway": pw, "label": self._label(pw),
+                "n_members": len(h["members"]),
+                "targets_in_pathway": sorted(h["targets"]),
+                "dependency_members": dep_members,
+                "n_dependency_members": len(dep_members),
+            })
+        # Pathways the virus depends on something in, first; then by how much
+        # of the pathway is a dependency factor. NOT a ranking of relevance:
+        # ordering decides what survives the limit, and a reader is better
+        # served by seeing the hits than by seeing the first N by node id.
+        rows.sort(key=lambda r: (-r["n_dependency_members"], -len(
+            r["targets_in_pathway"]), r["pathway"]))
+        with_dep = [r for r in rows if r["n_dependency_members"]]
+        shown = rows[:limit]
+
+        lines = [
+            (f"{self._label(compound)} has {len(target_edges)} human "
+             f"target(s) in this graph."),
+            (f"{len(rows)} pathway(s) at or under the {cap}-member cap "
+             f"contain at least one of them; {len(with_dep)} of those "
+             f"contain at least one protein {self._label(virus)} depends "
+             f"on."),
+        ]
+        if oversized:
+            lines.append(
+                f"{len(oversized)} further pathway(s) were EXCLUDED for "
+                f"exceeding the {cap}-member cap. They are not absent from "
+                f"the graph, only from this answer and from the measured "
+                f"null it quotes.")
+        if no_pathway:
+            lines.append(
+                f"{len(no_pathway)} target(s) sit in no pathway at or under "
+                f"the cap: {', '.join(self._label(p) for p in no_pathway)}.")
+        if not with_dep:
+            lines.append(
+                f"No pathway containing a target of this compound contains a "
+                f"protein {self._label(virus)} is known to depend on. That is "
+                f"an absence in the CRISPR layer as much as a statement about "
+                f"this compound.")
+        for r in shown:
+            dep = (", ".join(self._label(d) for d in r["dependency_members"])
+                   if r["dependency_members"] else "none")
+            lines.append(
+                f"  {r['label']} ({r['n_members']} members) — via "
+                f"{', '.join(self._label(t) for t in r['targets_in_pathway'])}"
+                f"; dependency factors in it: {dep}")
+        if len(rows) > limit:
+            lines.append(f"  … {len(rows) - limit} further pathway(s) not "
+                         f"shown, of which "
+                         f"{sum(1 for r in rows[limit:] if r['n_dependency_members'])} "
+                         f"contain a dependency factor.")
+
+        for h in hits.values():
+            edge_ids.extend(h["edges"])
+        warns = base_warnings + [guards.caveat(
+            "target_direction",
+            guards.target_direction_caveat(n_directed, len(target_edges)))]
+        return ToolResult(True, "pathways", data=rows, verbalised=lines,
+                          warnings=warns, edge_ids=edge_ids,
+                          note=f"{len(oversized)} pathway(s) over the cap"
+                               if oversized else "")
 
     def evidence(self, subject: str, object_: str | None = None,
                  predicate: str | None = None, limit: int = 25) -> ToolResult:

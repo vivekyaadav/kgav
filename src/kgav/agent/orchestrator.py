@@ -214,7 +214,9 @@ class Orchestrator:
         compounds = self._compounds_in(resolved)
         results: list[ToolResult] = []
 
-        if intent is guards.QueryKind.TRIAGE and compounds:
+        if intent is guards.QueryKind.PATHWAY and compounds:
+            results += [self.tools.pathways(c, virus) for c in compounds]
+        elif intent is guards.QueryKind.TRIAGE and compounds:
             results.append(self.tools.triage(compounds, virus))
         elif intent is guards.QueryKind.PROFILE:
             results += [self.tools.profile(nid) for nid in resolved.values()]
