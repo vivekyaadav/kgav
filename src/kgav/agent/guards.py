@@ -171,6 +171,7 @@ class QueryKind(str, Enum):
     TRIAGE = "triage"            # rank these compounds -> supported
     EVIDENCE = "evidence"        # what supports this claim? -> supported
     PROFILE = "profile"          # what is known about X? -> supported
+    PATHWAY = "pathway"          # which pathways does X sit in? -> supported
     PROSPECT = "prospect"        # what should we test? -> REFUSED
     UNKNOWN = "unknown"
 
@@ -208,6 +209,7 @@ CAVEAT_LABELS: dict[str, str] = {
     "contradicted":          "CONTRADICTED",
     "ranking":               "RANKING",
     "pathway_route":         "PATHWAY ROUTE",
+    "target_direction":      "TARGET DIRECTION",
 }
 
 
@@ -255,6 +257,14 @@ def classify_intent(text: str) -> QueryKind:
     )
     if any(p in t for p in prospective):
         return QueryKind.PROSPECT
+
+    # BEFORE explain. "which pathway does X act through" contains "pathway"
+    # and would otherwise fall to EXPLAIN, which walks M1 and M2 and cannot
+    # answer it -- returning a silence that reads as a negative. Prospective
+    # phrasing is matched above this and still refused.
+    if any(p in t for p in ("pathway", "pathways", "participates in",
+                            "same pathway", "reactome", "which process")):
+        return QueryKind.PATHWAY
 
     if any(p in t for p in ("why might", "why does", "how does", "mechanism",
                             "explain", "how might")):
@@ -595,6 +605,37 @@ def pathway_caveat(landscape, virus: str | None = None) -> str:
                  f"{MIN_EXPECTED_HITS:.0f}, even a zero overlap would be an "
                  f"ordinary draw from the background.")
     return head + tail
+
+
+def target_direction_caveat(n_directed: int, n_total: int) -> str:
+    """Whether this compound's target edges say what it DOES to the target.
+
+    THE INFERENCE THIS BLOCKS. "Drug targets a protein the virus depends on"
+    reads as "drug should help". It only follows if the drug INHIBITS the
+    protein: activating a dependency factor should make infection easier, not
+    harder. ChEMBL's bulk activity table records potency, not direction, so
+    most TARGETS edges in this graph are a binding affinity with no
+    agonist/antagonist annotation at all -- 2,226 of 14,381 on v0.1, and the
+    figure is counted here per compound rather than quoted, because a
+    compound whose every edge is directed deserves a different sentence.
+
+    Counted from the edges actually used, not from the release, so the
+    caveat cannot drift from what the answer is built on.
+    """
+    if not n_total:
+        return ("no target edge was used, so there is no direction to "
+                "report.")
+    if n_directed == n_total:
+        return (f"all {n_total} target edge(s) here state a direction "
+                f"(agonist/antagonist), so what the compound DOES to each "
+                f"target is recorded rather than assumed.")
+    unknown = n_total - n_directed
+    return (f"{unknown} of {n_total} target edge(s) here record potency "
+            f"without a direction, so it is not known whether the compound "
+            f"inhibits or activates those targets. Inhibiting a dependency "
+            f"factor should impede the virus; activating one should not. "
+            f"Membership of a pathway the virus depends on is therefore a "
+            f"hypothesis to test, not a reason to expect benefit.")
 
 
 def _family_of(path_nodes: list[dict]) -> str | None:
