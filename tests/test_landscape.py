@@ -384,11 +384,43 @@ def test_the_caveat_renders_figures_from_the_artifact_not_the_source(tmp_path):
     assert "7 of" in b and "12.5" in b
 
 
-def test_the_caveat_says_untested_for_an_underpowered_taxon(tmp_path):
+def test_the_caveat_qualifies_a_ratio_that_cannot_be_read_downward(tmp_path):
+    """Not "untested" -- the taxon WAS tested, in the enrichment direction.
+
+    The branch this replaces claimed the taxon was untested on a depletion
+    power basis, a direction the run never measures. On the real release
+    that branch never fired at all, so a 0.00 ratio reached the reader bare.
+    """
     land = _load(tmp_path, {V: _row(n_obs=0, expected=0.4, p_matched=1.0)})
     text = guards.pathway_caveat(land, V)
-    assert "untested for this taxon rather than null" in text
-    assert "no enrichment" not in text.split("Release-wide")[0]
+    own = text.split("Release-wide")[0]
+    assert "no enrichment" in own
+    assert "not a measured depletion" in own
+    assert "not readable downward" in own and "0.4 expected" in own
+
+
+def test_the_caveat_does_not_double_its_full_stops(tmp_path):
+    """summary() ends in a full stop and the tail concatenated another."""
+    land = _load(tmp_path, {V: _row(n_obs=0, expected=0.4, p_matched=1.0)})
+    assert ".." not in guards.pathway_caveat(land, V)
+
+
+def test_the_caveat_states_a_measured_depletion_when_there_is_one(tmp_path):
+    land = _load(tmp_path, {V: dict(_row(n_dep=18, n_obs=0, expected=3.1,
+                                         p_matched=1.0),
+                                    p_matched_less=0.004)})
+    own = guards.pathway_caveat(land, V).split("Release-wide")[0]
+    assert "FEWER dependency factors than chance predicts" in own
+    assert "0.0040" in own
+
+
+def test_the_caveat_never_calls_an_untested_direction_a_depletion(tmp_path):
+    """The claim the measured release would otherwise have invited."""
+    land = _load(tmp_path, {V: _row(n_dep=18, n_obs=0, expected=3.1,
+                                    p_matched=1.0)})
+    own = guards.pathway_caveat(land, V).split("Release-wide")[0]
+    assert "FEWER" not in own and "depleted" not in own.lower()
+    assert "not a measured depletion" in own
 
 
 def test_the_caveat_states_enrichment_plainly_when_measured(tmp_path):

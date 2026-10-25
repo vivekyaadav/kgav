@@ -42,6 +42,13 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Self
 
+# Imported rather than restated. The threshold is derived in landscape.py
+# from the Poisson tail it describes, and a second copy here would be a
+# figure in user-facing prose with nothing linking it to the derivation --
+# the bug the deleted constants below were deleted for. landscape.py imports
+# nothing from this module, so the direction is one-way.
+from kgav.landscape import MIN_EXPECTED_HITS
+
 # TEMPORAL_AUC = 0.500 AND ABSENT_FRACTION = 0.77 WERE HERE, both deleted.
 #
 # They were measured figures hardcoded into user-facing prose, which is the
@@ -505,11 +512,19 @@ def pathway_caveat(landscape, virus: str | None = None) -> str:
     Rule 2 above attaches a cell-context warning to such a route -- that the
     graph cannot tell whether it works in the relevant tissue -- and the
     ranking caveat states that host-directed routes contribute nothing to the
-    SORT KEY. Neither says the thing the landscape measured: that across the
-    taxa with enough background to test, the drugged proteome is no more
-    likely to hit a dependency factor than a degree-matched random protein
-    set. A reader can accept both existing caveats and still conclude the
-    route is weak evidence rather than no evidence.
+    SORT KEY. Neither says the thing the landscape measured: that in every
+    taxon tested, the drugged proteome is no more likely to hit a dependency
+    factor than a degree-matched random protein set. A reader can accept both
+    existing caveats and still conclude the route is weak evidence rather
+    than no evidence.
+
+    AND IT DOES NOT OVERSTATE THAT EITHER. The run measures the enrichment
+    tail only, so a taxon whose ratio sits below 1 has not been shown to be
+    depleted -- it has been shown not to be enriched, which is a different
+    and weaker statement. This caveat used to have an "untested for this
+    taxon" branch keyed on a power threshold for depletion, a direction
+    nothing measures; on the release that threshold admitted every taxon, so
+    a ratio of 0.00 reached the reader with no qualification at all.
 
     Per-taxon first, release-wide second. A caveat that quoted only the
     release-wide summary would be the mis-keyed calibration bug again, in
@@ -529,7 +544,10 @@ def pathway_caveat(landscape, virus: str | None = None) -> str:
                 "not a contribution to any ordering.")
 
     overlap = landscape.for_virus(virus) if virus else None
-    tail = (" Release-wide: " + landscape.summary()
+    # rstrip before rejoining: summary() ends in a full stop of its own, and
+    # concatenating produced ".." in every answer the moment it grew a
+    # closing sentence.
+    tail = (" Release-wide: " + landscape.summary().rstrip(". ")
             + ". A pathway route is therefore context for a compound already "
               "in hand, not a reason to place it above another.")
 
@@ -548,18 +566,31 @@ def pathway_caveat(landscape, virus: str | None = None) -> str:
                 f"{overlap.n_dependency:,} against {overlap.expected:.1f} "
                 f"expected under {landscape.protocol}, matched p "
                 f"{overlap.p_matched:.4f}.{tail}")
-    if not overlap.testable:
-        return (f"for {overlap.virus} a degree-matched background is expected "
-                f"to hit only {overlap.expected:.1f} of its "
-                f"{overlap.n_dependency:,} dependency factors, too few for "
-                f"this test to detect enrichment or depletion either way, so "
-                f"the pathway route is untested for this taxon rather than "
-                f"null.{tail}")
-    return (f"for {overlap.virus} the drugged proteome hits "
+    if overlap.depleted:
+        return (f"for {overlap.virus} the drugged proteome hits FEWER "
+                f"dependency factors than chance predicts: "
+                f"{overlap.n_observed:,} of {overlap.n_dependency:,} against "
+                f"{overlap.expected:.1f} expected under {landscape.protocol}, "
+                f"lower-tail matched p {overlap.p_matched_less:.4f}.{tail}")
+
+    head = (f"for {overlap.virus} the drugged proteome hits "
             f"{overlap.n_observed:,} of {overlap.n_dependency:,} dependency "
             f"factors where a degree-matched random protein set of the same "
             f"size hits {overlap.expected:.1f} — ratio {overlap.ratio:.2f}, "
-            f"matched p {overlap.p_matched:.2f}, no enrichment.{tail}")
+            f"matched p {overlap.p_matched:.2f}, no enrichment.")
+    # The sub-1 ratio is the number a reader's eye lands on, so what it does
+    # NOT mean is said beside it rather than left to the release-wide tail.
+    if overlap.ratio < 1.0 and not overlap.depletion_tested:
+        # Terse on purpose: the release-wide tail spells out why, and saying
+        # it at length twice in one caveat is how a reader learns to skim
+        # past the caveats.
+        head += " That is not a measured depletion: only the enrichment tail was computed."
+    if not overlap.ratio_readable:
+        head += (f" The ratio is also not readable downward for this taxon — "
+                 f"with {overlap.expected:.1f} expected, below "
+                 f"{MIN_EXPECTED_HITS:.0f}, even a zero overlap would be an "
+                 f"ordinary draw from the background.")
+    return head + tail
 
 
 def _family_of(path_nodes: list[dict]) -> str | None:
