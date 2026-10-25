@@ -237,7 +237,62 @@ def test_it_states_what_it_cannot_say(tmp_path, capsys):
     assert "NOT a claim that the drug would help" in out
     assert "ranks a drug" in out
     src = (ROOT / "scripts" / "pathway_landscape.py").read_text()
-    assert "Read-only. Writes nothing, ranks no drug" in src
+    assert "ranks no drug, recommends no compound" in src
+
+
+def test_it_writes_nothing_unless_asked(tmp_path):
+    """The script gained --out; without it the old guarantee still holds.
+
+    Asserted on the directory rather than on the docstring. The sentence this
+    replaces ("Read-only. Writes nothing") was true when written and silently
+    became false the moment --out existed, which is a doc checking itself
+    against its own prose rather than against the behaviour.
+    """
+    rel = _release(tmp_path)
+    before = sorted(p.name for p in tmp_path.iterdir())
+    L.main(["--release", str(rel), "--permutations", "50"])
+    assert sorted(p.name for p in tmp_path.iterdir()) == before
+
+
+def test_out_writes_a_file_the_loader_accepts(tmp_path):
+    from kgav import landscape as LS
+    rel = _release(tmp_path)
+    out = tmp_path / "landscape.json"
+    L.main(["--release", str(rel), "--permutations", "300", "--out", str(out)])
+    assert out.exists()
+    land = LS.load(out, release=rel.name)
+    assert land.usable, land.refused_reason
+    assert land.permutations == 300
+
+
+def test_a_single_virus_run_marks_its_file_partial(tmp_path):
+    """And the loader refuses it, so one taxon cannot speak for the release."""
+    from kgav import landscape as LS
+    rel = _release(tmp_path)
+    out = tmp_path / "landscape.json"
+    L.main(["--release", str(rel), "--permutations", "300",
+            "--virus", "NCBITaxon:2697049", "--out", str(out)])
+    doc = json.loads(out.read_text())
+    assert doc["partial"] is True
+    assert "NCBITaxon:2697049" in doc["partial_reason"]
+    assert not LS.load(out, release=rel.name).usable
+
+
+def test_the_written_file_is_strict_json(tmp_path):
+    """An infinite ratio would make it Python-only. None is stored.
+
+    json.loads with parse_constant rejects Infinity/NaN, which json.loads
+    otherwise accepts silently -- so a file that round-trips in Python but is
+    not JSON would pass an ordinary read.
+    """
+    rel = _release(tmp_path)
+    out = tmp_path / "landscape.json"
+    L.main(["--release", str(rel), "--permutations", "300", "--out", str(out)])
+
+    def reject(const):
+        raise ValueError(f"not strict JSON: {const}")
+
+    json.loads(out.read_text(), parse_constant=reject)
 
 
 def test_a_missing_release_exits_two(tmp_path, capsys):

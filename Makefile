@@ -1,4 +1,4 @@
-.PHONY: install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw clean
+.PHONY: install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape clean
 
 install:
 	pip install -e ".[dev]"
@@ -130,6 +130,16 @@ data-timeline:
 # recorded remedy for each gap so it is not worked out twice.
 data-audit:
 	python scripts/data_audit.py
+
+# THE PATHWAY NULL, AS AN ARTIFACT THE AGENT CAN CITE. Without the results
+# file the agent reports the pathway route as unmeasured, which is honest and
+# weaker than the finding; with it, every ranking carries the measured
+# degree-matched null. Re-run this whenever the release changes --
+# src/kgav/landscape.py refuses a file measured on a different one rather
+# than quoting it.
+pathway-landscape:
+	python scripts/pathway_landscape.py \
+	  --out data/results/pathway_landscape.json
 
 clean:
 	find . -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true

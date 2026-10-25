@@ -1,0 +1,298 @@
+"""What the pathway route is measured to be worth.
+
+THE CLAIM THIS EXISTS TO STOP. An agent that orders compounds and mentions a
+route through a host pathway has implied, without saying it, that the route
+bears on the order. On this release it does not. pathway_landscape.py measures
+the overlap between the drugged human proteome and each virus's CRISPR
+dependency factors twice -- naive, and against a background sampled to match
+the observed degree distribution -- and the matched test is the one that
+counts, because well-studied proteins are both likelier to be drugged and
+likelier to be called dependency factors.
+
+WHY A FILE AND NOT A SENTENCE. The result used to exist only as terminal
+output from a script that wrote nothing, so the agent could not cite it and
+nothing re-ran it. A sentence in a docstring would have been a figure with no
+record of what produced it -- the exact objection calibration.py raises about
+hardcoded weights. This loads a results file carrying its own release,
+permutation count and seed, so a claim about the pathway route can always be
+traced to the run that measured it, and a run on a different release can be
+refused rather than quoted.
+
+POWER IS NOT THE SAME AS A NULL, and conflating them is how a report comes out
+correct about what it shows and silent about what it does not. A taxon whose
+degree-matched background is expected to hit 0.4 dependency factors cannot
+produce a significant depletion no matter what is observed: under a Poisson
+background with mean m, the strongest possible depletion signal is observing
+zero, at p = exp(-m), which only reaches 0.05 once m is about 3. Below that
+the taxon is UNTESTED, not null, and this module says so separately rather
+than letting an underpowered zero read as evidence of absence.
+
+Enrichment is treated asymmetrically and deliberately: a taxon that clears the
+matched null is reported as enriched whatever its expectation, because a
+significant result is significant, and an agent built on "nothing is enriched"
+must say so the moment that stops being true. That mirrors the discriminates
+branch in guards._measured_at_chance, for the same reason.
+"""
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from pathlib import Path
+
+# The smallest matched expectation at which a total absence of overlap could
+# reach p < 0.05. Under a Poisson background with mean m the most extreme
+# depletion observable is zero hits, with probability exp(-m); exp(-3) = 0.0498
+# and exp(-2.9) = 0.055. Derived, not chosen: a threshold picked for looking
+# round would be a fitted parameter with no record of what fitted it.
+MIN_EXPECTED_HITS = 3.0
+
+# An empirical p from N permutations cannot resolve below 1/(N+1). At 200 the
+# finest p is 0.005, which is enough for a 0.05 test but leaves a "p = 0.0000"
+# unable to distinguish 0.004 from 0.0000001. Runs coarser than this are
+# refused rather than quoted: the agent states these figures to a user.
+MIN_PERMUTATIONS = 200
+
+ALPHA = 0.05
+
+
+@dataclass(frozen=True)
+class TaxonOverlap:
+    """One taxon's measured overlap, and whether it could be measured."""
+    virus: str
+    n_dependency: int
+    n_observed: int
+    expected: float
+    p_naive: float
+    p_matched: float
+
+    @property
+    def ratio(self) -> float:
+        """Observed over matched expectation, derived rather than stored.
+
+        A stored ratio is a third number that can disagree with the two it
+        comes from, and the disagreement would be invisible. It is also not
+        always finite: a taxon whose degree-matched background is expected to
+        hit nothing has an infinite ratio if anything at all is observed, and
+        JSON has no way to write that. Deriving it here keeps one source of
+        truth and keeps the results file plain.
+        """
+        if self.expected > 0:
+            return self.n_observed / self.expected
+        return float("inf") if self.n_observed else 0.0
+
+    @property
+    def testable(self) -> bool:
+        """Whether a null result here would mean anything.
+
+        Governs the DEPLETION direction only. A taxon below the threshold can
+        still return a significant enrichment, which `enriched` reports on its
+        own; what it cannot do is distinguish "no overlap" from "too little
+        background to tell".
+        """
+        return self.expected >= MIN_EXPECTED_HITS
+
+    @property
+    def enriched(self) -> bool:
+        """Clears the degree-matched null in the enrichment direction."""
+        return self.p_matched < ALPHA and self.ratio > 1.0
+
+    @property
+    def at_null(self) -> bool:
+        """Measured, adequately powered, and not enriched."""
+        return self.testable and not self.enriched
+
+    def describe(self) -> str:
+        if self.enriched:
+            return (f"{self.virus}: {self.n_observed:,} of "
+                    f"{self.n_dependency:,} dependency factors are drugged "
+                    f"against {self.expected:.1f} expected under a "
+                    f"degree-matched background — ratio {self.ratio:.2f}, "
+                    f"matched p {self.p_matched:.4f}, which CLEARS the null")
+        if not self.testable:
+            return (f"{self.virus}: a degree-matched background is expected "
+                    f"to hit only {self.expected:.1f} of its "
+                    f"{self.n_dependency:,} dependency factors, below the "
+                    f"{MIN_EXPECTED_HITS:.0f} needed for a zero overlap to "
+                    f"reach p < {ALPHA}, so this taxon is UNTESTED rather "
+                    f"than null ({self.n_observed:,} observed)")
+        return (f"{self.virus}: {self.n_observed:,} of {self.n_dependency:,} "
+                f"dependency factors are drugged against {self.expected:.1f} "
+                f"expected under a degree-matched background — ratio "
+                f"{self.ratio:.2f}, matched p {self.p_matched:.2f}, at the "
+                f"null")
+
+
+@dataclass
+class Landscape:
+    """Every taxon's measured pathway overlap, with the run that measured it."""
+    release: str = ""
+    permutations: int = 0
+    seed: int = 0
+    measured_on: str = ""
+    taxa: dict[str, TaxonOverlap] = field(default_factory=dict)
+    uncovered: list[str] = field(default_factory=list)
+    source_file: str = ""
+    refused_reason: str = ""
+
+    @property
+    def usable(self) -> bool:
+        return not self.refused_reason
+
+    @property
+    def protocol(self) -> str:
+        return (f"a degree-matched permutation null, "
+                f"{self.permutations:,} permutations, seed {self.seed}")
+
+    def for_virus(self, virus: str) -> TaxonOverlap | None:
+        """This taxon's overlap, or None. Never another taxon's."""
+        if not self.usable:
+            return None
+        return self.taxa.get(virus)
+
+    def testable(self) -> list[TaxonOverlap]:
+        return [t for t in self._sorted() if t.testable]
+
+    def underpowered(self) -> list[TaxonOverlap]:
+        return [t for t in self._sorted() if not t.testable]
+
+    def enriched(self) -> list[TaxonOverlap]:
+        return [t for t in self._sorted() if t.enriched]
+
+    def at_null(self) -> list[TaxonOverlap]:
+        return [t for t in self._sorted() if t.at_null]
+
+    def _sorted(self) -> list[TaxonOverlap]:
+        if not self.usable:
+            return []
+        return [self.taxa[k] for k in sorted(self.taxa)]
+
+    def ratio_range(self) -> tuple[float, float] | None:
+        """Range over the adequately powered taxa, or None if there are none."""
+        rs = [t.ratio for t in self.testable()]
+        return (min(rs), max(rs)) if rs else None
+
+    def summary(self) -> str:
+        """What the pathway route is worth on this release, in one sentence.
+
+        Every branch is reachable, including the one that says the route works.
+        A module whose only output is "no enrichment" would keep saying it
+        after the finding changed.
+        """
+        if not self.usable:
+            return (f"the pathway route has not been measured on this "
+                    f"release ({self.refused_reason})")
+        if not self.taxa:
+            return ("no taxon in this release has a dependency factor, so "
+                    "there is no overlap to measure and the pathway route is "
+                    "untested rather than null")
+        enriched = self.enriched()
+        powered = self.testable()
+        under = self.underpowered()
+        tail = ""
+        if under:
+            tail = (f" {len(under)} further taxon(s) are untested: their "
+                    f"degree-matched background is too small for an absent "
+                    f"overlap to be distinguishable from chance "
+                    f"({', '.join(t.virus for t in under)})")
+        if enriched:
+            names = ", ".join(f"{t.virus} (ratio {t.ratio:.2f}, p "
+                              f"{t.p_matched:.4f})" for t in enriched)
+            return (f"measured under {self.protocol}, the drugged proteome IS "
+                    f"enriched for dependency factors in {len(enriched)} of "
+                    f"{len(self.taxa)} taxa: {names}.{tail}")
+        if not powered:
+            return (f"measured under {self.protocol}, no taxon has a "
+                    f"degree-matched background large enough to test: the "
+                    f"pathway route is untested on this release, not "
+                    f"null.{tail}")
+        lo, hi = self.ratio_range()
+        worst = min(powered, key=lambda t: t.p_matched)
+        return (f"measured under {self.protocol}, the drugged proteome is not "
+                f"enriched for dependency factors in any of the "
+                f"{len(powered)} testable taxa — ratios {lo:.2f}–{hi:.2f}, "
+                f"and the strongest matched p is {worst.p_matched:.2f} "
+                f"({worst.virus}), none below {ALPHA}.{tail}")
+
+    def report(self) -> list[str]:
+        lines = [f"pathway landscape: {self.release or 'unknown release'}"
+                 + (f"  (from {self.source_file})" if self.source_file else "")]
+        if self.refused_reason:
+            lines.append(f"  REFUSED: {self.refused_reason}")
+            return lines
+        for t in self._sorted():
+            lines.append(f"  {t.describe()}")
+        for v in self.uncovered:
+            lines.append(f"  {v}: no dependency factor in this release, so no "
+                         f"overlap to measure")
+        lines.append(f"  {self.summary()}")
+        return lines
+
+
+def _overlap(virus: str, row: dict) -> TaxonOverlap:
+    return TaxonOverlap(
+        virus=virus,
+        n_dependency=int(row.get("n_dependency") or 0),
+        n_observed=int(row.get("n_observed") or 0),
+        expected=float(row.get("expected") or 0.0),
+        p_naive=float(row.get("p_naive") if row.get("p_naive") is not None else 1.0),
+        p_matched=float(row.get("p_matched") if row.get("p_matched") is not None else 1.0),
+    )
+
+
+def load(results: Path, release: str | None = None) -> Landscape:
+    """Read a landscape results file, refusing one that cannot be quoted.
+
+    `release` is the release the agent is serving. A landscape measured on a
+    different one is refused rather than quoted: the mis-keyed calibration bug
+    in agent/tools.py was exactly this failure, where a figure measured on one
+    thing was stated about another, and it is the most confident sentence
+    either module can emit.
+    """
+    path = Path(results)
+    src = path.name
+    if not path.exists():
+        return Landscape(source_file=str(path),
+                         refused_reason=f"no results file at {path}")
+    try:
+        doc = json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError) as exc:
+        return Landscape(source_file=src,
+                         refused_reason=f"{src} could not be read: {exc}")
+
+    measured_release = str(doc.get("release") or "")
+    perms = int(doc.get("permutations") or 0)
+    base = Landscape(
+        release=measured_release,
+        permutations=perms,
+        seed=int(doc.get("seed") or 0),
+        measured_on=str(doc.get("measured_on") or ""),
+        uncovered=list(doc.get("uncovered") or []),
+        source_file=src,
+    )
+    if release is not None and measured_release and measured_release != release:
+        base.refused_reason = (
+            f"measured on release {measured_release!r}, but the graph being "
+            f"served is {release!r}; a landscape describes the release it was "
+            f"run on and nothing else")
+        return base
+    if doc.get("partial"):
+        why = str(doc.get("partial_reason") or "it covers a subset of taxa")
+        base.refused_reason = (
+            f"{src} is a partial run ({why}); every statement this module "
+            f"makes is about all taxa in the release, and a subset cannot "
+            f"support one")
+        return base
+    if perms <= 0:
+        base.refused_reason = ("no permutation count is recorded, so the "
+                               "matched null cannot be interpreted")
+        return base
+    if perms < MIN_PERMUTATIONS:
+        base.refused_reason = (
+            f"{perms:,} permutations cannot resolve a p below "
+            f"{1 / (perms + 1):.3f}, which is too coarse to quote")
+        return base
+
+    rows = doc.get("taxa") or {}
+    base.taxa = {v: _overlap(v, r) for v, r in rows.items()
+                 if isinstance(r, dict)}
+    return base

@@ -200,6 +200,7 @@ CAVEAT_LABELS: dict[str, str] = {
     "virus_assumed":         "VIRUS ASSUMED",
     "contradicted":          "CONTRADICTED",
     "ranking":               "RANKING",
+    "pathway_route":         "PATHWAY ROUTE",
 }
 
 
@@ -496,6 +497,71 @@ def direct_acting_caveat(calibration, code: str = "M1") -> str:
             f"evidence available rather than a demonstrated ability to rank")
 
 
+def pathway_caveat(landscape, virus: str | None = None) -> str:
+    """What the pathway route is MEASURED to be worth, for this taxon.
+
+    THE CLAIM THIS CLOSES. An answer that orders compounds and mentions a
+    route through a host pathway has implied the route bears on the order.
+    Rule 2 above attaches a cell-context warning to such a route -- that the
+    graph cannot tell whether it works in the relevant tissue -- and the
+    ranking caveat states that host-directed routes contribute nothing to the
+    SORT KEY. Neither says the thing the landscape measured: that across the
+    taxa with enough background to test, the drugged proteome is no more
+    likely to hit a dependency factor than a degree-matched random protein
+    set. A reader can accept both existing caveats and still conclude the
+    route is weak evidence rather than no evidence.
+
+    Per-taxon first, release-wide second. A caveat that quoted only the
+    release-wide summary would be the mis-keyed calibration bug again, in
+    reverse: a figure that is true of the set stated about a member.
+
+    With no landscape the route is UNMEASURED rather than assumed null.
+    "This has not been measured on this release" is weaker than the finding
+    and true; asserting an unmeasured null would be the same overreach as the
+    hardcoded AUC _channel_caveat replaced, pointing the other way.
+    """
+    if landscape is None or not getattr(landscape, "usable", False):
+        why = getattr(landscape, "refused_reason", "") if landscape else ""
+        return ("the overlap between the drugged proteome and this virus's "
+                "dependency factors has not been measured on this release"
+                + (f" ({why})" if why else "")
+                + ", so a route through a pathway is a hypothesis to check, "
+                "not a contribution to any ordering.")
+
+    overlap = landscape.for_virus(virus) if virus else None
+    tail = (" Release-wide: " + landscape.summary()
+            + ". A pathway route is therefore context for a compound already "
+              "in hand, not a reason to place it above another.")
+
+    if overlap is None:
+        known = ", ".join(sorted(landscape.taxa)) or "no taxon"
+        return (f"no dependency-factor overlap is measured for "
+                f"{virus or 'this virus'} on this release, so the pathway "
+                f"route is untested for it rather than null — the landscape "
+                f"covers {known}.{tail}")
+    if overlap.enriched:
+        # Reachable and said plainly. A module whose only output is "no
+        # enrichment" would keep saying it after the finding changed, and the
+        # reader is entitled to know the moment the route starts working.
+        return (f"for {overlap.virus} the drugged proteome IS enriched for "
+                f"dependency factors: {overlap.n_observed:,} of "
+                f"{overlap.n_dependency:,} against {overlap.expected:.1f} "
+                f"expected under {landscape.protocol}, matched p "
+                f"{overlap.p_matched:.4f}.{tail}")
+    if not overlap.testable:
+        return (f"for {overlap.virus} a degree-matched background is expected "
+                f"to hit only {overlap.expected:.1f} of its "
+                f"{overlap.n_dependency:,} dependency factors, too few for "
+                f"this test to detect enrichment or depletion either way, so "
+                f"the pathway route is untested for this taxon rather than "
+                f"null.{tail}")
+    return (f"for {overlap.virus} the drugged proteome hits "
+            f"{overlap.n_observed:,} of {overlap.n_dependency:,} dependency "
+            f"factors where a degree-matched random protein set of the same "
+            f"size hits {overlap.expected:.1f} — ratio {overlap.ratio:.2f}, "
+            f"matched p {overlap.p_matched:.2f}, no enrichment.{tail}")
+
+
 def _family_of(path_nodes: list[dict]) -> str | None:
     """The viral family this path ends at, from the path itself.
 
@@ -553,7 +619,7 @@ def _cell_context_text(hits: list[str], family: str | None) -> str:
 
 
 def path_warnings(path_nodes: list[dict], metapath: str | None = None,
-                  calibration=None) -> list[str]:
+                  calibration=None, landscape=None, virus: str | None = None) -> list[str]:
     """Warnings a retrieved path must carry into the answer.
 
     Attached at retrieval time rather than left to documentation, because the
@@ -582,6 +648,16 @@ def path_warnings(path_nodes: list[dict], metapath: str | None = None,
     if code in HOST_DIRECTED_CODES:
         out.append(caveat("host_directed_route",
                           _channel_caveat(code, calibration)))
+        # SUPPLIED-ONLY, unlike the ranking, and the asymmetry is deliberate.
+        # A host-directed path shown here already carries its own measured
+        # channel performance, and showing one is not ordering anything --
+        # the claim A4 closes is that an ORDER is predictive. triage()
+        # therefore attaches the pathway caveat unconditionally, including
+        # its unmeasured branch, while a retrieved path gains it only when a
+        # landscape exists to say something with.
+        if landscape is not None:
+            out.append(caveat("pathway_route",
+                              pathway_caveat(landscape, virus)))
     return out
 
 

@@ -37,15 +37,26 @@ USAGE
   python scripts/pathway_landscape.py
   python scripts/pathway_landscape.py --virus NCBITaxon:2697049
   python scripts/pathway_landscape.py --permutations 10000
+  python scripts/pathway_landscape.py --out data/results/pathway_landscape.json
 
-Read-only. Writes nothing, ranks no drug, recommends no compound.
+Reads the release only, ranks no drug, recommends no compound. With --out it
+writes the overlap table to a results file so the agent can state the measured
+null instead of implying a ranking the landscape refuses -- see
+src/kgav/landscape.py, which loads it and will not quote a run from a
+different release. Without --out it writes nothing, as before.
+
+A --virus run writes a PARTIAL file and marks it so: a landscape covering one
+taxon cannot support "no taxon is enriched", and the loader must not be handed
+a file that looks complete because it was filtered.
 """
 from __future__ import annotations
 
 import argparse
+import json
 import random
 import sys
 from collections import Counter, defaultdict
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -290,12 +301,44 @@ def empirical_p(observed: int, null: list[int]) -> float:
 
 
 # ----------------------------------------------------------------- report
+def _write(out: Path, args, rows: dict[str, dict],
+           uncovered: list[str]) -> None:
+    """Record the overlap table with the run that produced it.
+
+    `partial` is the field that matters. A --virus run measures one taxon, and
+    a file that did not say so would let the agent state "no taxon is
+    enriched" on the strength of a single row. The loader refuses a partial
+    file for exactly that reason.
+    """
+    doc = {
+        "measured_on": date.today().isoformat(),
+        "measured_by": "scripts/pathway_landscape.py",
+        "release": args.release.name,
+        "permutations": args.permutations,
+        "seed": args.seed,
+        "partial": bool(args.virus),
+        "partial_reason": (f"run with --virus {args.virus}, so it covers that "
+                           f"taxon only" if args.virus else ""),
+        "taxa": rows,
+        "uncovered": uncovered,
+    }
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(doc, indent=2, sort_keys=True,
+                              allow_nan=False) + "\n")
+    print(f"\n  wrote {out} — {len(rows)} taxon(s) measured, "
+          f"{len(uncovered)} with no dependency factor"
+          + ("  [PARTIAL: one taxon only]" if args.virus else ""))
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--release", type=Path, default=ROOT / "data/releases/v0.1")
     ap.add_argument("--virus", default=None)
     ap.add_argument("--permutations", type=int, default=DEFAULT_PERMUTATIONS)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--out", type=Path, default=None,
+                    help="write the overlap table here for src/kgav/"
+                         "landscape.py to load")
     args = ap.parse_args(argv)
 
     if not (args.release / "nodes.jsonl").exists():
@@ -378,6 +421,7 @@ def main(argv=None) -> int:
           f"{'ratio':>6} {'p naive':>9} {'p matched':>10}")
     any_virus = False
     uncovered = []
+    rows: dict[str, dict] = {}
     for virus in viruses:
         deps = dependency_factors(g, virus)
         if not deps:
@@ -398,8 +442,17 @@ def main(argv=None) -> int:
         exp = sum(null) / len(null) if null else 0.0
         p_match = empirical_p(a, null)
         ratio = a / exp if exp else float("inf")
+        # The ratio is NOT stored: it is a third number that can disagree with
+        # the two it is derived from, and it is infinite whenever a
+        # degree-matched background is expected to hit nothing, which JSON
+        # cannot write. landscape.TaxonOverlap derives it.
+        rows[virus] = {"n_dependency": len(deps), "n_observed": a,
+                       "expected": exp, "p_naive": p_naive,
+                       "p_matched": p_match}
         print(f"    {virus:<18} {len(deps):6,} {a:8,} {exp:7.1f} "
               f"{ratio:6.2f} {p_naive:9.2e} {p_match:10.4f}")
+    if args.out:
+        _write(args.out, args, rows, uncovered)
     if not any_virus:
         print("    NO VIRUS HAS DEPENDENCY FACTORS in this release, so there")
         print("    is no overlap to measure. That is the finding, not an")
