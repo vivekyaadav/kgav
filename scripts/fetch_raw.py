@@ -337,6 +337,19 @@ def fetch_virus(virus: dict, *, force: bool, dry_run: bool,
     return problems
 
 
+def _provenance_note(side: Path) -> str:
+    """'' when really fetched, a note otherwise."""
+    if not side.exists():
+        return "  NO PROVENANCE"
+    try:
+        rec = json.loads(side.read_text())
+    except (OSError, ValueError):
+        return "  UNREADABLE PROVENANCE"
+    if rec.get("provenance") == "reconstructed" or not rec.get("url"):
+        return "  RECONSTRUCTED"
+    return ""
+
+
 def check_on_disk(cfg: dict) -> int:
     """Re-validate every file on disk against the register. No network."""
     problems = 0
@@ -344,11 +357,25 @@ def check_on_disk(cfg: dict) -> int:
     print(f"auditing {PROTEOMES}\n")
     for section in ("viruses", "surveyed"):
         for v in cfg.get(section) or []:
+            # THE SAME SUBSTITUTION fetch_virus ALREADY KNOWS ABOUT, and
+            # this did not. When extra_accessions are declared and their
+            # EXTRA file is present, ingest_spine never reads the proteome
+            # -- UniProt retired seven of the nine flavivirus species
+            # proteomes on or before 2026-10-23 and the register answers
+            # that by naming the strain accession instead. Reported as
+            # MISSING, those seven failed `make check-raw` for a build
+            # that is correct, which is a guard crying wolf about its own
+            # repository.
+            xfile = PROTEOMES / f"EXTRA_{v['taxon']}.json.gz"
+            substitutes = bool(v.get("extra_accessions")) and xfile.exists()
             for target, _url, is_extra in targets_for(v):
                 seen.add(target)
                 tag = f"{v['name']} ({section})"
                 if not target.exists():
-                    if section == "viruses":
+                    if substitutes and not is_extra:
+                        print(f"  n/a       {target.name:<28} {tag}  "
+                              f"not read: extra_accessions replace it")
+                    elif section == "viruses":
                         print(f"  MISSING   {target.name:<28} {tag}")
                         problems += 1
                     continue
@@ -359,7 +386,12 @@ def check_on_disk(cfg: dict) -> int:
                     problems += 1
                     continue
                 found = check_against_register(report, v, is_extra=is_extra)
-                prov = "" if sidecar_path(target).exists() else "  NO PROVENANCE"
+                # RECONSTRUCTED IS NOT FETCHED. record_raw_provenance writes
+                # a sidecar for a hand-placed file carrying a checksum and
+                # no URL; testing only that a sidecar exists would report
+                # that as full provenance and lose the distinction the
+                # reconstruction was careful to record.
+                prov = _provenance_note(sidecar_path(target))
                 if found:
                     print(f"  DISAGREES {target.name:<28} {tag}{prov}")
                     for p in found:
@@ -367,9 +399,14 @@ def check_on_disk(cfg: dict) -> int:
                     problems += len(found)
                 else:
                     print(f"  ok        {target.name:<28} {tag}{prov}")
-                if prov:
+                if prov == "  NO PROVENANCE":
                     print("            placed by hand; no URL, date or "
-                          "checksum. Refetch with --force to record it")
+                          "checksum. `make record-provenance` records a "
+                          "checksum;\n            refetching with --force "
+                          "records the URL too")
+                elif prov == "  RECONSTRUCTED":
+                    print("            checksum recorded after the fact; "
+                          "the URL and date are not recoverable")
     stray = sorted(p for p in PROTEOMES.glob("*.json.gz") if p not in seen) \
         if PROTEOMES.exists() else []
     for p in stray:

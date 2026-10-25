@@ -65,7 +65,10 @@ CONSUMED_BY = {
     "9606.protein.links.detailed.v12.0.txt.gz": "scripts/ingest_host.py",
 }
 
-SKIP_SUFFIXES = (".source.json", ".partial")
+# Not inputs. host.log is 22 bytes of run output whose checksum would
+# change on every ingest, so stamping it manufactures a DRIFTED report
+# about a file no layer reads.
+SKIP_SUFFIXES = (".source.json", ".partial", ".log")
 
 
 def sidecar_path(target: Path) -> Path:
