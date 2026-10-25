@@ -24,6 +24,7 @@ from kgav.agent.orchestrator import Orchestrator
 from kgav.agent.tools import GraphTools
 from kgav.agent.verify import verify_response
 from kgav import calibration as kgav_calibration
+from kgav import landscape as kgav_landscape
 
 RULE = "─" * 74
 
@@ -85,6 +86,11 @@ def main() -> int:
                     help="evaluation run whose measured AUCs the caveats "
                          "quote. Absent, a host-directed route is reported as "
                          "uncalibrated rather than given a number.")
+    ap.add_argument("--landscape", type=Path,
+                    default=root / "data/results/pathway_landscape.json",
+                    help="pathway_landscape.py --out run whose degree-matched "
+                         "null the caveats quote. Absent, the pathway route "
+                         "is reported as unmeasured rather than assumed null.")
     ap.add_argument("--virus-label", default="SARS-CoV-2",
                     help="with --no-all-viruses, the single results-file key "
                          "to load a calibration for")
@@ -123,7 +129,17 @@ def main() -> int:
         except (OSError, ValueError, KeyError) as exc:
             print(f"note: could not read {args.results.name} ({exc}); "
                   f"routes will be reported as uncalibrated", file=sys.stderr)
-    orch = Orchestrator(GraphTools(args.release, calibration=cals or None))
+    # THE PATHWAY NULL, loaded the same way and for the same reason. Passing
+    # the release name lets landscape.load refuse a run measured on a
+    # different one rather than quote it. An absent or refused file is not
+    # fatal: the caveat then says the overlap has not been measured on this
+    # release, which is weaker than the finding and true.
+    land = kgav_landscape.load(args.landscape, release=args.release.name)
+    if not land.usable:
+        print(f"note: {land.refused_reason}; the pathway route will be "
+              f"reported as unmeasured", file=sys.stderr)
+    orch = Orchestrator(GraphTools(args.release, calibration=cals or None,
+                                   landscape=land))
 
     model = None
     if not args.no_model:

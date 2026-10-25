@@ -60,7 +60,17 @@ class GraphTools:
     """The graph, loaded once, exposed as a fixed set of callable tools."""
 
     def __init__(self, release: Path, name_index: dict[str, str] | None = None,
-                 calibration=None):
+                 calibration=None, landscape=None):
+        # ONE LANDSCAPE FOR THE WHOLE RELEASE, queried per virus.
+        #
+        # Unlike calibration there is no per-virus mapping to mis-key: the
+        # landscape is a single measurement over every taxon and
+        # Landscape.for_virus returns that taxon's row or None, never a
+        # neighbour's. None here is not neutral -- guards.pathway_caveat
+        # renders it as "not measured on this release", which is the honest
+        # branch and still appears in the answer. The one thing an answer may
+        # not do is stay silent about it.
+        self.landscape = landscape
         # ONE CALIBRATION PER VIRUS, NOT ONE PER INSTANCE.
         #
         # This was a single `self.calibration`, handed to every caveat
@@ -394,7 +404,8 @@ class GraphTools:
             # test_agent_tools asserts the text lands in the right route block,
             # test_agent_verify hands verify() a hand-built caveat directly.
             route_warnings = guards.path_warnings(
-                nodes, route, calibration=self.calibration_for(virus))
+                nodes, route, calibration=self.calibration_for(virus),
+                landscape=self.landscape, virus=virus)
             # A ROUTE WHOSE OWN EDGE IS CONTRADICTED SAYS SO. Attached per
             # route, like the cell-context caveat above and for the same
             # reason: a contradiction naming one protein printed against a
@@ -608,6 +619,17 @@ class GraphTools:
             + guards.direct_acting_caveat(self.calibration_for(virus))
             + ". Host-directed routes contribute nothing to this order and "
             "are shown for context only."))
+        # UNCONDITIONAL, AND THE RANKING CAVEAT ABOVE IS NOT A SUBSTITUTE.
+        # That one describes the sort key: which quantities move a compound up
+        # the list. This one states what the landscape measured about the
+        # route itself. A reader can accept "host-directed routes contribute
+        # nothing to this order" and still read the host-directed count beside
+        # each compound as weak supporting evidence, which is the claim the
+        # degree-matched null refuses. Appended even with no landscape, where
+        # it reads "not measured on this release": an unstated null and a
+        # measured one must not look the same from outside.
+        warns.append(guards.caveat(
+            "pathway_route", guards.pathway_caveat(self.landscape, virus)))
         if missing:
             warns.append(f"{len(missing)} requested compound(s) are not in this "
                          f"graph and were not ranked: {', '.join(missing)}")
