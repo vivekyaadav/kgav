@@ -626,3 +626,54 @@ def test_an_empty_landscape_does_not_divide_by_zero(tmp_path):
     assert land.alpha == pytest.approx(0.05)
     assert land.protocol and land.summary()
     assert guards.pathway_caveat(land, V)
+
+
+# ------------------------------- a measured null downward is still a result
+def _both_tails(tmp_path, **over):
+    row = dict(_row(n_obs=2, n_dep=50, expected=7.5, p_matched=0.998),
+               p_matched_less=0.0095)
+    row.update(over)
+    taxa = {V: row}
+    taxa.update({f"NCBITaxon:{i}": dict(_row(), p_matched_less=0.5)
+                 for i in range(7)})
+    return _load(tmp_path, taxa)
+
+
+def test_the_summary_states_the_null_in_the_depletion_direction(tmp_path):
+    """The whole return on measuring the lower tail.
+
+    Before this branch existed the summary went SILENT about depletion the
+    moment it became measurable: the "not tested" clause switched off and
+    the "clears downward" clause never fired, so a run that had done more
+    work told the reader less.
+    """
+    s = _both_tails(tmp_path).summary()
+    assert "Nor depleted in any" in s
+    assert "0.0095" in s and V in s
+    assert "not tested at all" not in s
+
+
+def test_the_summary_names_the_corrected_threshold_not_the_constant(tmp_path):
+    """It said "none below 0.05" while the protocol said 0.0031."""
+    s = _both_tails(tmp_path).summary()
+    assert "none below the corrected 0.0031" in s
+    assert "none below 0.05" not in s
+
+
+def test_a_tested_undepleted_taxon_says_so_in_its_own_line(tmp_path):
+    t = _both_tails(tmp_path).for_virus(V)
+    assert "tested downward too and not depleted" in t.describe()
+    assert "0.0095" in t.describe()
+
+
+def test_the_caveat_states_the_downward_null_for_this_taxon(tmp_path):
+    own = guards.pathway_caveat(_both_tails(tmp_path), V).split("Release-wide")[0]
+    assert "tested downward as well and is not depleted" in own
+    assert "0.0095" in own and "0.0031" in own
+
+
+def test_nothing_claims_depletion_at_the_real_denv2_figure(tmp_path):
+    """0.0095 is below 0.05 and above 0.05/16. It must not be announced."""
+    land = _both_tails(tmp_path)
+    assert land.depleted() == []
+    assert "FEWER" not in guards.pathway_caveat(land, V)
