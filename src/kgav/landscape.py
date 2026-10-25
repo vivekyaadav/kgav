@@ -206,12 +206,18 @@ class Landscape:
                     f"pathway route is untested on this release, not "
                     f"null.{tail}")
         lo, hi = self.ratio_range()
-        worst = min(powered, key=lambda t: t.p_matched)
+        # The SMALLEST matched p: the taxon that comes closest to clearing the
+        # null, which is the only one whose figure supports the "none below
+        # ALPHA" beside it. Quoting the largest would put a number next to a
+        # claim it cannot carry. "the strongest matched p" was the original
+        # wording and reads either way, so the sentence names the comparison.
+        closest = min(powered, key=lambda t: t.p_matched)
         return (f"measured under {self.protocol}, the drugged proteome is not "
                 f"enriched for dependency factors in any of the "
                 f"{len(powered)} testable taxa — ratios {lo:.2f}–{hi:.2f}, "
-                f"and the strongest matched p is {worst.p_matched:.2f} "
-                f"({worst.virus}), none below {ALPHA}.{tail}")
+                f"and the closest any taxon comes to clearing the null is "
+                f"{closest.virus} at matched p {closest.p_matched:.2f}, "
+                f"none below {ALPHA}.{tail}")
 
     def report(self) -> list[str]:
         lines = [f"pathway landscape: {self.release or 'unknown release'}"
