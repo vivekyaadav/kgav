@@ -290,14 +290,27 @@ def matched_null(observed: set[str], universe: set[str],
     return out
 
 
-def empirical_p(observed: int, null: list[int]) -> float:
+def empirical_p(observed: int, null: list[int], greater: bool = True) -> float:
     """One-sided, with the +1 correction.
 
     Without it a p of 0 is reportable, which claims more precision than the
     number of permutations can support.
+
+    `greater` picks the tail. The enrichment tail was the only one computed
+    for a long time, and the agent built on this file reported every sub-1
+    ratio as "not a measured depletion" because there was no lower tail to
+    measure one with. Default True so every existing caller keeps the
+    behaviour it was written against.
+
+    BOTH TAILS FROM ONE NULL is deliberate: the same permutation draw answers
+    both questions, so a second run would only add sampling noise between
+    two numbers that must be consistent with each other.
     """
-    at_least = sum(1 for v in null if v >= observed)
-    return (at_least + 1) / (len(null) + 1)
+    if greater:
+        extreme = sum(1 for v in null if v >= observed)
+    else:
+        extreme = sum(1 for v in null if v <= observed)
+    return (extreme + 1) / (len(null) + 1)
 
 
 # ----------------------------------------------------------------- report
@@ -418,7 +431,7 @@ def main(argv=None) -> int:
     print("  OVERLAP WITH DEPENDENCY FACTORS, naive against degree-matched")
     print(f"  {args.permutations:,} permutations, seed {args.seed}\n")
     print(f"    {'virus':<18} {'dep':>6} {'drugged':>8} {'exp':>7} "
-          f"{'ratio':>6} {'p naive':>9} {'p matched':>10}")
+          f"{'ratio':>6} {'p naive':>9} {'p up':>10} {'p down':>10}")
     any_virus = False
     uncovered = []
     rows: dict[str, dict] = {}
@@ -441,6 +454,12 @@ def main(argv=None) -> int:
                             args.permutations, rng)
         exp = sum(null) / len(null) if null else 0.0
         p_match = empirical_p(a, null)
+        # THE OTHER DIRECTION, from the same null. Six of the eight taxa on
+        # v0.1 come back under ratio 1.0 and two come back far under, and
+        # with only the greater tail computed there was no way to tell a
+        # depletion from an ordinary low draw -- so the agent correctly, and
+        # uselessly, said so on every one of them.
+        p_match_less = empirical_p(a, null, greater=False)
         ratio = a / exp if exp else float("inf")
         # The ratio is NOT stored: it is a third number that can disagree with
         # the two it is derived from, and it is infinite whenever a
@@ -448,9 +467,10 @@ def main(argv=None) -> int:
         # cannot write. landscape.TaxonOverlap derives it.
         rows[virus] = {"n_dependency": len(deps), "n_observed": a,
                        "expected": exp, "p_naive": p_naive,
-                       "p_matched": p_match}
+                       "p_matched": p_match, "p_matched_less": p_match_less}
         print(f"    {virus:<18} {len(deps):6,} {a:8,} {exp:7.1f} "
-              f"{ratio:6.2f} {p_naive:9.2e} {p_match:10.4f}")
+              f"{ratio:6.2f} {p_naive:9.2e} {p_match:10.4f} "
+              f"{p_match_less:10.4f}")
     if args.out:
         _write(args.out, args, rows, uncovered)
     if not any_virus:

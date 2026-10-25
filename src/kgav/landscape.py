@@ -95,6 +95,13 @@ class TaxonOverlap:
     # was not measured, which is not the same as measured and null, and the
     # distinction is the whole correction this class carries.
     p_matched_less: float | None = None
+    # The threshold this taxon's verdicts are judged against, set by the
+    # loader from how many tests the run performed in total. Carried per-row
+    # rather than read from the module constant so a verdict can never be
+    # computed against a different threshold from the one reported next to
+    # it.
+    alpha: float = ALPHA
+    n_tests: int = 1
 
     @property
     def ratio(self) -> float:
@@ -124,8 +131,15 @@ class TaxonOverlap:
 
     @property
     def enriched(self) -> bool:
-        """Clears the degree-matched null in the enrichment direction."""
-        return self.p_matched < ALPHA and self.ratio > 1.0
+        """Clears the degree-matched null in the enrichment direction.
+
+        Against the CORRECTED threshold. See Landscape.alpha: a run over
+        eight taxa in two directions performs sixteen tests, and an
+        uncorrected 0.05 would manufacture roughly one finding from noise
+        every other run -- in a caveat whose entire job is to stop the agent
+        claiming more than was measured.
+        """
+        return self.p_matched < self.alpha and self.ratio > 1.0
 
     @property
     def depletion_tested(self) -> bool:
@@ -141,7 +155,7 @@ class TaxonOverlap:
         module emits about a sub-1 ratio consults it.
         """
         return (self.depletion_tested
-                and self.p_matched_less < ALPHA and self.ratio < 1.0)
+                and self.p_matched_less < self.alpha and self.ratio < 1.0)
 
     @property
     def at_null(self) -> bool:
@@ -203,7 +217,20 @@ class Landscape:
     @property
     def protocol(self) -> str:
         return (f"a degree-matched permutation null, "
-                f"{self.permutations:,} permutations, seed {self.seed}")
+                f"{self.permutations:,} permutations, seed {self.seed}, "
+                f"significance at {self.alpha:.4f} "
+                f"({ALPHA} Bonferroni-corrected for {self.n_tests} tests)")
+
+    @property
+    def n_tests(self) -> int:
+        """Tests performed: one per taxon per measured direction."""
+        rows = self._sorted()
+        return max(1, len(rows) * (2 if self.depletion_tested() else 1))
+
+    @property
+    def alpha(self) -> float:
+        """The corrected threshold every verdict here is judged against."""
+        return ALPHA / self.n_tests
 
     def for_virus(self, virus: str) -> TaxonOverlap | None:
         """This taxon's overlap, or None. Never another taxon's."""
@@ -334,8 +361,11 @@ class Landscape:
         return lines
 
 
-def _overlap(virus: str, row: dict) -> TaxonOverlap:
+def _overlap(virus: str, row: dict, alpha: float = ALPHA,
+             n_tests: int = 1) -> TaxonOverlap:
     return TaxonOverlap(
+        alpha=alpha,
+        n_tests=n_tests,
         virus=virus,
         n_dependency=int(row.get("n_dependency") or 0),
         n_observed=int(row.get("n_observed") or 0),
@@ -404,7 +434,27 @@ def load(results: Path, release: str | None = None) -> Landscape:
             f"{1 / (perms + 1):.3f}, which is too coarse to quote")
         return base
 
-    rows = doc.get("taxa") or {}
-    base.taxa = {v: _overlap(v, r) for v, r in rows.items()
-                 if isinstance(r, dict)}
+    rows = {v: r for v, r in (doc.get("taxa") or {}).items()
+            if isinstance(r, dict)}
+
+    # HOW MANY TESTS THIS RUN ACTUALLY PERFORMED, which is what the verdict
+    # threshold has to answer to. One per taxon per measured direction: on
+    # v0.1 that is eight taxa in two directions, sixteen tests. At an
+    # uncorrected 0.05 roughly one in every other run would turn up a
+    # "finding" from noise, and this module exists to stop the agent
+    # claiming more than was measured -- producing the false claim itself
+    # would be the same failure wearing a lab coat.
+    #
+    # Bonferroni rather than anything cleverer: the taxa are not independent
+    # (they share the drugged proteome and much of the protein universe), and
+    # a procedure assuming independence would understate the correction. It
+    # is conservative for a reader asking about ONE virus, and the raw p is
+    # printed beside every verdict so nothing is hidden by it.
+    directions = 2 if rows and all(
+        r.get("p_matched_less") is not None for r in rows.values()) else 1
+    n_tests = max(1, len(rows) * directions)
+    alpha = ALPHA / n_tests
+
+    base.taxa = {v: _overlap(v, r, alpha=alpha, n_tests=n_tests)
+                 for v, r in rows.items()}
     return base

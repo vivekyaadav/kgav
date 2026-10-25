@@ -193,6 +193,57 @@ def test_the_empirical_p_uses_the_plus_one_correction(observed, null, lo, hi):
     assert lo <= got <= hi
 
 
+@pytest.mark.parametrize("observed,null,lo,hi", [
+    (0, [5] * 99, 0.0, 0.011),        # never undercut: 1/100
+    (10, [0] * 99, 0.99, 1.0),        # always undercut
+    (5, [5] * 99, 0.99, 1.0),         # ties count against, same as greater
+])
+def test_the_lower_tail_counts_the_other_side(observed, null, lo, hi):
+    """greater=False must count v <= observed, not v >= observed.
+
+    Flipping the comparison left every test passing: nothing exercised the
+    tail this flag exists to compute, so the agent would have reported the
+    enrichment p twice under two different names.
+    """
+    assert lo <= L.empirical_p(observed, null, greater=False) <= hi
+
+
+def test_the_two_tails_are_not_the_same_number():
+    """The cheap check that would have caught the flipped comparison."""
+    null = list(range(10))
+    up = L.empirical_p(2, null)
+    down = L.empirical_p(2, null, greater=False)
+    assert up != down
+    assert up == pytest.approx(9 / 11) and down == pytest.approx(4 / 11)
+
+
+def test_the_default_is_still_the_enrichment_tail():
+    """Every existing caller was written against it."""
+    null = list(range(10))
+    assert L.empirical_p(2, null) == L.empirical_p(2, null, greater=True)
+
+
+def test_the_written_file_carries_both_tails(tmp_path):
+    """And the loader counts two directions because of it.
+
+    Dropping p_matched_less from the row left 175 tests passing: the loader
+    had a forward-compatible path for it and nothing checked the writer ever
+    produced one.
+    """
+    from kgav import landscape as LS
+    rel = _release(tmp_path)
+    out = tmp_path / "landscape.json"
+    L.main(["--release", str(rel), "--permutations", "300", "--out", str(out)])
+    doc = json.loads(out.read_text())
+    assert doc["taxa"], "fixture must measure at least one taxon"
+    for row in doc["taxa"].values():
+        assert row["p_matched_less"] is not None
+        assert row["p_matched"] is not None
+    land = LS.load(out, release=rel.name)
+    assert land.depletion_tested()
+    assert land.n_tests == 2 * len(doc["taxa"])
+
+
 def test_the_exact_tail_is_imported_not_reimplemented():
     """Phase 4 validated fisher_one_sided against scipy over 400 random
     tables. A second copy here would drift from the validated one."""
@@ -207,7 +258,10 @@ def test_it_runs_and_reports_both_tests(tmp_path, capsys):
     assert L.main(["--release", str(rel), "--permutations", "200"]) == 0
     out = capsys.readouterr().out
     assert "CENSUS" in out and "DRUGGED PROTEOME" in out
-    assert "p naive" in out and "p matched" in out
+    # Both tails, not just the enrichment one. The table reported "p matched"
+    # alone for a long time, and every sub-1 ratio in it was unreadable as a
+    # result because nothing had measured the other direction.
+    assert "p naive" in out and "p up" in out and "p down" in out
     assert "NCBITaxon:2697049" in out
 
 
