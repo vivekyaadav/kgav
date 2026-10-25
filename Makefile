@@ -77,8 +77,22 @@ check-results:
 # came from. check-raw is the audit and needs no network: it reports a file
 # that disagrees with config/viruses.yaml, a built virus whose proteome is
 # absent, and a file placed by hand with no URL, date or checksum.
+# Two halves, because the inputs arrived two ways. fetch_raw --check
+# validates the proteomes it fetched against the register. The host layer
+# was placed by hand before provenance existed -- 329 MB feeding over
+# three-quarters of the graph -- so record_raw_provenance re-hashes it
+# against the sidecars written for it. Both run; the target fails if
+# either does.
 check-raw:
 	python scripts/fetch_raw.py --check
+	python scripts/record_raw_provenance.py --check
+
+# Stamp a raw directory that was populated by hand. Writes no URL and no
+# retrieval date -- neither is recoverable and a guess would be a
+# fabricated record -- but records a checksum, so the next change to one
+# of these files is visible.
+record-provenance:
+	python scripts/record_raw_provenance.py
 
 fetch-raw:
 	python scripts/fetch_raw.py --all-built
