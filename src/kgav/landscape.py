@@ -18,20 +18,41 @@ permutation count and seed, so a claim about the pathway route can always be
 traced to the run that measured it, and a run on a different release can be
 refused rather than quoted.
 
-POWER IS NOT THE SAME AS A NULL, and conflating them is how a report comes out
-correct about what it shows and silent about what it does not. A taxon whose
-degree-matched background is expected to hit 0.4 dependency factors cannot
-produce a significant depletion no matter what is observed: under a Poisson
-background with mean m, the strongest possible depletion signal is observing
-zero, at p = exp(-m), which only reaches 0.05 once m is about 3. Below that
-the taxon is UNTESTED, not null, and this module says so separately rather
-than letting an underpowered zero read as evidence of absence.
+THE TEST IS ONE-SIDED, and saying so is the whole of what this module gets
+right that the first version got wrong. empirical_p measures the ENRICHMENT
+tail only: the probability that a degree-matched random protein set hits as
+many dependency factors as the drugged proteome did. A ratio below 1 is
+therefore a description, not a result. Nothing here has tested depletion, and
+a summary that prints "ratios 0.00-0.94" beside "no enrichment" invites a
+reader to take the low end as a finding when no test was run in that
+direction.
 
-Enrichment is treated asymmetrically and deliberately: a taxon that clears the
-matched null is reported as enriched whatever its expectation, because a
-significant result is significant, and an agent built on "nothing is enriched"
+That matters on the measured release rather than hypothetically. Of the eight
+taxa with dependency factors, six cluster at 0.86-0.94 and two sit far below:
+one with 18 dependency factors against a matched expectation of 3.1 and no
+overlap at all, and one with 50 against 7.5 and two. Read as Poisson tails
+those are nominally 0.045 and 0.020, and neither survives eight taxa' worth of
+multiple testing -- but this module cannot say even that, because the run it
+loads never computed a lower tail. It says the direction is untested and names
+the two taxa whose ratio is least readable, which is what it knows.
+
+WHAT MIN_EXPECTED_HITS GATES, after that correction. It was introduced as a
+power threshold for depletion, which was answering a question the module never
+asks -- an internal inconsistency that the real numbers exposed: it classified
+all eight taxa as "testable" and so reported a 0.00 ratio with no qualification
+at all. It now gates whether the RATIO can be read as anything, not whether the
+taxon was tested. Enrichment is tested for every taxon with a dependency
+factor, however small, because a small taxon can still return a significant
+excess; it is the low end of the ratio that goes uninterpretable first.
+
+Enrichment is reported wherever it is found, whatever the expectation, because
+a significant result is significant and an agent built on "nothing is enriched"
 must say so the moment that stops being true. That mirrors the discriminates
 branch in guards._measured_at_chance, for the same reason.
+
+FORWARD COMPATIBLE. If a results file carries `p_matched_less`, the depletion
+direction was measured and this module reports it. Until the writer produces
+one, depletion is stated as untested rather than inferred from the ratio.
 """
 from __future__ import annotations
 
@@ -39,11 +60,17 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# The smallest matched expectation at which a total absence of overlap could
-# reach p < 0.05. Under a Poisson background with mean m the most extreme
-# depletion observable is zero hits, with probability exp(-m); exp(-3) = 0.0498
-# and exp(-2.9) = 0.055. Derived, not chosen: a threshold picked for looking
-# round would be a fitted parameter with no record of what fitted it.
+# Below this matched expectation the RATIO carries no information in the low
+# direction, so it is reported but not read. Under a Poisson background with
+# mean m the most extreme downward observation is zero hits, with probability
+# exp(-m); exp(-3) = 0.0498 and exp(-2.9) = 0.055, so below m = 3 even a total
+# absence of overlap is an ordinary draw. Derived, not chosen: a threshold
+# picked for looking round would be a fitted parameter with no record of what
+# fitted it.
+#
+# This does NOT gate whether a taxon was tested. The run measures the
+# enrichment tail, and a taxon with a small expectation can still return a
+# significant excess -- NCBITaxon:11082 would need 8 hits against 3.1 expected.
 MIN_EXPECTED_HITS = 3.0
 
 # An empirical p from N permutations cannot resolve below 1/(N+1). At 200 the
@@ -64,6 +91,10 @@ class TaxonOverlap:
     expected: float
     p_naive: float
     p_matched: float
+    # The DEPLETION tail, when the run computed one. None means the direction
+    # was not measured, which is not the same as measured and null, and the
+    # distinction is the whole correction this class carries.
+    p_matched_less: float | None = None
 
     @property
     def ratio(self) -> float:
@@ -81,13 +112,13 @@ class TaxonOverlap:
         return float("inf") if self.n_observed else 0.0
 
     @property
-    def testable(self) -> bool:
-        """Whether a null result here would mean anything.
+    def ratio_readable(self) -> bool:
+        """Whether the LOW end of this taxon's ratio carries information.
 
-        Governs the DEPLETION direction only. A taxon below the threshold can
-        still return a significant enrichment, which `enriched` reports on its
-        own; what it cannot do is distinguish "no overlap" from "too little
-        background to tell".
+        Not whether the taxon was tested -- it was, in the enrichment
+        direction, which is the direction the run measures. Below the
+        threshold a ratio of 0.00 is an ordinary draw from the background and
+        says nothing, so it is printed and not interpreted.
         """
         return self.expected >= MIN_EXPECTED_HITS
 
@@ -97,9 +128,32 @@ class TaxonOverlap:
         return self.p_matched < ALPHA and self.ratio > 1.0
 
     @property
+    def depletion_tested(self) -> bool:
+        """Whether the run computed a lower tail at all."""
+        return self.p_matched_less is not None
+
+    @property
+    def depleted(self) -> bool:
+        """Clears the null downward. False when the direction was not tested.
+
+        False here means "not shown to be depleted", never "shown not to be".
+        `depletion_tested` is what separates the two, and every sentence this
+        module emits about a sub-1 ratio consults it.
+        """
+        return (self.depletion_tested
+                and self.p_matched_less < ALPHA and self.ratio < 1.0)
+
+    @property
     def at_null(self) -> bool:
-        """Measured, adequately powered, and not enriched."""
-        return self.testable and not self.enriched
+        """Tested for enrichment and not enriched.
+
+        Every taxon with a dependency factor qualifies: the run measures the
+        enrichment tail for all of them. This used to require
+        `ratio_readable`, which silently dropped the two smallest taxa out of
+        the count of what had been tested, while still printing their ratios
+        in the range.
+        """
+        return not self.enriched
 
     def describe(self) -> str:
         if self.enriched:
@@ -108,18 +162,26 @@ class TaxonOverlap:
                     f"against {self.expected:.1f} expected under a "
                     f"degree-matched background — ratio {self.ratio:.2f}, "
                     f"matched p {self.p_matched:.4f}, which CLEARS the null")
-        if not self.testable:
-            return (f"{self.virus}: a degree-matched background is expected "
-                    f"to hit only {self.expected:.1f} of its "
-                    f"{self.n_dependency:,} dependency factors, below the "
-                    f"{MIN_EXPECTED_HITS:.0f} needed for a zero overlap to "
-                    f"reach p < {ALPHA}, so this taxon is UNTESTED rather "
-                    f"than null ({self.n_observed:,} observed)")
-        return (f"{self.virus}: {self.n_observed:,} of {self.n_dependency:,} "
+        if self.depleted:
+            return (f"{self.virus}: {self.n_observed:,} of "
+                    f"{self.n_dependency:,} dependency factors are drugged "
+                    f"against {self.expected:.1f} expected — ratio "
+                    f"{self.ratio:.2f}, lower-tail matched p "
+                    f"{self.p_matched_less:.4f}, DEPLETED")
+        head = (f"{self.virus}: {self.n_observed:,} of {self.n_dependency:,} "
                 f"dependency factors are drugged against {self.expected:.1f} "
                 f"expected under a degree-matched background — ratio "
-                f"{self.ratio:.2f}, matched p {self.p_matched:.2f}, at the "
-                f"null")
+                f"{self.ratio:.2f}, matched p {self.p_matched:.2f}, not "
+                f"enriched")
+        if self.ratio < 1.0 and not self.depletion_tested:
+            head += ("; the run measured the enrichment tail only, so the "
+                     "sub-1 ratio is not a measured depletion")
+        if not self.ratio_readable:
+            head += (f"; and with only {self.expected:.1f} expected, below "
+                     f"{MIN_EXPECTED_HITS:.0f}, even a zero overlap would be "
+                     f"an ordinary draw, so the ratio is not readable "
+                     f"downward")
+        return head
 
 
 @dataclass
@@ -149,14 +211,30 @@ class Landscape:
             return None
         return self.taxa.get(virus)
 
-    def testable(self) -> list[TaxonOverlap]:
-        return [t for t in self._sorted() if t.testable]
+    def tested(self) -> list[TaxonOverlap]:
+        """Every taxon the run measured: all of them, in the enrichment tail."""
+        return self._sorted()
 
-    def underpowered(self) -> list[TaxonOverlap]:
-        return [t for t in self._sorted() if not t.testable]
+    def unreadable_ratio(self) -> list[TaxonOverlap]:
+        """Taxa whose ratio says nothing downward, named so a reader can
+        discount the low end of the range rather than read a finding into it."""
+        return [t for t in self._sorted() if not t.ratio_readable]
 
     def enriched(self) -> list[TaxonOverlap]:
         return [t for t in self._sorted() if t.enriched]
+
+    def depleted(self) -> list[TaxonOverlap]:
+        return [t for t in self._sorted() if t.depleted]
+
+    def depletion_tested(self) -> bool:
+        """Whether the run measured the lower tail for every taxon it covers.
+
+        All-or-nothing on purpose. A partially measured direction cannot
+        support "none is depleted", and the honest report of a mixed file is
+        that the direction is untested.
+        """
+        rows = self._sorted()
+        return bool(rows) and all(t.depletion_tested for t in rows)
 
     def at_null(self) -> list[TaxonOverlap]:
         return [t for t in self._sorted() if t.at_null]
@@ -167,8 +245,15 @@ class Landscape:
         return [self.taxa[k] for k in sorted(self.taxa)]
 
     def ratio_range(self) -> tuple[float, float] | None:
-        """Range over the adequately powered taxa, or None if there are none."""
-        rs = [t.ratio for t in self.testable()]
+        """Range over every tested taxon, or None if there are none.
+
+        Over ALL of them, not the subset whose ratio is readable downward.
+        Restricting the range silently dropped taxa that the run did test,
+        and the summary names the unreadable ones instead -- a reader is
+        owed the real spread plus the reason its low end is soft, not a
+        tidier number.
+        """
+        rs = [t.ratio for t in self._sorted()]
         return (min(rs), max(rs)) if rs else None
 
     def summary(self) -> str:
@@ -185,39 +270,54 @@ class Landscape:
             return ("no taxon in this release has a dependency factor, so "
                     "there is no overlap to measure and the pathway route is "
                     "untested rather than null")
+        tested = self.tested()
         enriched = self.enriched()
-        powered = self.testable()
-        under = self.underpowered()
+
+        # WHY THE LOW END OF THE RANGE IS QUALIFIED RATHER THAN TRIMMED. On
+        # the measured release the range runs 0.00-0.94 and the two lowest
+        # values are the two smallest taxa. Dropping them would report a
+        # tidier 0.86-0.94 and hide that two taxa were measured; printing
+        # 0.00 bare invites it to be read as depletion, which nothing tested.
+        # So both are said.
+        soft = self.unreadable_ratio()
         tail = ""
-        if under:
-            tail = (f" {len(under)} further taxon(s) are untested: their "
-                    f"degree-matched background is too small for an absent "
-                    f"overlap to be distinguishable from chance "
-                    f"({', '.join(t.virus for t in under)})")
+        if soft:
+            tail += (f" The low end of that range is not a finding: "
+                     f"{len(soft)} taxon(s) have a matched expectation under "
+                     f"{MIN_EXPECTED_HITS:.0f}, where even a zero overlap is "
+                     f"an ordinary draw "
+                     + ", ".join(f"{t.virus} ({t.expected:.1f} expected)"
+                                 for t in soft) + ".")
+        if not self.depletion_tested():
+            tail += (" Depletion was not tested at all: the run measures the "
+                     "enrichment tail only, so no ratio below 1 here is a "
+                     "measured result in that direction.")
+        elif self.depleted():
+            tail += (" In the other direction " + ", ".join(
+                f"{t.virus} (ratio {t.ratio:.2f}, lower-tail p "
+                f"{t.p_matched_less:.4f})" for t in self.depleted())
+                + " clears the null downward: fewer dependency factors are "
+                  "drugged than chance predicts.")
+
         if enriched:
             names = ", ".join(f"{t.virus} (ratio {t.ratio:.2f}, p "
                               f"{t.p_matched:.4f})" for t in enriched)
             return (f"measured under {self.protocol}, the drugged proteome IS "
                     f"enriched for dependency factors in {len(enriched)} of "
-                    f"{len(self.taxa)} taxa: {names}.{tail}")
-        if not powered:
-            return (f"measured under {self.protocol}, no taxon has a "
-                    f"degree-matched background large enough to test: the "
-                    f"pathway route is untested on this release, not "
-                    f"null.{tail}")
+                    f"{len(tested)} taxa: {names}.{tail}")
         lo, hi = self.ratio_range()
         # The SMALLEST matched p: the taxon that comes closest to clearing the
         # null, which is the only one whose figure supports the "none below
         # ALPHA" beside it. Quoting the largest would put a number next to a
         # claim it cannot carry. "the strongest matched p" was the original
         # wording and reads either way, so the sentence names the comparison.
-        closest = min(powered, key=lambda t: t.p_matched)
+        closest = min(tested, key=lambda t: t.p_matched)
         return (f"measured under {self.protocol}, the drugged proteome is not "
                 f"enriched for dependency factors in any of the "
-                f"{len(powered)} testable taxa — ratios {lo:.2f}–{hi:.2f}, "
-                f"and the closest any taxon comes to clearing the null is "
-                f"{closest.virus} at matched p {closest.p_matched:.2f}, "
-                f"none below {ALPHA}.{tail}")
+                f"{len(tested)} taxa with dependency factors — ratios "
+                f"{lo:.2f}–{hi:.2f}, and the closest any taxon comes to "
+                f"clearing the null is {closest.virus} at matched p "
+                f"{closest.p_matched:.2f}, none below {ALPHA}.{tail}")
 
     def report(self) -> list[str]:
         lines = [f"pathway landscape: {self.release or 'unknown release'}"
@@ -242,6 +342,12 @@ def _overlap(virus: str, row: dict) -> TaxonOverlap:
         expected=float(row.get("expected") or 0.0),
         p_naive=float(row.get("p_naive") if row.get("p_naive") is not None else 1.0),
         p_matched=float(row.get("p_matched") if row.get("p_matched") is not None else 1.0),
+        # Absent means the run did not measure the lower tail. It is NOT
+        # defaulted to 1.0 the way the others are: a 1.0 would read as
+        # "measured, and nowhere near depleted", which is a claim about a
+        # test that was never run.
+        p_matched_less=(float(row["p_matched_less"])
+                        if row.get("p_matched_less") is not None else None),
     )
 
 

@@ -153,8 +153,9 @@ def test_no_permutation_count_is_refused_distinctly(tmp_path):
 def test_a_refused_landscape_yields_no_taxon_rows(tmp_path):
     """Refusal must not leave quotable numbers behind."""
     land = _load(tmp_path, release="other")
-    assert land.testable() == [] and land.enriched() == []
-    assert land.at_null() == [] and land.underpowered() == []
+    assert land.tested() == [] and land.enriched() == []
+    assert land.at_null() == [] and land.unreadable_ratio() == []
+    assert land.depleted() == [] and not land.depletion_tested()
 
 
 # -------------------------------------------------------------- the derivation
@@ -179,49 +180,112 @@ def test_an_empty_background_with_no_hits_is_not_called_depleted(tmp_path):
     land = _load(tmp_path, {V: _row(n_obs=0, expected=0.0, p_matched=1.0)})
     t = land.for_virus(V)
     assert t.ratio == 0.0
-    assert not t.testable and not t.at_null
+    assert not t.ratio_readable
+    assert not t.depleted
 
 
-# ------------------------------------------------------------------- power
-@pytest.mark.parametrize("expected,testable", [(2.9, False), (3.0, True),
+# ------------------------------------------- what the threshold actually gates
+@pytest.mark.parametrize("expected,readable", [(2.9, False), (3.0, True),
                                                (0.4, False), (44.0, True)])
-def test_testability_turns_on_the_matched_expectation(tmp_path, expected,
-                                                      testable):
-    land = _load(tmp_path, {V: _row(expected=expected)})
-    assert land.for_virus(V).testable is testable
+def test_the_threshold_gates_the_ratio_not_the_test(tmp_path, expected,
+                                                    readable):
+    """It governs whether the LOW end of the ratio means anything.
 
-
-def test_an_underpowered_zero_is_untested_not_evidence_of_absence(tmp_path):
-    """West Nile's shape: no overlap, and no power to interpret it.
-
-    This is the whole reason the module separates the two. A taxon where a
-    degree-matched background is expected to hit 0.4 proteins produces zero
-    overlap routinely, and reporting that alongside the genuinely measured
-    nulls would be a report correct about what it shows and silent about what
-    it does not.
+    It was introduced as a depletion-power gate, which was answering a
+    question the run never asks: empirical_p measures the enrichment tail
+    only. On the measured release that mismatch classified all eight taxa as
+    "testable" and printed a 0.00 ratio with no qualification at all.
     """
+    t = _load(tmp_path, {V: _row(expected=expected)}).for_virus(V)
+    assert t.ratio_readable is readable
+    # Tested either way: a small taxon can still return a significant excess.
+    assert t.at_null is True
+
+
+def test_a_small_taxon_is_still_tested_for_enrichment(tmp_path):
+    """And is counted as tested, rather than dropped from the denominator."""
     land = _load(tmp_path, {V: _row(n_obs=0, expected=0.4, p_matched=1.0)})
     t = land.for_virus(V)
-    assert not t.testable
-    assert not t.at_null
-    assert t in land.underpowered() and t not in land.testable()
-    assert "UNTESTED" in t.describe()
+    assert t in land.tested() and t in land.at_null()
+    assert t in land.unreadable_ratio()
+    assert "not readable downward" in t.describe()
 
 
-def test_an_underpowered_taxon_is_excluded_from_the_ratio_range(tmp_path):
+def test_a_small_taxon_can_still_clear_the_null_upward(tmp_path):
+    """The reason the threshold must not gate testing.
+
+    8 hits against 1.5 expected is a real excess, and a gate that called the
+    taxon untested would have thrown the finding away. The expectation is
+    deliberately BELOW the threshold: the point is that a taxon whose ratio
+    cannot be read downward is still perfectly testable upward.
+    """
+    t = _load(tmp_path, {V: _row(n_dep=18, n_obs=8, expected=1.5,
+                                 p_matched=0.004)}).for_virus(V)
+    assert t.enriched
+    assert not t.ratio_readable
+
+
+def test_the_ratio_range_covers_every_tested_taxon(tmp_path):
+    """Including the ones whose low end is soft. Trimming them would report
+    a tidier range and hide that those taxa were measured at all."""
     land = _load(tmp_path, {V: _row(n_obs=40, expected=44.0),
                             OTHER: _row(n_obs=0, expected=0.4)})
     lo, hi = land.ratio_range()
-    assert lo == hi == pytest.approx(40 / 44.0)
+    assert lo == 0.0 and hi == pytest.approx(40 / 44.0)
+
+
+# ------------------------------------------------------- the untested direction
+def test_a_sub_one_ratio_is_not_called_a_depletion(tmp_path):
+    """The defect the measured release exposed.
+
+    West Nile came back 0 of 18 against 3.1 expected -- ratio 0.00 -- and the
+    summary printed it inside "ratios 0.00-0.94" beside "no enrichment". A
+    reader takes that as depletion. The run never computed a lower tail.
+    """
+    land = _load(tmp_path, {V: _row(n_dep=18, n_obs=0, expected=3.1,
+                                    p_matched=1.0)})
+    t = land.for_virus(V)
+    assert not t.depletion_tested and not t.depleted
+    assert "not a measured depletion" in t.describe()
+    assert "Depletion was not tested at all" in land.summary()
+
+
+def test_a_lower_tail_in_the_file_is_used_when_present(tmp_path):
+    """Forward compatible: the writer can start recording it without a
+    change here, and the claim upgrades from untested to measured."""
+    land = _load(tmp_path, {V: dict(_row(n_dep=18, n_obs=0, expected=3.1,
+                                         p_matched=1.0),
+                                    p_matched_less=0.004)})
+    t = land.for_virus(V)
+    assert t.depletion_tested and t.depleted
+    assert "DEPLETED" in t.describe()
+    assert "clears the null downward" in land.summary()
+
+
+def test_a_missing_lower_tail_is_not_defaulted_to_one(tmp_path):
+    """1.0 would read as "measured, and nowhere near depleted" -- a claim
+    about a test that was never run."""
+    t = _load(tmp_path, {V: _row()}).for_virus(V)
+    assert t.p_matched_less is None
+
+
+def test_a_partly_measured_direction_does_not_count_as_measured(tmp_path):
+    """All-or-nothing: a mixed file cannot support "none is depleted"."""
+    land = _load(tmp_path, {V: dict(_row(), p_matched_less=0.9),
+                            OTHER: _row()})
+    assert not land.depletion_tested()
+    assert "Depletion was not tested at all" in land.summary()
 
 
 # ----------------------------------------------------------------- summary
-def test_the_summary_counts_only_the_testable_taxa(tmp_path):
+def test_the_summary_counts_every_taxon_it_tested(tmp_path):
     land = _load(tmp_path, {V: _row(n_obs=40, expected=44.0, p_matched=0.81),
                             OTHER: _row(n_obs=0, expected=0.4, p_matched=1.0)})
     s = land.summary()
-    assert "1 testable taxa" in s
-    assert "untested" in s and OTHER in s
+    assert "2 taxa with dependency factors" in s
+    # And the soft one is named, so the 0.00 at the bottom of the range can
+    # be discounted rather than read as a result.
+    assert OTHER in s and "ordinary draw" in s
     # The figures themselves, not just the shape of the sentence. Without
     # this the summary could print "ratios 0.00-0.00" over every taxon and
     # every other assertion here would still hold -- a test passing because
@@ -230,16 +294,14 @@ def test_the_summary_counts_only_the_testable_taxa(tmp_path):
     assert "0.81" in s and V in s
 
 
-def test_the_summary_prints_the_range_over_the_powered_taxa(tmp_path):
-    """Both ends of it, and neither from an underpowered taxon."""
+def test_the_summary_prints_both_ends_of_the_range(tmp_path):
+    """Both ends, from the taxa that were actually measured."""
     land = _load(tmp_path, {V: _row(n_obs=40, expected=44.0, p_matched=0.81),
                             OTHER: _row(n_obs=9, expected=10.0, p_matched=0.73),
-                            "NCBITaxon:11137": _row(n_obs=0, expected=0.4,
-                                                    p_matched=1.0)})
+                            })
     s = land.summary()
     assert f"{40 / 44.0:.2f}" in s and f"{9 / 10.0:.2f}" in s
-    assert "0.00" not in s
-    assert "2 testable taxa" in s
+    assert "2 taxa with dependency factors" in s
     # The taxon that comes CLOSEST to clearing the null, not the one furthest
     # from it. Only the smallest p supports the "none below 0.05" beside it;
     # quoting the largest would put a number next to a claim it cannot carry.
@@ -247,12 +309,15 @@ def test_the_summary_prints_the_range_over_the_powered_taxa(tmp_path):
     assert "0.81" not in s
 
 
-def test_the_summary_does_not_claim_a_null_when_nothing_is_testable(tmp_path):
+def test_the_summary_qualifies_a_range_built_from_soft_taxa(tmp_path):
+    """Every taxon small: the enrichment claim still stands, and the range
+    is explicitly not a finding in the low direction."""
     land = _load(tmp_path, {V: _row(n_obs=0, expected=0.4),
                             OTHER: _row(n_obs=1, expected=1.1)})
     s = land.summary()
-    assert "untested on this release, not" in s
-    assert "not enriched" not in s
+    assert "not enriched" in s
+    assert "The low end of that range is not a finding" in s
+    assert V in s and OTHER in s
 
 
 def test_the_summary_reports_enrichment_when_it_is_there(tmp_path):
