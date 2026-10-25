@@ -162,3 +162,25 @@ def test_the_consumer_is_recorded(tmp_path):
     _run(d)
     rec = json.loads((d / "human_proteome.json.gz.source.json").read_text())
     assert rec["consumed_by"] == "scripts/ingest_host.py"
+
+
+def test_a_log_file_is_not_stamped(tmp_path):
+    """host.log is 22 bytes of run output. Its checksum changes on every
+    ingest, so stamping it manufactures a DRIFTED report about a file no
+    layer reads."""
+    d = _dir(tmp_path, host__log=b"ran ok\n", human_proteome__json__gz=b"x")
+    _, out = _run(d)
+    assert not (d / "host.log.source.json").exists()
+    assert "host.log" not in out
+    assert (d / "human_proteome.json.gz.source.json").exists()
+
+
+def test_an_input_nothing_reads_is_recorded_with_a_null_consumer(tmp_path):
+    """9606.protein.info.v12.0.txt.gz is 1.97 MB in data/raw/host and no
+    script reads it. A sidecar saying so is how that becomes visible."""
+    d = _dir(tmp_path, **{"9606.protein.info.v12.0.txt.gz": b"x"})
+    _run(d)
+    rec = json.loads(
+        (d / "9606.protein.info.v12.0.txt.gz.source.json").read_text())
+    assert rec["consumed_by"] is None
+    assert rec["version_in_filename"] == "v12.0"

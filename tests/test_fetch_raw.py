@@ -528,3 +528,62 @@ def test_the_summary_separates_refused_from_failed():
     assert "because that file is never read" in src
     assert '"Nothing was written for a refused file. A proteome that "' \
         not in src, "the old conflated sentence is gone"
+
+
+# ------------------- check_on_disk had the substitution bug fetch_virus lost
+def test_a_substituted_proteome_is_not_missing_on_disk(register, tmp_path,
+                                                       monkeypatch, capsys):
+    """`make check-raw` failed on seven flaviviruses whose build is
+    correct. UniProt retired their species proteomes; the register answers
+    that with extra_accessions, and fetch_virus already knows -- this
+    checker did not, so it reported MISSING and failed the target."""
+    monkeypatch.setattr(fr, "PROTEOMES", tmp_path)
+    (tmp_path / "EXTRA_11060.json.gz").write_bytes(DENV2_EXTRA)
+    problems = fr.check_on_disk(register)
+    out = capsys.readouterr().out
+    assert "n/a" in out and "extra_accessions replace it" in out
+    assert "MISSING   UP000095876" not in out
+    assert isinstance(problems, int)
+
+
+def test_a_missing_proteome_with_no_substitute_is_still_missing(
+        register, tmp_path, monkeypatch, capsys):
+    """The leniency is exactly one case wide."""
+    monkeypatch.setattr(fr, "PROTEOMES", tmp_path)
+    fr.check_on_disk(register)
+    out = capsys.readouterr().out
+    assert "MISSING   UP000008600" in out, "West Nile declares no extras"
+
+
+def test_a_reconstructed_sidecar_is_not_reported_as_fetched(register,
+                                                            tmp_path,
+                                                            monkeypatch,
+                                                            capsys):
+    """record_raw_provenance writes a checksum and no URL. Testing only
+    that a sidecar exists would report that as full provenance and lose
+    the distinction the reconstruction was careful to record."""
+    import json as _json
+    monkeypatch.setattr(fr, "PROTEOMES", tmp_path)
+    t = tmp_path / "UP000054557.json.gz"
+    t.write_bytes(ZIKA_PROTEOME)
+    fr.sidecar_path(t).write_text(_json.dumps(
+        {"provenance": "reconstructed", "url": None, "sha256": "ab"}))
+    fr.check_on_disk(register)
+    out = capsys.readouterr().out
+    assert "RECONSTRUCTED" in out
+    assert "not recoverable" in out
+
+
+def test_a_real_fetch_record_reports_no_note(register, tmp_path,
+                                             monkeypatch, capsys):
+    import json as _json
+    monkeypatch.setattr(fr, "PROTEOMES", tmp_path)
+    t = tmp_path / "UP000054557.json.gz"
+    t.write_bytes(ZIKA_PROTEOME)
+    fr.sidecar_path(t).write_text(_json.dumps(
+        {"url": "https://example.invalid/x", "retrieved": "2026-01-01",
+         "sha256": "ab"}))
+    fr.check_on_disk(register)
+    out = capsys.readouterr().out
+    line = next(x for x in out.splitlines() if "UP000054557" in x)
+    assert "NO PROVENANCE" not in line and "RECONSTRUCTED" not in line
