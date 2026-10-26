@@ -414,6 +414,67 @@ def screen_heading(n_screens: int, n_candidates: int, n_taxa: int,
             f"configured virus ({n_taxa} taxa) | {n_usable} virus-resistance")
 
 
+def index_coverage(screens: list[dict], register_taxa: dict[str, str]
+                   ) -> list[str]:
+    """What the ORCS INDEX holds per virus, before anything is fetched.
+
+    THREE STATES, AND THEY NEED DIFFERENT WORK. ingest_orcs computed exactly
+    this -- `by_taxon` -- and printed only len(by_taxon), so the question
+    "does ORCS have a dengue-1 screen?" was answerable from a file on disk
+    and answered nowhere. The finding lived in a source comment instead:
+    DENV-1, DENV-3, DENV-4, JEV and TBEV have no screen in this release.
+
+      n screens      the index has them; anything missing downstream is
+                     ours to fix
+      0 screens      a pattern is declared and nothing in this ORCS release
+                     matches it. Not a download we skipped -- the
+                     experiment is not in this release
+      no pattern     the virus cannot match by construction, so a zero
+                     says nothing about the source at all
+
+    The third is the one a coverage table silently turns into the second.
+    """
+    declared = {t for _p, t in VIRUS_PATTERNS}
+    found: dict[str, int] = {}
+    for sc in screens:
+        taxon = virus_taxon(sc)
+        if taxon:
+            found[taxon] = found.get(taxon, 0) + 1
+
+    out = ["", "ORCS INDEX COVERAGE — screens matching each register virus"]
+    no_pattern = []
+    for taxon in sorted(register_taxa, key=lambda t: -found.get(t, 0)):
+        label = register_taxa[taxon]
+        if taxon not in declared:
+            no_pattern.append(label)
+            continue
+        n = found.get(taxon, 0)
+        note = "" if n else "   <- pattern declared, NO screen in this release"
+        out.append(f"  {label:<14} {n:>5}{note}")
+    # A MATCHED TAXON THE REGISTER DOES NOT LIST would otherwise vanish:
+    # this loops over register_taxa, so a pattern pointing somewhere the
+    # register dropped produces screens attributed to nothing and reported
+    # nowhere. Today VIRUS_PATTERNS taxa all come from the register and the
+    # set is empty; it stops being empty the moment one is removed from
+    # config without its pattern going too.
+    stray = sorted(t for t in found if t not in register_taxa)
+    if stray:
+        out.append("")
+        out.append(f"  {len(stray)} taxon(s) matched by a pattern are NOT in "
+                   f"the register: " + ", ".join(stray) + ". Their screens "
+                   "are counted by virus_taxon and belong to no declared "
+                   "virus, so they reach no report but this line.")
+    if no_pattern:
+        out.append("")
+        out.append(f"  {len(no_pattern)} register virus(es) have NO pattern "
+                   f"here and cannot match by construction: "
+                   + ", ".join(sorted(no_pattern))
+                   + ". A zero for these would say nothing about ORCS; add "
+                     "a pattern only when a screen exists for it, because "
+                     "an untested pattern is worse than an absent one.")
+    return out
+
+
 def per_taxon(stats: Counter) -> list[tuple[str, int, int, int, int]]:
     """(taxon, screens, dependency, restriction, total), commonest first.
 

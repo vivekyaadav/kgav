@@ -18,18 +18,21 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import yaml
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.aliases import AliasIndex
 from kgav.emit import Emit
 from kgav.orcs import (
     build_gene_to_proteins,
-    per_taxon,
-    screen_heading,
-    unbuilt_taxa,
+    index_coverage,
     ingest_screens,
     is_virus_resistance_screen,
+    per_taxon,
     polarity_mode,
+    screen_heading,
+    unbuilt_taxa,
     virus_taxon,
 )
 from kgav.schema import load_schema, report_violations
@@ -72,13 +75,29 @@ def main() -> int:
     ap.add_argument("--out", type=Path, default=root / "data" / "releases" / "v0.1-orcs")
     ap.add_argument("--overrides", type=Path,
                     default=root / "config" / "orcs_polarity_overrides.json")
+    ap.add_argument("--index-only", action="store_true",
+                    help="report what the downloaded index holds per virus "
+                         "and stop. Reads screens_all.json only: no key, no "
+                         "request, nothing written.")
+    ap.add_argument("--config", type=Path,
+                    default=root / "config" / "viruses.yaml")
     args = ap.parse_args()
+
+    screens = json.loads((args.orcs_dir / "screens_all.json").read_text())
+
+    # BEFORE THE KEY CHECK, deliberately. Whether ORCS holds a screen for a
+    # given virus is answerable from a file already on disk, and gating it
+    # behind a credential made a local question look like a network one.
+    if args.index_only:
+        register = {str(v["taxon"]): v["name"]
+                    for v in yaml.safe_load(args.config.read_text())["viruses"]}
+        for line in index_coverage(screens, register):
+            print(line)
+        return 0
 
     key = os.environ.get("ORCS_KEY", "")
     if len(key) != 32:
         raise SystemExit("ORCS_KEY must be a 32-character key; export it first")
-
-    screens = json.loads((args.orcs_dir / "screens_all.json").read_text())
     candidates = [s for s in screens if virus_taxon(s)]
     usable = [s for s in candidates if is_virus_resistance_screen(s)]
     # THE LABEL HERE READ "coronavirus" AND WAS WRONG. virus_taxon matches
