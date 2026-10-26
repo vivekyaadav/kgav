@@ -26,6 +26,7 @@ from kgav.aliases import AliasIndex
 from kgav.emit import Emit
 from kgav.orcs import (
     build_gene_to_proteins,
+    discarded_screens,
     index_coverage,
     ingest_screens,
     is_virus_resistance_screen,
@@ -101,6 +102,10 @@ def main() -> int:
         raise SystemExit("ORCS_KEY must be a 32-character key; export it first")
     candidates = [s for s in screens if virus_taxon(s)]
     usable = [s for s in candidates if is_virus_resistance_screen(s)]
+    usable_by_taxon: dict[str, int] = {}
+    for sc in usable:
+        _t = virus_taxon(sc)
+        usable_by_taxon[_t] = usable_by_taxon.get(_t, 0) + 1
     # THE LABEL HERE READ "coronavirus" AND WAS WRONG. virus_taxon matches
     # every pattern in config/viruses.yaml, and the flavivirus patterns
     # landed 2026-10-11, so this count has included them since. A heading
@@ -185,6 +190,9 @@ def main() -> int:
               f"{', '.join('NCBITaxon:' + t for t in silent)}")
         for line in silent_taxa(silent, by_taxon):
             print(line)
+
+    for line in discarded_screens(by_taxon, usable_by_taxon):
+        print(line)
 
     unbuilt = unbuilt_taxa(s)
     if unbuilt:
