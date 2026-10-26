@@ -18,6 +18,57 @@ from kgav.virus_register import declared_taxa
 from kgav.vhppi import ingest_mitab
 
 
+
+def coverage_lines(per_virus, taxon_map: dict, nodes: dict) -> list[str]:
+    """Edges per virus over EVERY declared-and-built virus, zeros included.
+
+    This was per_virus.most_common(), so a virus with zero edges did not
+    appear at all -- and the comment in main records that exactly this
+    happened: no flavivirus file was ever fetched, Zika sat in the taxon
+    map producing nothing, and the build said so nowhere. The absence was
+    discoverable only by noticing which labels were missing from a list
+    that never claimed to be complete.
+
+    Same correction pathway_landscape already carries for its own coverage
+    table. A zero is a finding about the SOURCE rather than about the
+    virus, and it is the finding that decides what to fetch next.
+
+    A pure function returning lines, so the reporting can be tested without
+    a spine release on disk.
+    """
+    declared = sorted(set(taxon_map.values()))
+    built = [t for t in declared if f"NCBITaxon:{t}" in nodes]
+
+    def label(tid):
+        return ((nodes.get(tid, {}) or {}).get("properties") or {}).get(
+            "label", tid)
+
+    header = ("edges per virus, over every virus the register declares "
+              "and this release built:")
+    out = ["", header]
+    zero = 0
+    for taxon in built:
+        tid = f"NCBITaxon:{taxon}"
+        n = per_virus.get(tid, 0)
+        if not n:
+            zero += 1
+        flag = "   <- NO virus-host PPI from either source" if not n else ""
+        out.append(f"  {label(tid):<14} {n:>7,}{flag}")
+    if zero:
+        out.append("")
+        out.append(f"  {zero} of {len(built)} built viruses have NO "
+                   f"virus-host PPI edge from VirHostNet or IntAct. That is "
+                   f"a gap in what was FETCHED as much as in what was "
+                   f"curated: the vhn_*.tab27 files are one coronavirus "
+                   f"each, and a taxon with no file cannot produce an edge "
+                   f"however well the source covers it.")
+    unbuilt = len(declared) - len(built)
+    if unbuilt:
+        out.append(f"  {unbuilt} further declared taxa are not in this "
+                   f"release and were not counted.")
+    return out
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
@@ -117,10 +168,8 @@ def main() -> int:
         n = index.nodes.get(e["object"])
         if n:
             per_virus[n["properties"].get("taxon_id", "?")] += 1
-    print("\nedges per virus:")
-    for tid, n in per_virus.most_common():
-        label = (index.nodes.get(tid, {}).get("properties", {}) or {}).get("label", tid)
-        print(f"  {label:<14} {n:>7,}")
+    for line in coverage_lines(per_virus, taxon_map, index.nodes):
+        print(line)
     return 0
 
 
