@@ -220,3 +220,67 @@ def test_the_driver_writes_nothing_when_no_edge_survives(tmp_path, capsys):
                    "--out", str(out)]) == 1
     assert not out.exists()
     assert "would assemble silently" in capsys.readouterr().out
+
+
+# --------------------------------------------- the whole table, not a sample
+# Sign words first: a term carrying a direction is that direction even when
+# it also names a mechanism, which is how host_targets reads "negative
+# allosteric modulator" as an inhibitor. Mechanism words only decide when
+# nothing signed the term.
+def _expected_direction(action: str) -> str:
+    a = action.upper()
+    if "ANTAGONIST" in a or "INHIBIT" in a or "BLOCKER" in a or "NEGATIVE" in a:
+        return "inhibitor"
+    if "AGONIST" in a or "ACTIVATOR" in a or "POSITIVE" in a:
+        return "agonist"
+    if "MODULATOR" in a or "ENHANCER" in a or a == "MIXED":
+        return "modulator"
+    return "unknown"
+
+
+@pytest.mark.parametrize("action", sorted(ACTION_TO_DIRECTION))
+def test_every_action_in_the_table_means_what_it_says(action):
+    """Derived from the table, so a key cannot be added without a test.
+
+    The hand-listed cases above covered "Allosteric modulator" and missed
+    the bare "MODULATOR" key, plus MIXED, ALLOSTERIC ENHANCER, NEGATIVE,
+    POSITIVE, BIASED AGONIST, FULL AGONIST, GATING INHIBITOR,
+    IRREVERSIBLE INHIBITION and ANTISENSE INHIBITION. Mapping MODULATOR to
+    "inhibitor" left all thirty tests passing -- and an allosteric
+    modulator recorded as an inhibitor is exactly the manufactured
+    mechanism this module's docstring says it exists to avoid, now carried
+    into an agent that reasons about direction.
+    """
+    assert ACTION_TO_DIRECTION[action] == _expected_direction(action)
+
+
+def test_the_consistency_rule_is_not_vacuous():
+    """It must disagree with a wrong table, or it is asserting nothing."""
+    assert _expected_direction("MODULATOR") == "modulator"
+    assert _expected_direction("INHIBITOR") != "modulator"
+    assert _expected_direction("NEGATIVE ALLOSTERIC MODULATOR") == "inhibitor"
+
+
+def test_gtop_and_host_targets_agree_where_their_vocabularies_meet():
+    """One direction vocabulary across sources, or a direction means
+    different things depending on who wrote it."""
+    from kgav.host_targets import ACTION_TO_DIRECTION as HT
+    shared = set(ACTION_TO_DIRECTION) & set(HT)
+    assert shared, "the two tables must overlap or this proves nothing"
+    for k in sorted(shared):
+        assert ACTION_TO_DIRECTION[k] == HT[k], k
+
+
+def test_a_non_numeric_pubmed_id_is_dropped():
+    """PMID:abc is not a citation. The isdigit filter had no test, so
+    removing it changed nothing."""
+    em = Emit()
+    rows = [_inter(pubmed_id="12345678|not-a-pmid|  |87654321")]
+    ingest_interactions(em, rows, {"1": "KEYAAA"})
+    assert em.edges[0]["publications"] == ["PMID:12345678", "PMID:87654321"]
+
+
+def test_an_edge_with_no_usable_pmid_carries_none_rather_than_junk():
+    em = Emit()
+    ingest_interactions(em, [_inter(pubmed_id="n/a")], {"1": "KEYAAA"})
+    assert not (em.edges[0].get("publications") or [])
