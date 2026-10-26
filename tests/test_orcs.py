@@ -13,6 +13,7 @@ from kgav.orcs import (
     DEPENDENCY_ANCHORS,
     RESTRICTION_SENTINELS,
     calibrate_sign,
+    discarded_screens,
     gene_direction,
     index_coverage,
     ingest_screens,
@@ -607,3 +608,52 @@ def test_the_discarded_count_is_reported_per_taxon():
 
 def test_nothing_is_said_when_no_taxon_is_silent():
     assert silent_taxa([], {"11089": 1}) == []
+
+
+# ---------------- a discard that does NOT zero a virus is still a discard
+def test_a_discard_that_leaves_edges_behind_is_still_reported():
+    """silent_taxa only ever sees a discard that zeroes a virus.
+
+    Zika matched 5 screens and used 2 on this release. It has 842 edges,
+    looks healthy in every table, and three screens sat unread with
+    nothing anywhere saying so.
+    """
+    text = "\n".join(discarded_screens({"64320": 5}, {"64320": 2}))
+    assert "NCBITaxon:64320" in text
+    assert "DISCARDED BEFORE INGEST" in text
+    assert "on disk and unread" in text
+
+
+def test_the_counts_are_matched_usable_and_the_difference():
+    lines = discarded_screens({"2697049": 68}, {"2697049": 51})
+    row = next(ln for ln in lines if "2697049" in ln)
+    assert row.split()[-3:] == ["68", "51", "17"]
+
+
+def test_a_virus_losing_nothing_is_not_listed():
+    """Every virus would otherwise appear, and a report where everything
+    is flagged flags nothing."""
+    assert discarded_screens({"11060": 3}, {"11060": 3}) == []
+
+
+def test_the_worst_loss_comes_first():
+    """Ordering decides what a reader sees when the list is long."""
+    lines = discarded_screens({"a": 5, "b": 68}, {"a": 2, "b": 51})
+    body = [ln for ln in lines if ln.startswith("    NCBITaxon:")]
+    assert body[0].startswith("    NCBITaxon:b")
+
+
+def test_it_does_not_call_a_correct_discard_a_defect():
+    """is_virus_resistance_screen exists to drop screens measuring
+    something else. The complaint is the silence, not the filter."""
+    text = "\n".join(discarded_screens({"64320": 5}, {"64320": 2}))
+    assert "Dropping them is correct where they measure something else" in text
+    assert "it is the silence that is not" in text
+
+
+def test_a_virus_with_no_usable_screen_at_all_is_counted():
+    """Yellow fever's shape: 1 matched, 0 usable. silent_taxa explains the
+    zero edges; this must still show the screen was dropped rather than
+    absent."""
+    text = "\n".join(discarded_screens({"11089": 1}, {}))
+    assert "NCBITaxon:11089" in text

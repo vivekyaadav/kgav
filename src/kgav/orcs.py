@@ -495,6 +495,50 @@ def per_taxon(stats: Counter) -> list[tuple[str, int, int, int, int]]:
     return sorted(rows, key=lambda r: (-r[4], r[0]))
 
 
+def discarded_screens(candidates_by_taxon: dict[str, int],
+                      usable_by_taxon: dict[str, int]) -> list[str]:
+    """Screens that matched a virus and were dropped before ingest.
+
+    WHY THIS IS NOT COVERED BY silent_taxa. That function explains taxa
+    with NO edge, so it only ever sees a discard that happens to zero a
+    virus -- Yellow fever, whose single screen was its only one. A virus
+    with four usable screens and three discarded has edges, appears
+    healthy in every table, and the loss is reported nowhere at all.
+
+    On this release that is the common case rather than the exception:
+    68 SARS-CoV-2 screens matched and 51 were used, Zika matched 5 and
+    used 2. Zika is one of three flaviviruses with host-factor data and
+    the pipeline is reading two-fifths of what it found.
+
+    A discard is not a defect -- is_virus_resistance_screen exists to drop
+    screens that measure something else, and dropping them is correct.
+    What is wrong is dropping them silently, because "we have no data for
+    this virus" and "we have data and do not use it" send a reader in
+    opposite directions, and only one of them is true here.
+    """
+    rows = []
+    for taxon in sorted(candidates_by_taxon, key=lambda t: (
+            -(candidates_by_taxon[t] - usable_by_taxon.get(t, 0)), t)):
+        matched = candidates_by_taxon[taxon]
+        used = usable_by_taxon.get(taxon, 0)
+        if matched > used:
+            rows.append((taxon, matched, used, matched - used))
+    if not rows:
+        return []
+    header = ("  DISCARDED BEFORE INGEST — matched a virus, not a "
+              "virus-resistance screen")
+    out = ["", header,
+           f"    {'taxon':<22} {'matched':>8} {'usable':>7} {'dropped':>8}"]
+    for taxon, matched, used, dropped in rows:
+        out.append(f"    NCBITaxon:{taxon:<12} {matched:>8,} {used:>7,} "
+                   f"{dropped:>8,}")
+    total = sum(r[3] for r in rows)
+    out.append(f"    {total:,} screen(s) across {len(rows)} virus(es) are on "
+               f"disk and unread. Dropping them is correct where they "
+               f"measure something else; it is the silence that is not.")
+    return out
+
+
 def silent_taxa(silent: list[str], candidates_by_taxon: dict[str, int],
                 ) -> list[str]:
     """Why each built virus got no edge -- and they do not all get no edge
