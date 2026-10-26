@@ -14,14 +14,15 @@ from kgav.orcs import (
     RESTRICTION_SENTINELS,
     calibrate_sign,
     gene_direction,
+    index_coverage,
     ingest_screens,
     is_virus_resistance_screen,
     per_taxon,
-    screen_heading,
-    unbuilt_taxa,
     polarity_mode,
     screen_date,
+    screen_heading,
     screen_type,
+    unbuilt_taxa,
     virus_taxon,
 )
 from kgav.schema import load_schema
@@ -473,3 +474,88 @@ def test_the_screen_count_label_no_longer_claims_coronavirus():
     assert "coronavirus" not in line
     assert "100 matched a configured virus (8 taxa)" in line
     assert "1,952 human screens" in line
+
+
+# --------------------------- what the index holds, before anything is fetched
+_REG = {"2697049": "SARS-CoV-2", "64320": "Zika", "11060": "DENV-2",
+        "11089": "Yellow fever", "11082": "West Nile", "11053": "DENV-1",
+        "11072": "JEV", "11084": "TBEV"}
+
+
+def _scr(text):
+    return {"CONDITION_NAME": text, "PHENOTYPE": "", "NOTES": "",
+            "SCREEN_NAME": ""}
+
+
+def test_a_virus_with_screens_is_counted():
+    lines = index_coverage([_scr("SARS-CoV-2 infection")] * 3, _REG)
+    assert any("SARS-CoV-2" in ln and "3" in ln for ln in lines)
+
+
+def test_a_declared_pattern_with_no_screen_says_so():
+    """Not a download anyone skipped: the experiment is not in this
+    release, and that is a different problem from a missing file."""
+    text = "\n".join(index_coverage([_scr("Zika virus")], _REG))
+    assert "Yellow fever" in text
+    assert "pattern declared, NO screen in this release" in text
+
+
+def test_a_virus_with_no_pattern_is_not_reported_as_a_zero():
+    """The third state, and the one a coverage table silently turns into
+    the second. DENV-1, JEV and TBEV cannot match by construction, so a
+    zero beside them would be a claim about ORCS that nothing supports.
+    """
+    lines = index_coverage([_scr("Zika virus")], _REG)
+    rows = [ln for ln in lines if ln.startswith("  ") and "<-" in ln]
+    assert not any("DENV-1" in r or "JEV" in r or "TBEV" in r for r in rows)
+    text = "\n".join(lines)
+    assert "cannot match by construction" in text
+    assert "DENV-1, JEV, TBEV" in text
+
+
+def test_it_says_why_an_untested_pattern_is_not_added():
+    text = "\n".join(index_coverage([], _REG))
+    assert "an untested pattern is worse than an absent one" in text
+
+
+def test_every_counted_taxon_has_a_declared_pattern():
+    """The count comes from virus_taxon, so a taxon reported with screens
+    must be one the patterns can produce."""
+    from kgav.orcs import VIRUS_PATTERNS
+    declared = {t for _p, t in VIRUS_PATTERNS}
+    lines = index_coverage([_scr("west nile virus")] * 2, _REG)
+    named = [ln for ln in lines if ln.startswith("  ") and "<-" not in ln
+             and "register virus" not in ln]
+    for ln in named:
+        label = ln.strip().rsplit(None, 1)[0]
+        taxon = next(t for t, n in _REG.items() if n == label)
+        assert taxon in declared
+
+
+def test_a_screen_is_counted_against_its_own_virus_only():
+    """Attributing every screen to one taxon left all tests passing.
+
+    Each fixture above happened to use screens for the virus it asserted
+    about, so a count that ignored virus_taxon entirely gave the same
+    answer. Here the only screens are West Nile, and SARS-CoV-2 must come
+    back flagged as having none.
+    """
+    lines = index_coverage([_scr("west nile virus")] * 4, _REG)
+
+    def row(label):
+        return next(ln for ln in lines
+                    if ln.startswith((f"  {label} ", f"  {label:<14}")))
+
+    assert row("West Nile").split()[-1] == "4"
+    assert "NO screen in this release" in row("SARS-CoV-2")
+    assert "NO screen in this release" in row("Zika")
+
+
+def test_a_matched_taxon_missing_from_the_register_is_not_dropped():
+    """The report loops over the register, so a pattern pointing at a taxon
+    the register no longer lists would count screens into a row that is
+    never printed -- silent, and exactly the shape of every other defect
+    this file has found."""
+    partial = {k: v for k, v in _REG.items() if k != "11082"}
+    text = "\n".join(index_coverage([_scr("west nile virus")] * 2, partial))
+    assert "NOT in the register" in text and "11082" in text
