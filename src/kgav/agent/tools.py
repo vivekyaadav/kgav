@@ -26,6 +26,11 @@ from typing import Any
 
 from kgav.agent import guards
 from kgav.baselines import qualifier_ok
+
+# The significance threshold, imported rather than restated: the
+# landscape already declares one and two different alphas in one
+# answer would be indefensible.
+from kgav.landscape import ALPHA as LANDSCAPE_ALPHA
 from kgav.schema import load_schema
 
 MAX_NEIGHBOURS = 50
@@ -735,13 +740,12 @@ class GraphTools:
         self._cache[key] = out
         return out
 
-    def _size_matched_expectation(self, virus: str,
-                                  sizes: list[int]) -> float:
-        """How many of these pathways a size-matched background would hit."""
+    def _size_matched_probs(self, virus: str, sizes: list[int]) -> list[float]:
+        """The background hit probability for a pathway of each given size."""
         bg = self._pathway_background(virus)
         if not bg["total"]:
-            return 0.0
-        exp = 0.0
+            return [0.0] * len(sizes)
+        probs = []
         for s in sizes:
             # The first bin whose upper edge reaches s, else the largest.
             # Written as one condition rather than two: the first version
@@ -755,8 +759,45 @@ class GraphTools:
                 if s <= hi:
                     idx = i
                     break
-            exp += bg["rates"][idx]
-        return exp
+            probs.append(bg["rates"][idx])
+        return probs
+
+    def _size_matched_expectation(self, virus: str,
+                                  sizes: list[int]) -> float:
+        """How many of these pathways a size-matched background would hit."""
+        return sum(self._size_matched_probs(virus, sizes))
+
+    @staticmethod
+    def _upper_tail(probs: list[float], k: int) -> float:
+        """P(X >= k) for independent Bernoulli trials with these
+        probabilities -- the Poisson-binomial upper tail, computed exactly.
+
+        WHY A TEST AND NOT A THRESHOLD. This sentence used to turn on
+        `ratio <= 1.05`, a number with nothing behind it deciding which of
+        two things a reader was told. On the live run the ratio came out at
+        1.04 and the verdict therefore hung on the second decimal place of
+        a constant picked by hand -- exactly the fitted-parameter-with-no-
+        record this project refuses everywhere else.
+
+        Exact rather than sampled: a permutation null drawing pathways from
+        matched size bins IS a sum of independent Bernoullis, so permuting
+        would only add sampling noise to a quantity that can be computed.
+        n is the number of pathways, so the O(n^2) recurrence is nothing.
+
+        THE ASSUMPTION IT MAKES, which the caller must state: pathways
+        overlap and share members, so "contains a dependency factor" is
+        positively correlated between them and the trials are not
+        independent. That makes this tail anti-conservative -- a small p
+        here is a flag to examine, never a finding.
+        """
+        dist = [1.0]
+        for p in probs:
+            nxt = [0.0] * (len(dist) + 1)
+            for i, v in enumerate(dist):
+                nxt[i] += v * (1.0 - p)
+                nxt[i + 1] += v * p
+            dist = nxt
+        return sum(dist[min(k, len(dist) - 1):]) if k <= len(dist) - 1 else 0.0
 
     def _dependency_factors(self, virus: str) -> set[str]:
         """Proteins this virus DEPENDS on, by CRISPR screen.
@@ -942,7 +983,9 @@ class GraphTools:
 
         bg = self._pathway_background(virus)
         sizes = [r["n_members"] for r in rows]
-        expected = self._size_matched_expectation(virus, sizes)
+        probs = self._size_matched_probs(virus, sizes)
+        expected = sum(probs)
+        p_excess = self._upper_tail(probs, len(with_dep))
         here = len(with_dep) / len(rows) if rows else 0.0
         raw = bg["hits"] / bg["total"] if bg["total"] else 0.0
         med = sorted(sizes)[len(sizes) // 2] if sizes else 0
@@ -966,12 +1009,16 @@ class GraphTools:
              f"pathways under the cap qualify, but that population has a "
              f"median of {bg['edges'][len(bg['edges']) // 2][0]} members "
              f"against {med} here. "
-             + ("Membership is at or below what these pathways' sizes "
-                "already predict, and is not evidence of anything about "
-                "this compound."
-                if ratio <= 1.05 else
-                f"The {ratio:.2f} excess over the size-matched expectation "
-                f"is a difference to examine, not a tested result.")),
+             + (f"Against that expectation the excess is not significant "
+                f"(p {p_excess:.2f}), so membership is no more than these "
+                f"pathways' sizes already predict and is not evidence of "
+                f"anything about this compound."
+                if p_excess >= LANDSCAPE_ALPHA else
+                f"The excess over the size-matched expectation reaches p "
+                f"{p_excess:.4f}. Pathways overlap and share members, so "
+                f"this tail assumes an independence that does not hold and "
+                f"is anti-conservative: treat it as a flag to examine, not "
+                f"a finding.")),
         ]
         if oversized:
             lines.append(
