@@ -147,3 +147,52 @@ def declared_taxa(doc: dict, section: str = "viruses") -> dict[str, str]:
         if cs.get("taxon"):
             out[str(cs["taxon"])] = taxon
     return out
+
+
+# Below this length a name is not offered for question matching. The agent's
+# resolver skips short strings to avoid spurious substring hits, and a
+# register entry that could never be matched is worse than absent: it reads
+# as support the agent does not have. "wnv", "yfv" and "jev" are therefore
+# NOT declared as aliases -- they would be inert.
+MIN_SEARCH_NAME = 4
+
+
+def search_names(doc: dict, section: str = "viruses") -> dict[str, str]:
+    """Every string a person might type for a virus -> its taxon CURIE.
+
+    WHY THE AGENT NEEDS THIS. Entity resolution ran off the release's
+    NAMES.json, which carries the register's short `name` and nothing else.
+    So "dengue virus 2" matched nothing, no taxon resolved, and the question
+    was silently answered about the default virus -- SARS-CoV-2 -- under a
+    caveat asserting the question had named no virus. It had. Every virus
+    in this register whose common name is not its short form was affected,
+    which on this release is every flavivirus.
+
+    `full_name` was already curated here and simply unused.
+
+    Collisions raise rather than resolving to whichever entry happened to be
+    last: a string that two taxa both claim is a curation error, and silently
+    picking one would reintroduce the same class of wrong-virus answer this
+    function exists to end.
+    """
+    out: dict[str, str] = {}
+    for entry in doc.get(section) or []:
+        taxon = str(entry.get("taxon") or "")
+        if not taxon:
+            continue
+        curie = f"NCBITaxon:{taxon}"
+        candidates = [entry.get("name"), entry.get("full_name")]
+        candidates += list(entry.get("aliases") or [])
+        for raw in candidates:
+            if not raw:
+                continue
+            key = " ".join(str(raw).lower().split())
+            if len(key) < MIN_SEARCH_NAME:
+                continue
+            if key in out and out[key] != curie:
+                raise ValueError(
+                    f"register name {key!r} is claimed by both {out[key]} "
+                    f"and {curie}; a question using it could not be answered "
+                    f"about either without guessing")
+            out[key] = curie
+    return out

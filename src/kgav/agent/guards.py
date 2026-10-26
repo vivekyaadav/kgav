@@ -412,13 +412,24 @@ def virus_assumed_caveat(label: str, others: list[str]) -> str:
 
     The default itself is not wrong: SARS-CoV-2 is the only virus any
     protocol here evaluated. Defaulting without saying so is.
+
+    AND IT MUST NOT SAY WHY. "The question named no virus" was asserted
+    whenever no taxon RESOLVED, which is a different thing and was wrong in
+    the case that mattered: a question reading "for dengue virus 2" was
+    answered about SARS-CoV-2 beneath a sentence claiming it had named no
+    virus -- and then listing DENV-2 among the available taxa two clauses
+    later. The resolver had failed; the caveat blamed the user. It now
+    reports what is true in both cases, that no virus in the question
+    resolved to a taxon in this graph, and leaves the reason to the reader
+    who can see their own question.
     """
     tail = (f" The graph also holds {', '.join(others[:6])}"
             + (f" and {len(others) - 6} more" if len(others) > 6 else "")
             + ".") if others else ""
-    return (f"the question named no virus, so this answer is about {label}, "
-            f"which is the only virus any protocol in this project "
-            f"evaluated.{tail} Name a virus to ask about another.")
+    return (f"no virus in this question resolved to a taxon in this graph, "
+            f"so this answer is about {label}, which is the only virus any "
+            f"protocol in this project evaluated.{tail} If you did name "
+            f"one, it was not recognised — name it as the graph labels it.")
 
 
 HOST_DIRECTED_CODES = frozenset({"M2", "M3", "M4", "M5", "M6"})

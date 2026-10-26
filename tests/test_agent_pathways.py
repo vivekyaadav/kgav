@@ -30,6 +30,13 @@ OTHERDRUG = "INCHIKEY:DRUGB"
 DIRECT = "INCHIKEY:DRUGC"
 ROGUE = "INCHIKEY:DRUGD"
 
+# What the fixture's own NAMES.json carries. Declared here so a test can
+# assert that a name it is checking is NOT in it -- a test that asserts
+# resolution of a name the fixture already indexes cannot detect the
+# register seeding being removed.
+_FIXTURE_NAMES = {"druga": "INCHIKEY:DRUGA", "drugb": "INCHIKEY:DRUGB",
+                  "drugc": "INCHIKEY:DRUGC", "drugd": "INCHIKEY:DRUGD"}
+
 
 def _node(nid, klass, **props):
     return {"id": nid, "class": klass, "properties": props}
@@ -115,9 +122,7 @@ def release(tmp_path) -> Path:
         edges.append(_edge(pid, "PARTICIPATES_IN", "REACT:BIG"))
     # The agent resolves typed names through the release's prebuilt index,
     # so a fixture without one cannot exercise the orchestrator at all.
-    (tmp_path / "NAMES.json").write_text(json.dumps({
-        "druga": DRUG, "drugb": OTHERDRUG, "drugc": DIRECT, "drugd": ROGUE,
-        "sars-cov-2": V}))
+    (tmp_path / "NAMES.json").write_text(json.dumps(_FIXTURE_NAMES))
     (tmp_path / "nodes.jsonl").write_text(
         "\n".join(json.dumps(n) for n in nodes))
     (tmp_path / "edges.jsonl").write_text(
@@ -681,3 +686,87 @@ def test_the_verdict_turns_on_the_shared_alpha_not_a_local_one(tools,
     text = " ".join(tools.pathways(DRUG, V).verbalised)
     assert "the excess is not significant" in text
     assert "anti-conservative" not in text
+
+
+# ------------------------------------------- the virus the question named
+def test_every_register_virus_resolves_by_its_common_names():
+    """The live failure: "for dengue virus 2" resolved to nothing and the
+    question was answered about SARS-CoV-2.
+
+    NAMES.json carries the register's SHORT name only, so every virus whose
+    common name is not its short form was unreachable -- on this release
+    that is every flavivirus.
+    """
+    from kgav import virus_register as R
+    names = R.search_names(R.load())
+    assert names["dengue virus 2"] == "NCBITaxon:11060"
+    assert names["dengue 2"] == "NCBITaxon:11060"
+    assert names["japanese encephalitis virus"] == "NCBITaxon:11072"
+    assert names["tick-borne encephalitis"] == "NCBITaxon:11084"
+    assert names["zika virus"] == "NCBITaxon:64320"
+    assert names["severe acute respiratory syndrome coronavirus 2"] == \
+        "NCBITaxon:2697049"
+
+
+def test_every_declared_virus_has_at_least_one_searchable_name():
+    from kgav import virus_register as R
+    doc = R.load()
+    names = R.search_names(doc)
+    for entry in doc["viruses"]:
+        curie = f"NCBITaxon:{entry['taxon']}"
+        assert curie in names.values(), f"{entry['name']} is unreachable"
+
+
+def test_a_name_claimed_by_two_taxa_raises():
+    """Silently picking one would be the wrong-virus answer again."""
+    from kgav import virus_register as R
+    doc = {"viruses": [{"taxon": "1", "name": "A", "aliases": ["shared name"]},
+                       {"taxon": "2", "name": "B", "aliases": ["shared name"]}]}
+    with pytest.raises(ValueError, match="claimed by both"):
+        R.search_names(doc)
+
+
+def test_inert_short_aliases_are_not_declared():
+    """The resolver skips strings under 4 characters, so a 3-letter alias
+    would read as support the agent does not have."""
+    from kgav import virus_register as R
+    for key in R.search_names(R.load()):
+        assert len(key) >= R.MIN_SEARCH_NAME
+
+
+def test_the_agent_resolves_a_register_name_the_release_never_indexed(
+        release):
+    """GraphTools seeds from the register, so resolution does not depend on
+    what NAMES.json happens to hold.
+
+    The name asserted here must be one the fixture's NAMES.json does NOT
+    carry, or the seeding can be deleted with every test still passing --
+    which is exactly what happened: the first version asserted "sars-cov-2",
+    which the fixture indexes itself.
+    """
+    t = GraphTools(release)
+    assert "sars-cov-2" not in _FIXTURE_NAMES
+    assert t.names["severe acute respiratory syndrome coronavirus 2"] == V
+    assert t.names["sarscov2"] == V
+
+
+def test_a_register_name_for_an_absent_taxon_is_not_offered(release):
+    """Resolving to a node that is not in this release would trade a wrong
+    answer for a crash."""
+    t = GraphTools(release)
+    assert "dengue virus 2" not in t.names
+
+
+def test_the_release_name_wins_over_the_register(release):
+    """A release that curated its own mapping keeps it.
+
+    The key must be one the register ALSO claims, and must map somewhere
+    DIFFERENT, or setdefault and plain assignment behave identically and
+    the precedence is untested -- the first version mapped "sars-cov-2" to
+    the same node the register does.
+    """
+    import json as _json
+    (release / "NAMES.json").write_text(_json.dumps(
+        {"druga": DRUG, "sarscov2": DRUG}))
+    t = GraphTools(release)
+    assert t.names["sarscov2"] == DRUG, "the release's own mapping must win"

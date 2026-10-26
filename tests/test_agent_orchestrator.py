@@ -359,7 +359,12 @@ def test_a_question_naming_no_virus_says_which_one_it_assumed(orch):
     assumed = next(w for w in brief.warnings
                    if getattr(w, "key", "") == "virus_assumed")
     assert "VIRUS ASSUMED" in assumed
-    assert "named no virus" in assumed
+    # NOT "named no virus": that asserts a reason, and the reason was wrong
+    # in the case that mattered -- "for dengue virus 2" resolved to nothing
+    # and was answered about SARS-CoV-2 under a sentence saying the question
+    # had named no virus, while listing DENV-2 two clauses later.
+    assert "no virus in this question resolved" in assumed
+    assert "named no virus" not in assumed
     assert any("(assumed)" in t for t in brief.trace)
 
 

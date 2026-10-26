@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from kgav import virus_register
 from kgav.agent import guards
 from kgav.baselines import qualifier_ok
 
@@ -141,6 +142,7 @@ class GraphTools:
         self.by_id: dict[str, dict] = {}
         # lowercase display name -> node id, for entity resolution
         self.names: dict[str, str] = dict(name_index or {})
+        self._register_names: dict[str, str] = {}
 
         release = Path(release)
 
@@ -150,6 +152,23 @@ class GraphTools:
         # "remdesivir", so the release carries a prebuilt name index rather
         # than the agent opening a 25 GB database at runtime.
         self.preferred_names: dict[str, str] = {}
+        # EVERY VIRUS THE REGISTER DECLARES IS RESOLVABLE, whatever NAMES.json
+        # happens to contain. That file carries the register's SHORT name and
+        # nothing else, so "dengue virus 2" matched nothing, no taxon
+        # resolved, and the question was answered about the default virus
+        # under a caveat asserting that no virus had been named. Seeded
+        # before NAMES.json so a release that does carry a better name still
+        # wins; a name for a taxon absent from this graph is dropped, because
+        # resolving to a node that is not here would trade a wrong answer for
+        # a crash.
+        try:
+            for key, curie in virus_register.search_names(
+                    virus_register.load()).items():
+                self._register_names[key] = curie
+        except (OSError, ValueError, KeyError):
+            # A malformed register must not stop the agent answering about
+            # the compounds it can still resolve.
+            self._register_names = {}
         names_file = release / "NAMES.json"
         if names_file.exists():
             self.names.update(json.loads(names_file.read_text()))
@@ -183,6 +202,15 @@ class GraphTools:
                          or n["properties"].get("label"))
                 if label:
                     self.names.setdefault(str(label).lower(), n["id"])
+
+        # Register names LAST and only for taxa this release holds. setdefault
+        # so a name the release supplied keeps precedence, and the presence
+        # check so a question naming a virus that was declared but not built
+        # resolves to nothing -- which the assumed-virus caveat then reports
+        # honestly -- rather than to a node id with no node behind it.
+        for key, curie in self._register_names.items():
+            if curie in self.nodes:
+                self.names.setdefault(key, curie)
 
         for i, line in enumerate(
                 (release / "edges.jsonl").read_text().splitlines()):

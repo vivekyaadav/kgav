@@ -45,6 +45,11 @@ viruses:
     chain_source: {accession: P0DTD1, taxon: "2697049", chains: 16,
                    verified: "2026-09-17"}   # species is curated; no isolate needed
     name: SARS-CoV-2
+    aliases:
+      - "severe acute respiratory syndrome coronavirus 2"
+      - "sars cov 2"
+      - "sars-cov2"
+      - "sarscov2"
     proteome_id: UP000464024
     mondo: "MONDO:0100096"
     mondo_source: "DOID:0080600 xref, verified 2026-09"
@@ -53,6 +58,10 @@ viruses:
     chain_source: {accession: P0C6X7, taxon: "694009", chains: 15,
                    verified: "2026-09-17"}   # species is curated; no isolate needed
     name: SARS-CoV
+    aliases:
+      - "severe acute respiratory syndrome coronavirus"
+      - "sars-cov-1"
+      - "sars coronavirus"
     # ISOLATES DECLARED FOR THE PPI LAYER, NOT FOR CHAINS. chain_source above
     # is the species itself, so nothing here is needed to find mature
     # peptides. These two are declared because VirHostNet files 73
@@ -152,6 +161,10 @@ viruses:
     chain_source: {accession: K9N7C7, taxon: "1263720", chains: 15,
                    verified: "2026-09-17"}   # STRAIN: species proteome is TrEMBL-only, zero Chain features
     name: MERS-CoV
+    aliases:
+      - "middle east respiratory syndrome coronavirus"
+      - "mers coronavirus"
+      - "mers-cov"
     # VirHostNet and Swiss-Prot both file this under an isolate taxon;
     # the species query returns zero rows.
     isolate_taxa: ["1263720"]
@@ -171,6 +184,10 @@ viruses:
     chain_source: {accession: P0C6X1, taxon: "11137", chains: 15,
                    verified: "2026-09-17"}   # species is curated; no isolate needed
     name: HCoV-229E
+    aliases:
+      - "human coronavirus 229e"
+      - "coronavirus 229e"
+      - "hcov 229e"
     proteome_id: UP000006716
     # No specific MONDO term exists. The only candidate is the generic
     # MONDO:0005709 (common cold), shared with the other seasonal
@@ -186,6 +203,10 @@ viruses:
     chain_source: {accession: P0C6X5, taxon: "277944", chains: 15,
                    verified: "2026-09-17"}   # species is curated; no isolate needed
     name: HCoV-NL63
+    aliases:
+      - "human coronavirus nl63"
+      - "coronavirus nl63"
+      - "hcov nl63"
     proteome_id: UP000008573
     # No specific MONDO term exists. The only candidate is the generic
     # MONDO:0005709 (common cold), shared with the other seasonal
@@ -201,6 +222,10 @@ viruses:
     chain_source: {accession: P0C6X6, taxon: "31631", chains: 15,
                    verified: "2026-09-17"}   # species is curated; no isolate needed
     name: HCoV-OC43
+    aliases:
+      - "human coronavirus oc43"
+      - "coronavirus oc43"
+      - "hcov oc43"
     proteome_id: UP000007552
     # No specific MONDO term exists. The only candidate is the generic
     # MONDO:0005709 (common cold), shared with the other seasonal
@@ -216,6 +241,10 @@ viruses:
     chain_source: {accession: P0C6X2, taxon: "443239", chains: 15,
                    verified: "2026-09-17"}   # STRAIN: species query returns no curated polyprotein
     name: HCoV-HKU1
+    aliases:
+      - "human coronavirus hku1"
+      - "coronavirus hku1"
+      - "hcov hku1"
     # VirHostNet and Swiss-Prot both file this under an isolate taxon;
     # the species query returns zero rows.
     isolate_taxa: ["443239"]
@@ -258,6 +287,8 @@ viruses:
   # ------------------------------------------------------------------------
   - taxon: "64320"
     name: Zika
+    aliases:
+      - "zikv"
     family: Flaviviridae
     full_name: "Zika virus"
     proteome_id: UP000054557
@@ -352,6 +383,14 @@ viruses:
 
   - taxon: "11060"
     name: DENV-2
+    aliases:
+      - "dengue virus 2"
+      - "dengue virus-2"
+      - "dengue 2"
+      - "dengue type 2"
+      - "dengue serotype 2"
+      - "denv2"
+      - "denv 2"
     family: Flaviviridae
     full_name: "Dengue virus type 2"
     proteome_id: UP000095876
@@ -402,6 +441,14 @@ viruses:
 
   - taxon: "11053"
     name: DENV-1
+    aliases:
+      - "dengue virus 1"
+      - "dengue virus-1"
+      - "dengue 1"
+      - "dengue type 1"
+      - "dengue serotype 1"
+      - "denv1"
+      - "denv 1"
     family: Flaviviridae
     full_name: "Dengue virus type 1"
     proteome_id: UP000095813
@@ -434,6 +481,14 @@ viruses:
 
   - taxon: "11069"
     name: DENV-3
+    aliases:
+      - "dengue virus 3"
+      - "dengue virus-3"
+      - "dengue 3"
+      - "dengue type 3"
+      - "dengue serotype 3"
+      - "denv3"
+      - "denv 3"
     family: Flaviviridae
     full_name: "Dengue virus type 3"
     proteome_id: UP000095814
@@ -465,6 +520,14 @@ viruses:
 
   - taxon: "11070"
     name: DENV-4
+    aliases:
+      - "dengue virus 4"
+      - "dengue virus-4"
+      - "dengue 4"
+      - "dengue type 4"
+      - "dengue serotype 4"
+      - "denv4"
+      - "denv 4"
     family: Flaviviridae
     full_name: "Dengue virus type 4"
     proteome_id: UP000096325
@@ -535,6 +598,8 @@ viruses:
 
   - taxon: "11072"
     name: JEV
+    aliases:
+      - "japanese encephalitis"
     family: Flaviviridae
     full_name: "Japanese encephalitis virus"
     proteome_id: UP000095892
@@ -597,6 +662,10 @@ viruses:
 
   - taxon: "11084"
     name: TBEV
+    aliases:
+      - "tick-borne encephalitis"
+      - "tick borne encephalitis virus"
+      - "tick borne encephalitis"
     family: Flaviviridae
     full_name: "Tick-borne encephalitis virus"
     proteome_id: UP000096153
