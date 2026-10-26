@@ -476,19 +476,63 @@ def test_the_count_is_never_reported_without_a_matched_background(tools):
 
 def test_membership_at_the_matched_expectation_is_called_what_it_is(tools):
     text = " ".join(tools.pathways(DRUG, V).verbalised)
-    assert "at or below what these pathways' sizes already predict" in text
+    assert "the excess is not significant" in text
+    assert "no more than these pathways' sizes already predict" in text
     assert "not evidence of anything about this compound" in text
 
 
-def test_an_excess_over_the_matched_expectation_is_not_called_a_result(
+def test_an_excess_is_tested_rather_than_compared_to_a_chosen_number(
         tools, monkeypatch):
-    """The other branch must stay reachable, and must still refuse to call
-    an unexamined difference a finding."""
-    monkeypatch.setattr(tools, "_size_matched_expectation",
-                        lambda v, sizes: 0.1)
+    """The verdict used to turn on `ratio <= 1.05`.
+
+    On the live run the ratio came out at 1.04, so which of two things the
+    reader was told hung on the second decimal of a constant picked by
+    hand. It is now an exact Poisson-binomial tail against the shared
+    alpha.
+    """
+    monkeypatch.setattr(tools, "_size_matched_probs",
+                        lambda v, sizes: [0.01] * len(sizes))
     text = " ".join(tools.pathways(DRUG, V).verbalised)
-    assert "is a difference to examine, not a tested result" in text
+    assert "reaches p 0." in text
+    assert "anti-conservative" in text
     assert "already predict" not in text
+
+
+def test_a_significant_excess_still_states_the_independence_violation(
+        tools, monkeypatch):
+    """Pathways share members, so the tail is anti-conservative and a small
+    p is a flag rather than a finding. Saying the p without saying that
+    would be the overclaim this whole tool exists to refuse."""
+    monkeypatch.setattr(tools, "_size_matched_probs",
+                        lambda v, sizes: [0.001] * len(sizes))
+    text = " ".join(tools.pathways(DRUG, V).verbalised)
+    assert "assumes an independence that does not hold" in text
+    assert "a flag to examine, not a finding" in text
+
+
+def test_the_alpha_is_the_one_the_landscape_declares(tools):
+    """Two different significance thresholds in one answer would be
+    indefensible, so it is imported rather than restated."""
+    from kgav.agent.tools import LANDSCAPE_ALPHA
+    from kgav.landscape import ALPHA
+    assert LANDSCAPE_ALPHA is ALPHA
+
+
+@pytest.mark.parametrize("probs,k,want", [
+    ([], 0, 1.0),
+    ([1.0], 1, 1.0),
+    ([0.0], 1, 0.0),
+    ([0.5, 0.5], 1, 0.75),
+    ([0.5, 0.5], 2, 0.25),
+    ([0.5, 0.5], 0, 1.0),
+])
+def test_the_upper_tail_is_exact(probs, k, want):
+    """Hand-checkable cases. Two fair coins: P(>=1)=3/4, P(>=2)=1/4."""
+    assert GraphTools._upper_tail(probs, k) == pytest.approx(want)
+
+
+def test_the_upper_tail_is_zero_above_the_maximum():
+    assert GraphTools._upper_tail([0.5, 0.5], 3) == 0.0
 
 
 # ------------------------------------------------------- bounded output
@@ -618,3 +662,22 @@ def test_a_size_above_every_bin_uses_the_largest_bin(graded):
 def test_a_size_below_every_bin_uses_the_smallest_bin(graded):
     t = GraphTools(graded)
     assert t._size_matched_expectation(V2, [0]) == pytest.approx(0.0)
+
+
+def test_the_verdict_turns_on_the_shared_alpha_not_a_local_one(tools,
+                                                               monkeypatch):
+    """Asserting the import is not asserting the comparison.
+
+    test_the_alpha_is_the_one_the_landscape_declares checks that the name
+    is bound to landscape.ALPHA; replacing the number in the comparison
+    with 0.5 left it passing, because the fixture's p sits above both.
+    This pins a p BETWEEN the two: not significant at 0.05, significant at
+    0.5, so only the right threshold gives the right sentence.
+    """
+    monkeypatch.setattr(tools, "_size_matched_probs",
+                        lambda v, sizes: [0.072] * len(sizes))
+    p = GraphTools._upper_tail([0.072] * 3, 1)
+    assert 0.05 < p < 0.5, p
+    text = " ".join(tools.pathways(DRUG, V).verbalised)
+    assert "the excess is not significant" in text
+    assert "anti-conservative" not in text
