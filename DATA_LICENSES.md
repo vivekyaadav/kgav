@@ -37,6 +37,16 @@ statement on the download page itself — not from this table, and not from a
 paper citing it. Terms change. Record the licence string and the access date in
 that release's MANIFEST.json.
 
+Guide to PHARMACOLOGY is listed before its files are downloaded, because the
+layer that reads them is already built and a source reaching the graph
+without a row here is the gap this register exists to close. Two things are
+unresolved and must be settled at the download page rather than here: the
+site required registration when it was checked on 2026-10-26, and the same
+page stated that commercial organisations pay an access fee. Whether that
+constrains USE of the downloaded data or only ACCESS to it is the question
+to answer — the DrugBank decision above turned on exactly that distinction,
+and it is cheaper to answer before the identifiers are in a release.
+
 | Source | Used for | Licence (to confirm) | Commercial | verified |
 |---|---|---|---|---|
 | UniProt | proteomes, ID mapping | CC BY 4.0 | yes | |
@@ -53,6 +63,7 @@ that release's MANIFEST.json.
 | BioGRID ORCS | CRISPR screens | check current terms | | |
 | VirHostNet | virus-host PPI | check current terms | | |
 | Reactome | pathways | CC0 | yes | |
+| Guide to PHARMACOLOGY | drug-target direction | check on download page; registration required | see note | |
 | Gene Ontology | pathways, processes | CC BY 4.0 | yes | |
 | Cellosaurus | cell lines | CC BY 4.0 | yes | |
 | ClinicalTrials.gov | trials, hard negatives | US public domain | yes | |
