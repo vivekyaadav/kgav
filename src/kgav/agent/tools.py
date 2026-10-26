@@ -35,6 +35,9 @@ MAX_SUBGRAPH_EDGES = 100
 # counted and the overflow is reported with how many of it carry a dependency
 # factor, so the cap bounds the output without hiding the census.
 MAX_PATHWAYS = 25
+# Dependency-factor names printed per pathway. The count is always stated in
+# full; only the naming is bounded.
+MAX_DEPENDENCY_NAMES = 6
 
 
 @dataclass
@@ -75,6 +78,8 @@ class GraphTools:
         # branch and still appears in the answer. The one thing an answer may
         # not do is stay silent about it.
         self.landscape = landscape
+        # Memo for whole-graph scans that do not depend on the question.
+        self._cache: dict[tuple, Any] = {}
         # ONE CALIBRATION PER VIRUS, NOT ONE PER INSTANCE.
         #
         # This was a single `self.calibration`, handed to every caveat
@@ -660,6 +665,47 @@ class GraphTools:
             return False
         return bool((n.get("properties") or {}).get("is_viral"))
 
+    def _pathway_members(self, pathway: str) -> set[str]:
+        return {e["subject"]
+                for e in self.inv.get(("PARTICIPATES_IN", pathway), [])}
+
+    def _dependency_base_rate(self, virus: str) -> tuple[int, int]:
+        """How many pathways contain a dependency factor REGARDLESS of any
+        compound: the background the per-compound count has to be read
+        against.
+
+        WHY THIS EXISTS. The first live run reported "83 of 92 pathways
+        contain at least one protein SARS-CoV-2 depends on" and stopped
+        there. The number reads as a finding and is arithmetic: SARS-CoV-2
+        has 3,460 dependency factors, so if they are a sixth of the human
+        proteome then a 40-member pathway contains one with probability
+        0.9995 and a 95-member pathway with probability 1.0000. Nearly every
+        pathway qualifies, and a count with no background invites the reader
+        to supply a baseline of zero.
+
+        This is the same correction the degree-matched null applies at the
+        protein level, which the answer already quotes -- it was simply
+        absent one level up, where the count a reader actually sees is
+        produced.
+        """
+        key = ("base_rate", virus)
+        if key in self._cache:
+            return self._cache[key]
+        deps = self._dependency_factors(virus)
+        cap = self._max_pathway_members
+        total = hits = 0
+        for pw, n in self.nodes.items():
+            if n.get("class") != "Pathway":
+                continue
+            members = self._pathway_members(pw)
+            if cap is not None and len(members) > cap:
+                continue
+            total += 1
+            if members & deps:
+                hits += 1
+        self._cache[key] = (hits, total)
+        return hits, total
+
     def _dependency_factors(self, virus: str) -> set[str]:
         """Proteins this virus DEPENDS on, by CRISPR screen.
 
@@ -842,13 +888,31 @@ class GraphTools:
         with_dep = [r for r in rows if r["n_dependency_members"]]
         shown = rows[:limit]
 
+        bg_hits, bg_total = self._dependency_base_rate(virus)
+        here = len(with_dep) / len(rows) if rows else 0.0
+        background = bg_hits / bg_total if bg_total else 0.0
         lines = [
             (f"{self._label(compound)} has {len(target_edges)} human "
              f"target(s) in this graph."),
             (f"{len(rows)} pathway(s) at or under the {cap}-member cap "
              f"contain at least one of them; {len(with_dep)} of those "
-             f"contain at least one protein {self._label(virus)} depends "
-             f"on."),
+             f"({here:.0%}) contain at least one protein "
+             f"{self._label(virus)} depends on."),
+            # NEVER THE COUNT WITHOUT THE BACKGROUND. With 3,460 dependency
+            # factors a pathway of any size contains one almost by
+            # arithmetic, so the bare count reads as a finding against an
+            # imagined baseline of zero.
+            (f"Against the background: {bg_hits:,} of {bg_total:,} "
+             f"({background:.0%}) pathways under the cap contain a "
+             f"{self._label(virus)} dependency factor regardless of this "
+             f"compound, because the virus has "
+             f"{len(self._dependency_factors(virus)):,} of them. "
+             + ("Membership here is therefore at or below the background "
+                "rate and is not evidence of anything about this compound."
+                if here <= background + 0.05 else
+                f"This compound's pathways are {here - background:+.0%} "
+                f"on that background, which is a difference to examine "
+                f"rather than a tested result.")),
         ]
         if oversized:
             lines.append(
@@ -867,8 +931,17 @@ class GraphTools:
                 f"an absence in the CRISPR layer as much as a statement about "
                 f"this compound.")
         for r in shown:
-            dep = (", ".join(self._label(d) for d in r["dependency_members"])
-                   if r["dependency_members"] else "none")
+            # BOUNDED, WITH THE REMAINDER COUNTED. The first live run put
+            # forty-one protein names on a single line and did it for
+            # twenty-five pathways. Nothing in it was wrong and none of it
+            # was readable, and a brief built from it spends its budget on
+            # name lists rather than on the facts the answer rests on. The
+            # full set stays in `data` for a caller that wants it.
+            names = [self._label(d) for d in
+                     r["dependency_members"][:MAX_DEPENDENCY_NAMES]]
+            extra = r["n_dependency_members"] - len(names)
+            dep = (", ".join(names) + (f", +{extra} more" if extra else "")
+                   if names else "none")
             lines.append(
                 f"  {r['label']} ({r['n_members']} members) — via "
                 f"{', '.join(self._label(t) for t in r['targets_in_pathway'])}"
