@@ -273,3 +273,82 @@ def test_layer_dir_matches_what_assemble_reads():
         "assemble_release no longer names layer directories this way; "
         "layer_dir is now checking for something that never exists")
     assert layer_dir(Path("/r"), "orcs") == Path("/r/data/releases/v0.1-orcs")
+
+
+# --------------------------------------- a layer that reads either of two
+def _layer(name):
+    return next(x for x in LAYERS if x.name == name)
+
+
+def _touch(root, rel):
+    p = root / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("x")
+    return p
+
+
+def test_vhppi_runs_on_intact_alone(tmp_path):
+    """The case the old declaration got wrong.
+
+    ingest_vhppi globs vhn_*.tab27 AND intact_*.tab27 -- two sources, one
+    layer. The layer declared only the first, and `globs` is an AND, so a
+    release holding the filtered IntAct file and no VirHostNet file was
+    reported un-runnable while the ingest would have run fine.
+    """
+    _touch(tmp_path, "data/raw/vhppi/intact_viral.tab27")
+    ok, why = availability(_layer("vhppi"), tmp_path, env={})
+    assert ok, why
+
+
+def test_vhppi_runs_on_virhostnet_alone(tmp_path):
+    _touch(tmp_path, "data/raw/vhppi/vhn_sars2.tab27")
+    ok, why = availability(_layer("vhppi"), tmp_path, env={})
+    assert ok, why
+
+
+def test_vhppi_with_neither_names_both(tmp_path):
+    """A reason naming one of two sources sends the reader to fetch the
+    wrong thing."""
+    ok, why = availability(_layer("vhppi"), tmp_path, env={})
+    assert not ok
+    assert "vhn_*.tab27" in why and "intact_*.tab27" in why
+
+
+# ------------------------------------- a layer that needs both, one of which
+# may arrive under either of two names
+def test_gtop_is_not_ready_on_interactions_alone(tmp_path):
+    """It was reported ready with half its inputs, and ingest_gtop then
+    exits on the missing ligand file -- a plan that says go, followed by a
+    run that will not."""
+    _touch(tmp_path, "data/raw/gtop/interactions.csv")
+    ok, why = availability(_layer("gtop"), tmp_path, env={})
+    assert not ok
+    assert "ligands.csv" in why and "ligand_id_mapping.csv" in why
+
+
+@pytest.mark.parametrize("ligand_file", ["ligands.csv",
+                                         "ligand_id_mapping.csv"])
+def test_gtop_accepts_either_ligand_file(tmp_path, ligand_file):
+    """Both spellings appear across GtP releases and ingest_gtop takes
+    either."""
+    _touch(tmp_path, "data/raw/gtop/interactions.csv")
+    _touch(tmp_path, f"data/raw/gtop/{ligand_file}")
+    ok, why = availability(_layer("gtop"), tmp_path, env={})
+    assert ok, why
+
+
+def test_gtop_still_requires_interactions(tmp_path):
+    _touch(tmp_path, "data/raw/gtop/ligands.csv")
+    ok, why = availability(_layer("gtop"), tmp_path, env={})
+    assert not ok and "interactions.csv" in why
+
+
+def test_the_declared_alternatives_match_what_the_scripts_glob():
+    """The declaration is a claim about another file, so it is checked
+    against that file rather than against itself."""
+    vh = (ROOT / "scripts" / "ingest_vhppi.py").read_text()
+    for pat in ("vhn_*.tab27", "intact_*.tab27"):
+        assert pat in vh, f"{pat} is declared but ingest_vhppi does not glob it"
+    gt = (ROOT / "scripts" / "ingest_gtop.py").read_text()
+    for name in ("interactions.csv", "ligands.csv", "ligand_id_mapping.csv"):
+        assert name in gt, f"{name} is declared but ingest_gtop never names it"

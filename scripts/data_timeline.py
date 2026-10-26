@@ -73,8 +73,20 @@ def _sidecar(p: Path) -> dict | None:
 
 
 def inputs_for(layer, root: Path) -> list[Path]:
+    """Every raw file feeding this layer, across both kinds of declaration.
+
+    any_globs HAS TO BE READ HERE TOO. It was added to pipeline.Layer for
+    the layers that accept either of two sources, and reading only `globs`
+    silently emptied this report for them: the vhppi row went from naming
+    its VirHostNet files to naming nothing, with provenance "-" rather than
+    "mtime only". A timeline that omits a layer's inputs is the same defect
+    as a plan that omits them, one report further on.
+    """
     out = [root / f for f in layer.files]
-    for g in layer.globs:
+    patterns = list(layer.globs)
+    for alternatives in getattr(layer, "any_globs", ()):
+        patterns.extend(alternatives)
+    for g in patterns:
         out.extend(sorted(root.glob(g)))
     return out
 
