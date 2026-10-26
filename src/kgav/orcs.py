@@ -495,47 +495,58 @@ def per_taxon(stats: Counter) -> list[tuple[str, int, int, int, int]]:
     return sorted(rows, key=lambda r: (-r[4], r[0]))
 
 
-def discarded_screens(candidates_by_taxon: dict[str, int],
-                      usable_by_taxon: dict[str, int]) -> list[str]:
-    """Screens that matched a virus and were dropped before ingest.
+def screen_funnel(matched_by_taxon: dict[str, int],
+                  usable_by_taxon: dict[str, int],
+                  processed_by_taxon: dict[str, int]) -> list[str]:
+    """Where a virus's screens go: matched -> usable -> processed.
 
-    WHY THIS IS NOT COVERED BY silent_taxa. That function explains taxa
-    with NO edge, so it only ever sees a discard that happens to zero a
-    virus -- Yellow fever, whose single screen was its only one. A virus
-    with four usable screens and three discarded has edges, appears
-    healthy in every table, and the loss is reported nowhere at all.
+    THREE STAGES, AND ONLY THE FIRST GAP WAS EVER SHOWN. The previous
+    version of this reported matched against usable and stopped, so a
+    screen that passed is_virus_resistance_screen and was then dropped
+    inside ingest_screens -- unresolvable polarity, uncalibrated sign, a
+    taxon the spine did not build -- vanished exactly as the earlier ones
+    had. On this release SARS-CoV-2 runs 68 -> 58 -> 51: ten dropped by
+    the filter and a further seven inside the ingest, and the second group
+    was invisible.
 
-    On this release that is the common case rather than the exception:
-    68 SARS-CoV-2 screens matched and 51 were used, Zika matched 5 and
-    used 2. Zika is one of three flaviviruses with host-factor data and
-    the pipeline is reading two-fifths of what it found.
+    WHAT THIS STILL CANNOT SAY, said here rather than discovered later:
+    the reasons for the usable -> processed losses are counted globally,
+    in the `skipped:` block, and not per taxon. This table shows that
+    seven SARS-CoV-2 screens were lost there; it cannot say which of
+    polarity_unresolvable, uncalibrated_sign or the rest took them.
+    Making that per-taxon means threading the taxon through every skip
+    site in ingest_screens, which is a larger change than this one.
 
-    A discard is not a defect -- is_virus_resistance_screen exists to drop
-    screens that measure something else, and dropping them is correct.
-    What is wrong is dropping them silently, because "we have no data for
-    this virus" and "we have data and do not use it" send a reader in
-    opposite directions, and only one of them is true here.
+    A loss at either stage is not a defect. The filters exist and are
+    right. The silence was the defect.
     """
     rows = []
-    for taxon in sorted(candidates_by_taxon, key=lambda t: (
-            -(candidates_by_taxon[t] - usable_by_taxon.get(t, 0)), t)):
-        matched = candidates_by_taxon[taxon]
-        used = usable_by_taxon.get(taxon, 0)
-        if matched > used:
-            rows.append((taxon, matched, used, matched - used))
+    for taxon in sorted(matched_by_taxon, key=lambda t: (
+            -(matched_by_taxon[t] - processed_by_taxon.get(t, 0)), t)):
+        matched = matched_by_taxon[taxon]
+        usable = usable_by_taxon.get(taxon, 0)
+        processed = processed_by_taxon.get(taxon, 0)
+        if matched > processed:
+            rows.append((taxon, matched, usable, processed))
     if not rows:
         return []
-    header = ("  DISCARDED BEFORE INGEST — matched a virus, not a "
-              "virus-resistance screen")
-    out = ["", header,
-           f"    {'taxon':<22} {'matched':>8} {'usable':>7} {'dropped':>8}"]
-    for taxon, matched, used, dropped in rows:
-        out.append(f"    NCBITaxon:{taxon:<12} {matched:>8,} {used:>7,} "
-                   f"{dropped:>8,}")
-    total = sum(r[3] for r in rows)
-    out.append(f"    {total:,} screen(s) across {len(rows)} virus(es) are on "
-               f"disk and unread. Dropping them is correct where they "
-               f"measure something else; it is the silence that is not.")
+    header = ("  SCREEN FUNNEL — matched a virus, passed the "
+              "virus-resistance filter, reached ingest")
+    cols = (f"    {'taxon':<22} {'matched':>8} {'usable':>7} "
+            f"{'processed':>10} {'lost':>6}")
+    out = ["", header, cols]
+    by_filter = by_ingest = 0
+    for taxon, matched, usable, processed in rows:
+        by_filter += matched - usable
+        by_ingest += usable - processed
+        out.append(f"    NCBITaxon:{taxon:<12} {matched:>8,} {usable:>7,} "
+                   f"{processed:>10,} {matched - processed:>6,}")
+    out.append(f"    {by_filter:,} screen(s) dropped by "
+               f"is_virus_resistance_screen, {by_ingest:,} more inside "
+               f"ingest_screens. Both are correct where the screen measures "
+               f"something else or its sign cannot be resolved; the reasons "
+               f"for the second group are in `skipped:` below, counted "
+               f"across all viruses rather than per virus.")
     return out
 
 

@@ -13,7 +13,6 @@ from kgav.orcs import (
     DEPENDENCY_ANCHORS,
     RESTRICTION_SENTINELS,
     calibrate_sign,
-    discarded_screens,
     gene_direction,
     index_coverage,
     ingest_screens,
@@ -21,6 +20,7 @@ from kgav.orcs import (
     per_taxon,
     polarity_mode,
     screen_date,
+    screen_funnel,
     screen_heading,
     screen_type,
     silent_taxa,
@@ -610,50 +610,61 @@ def test_nothing_is_said_when_no_taxon_is_silent():
     assert silent_taxa([], {"11089": 1}) == []
 
 
-# ---------------- a discard that does NOT zero a virus is still a discard
-def test_a_discard_that_leaves_edges_behind_is_still_reported():
-    """silent_taxa only ever sees a discard that zeroes a virus.
+# ------------------- matched -> usable -> processed, all three stages
+def test_a_loss_inside_the_ingest_is_reported_too():
+    """The previous version compared matched against usable and stopped.
 
-    Zika matched 5 screens and used 2 on this release. It has 842 edges,
-    looks healthy in every table, and three screens sat unread with
-    nothing anywhere saying so.
+    SARS-CoV-2 runs 68 -> 58 -> 51 on this release: ten dropped by
+    is_virus_resistance_screen and seven more inside ingest_screens. The
+    second group vanished exactly as the first had before it was reported.
     """
-    text = "\n".join(discarded_screens({"64320": 5}, {"64320": 2}))
-    assert "NCBITaxon:64320" in text
-    assert "DISCARDED BEFORE INGEST" in text
-    assert "on disk and unread" in text
+    text = "\n".join(screen_funnel({"2697049": 68}, {"2697049": 58},
+                                   {"2697049": 51}))
+    assert "10 screen(s) dropped by is_virus_resistance_screen" in text
+    assert "7 more inside ingest_screens" in text
 
 
-def test_the_counts_are_matched_usable_and_the_difference():
-    lines = discarded_screens({"2697049": 68}, {"2697049": 51})
+def test_all_three_counts_appear_with_the_total_loss():
+    lines = screen_funnel({"2697049": 68}, {"2697049": 58}, {"2697049": 51})
     row = next(ln for ln in lines if "2697049" in ln)
-    assert row.split()[-3:] == ["68", "51", "17"]
+    assert row.split()[-4:] == ["68", "58", "51", "17"]
 
 
 def test_a_virus_losing_nothing_is_not_listed():
-    """Every virus would otherwise appear, and a report where everything
-    is flagged flags nothing."""
-    assert discarded_screens({"11060": 3}, {"11060": 3}) == []
+    """A report that flags everything flags nothing."""
+    assert screen_funnel({"11060": 3}, {"11060": 3}, {"11060": 3}) == []
 
 
-def test_the_worst_loss_comes_first():
-    """Ordering decides what a reader sees when the list is long."""
-    lines = discarded_screens({"a": 5, "b": 68}, {"a": 2, "b": 51})
+def test_a_virus_losing_only_inside_the_ingest_is_still_listed():
+    """matched == usable, and the screens still never arrived. Comparing
+    only the first two stages would call this clean."""
+    text = "\n".join(screen_funnel({"x": 4}, {"x": 4}, {"x": 1}))
+    assert "NCBITaxon:x" in text
+    assert "3 more inside ingest_screens" in text
+
+
+def test_the_worst_total_loss_comes_first():
+    lines = screen_funnel({"a": 5, "b": 68}, {"a": 2, "b": 58},
+                          {"a": 2, "b": 51})
     body = [ln for ln in lines if ln.startswith("    NCBITaxon:")]
     assert body[0].startswith("    NCBITaxon:b")
 
 
-def test_it_does_not_call_a_correct_discard_a_defect():
-    """is_virus_resistance_screen exists to drop screens measuring
-    something else. The complaint is the silence, not the filter."""
-    text = "\n".join(discarded_screens({"64320": 5}, {"64320": 2}))
-    assert "Dropping them is correct where they measure something else" in text
-    assert "it is the silence that is not" in text
+def test_it_does_not_call_a_correct_filter_a_defect():
+    text = "\n".join(screen_funnel({"64320": 5}, {"64320": 2}, {"64320": 2}))
+    assert "Both are correct where the screen measures something else" in text
+
+
+def test_it_admits_the_skip_reasons_are_not_per_taxon():
+    """Stating a limitation beats leaving it to be discovered: this table
+    shows seven SARS-CoV-2 screens lost in the ingest and cannot say which
+    filter took them."""
+    text = "\n".join(screen_funnel({"2697049": 68}, {"2697049": 58},
+                                   {"2697049": 51}))
+    assert "counted across all viruses rather than per virus" in text
 
 
 def test_a_virus_with_no_usable_screen_at_all_is_counted():
-    """Yellow fever's shape: 1 matched, 0 usable. silent_taxa explains the
-    zero edges; this must still show the screen was dropped rather than
-    absent."""
-    text = "\n".join(discarded_screens({"11089": 1}, {}))
+    """Yellow fever: 1 matched, 0 usable, 0 processed."""
+    text = "\n".join(screen_funnel({"11089": 1}, {}, {}))
     assert "NCBITaxon:11089" in text

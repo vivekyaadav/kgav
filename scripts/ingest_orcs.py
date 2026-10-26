@@ -26,12 +26,12 @@ from kgav.aliases import AliasIndex
 from kgav.emit import Emit
 from kgav.orcs import (
     build_gene_to_proteins,
-    discarded_screens,
     index_coverage,
     ingest_screens,
     is_virus_resistance_screen,
     per_taxon,
     polarity_mode,
+    screen_funnel,
     screen_heading,
     silent_taxa,
     unbuilt_taxa,
@@ -191,7 +191,8 @@ def main() -> int:
         for line in silent_taxa(silent, by_taxon):
             print(line)
 
-    for line in discarded_screens(by_taxon, usable_by_taxon):
+    processed_by_taxon = {t: n for t, n, _d, _r, _tot in per_taxon(s)}
+    for line in screen_funnel(by_taxon, usable_by_taxon, processed_by_taxon):
         print(line)
 
     unbuilt = unbuilt_taxa(s)
