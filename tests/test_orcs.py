@@ -22,6 +22,7 @@ from kgav.orcs import (
     screen_date,
     screen_heading,
     screen_type,
+    silent_taxa,
     unbuilt_taxa,
     virus_taxon,
 )
@@ -559,3 +560,50 @@ def test_a_matched_taxon_missing_from_the_register_is_not_dropped():
     partial = {k: v for k, v in _REG.items() if k != "11082"}
     text = "\n".join(index_coverage([_scr("west nile virus")] * 2, partial))
     assert "NOT in the register" in text and "11082" in text
+
+
+# ------------------------- a silent taxon, and WHY it is silent
+def test_a_discarded_screen_is_not_reported_as_a_source_limit():
+    """Yellow fever on this release: the index holds one matching screen,
+    it did not survive is_virus_resistance_screen, and the run said "No
+    screen reached them. That is a source limit, not a failed join."
+
+    It is neither a source limit nor a failed join -- it is a screen we
+    hold and discard. Telling someone to go and find data they already
+    have is worse than saying nothing.
+    """
+    text = "\n".join(silent_taxa(["11089"], {"11089": 1}))
+    assert "DID match a screen that was then discarded" in text
+    assert "source limit" not in text
+    # And it says what to DO, which is the difference between a correction
+    # and a relabelling: the screen is on disk, so read it.
+    assert "on disk and unused" in text
+    assert "is_virus_resistance_screen" in text
+    assert "Read the screen before concluding anything about the virus" in text
+
+
+def test_an_unscreened_taxon_still_says_source_limit():
+    """The other branch has to survive, or the correction has just moved
+    the wrong claim to the other case."""
+    text = "\n".join(silent_taxa(["11053"], {}))
+    assert "matched NO screen in this ORCS release" in text
+    assert "the experiment is not here to fetch" in text
+    assert "discarded" not in text
+
+
+def test_both_causes_appear_when_both_are_present():
+    """The real shape of this release: five never screened, one discarded."""
+    silent = ["11053", "11069", "11070", "11072", "11084", "11089"]
+    text = "\n".join(silent_taxa(silent, {"11089": 1}))
+    assert "5 of them matched NO screen" in text
+    assert "1 of them DID match a screen" in text
+
+
+def test_the_discarded_count_is_reported_per_taxon():
+    text = "\n".join(silent_taxa(["11089", "290028"],
+                                 {"11089": 1, "290028": 4}))
+    assert "NCBITaxon:11089 (1)" in text and "NCBITaxon:290028 (4)" in text
+
+
+def test_nothing_is_said_when_no_taxon_is_silent():
+    assert silent_taxa([], {"11089": 1}) == []

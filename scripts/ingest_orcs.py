@@ -32,6 +32,7 @@ from kgav.orcs import (
     per_taxon,
     polarity_mode,
     screen_heading,
+    silent_taxa,
     unbuilt_taxa,
     virus_taxon,
 )
@@ -182,8 +183,8 @@ def main() -> int:
     if silent:
         print(f"\n    {len(silent)} built taxa got NO edge from this run: "
               f"{', '.join('NCBITaxon:' + t for t in silent)}")
-        print("    No screen reached them. That is a source limit, not a "
-              "failed join.")
+        for line in silent_taxa(silent, by_taxon):
+            print(line)
 
     unbuilt = unbuilt_taxa(s)
     if unbuilt:
