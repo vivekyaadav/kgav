@@ -275,3 +275,67 @@ def test_an_unresolved_row_records_which_side_failed_and_its_taxid(world):
     assert v.gate == "unresolved_id"
     assert v.unresolved == (("UniProtKB:NOPE9", "2697049", "a"),), \
         "only the failing side, with its taxid column verbatim"
+
+
+# ------------------------------------- a virus with no edges is a finding
+import sys as _sys
+
+_sys.path.insert(0, str(ROOT / "scripts"))
+from ingest_vhppi import coverage_lines
+
+_NODES = {"NCBITaxon:2697049": {"properties": {"label": "SARS-CoV-2"}},
+          "NCBITaxon:64320": {"properties": {"label": "Zika"}},
+          "NCBITaxon:11060": {"properties": {"label": "DENV-2"}}}
+_MAP = {"2697049": "2697049", "64320": "64320", "11060": "11060",
+        "999999": "999999"}
+
+
+def test_a_virus_with_no_edges_is_named_not_omitted():
+    """The report was per_virus.most_common(), so a zero did not appear.
+
+    No flavivirus file was ever fetched for VirHostNet -- the vhn_*.tab27
+    files are one coronavirus each -- and Zika sat in the taxon map
+    producing nothing while the build said so nowhere.
+    """
+    from collections import Counter
+    lines = coverage_lines(Counter({"NCBITaxon:2697049": 12}), _MAP, _NODES)
+    text = "\n".join(lines)
+    assert "Zika" in text and "DENV-2" in text
+    assert "NO virus-host PPI from either source" in text
+
+
+def test_it_counts_how_many_viruses_have_nothing():
+    from collections import Counter
+    text = "\n".join(coverage_lines(
+        Counter({"NCBITaxon:2697049": 12}), _MAP, _NODES))
+    assert "2 of 3 built viruses have NO virus-host PPI edge" in text
+
+
+def test_it_says_the_gap_is_in_what_was_fetched():
+    """A zero reads as "the source does not cover this virus" when the
+    truth is that no file for it was ever downloaded. Those need different
+    work, and the report must not let them look the same."""
+    from collections import Counter
+    text = "\n".join(coverage_lines(Counter(), _MAP, _NODES))
+    assert "gap in what was FETCHED" in text
+
+
+def test_a_declared_but_unbuilt_taxon_is_not_counted_as_missing_data():
+    """999999 is in the register and not in this release. Counting it
+    among the viruses with no PPI would report a scope decision as a data
+    gap."""
+    from collections import Counter
+    text = "\n".join(coverage_lines(
+        Counter({"NCBITaxon:2697049": 1}), _MAP, _NODES))
+    assert "2 of 3 built viruses" in text
+    assert "1 further declared taxa are not in this release" in text
+
+
+def test_full_coverage_says_nothing_about_gaps():
+    """The branch must stay quiet when there is nothing to report."""
+    from collections import Counter
+    full = Counter({"NCBITaxon:2697049": 1, "NCBITaxon:64320": 2,
+                    "NCBITaxon:11060": 3})
+    text = "\n".join(coverage_lines(full, _MAP, _NODES))
+    assert "NO virus-host PPI" not in text
+    assert "have NO virus-host PPI edge" not in text
