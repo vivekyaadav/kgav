@@ -495,6 +495,47 @@ def per_taxon(stats: Counter) -> list[tuple[str, int, int, int, int]]:
     return sorted(rows, key=lambda r: (-r[4], r[0]))
 
 
+def silent_taxa(silent: list[str], candidates_by_taxon: dict[str, int],
+                ) -> list[str]:
+    """Why each built virus got no edge -- and they do not all get no edge
+    for the same reason.
+
+    THE CLAIM THIS REPLACES asserted one cause for every silent taxon:
+
+        No screen reached them. That is a source limit, not a failed join.
+
+    On this release that is false for Yellow fever. The index holds one
+    screen matching it; the screen did not survive is_virus_resistance_
+    screen, so it never reached ingest_screens and the taxon fell into the
+    same bucket as five flaviviruses nobody has ever screened. A screen we
+    hold and discard is not a source limit, and telling someone to go and
+    look for data they already have is worse than saying nothing.
+
+    The gap is not confined to Yellow fever: on this release the index
+    matches 68 SARS-CoV-2 screens and 51 are used, 5 Zika and 2 are used.
+    Those taxa have edges so the difference is invisible in the table, but
+    it is the same discard.
+    """
+    out = []
+    unscreened = [t for t in silent if not candidates_by_taxon.get(t)]
+    discarded = [(t, candidates_by_taxon[t]) for t in silent
+                 if candidates_by_taxon.get(t)]
+    if unscreened:
+        out.append(f"    {len(unscreened)} of them matched NO screen in this "
+                   f"ORCS release: "
+                   + ", ".join("NCBITaxon:" + t for t in unscreened))
+        out.append("    That is a source limit, not a failed join: the "
+                   "experiment is not here to fetch.")
+    if discarded:
+        out.append(f"    {len(discarded)} of them DID match a screen that "
+                   f"was then discarded before ingest: "
+                   + ", ".join(f"NCBITaxon:{t} ({n})" for t, n in discarded))
+        out.append("    Those screens are on disk and unused -- filtered by "
+                   "is_virus_resistance_screen, not missing. Read the screen "
+                   "before concluding anything about the virus.")
+    return out
+
+
 def unbuilt_taxa(stats: Counter) -> list[tuple[str, int]]:
     """(taxon, screens skipped) for taxa the spine did not build."""
     return sorted(((k.split(":", 1)[1], v) for k, v in stats.items()
