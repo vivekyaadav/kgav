@@ -17,6 +17,7 @@ readily as inhibit it.
 from __future__ import annotations
 
 import json
+import random
 from pathlib import Path
 
 import pytest
@@ -430,48 +431,64 @@ def test_a_rogue_edge_alongside_a_real_one_is_still_named(release):
     assert "NON-viral" in r.note and "forbid" in r.note
 
 
-# ------------------------------------------- the count needs its background
-def test_the_base_rate_is_computed_from_the_graph(tools):
-    """One of three pathways under the cap holds the dependency factor."""
-    assert tools._dependency_base_rate(V) == (1, 3)
+# --------------------------------------- the count needs a MATCHED background
+def test_the_background_is_binned_by_pathway_size(tools):
+    """A bare rate was not enough, and the second live run showed why.
 
-
-def test_the_base_rate_respects_the_member_cap(tools):
-    """REACT:BIG is over the cap and must not enter the denominator, or the
-    background would be computed over a different population from the one
-    the answer reports."""
-    _, total = tools._dependency_base_rate(V)
-    assert total == 3
-
-
-def test_the_count_is_never_reported_without_the_background(tools):
-    """The defect the first live chloroquine run exposed.
-
-    It read "83 of 92 pathways contain at least one protein SARS-CoV-2
-    depends on" and stopped. With 3,460 dependency factors a 40-member
-    pathway contains one with probability 0.9995, so the number is
-    arithmetic; printed alone it invites a baseline of zero.
+    It came out at 58% against chloroquine's 90% and the answer called that
+    "+33% on the background". The schema's own measurements put the median
+    pathway at 4 members and p99 at 113; a 4-member pathway holds one of
+    SARS-CoV-2's 3,460 dependency factors about half the time and a
+    95-member pathway essentially always. Chloroquine's targets include
+    mTOR, which sits in large pathways, so the higher rate follows from the
+    sizes alone -- the same confound the landscape degree-matches away at
+    the protein level, one level up.
     """
-    text = " ".join(tools.pathways(DRUG, V).verbalised)
-    assert "Against the background" in text
-    assert "regardless of this compound" in text
-    assert "because the virus has 1 of them" in text
+    bg = tools._pathway_background(V)
+    assert bg["total"] == 3
+    assert len(bg["edges"]) == len(bg["rates"])
+    assert all(lo <= hi for lo, hi in bg["edges"])
 
 
-def test_membership_at_the_background_rate_is_called_what_it_is(tools):
+def test_the_background_respects_the_member_cap(tools):
+    """REACT:BIG is over the cap and must not enter the denominator, or the
+    background covers a different population from the answer."""
+    assert tools._pathway_background(V)["total"] == 3
+
+
+def test_a_bigger_pathway_raises_its_own_expectation(release):
+    """The property the matching exists for: expectation tracks size."""
+    t = GraphTools(release)
+    small = t._size_matched_expectation(V, [1])
+    big = t._size_matched_expectation(V, [999])
+    assert big >= small
+
+
+def test_the_count_is_never_reported_without_a_matched_background(tools):
     text = " ".join(tools.pathways(DRUG, V).verbalised)
-    assert "at or below the background rate" in text
+    assert "SIZE-MATCHED background expects" in text
+    assert "dependency factors, so a pathway's size largely decides" in text
+    # The unmatched figure is still shown, because the gap between the two
+    # is itself the measurement.
+    assert "unmatched," in text and "of all pathways under the cap" in text
+    assert "median" in text
+
+
+def test_membership_at_the_matched_expectation_is_called_what_it_is(tools):
+    text = " ".join(tools.pathways(DRUG, V).verbalised)
+    assert "at or below what these pathways' sizes already predict" in text
     assert "not evidence of anything about this compound" in text
 
 
-def test_membership_above_the_background_is_not_called_a_result(tools,
-                                                                monkeypatch):
+def test_an_excess_over_the_matched_expectation_is_not_called_a_result(
+        tools, monkeypatch):
     """The other branch must stay reachable, and must still refuse to call
     an unexamined difference a finding."""
-    monkeypatch.setattr(tools, "_dependency_base_rate", lambda v: (1, 100))
+    monkeypatch.setattr(tools, "_size_matched_expectation",
+                        lambda v, sizes: 0.1)
     text = " ".join(tools.pathways(DRUG, V).verbalised)
-    assert "a difference to examine rather than a tested result" in text
-    assert "at or below the background rate" not in text
+    assert "is a difference to examine, not a tested result" in text
+    assert "already predict" not in text
 
 
 # ------------------------------------------------------- bounded output
@@ -510,3 +527,94 @@ def test_dependency_names_are_bounded_but_counted_in_full(release):
     row = next(x for x in r.data if x["pathway"] == "REACT:DEP")
     assert row["n_dependency_members"] == extra + 1
     assert len(row["dependency_members"]) == extra + 1
+
+
+# ------------------------------------------------- the binning itself
+V2 = "NCBITaxon:11137"
+
+
+@pytest.fixture
+def graded(tmp_path) -> Path:
+    """100 pathways of sizes 1..100, where ONLY the large ones hold a
+    dependency factor.
+
+    The three-pathway fixture above cannot exercise binning at all: with
+    fewer pathways than bins every mutation to the quantile logic survives.
+    Here the unmatched rate is 50% by construction while the size-matched
+    rate is ~0 at the bottom and ~1 at the top, so a background that
+    ignores size gives a visibly wrong answer.
+    """
+    nodes = [_node(V2, "OrganismTaxon", name="Dengue"),
+             _node(DRUG, "SmallMolecule", smiles="C", inchikey_skel="DRUGA",
+                   chembl_id="CHEMBL1")]
+    edges = []
+    # SHUFFLED, with a fixed seed. Written in ascending size order the file
+    # is already sorted by the time the loader reads it, so removing the
+    # sort in _pathway_background changed nothing and the mutation
+    # survived: the fixture was doing the sorting.
+    order = list(range(1, 101))
+    random.Random(0).shuffle(order)
+    for size in order:
+        pw = f"REACT:S{size:03d}"
+        nodes.append(_node(pw, "Pathway", label=f"pathway of {size}"))
+        for m in range(size):
+            pid = f"UniProtKB:G{size:03d}_{m}"
+            nodes.append(_node(pid, "Protein", gene_symbol=f"G{size}_{m}",
+                               is_viral=False, taxon_id="NCBITaxon:9606",
+                               sequence_hash="h", reviewed=True))
+            edges.append(_edge(pid, "PARTICIPATES_IN", pw))
+            # Exactly one dependency factor, and only in the big half.
+            if size > 50 and m == 0:
+                edges.append(_edge(pid, "HOST_FACTOR_FOR", V2,
+                                   direction="dependency"))
+    (tmp_path / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in edges))
+    return tmp_path
+
+
+def test_the_unmatched_rate_is_half_by_construction(graded):
+    bg = GraphTools(graded)._pathway_background(V2)
+    assert bg["total"] == 100
+    assert bg["hits"] == 50
+
+
+def test_the_matched_expectation_tracks_size_not_the_flat_rate(graded):
+    """A flat 50% background would predict 1.0 either way. Size-matching
+    must predict ~0 for small pathways and ~2 for large ones."""
+    t = GraphTools(graded)
+    small = t._size_matched_expectation(V2, [3, 7])
+    large = t._size_matched_expectation(V2, [90, 97])
+    assert small == pytest.approx(0.0, abs=0.2)
+    assert large == pytest.approx(2.0, abs=0.2)
+    assert large - small > 1.5
+
+
+def test_the_bins_span_the_size_range_in_order(graded):
+    """Quantile bins, lowest sizes first. Without the sort the quantiles
+    are taken over an arbitrary order and describe nothing."""
+    bg = GraphTools(graded)._pathway_background(V2)
+    assert len(bg["edges"]) == 10
+    assert bg["edges"][0][0] == 1
+    assert bg["edges"][-1][1] == 100
+    los = [lo for lo, _ in bg["edges"]]
+    assert los == sorted(los)
+
+
+def test_each_bin_rate_is_monotone_here_because_the_fixture_is(graded):
+    """Not a property of real data -- a property of THIS fixture, which is
+    what makes it able to detect a bin-selection bug."""
+    rates = GraphTools(graded)._pathway_background(V2)["rates"]
+    assert rates[0] == 0.0 and rates[-1] == 1.0
+    assert rates == sorted(rates)
+
+
+def test_a_size_above_every_bin_uses_the_largest_bin(graded):
+    t = GraphTools(graded)
+    assert t._size_matched_expectation(V2, [10_000]) == pytest.approx(1.0)
+
+
+def test_a_size_below_every_bin_uses_the_smallest_bin(graded):
+    t = GraphTools(graded)
+    assert t._size_matched_expectation(V2, [0]) == pytest.approx(0.0)

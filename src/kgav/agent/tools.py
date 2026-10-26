@@ -38,6 +38,10 @@ MAX_PATHWAYS = 25
 # Dependency-factor names printed per pathway. The count is always stated in
 # full; only the naming is bounded.
 MAX_DEPENDENCY_NAMES = 6
+# Quantile bins for the pathway-size background. Quantiles, not equal width,
+# for the reason degree_bins uses them: pathway size is heavy-tailed (median
+# 4, p99 113 on v0.1) and equal-width bins put nearly everything in the first.
+PATHWAY_SIZE_BINS = 10
 
 
 @dataclass
@@ -669,42 +673,90 @@ class GraphTools:
         return {e["subject"]
                 for e in self.inv.get(("PARTICIPATES_IN", pathway), [])}
 
-    def _dependency_base_rate(self, virus: str) -> tuple[int, int]:
-        """How many pathways contain a dependency factor REGARDLESS of any
-        compound: the background the per-compound count has to be read
-        against.
+    def _pathway_background(self, virus: str) -> dict:
+        """The rate at which pathways contain a dependency factor, BY SIZE.
 
-        WHY THIS EXISTS. The first live run reported "83 of 92 pathways
-        contain at least one protein SARS-CoV-2 depends on" and stopped
-        there. The number reads as a finding and is arithmetic: SARS-CoV-2
-        has 3,460 dependency factors, so if they are a sixth of the human
-        proteome then a 40-member pathway contains one with probability
-        0.9995 and a 95-member pathway with probability 1.0000. Nearly every
-        pathway qualifies, and a count with no background invites the reader
-        to supply a baseline of zero.
+        WHY A BARE RATE WAS NOT ENOUGH, which the second live run showed as
+        clearly as the first showed the need for any background at all. The
+        unmatched figure came out at 58% against chloroquine's 90%, and the
+        answer called that "+33% on the background". It is an artefact of
+        size. The schema's own measurements put the median pathway at 4
+        members and the 99th percentile at 113; a 4-member pathway contains
+        one of SARS-CoV-2's 3,460 dependency factors about half the time and
+        a 95-member pathway essentially always. Chloroquine's targets
+        include mTOR, which sits in large pathways, so its set averages far
+        above the median and a higher hit rate follows from the sizes alone.
 
-        This is the same correction the degree-matched null applies at the
-        protein level, which the answer already quotes -- it was simply
-        absent one level up, where the count a reader actually sees is
-        produced.
+        This is the SAME confound the landscape corrects at the protein
+        level by degree-matching -- well-connected things are likelier to be
+        hit -- reappearing one level up in the object being counted. So the
+        background is binned by size, by quantile for the same reason
+        degree_bins uses quantiles: pathway size is heavy-tailed and
+        equal-width bins would put nearly everything in the first one.
+
+        Returns the per-bin rates, the bin edges, and the unmatched totals,
+        so an answer can report the matched expectation and still say what
+        the raw background was.
         """
-        key = ("base_rate", virus)
+        key = ("pathway_background", virus)
         if key in self._cache:
             return self._cache[key]
         deps = self._dependency_factors(virus)
         cap = self._max_pathway_members
-        total = hits = 0
+        sized: list[tuple[int, bool]] = []
         for pw, n in self.nodes.items():
             if n.get("class") != "Pathway":
                 continue
             members = self._pathway_members(pw)
             if cap is not None and len(members) > cap:
                 continue
-            total += 1
-            if members & deps:
-                hits += 1
-        self._cache[key] = (hits, total)
-        return hits, total
+            sized.append((len(members), bool(members & deps)))
+        # Ties on size are the rule, not the exception -- the median pathway
+        # has 4 members and thousands share it -- so the sort breaks ties on
+        # the count itself rather than leaving them in dict order, which
+        # varies between processes.
+        sized.sort()
+        total = len(sized)
+        nbins = min(PATHWAY_SIZE_BINS, total) or 1
+        edges, rates = [], []
+        for b in range(nbins):
+            lo = b * total // nbins
+            hi = (b + 1) * total // nbins
+            chunk = sized[lo:hi]
+            if not chunk:
+                edges.append((0, 0))
+                rates.append(0.0)
+                continue
+            edges.append((chunk[0][0], chunk[-1][0]))
+            rates.append(sum(1 for _, h in chunk if h) / len(chunk))
+        out = {"edges": edges, "rates": rates, "total": total,
+               "hits": sum(1 for _, h in sized if h),
+               "n_dependency": len(deps)}
+        self._cache[key] = out
+        return out
+
+    def _size_matched_expectation(self, virus: str,
+                                  sizes: list[int]) -> float:
+        """How many of these pathways a size-matched background would hit."""
+        bg = self._pathway_background(virus)
+        if not bg["total"]:
+            return 0.0
+        exp = 0.0
+        for s in sizes:
+            # The first bin whose upper edge reaches s, else the largest.
+            # Written as one condition rather than two: the first version
+            # tracked "the last bin whose lower edge is at or below s" AND
+            # "the bin containing s", which agree for every ordered bin set,
+            # so deleting either left the other doing the whole job and a
+            # mutation of it could not be detected. Redundant logic is
+            # untestable logic.
+            idx = len(bg["edges"]) - 1
+            for i, (_lo, hi) in enumerate(bg["edges"]):
+                if s <= hi:
+                    idx = i
+                    break
+            exp += bg["rates"][idx]
+        return exp
 
     def _dependency_factors(self, virus: str) -> set[str]:
         """Proteins this virus DEPENDS on, by CRISPR screen.
@@ -888,9 +940,13 @@ class GraphTools:
         with_dep = [r for r in rows if r["n_dependency_members"]]
         shown = rows[:limit]
 
-        bg_hits, bg_total = self._dependency_base_rate(virus)
+        bg = self._pathway_background(virus)
+        sizes = [r["n_members"] for r in rows]
+        expected = self._size_matched_expectation(virus, sizes)
         here = len(with_dep) / len(rows) if rows else 0.0
-        background = bg_hits / bg_total if bg_total else 0.0
+        raw = bg["hits"] / bg["total"] if bg["total"] else 0.0
+        med = sorted(sizes)[len(sizes) // 2] if sizes else 0
+        ratio = (len(with_dep) / expected) if expected else float("inf")
         lines = [
             (f"{self._label(compound)} has {len(target_edges)} human "
              f"target(s) in this graph."),
@@ -898,21 +954,24 @@ class GraphTools:
              f"contain at least one of them; {len(with_dep)} of those "
              f"({here:.0%}) contain at least one protein "
              f"{self._label(virus)} depends on."),
-            # NEVER THE COUNT WITHOUT THE BACKGROUND. With 3,460 dependency
-            # factors a pathway of any size contains one almost by
-            # arithmetic, so the bare count reads as a finding against an
-            # imagined baseline of zero.
-            (f"Against the background: {bg_hits:,} of {bg_total:,} "
-             f"({background:.0%}) pathways under the cap contain a "
-             f"{self._label(virus)} dependency factor regardless of this "
-             f"compound, because the virus has "
-             f"{len(self._dependency_factors(virus)):,} of them. "
-             + ("Membership here is therefore at or below the background "
-                "rate and is not evidence of anything about this compound."
-                if here <= background + 0.05 else
-                f"This compound's pathways are {here - background:+.0%} "
-                f"on that background, which is a difference to examine "
-                f"rather than a tested result.")),
+            # NEVER THE COUNT WITHOUT A SIZE-MATCHED BACKGROUND. The raw
+            # rate is reported too, and the gap between the two is the
+            # measurement: a larger-than-typical pathway set hits more
+            # often for no reason but its size.
+            (f"A SIZE-MATCHED background expects {expected:.1f} of them to "
+             f"contain one (ratio {ratio:.2f}). The virus has "
+             f"{bg['n_dependency']:,} dependency factors, so a pathway's "
+             f"size largely decides whether it holds one: unmatched, "
+             f"{bg['hits']:,} of {bg['total']:,} ({raw:.0%}) of all "
+             f"pathways under the cap qualify, but that population has a "
+             f"median of {bg['edges'][len(bg['edges']) // 2][0]} members "
+             f"against {med} here. "
+             + ("Membership is at or below what these pathways' sizes "
+                "already predict, and is not evidence of anything about "
+                "this compound."
+                if ratio <= 1.05 else
+                f"The {ratio:.2f} excess over the size-matched expectation "
+                f"is a difference to examine, not a tested result.")),
         ]
         if oversized:
             lines.append(
