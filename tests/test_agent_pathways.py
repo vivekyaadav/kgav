@@ -428,3 +428,85 @@ def test_a_rogue_edge_alongside_a_real_one_is_still_named(release):
     r = GraphTools(release).pathways(DIRECT, V)
     assert "direct-acting" in r.note
     assert "NON-viral" in r.note and "forbid" in r.note
+
+
+# ------------------------------------------- the count needs its background
+def test_the_base_rate_is_computed_from_the_graph(tools):
+    """One of three pathways under the cap holds the dependency factor."""
+    assert tools._dependency_base_rate(V) == (1, 3)
+
+
+def test_the_base_rate_respects_the_member_cap(tools):
+    """REACT:BIG is over the cap and must not enter the denominator, or the
+    background would be computed over a different population from the one
+    the answer reports."""
+    _, total = tools._dependency_base_rate(V)
+    assert total == 3
+
+
+def test_the_count_is_never_reported_without_the_background(tools):
+    """The defect the first live chloroquine run exposed.
+
+    It read "83 of 92 pathways contain at least one protein SARS-CoV-2
+    depends on" and stopped. With 3,460 dependency factors a 40-member
+    pathway contains one with probability 0.9995, so the number is
+    arithmetic; printed alone it invites a baseline of zero.
+    """
+    text = " ".join(tools.pathways(DRUG, V).verbalised)
+    assert "Against the background" in text
+    assert "regardless of this compound" in text
+    assert "because the virus has 1 of them" in text
+
+
+def test_membership_at_the_background_rate_is_called_what_it_is(tools):
+    text = " ".join(tools.pathways(DRUG, V).verbalised)
+    assert "at or below the background rate" in text
+    assert "not evidence of anything about this compound" in text
+
+
+def test_membership_above_the_background_is_not_called_a_result(tools,
+                                                                monkeypatch):
+    """The other branch must stay reachable, and must still refuse to call
+    an unexamined difference a finding."""
+    monkeypatch.setattr(tools, "_dependency_base_rate", lambda v: (1, 100))
+    text = " ".join(tools.pathways(DRUG, V).verbalised)
+    assert "a difference to examine rather than a tested result" in text
+    assert "at or below the background rate" not in text
+
+
+# ------------------------------------------------------- bounded output
+def test_dependency_names_are_bounded_but_counted_in_full(release):
+    """The live run printed forty-one names on one line, twenty-five times.
+
+    Nothing in it was wrong and none of it was readable, and a brief built
+    from it spends its budget on name lists.
+    """
+    import json as _json
+
+    from kgav.agent.tools import MAX_DEPENDENCY_NAMES
+    edges = [_json.loads(x) for x in
+             (release / "edges.jsonl").read_text().splitlines()]
+    nodes = [_json.loads(x) for x in
+             (release / "nodes.jsonl").read_text().splitlines()]
+    extra = MAX_DEPENDENCY_NAMES + 4
+    for i in range(extra):
+        pid = f"UniProtKB:MANY{i}"
+        nodes.append(_node(pid, "Protein", gene_symbol=f"MANY{i}",
+                           is_viral=False, taxon_id="NCBITaxon:9606",
+                           sequence_hash="h", reviewed=True))
+        edges.append(_edge(pid, "PARTICIPATES_IN", "REACT:DEP"))
+        edges.append(_edge(pid, "HOST_FACTOR_FOR", V, direction="dependency"))
+    (release / "nodes.jsonl").write_text(
+        "\n".join(_json.dumps(n) for n in nodes))
+    (release / "edges.jsonl").write_text(
+        "\n".join(_json.dumps(e) for e in edges))
+
+    r = GraphTools(release).pathways(DRUG, V)
+    dep_line = next(ln for ln in r.verbalised if "Dependency-bearing" in ln)
+    assert f"+{extra + 1 - MAX_DEPENDENCY_NAMES} more" in dep_line
+    assert dep_line.count(", ") < extra
+    # The count and the full set survive untruncated for a caller that
+    # wants them.
+    row = next(x for x in r.data if x["pathway"] == "REACT:DEP")
+    assert row["n_dependency_members"] == extra + 1
+    assert len(row["dependency_members"]) == extra + 1
