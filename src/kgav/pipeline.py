@@ -48,7 +48,13 @@ class Layer:
     phase: int                      # 1 or 3; see the module docstring
     required: bool = False
     files: tuple[str, ...] = ()     # paths under the repo root, all needed
-    globs: tuple[str, ...] = ()     # at least one match needed
+    globs: tuple[str, ...] = ()     # EVERY pattern must match something
+    # ALTERNATIVES: each inner tuple is a set of patterns of which at least
+    # one must match. `globs` is an AND over its patterns, which cannot
+    # express a layer that reads either of two sources -- and two layers
+    # here do. Declaring them with `globs` understated one and overstated
+    # the other, in opposite directions.
+    any_globs: tuple[tuple[str, ...], ...] = ()
     env: tuple[str, ...] = ()       # environment variables that must be set
     env_len: int = 0                # exact length required, 0 for any
 
@@ -59,8 +65,15 @@ LAYERS: tuple[Layer, ...] = (
           globs=("data/raw/proteomes/*.json.gz",)),
     Layer("host", "ingest_host.py", 1, required=True,
           globs=("data/raw/host/*",)),
+    # TWO SOURCES, ONE LAYER, and ingest_vhppi globs both vhn_*.tab27 and
+    # intact_*.tab27. Declaring only the first meant a plan never named
+    # IntAct among this layer's inputs, so a reader checking whether IntAct
+    # was in the build saw nothing -- and a release holding the filtered
+    # IntAct file but no VirHostNet file would have been reported as
+    # un-runnable while the ingest would in fact have run.
     Layer("vhppi", "ingest_vhppi.py", 1,
-          globs=("data/raw/vhppi/vhn_*.tab27",)),
+          any_globs=(("data/raw/vhppi/vhn_*.tab27",
+                      "data/raw/vhppi/intact_*.tab27"),)),
     # ORCS needs a key as well as the screen index: ingest_orcs exits before
     # any request when ORCS_KEY is not 32 characters, so a run without it
     # looks like a layer that produced nothing.
@@ -81,8 +94,14 @@ LAYERS: tuple[Layer, ...] = (
     # These three read data/releases/v0.1, the ASSEMBLED release.
     Layer("selectivity", "ingest_selectivity.py", 3, files=(str(CHEMBL_DB),)),
     Layer("similarity", "ingest_similarity.py", 3),
+    # ingest_gtop needs interactions.csv AND a ligand file, which may be
+    # either ligands.csv or ligand_id_mapping.csv. Declaring only
+    # interactions.csv reported the layer ready with half its inputs, and
+    # the run would then exit on the missing one.
     Layer("gtop", "ingest_gtop.py", 3,
-          globs=("data/raw/gtop/interactions.csv",)),
+          globs=("data/raw/gtop/interactions.csv",),
+          any_globs=(("data/raw/gtop/ligands.csv",
+                      "data/raw/gtop/ligand_id_mapping.csv"),)),
 )
 
 ASSEMBLE = "assemble_release.py"
@@ -109,6 +128,10 @@ def availability(layer: Layer, root: Path,
     for pattern in layer.globs:
         if not list(root.glob(pattern)):
             return False, f"nothing matches {pattern}"
+    for alternatives in layer.any_globs:
+        if not any(list(root.glob(p)) for p in alternatives):
+            return False, ("nothing matches any of "
+                           + " or ".join(alternatives))
     return True, ""
 
 

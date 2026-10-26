@@ -333,3 +333,29 @@ def test_years_accumulate_across_source_combinations():
                       ("2001", ("infores:uniprot",)): 4,
                       ("2001", ("infores:string",)): 9})
     assert dt.histogram(combos, {"infores:string": "x"}) == {"2001": 7}
+
+
+def test_an_either_or_source_still_appears_in_the_timeline(tmp_path):
+    """pipeline.Layer gained any_globs for layers reading either of two
+    sources. inputs_for read only `globs`, so those layers silently
+    reported no inputs at all -- the vhppi row went to provenance "-".
+
+    A timeline that omits a layer's inputs is the same defect as a plan
+    that omits them, one report further on.
+    """
+    d = tmp_path / "data/raw/vhppi"
+    d.mkdir(parents=True)
+    (d / "intact_viral.tab27").write_bytes(b"x")
+    row = next(r for r in dt.acquired(tmp_path) if r["layer"] == "vhppi")
+    assert row["provenance"] == "mtime only"
+
+
+def test_both_alternatives_are_listed_when_both_are_present(tmp_path):
+    from kgav.pipeline import LAYERS
+    d = tmp_path / "data/raw/vhppi"
+    d.mkdir(parents=True)
+    (d / "vhn_1.tab27").write_bytes(b"x")
+    (d / "intact_viral.tab27").write_bytes(b"x")
+    layer = next(x for x in LAYERS if x.name == "vhppi")
+    names = {p.name for p in dt.inputs_for(layer, tmp_path)}
+    assert names == {"vhn_1.tab27", "intact_viral.tab27"}
