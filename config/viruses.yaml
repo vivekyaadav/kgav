@@ -639,6 +639,22 @@ viruses:
     # line says which was used.
     gene_symbol:
       P27395: POLY
+    ppi_accession_map:
+      Q8QXP6: P27395
+    ppi_accession_note: >-
+      Q8QXP6 was DELETED from UniProtKB, so unlike the other mappings here
+      the measured entry can no longer be fetched. UniParc keeps the
+      sequence as UPI00000ED99D: organism Japanese encephalitis virus,
+      3432 aa, with Q8QXP6.1 as its only UniProtKB accession ever -- no
+      live entry carries it, so there is nothing newer to attribute to.
+      3432 aa is the length of the reviewed P27395 (strain SA-14) this
+      build carries, and a flavivirus genome encodes a single ORF, so a
+      JEV protein of that length is the genome polyprotein and nothing
+      else. Attributed, not equated; the edge records Q8QXP6 as measured
+      and no SAME_AS is asserted. Resolution is polyprotein-level.
+      Deletion is why the evidence here is organism plus length rather
+      than a live record to compare against. Verified against UniProt and
+      UniParc 2026-10-27.
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
     mondo: null
