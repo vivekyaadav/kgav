@@ -14,13 +14,26 @@ THE BASE URL IS REQUIRED AND NOT DEFAULTED. VirHostNet moved from
 virhostnet.prabi.fr to virhostnet.univ-lyon1.fr and distributes through
 PSICQUIC; a URL written into this file from memory would be the assumption
 this project refuses, and a stale one would fail in a way that looks like
-an empty database. Get the current endpoint from the PSICQUIC registry:
+an empty database. Get the current endpoint from the PSICQUIC registry,
+and note `protocol=rest`:
 
     curl -sS "https://www.ebi.ac.uk/Tools/webservices/psicquic/registry/\\
-registry?action=ACTIVE&format=txt" | grep -i virhostnet
+registry?action=ACTIVE&format=txt&protocol=rest" | grep -i virhostnet
 
-and pass it. It is recorded in every sidecar this writes, so a release can
-always say which service answered.
+WITHOUT protocol=rest THE REGISTRY RETURNS THE SOAP ENDPOINT, and this
+docstring said so for exactly as long as it took someone to follow it. The
+two differ by a path segment and the SOAP one answers a REST query with
+HTTP 500 and a soap:Fault reading "No binding operation info while
+invoking unknown method" -- which reads as a broken service rather than a
+wrong URL, and nearly sent this layer to a different data source.
+
+The registry's REST entry ends at .../webservices/current/search/ and
+--base takes everything before /webservices, so VirHostNet's is
+http://virhostnet.prabi.fr:9090/psicquic -- the host that serves the data,
+even though the web interface has moved to virhostnet.univ-lyon1.fr.
+
+It is recorded in every sidecar this writes, so a release can always say
+which service answered.
 
 ISOLATE TAXA ARE QUERIED TOO. The register exists because sources curate
 under a strain rather than the species -- seven of nine flaviviruses are
@@ -43,7 +56,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -51,16 +64,17 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import yaml
 
+
+def slug(name: str) -> str:
+    """A filename stem from a register name, matching the existing files."""
+    return re.sub(r"[^a-z0-9]+", "", name.lower())
+
+
 TIMEOUT = 180
 # PSICQUIC's own REST shape, not a VirHostNet invention:
 #   <base>/webservices/current/search/query/<MIQL>?format=<fmt>
 # Spec: psicquic.github.io/PsicquicSpec_1_4_Rest.html
 QUERY_PATH = "webservices/current/search/query"
-
-
-def slug(name: str) -> str:
-    """A filename stem from a register name, matching the existing files."""
-    return re.sub(r"[^a-z0-9]+", "", name.lower())
 
 
 def taxids_for(entry: dict) -> list[str]:
@@ -109,7 +123,7 @@ def write_with_provenance(target: Path, raw: bytes, url: str, entry: dict,
     target.write_bytes(raw)
     sidecar_path(target).write_text(json.dumps({
         "url": url,
-        "retrieved": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "retrieved": datetime.now(UTC).strftime("%Y-%m-%d"),
         "sha256": hashlib.sha256(raw).hexdigest(),
         "bytes": len(raw),
         "virus": entry["name"],
