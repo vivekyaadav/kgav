@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from kgav.aliases import AliasIndex
 from kgav.emit import Emit
 from kgav.vhppi import file_taxon, ingest_mitab, slug
-from kgav.virus_register import declared_taxa
+from kgav.virus_register import declared_taxa, ppi_accession_map
 
 #: Gates a zero-edge virus is reported against, worst-first. Not every gate
 #: in classify_row: host_host and not_a_protein cannot explain a vhn file,
@@ -167,10 +167,19 @@ def main() -> int:
     # this change -- because validate()'s UNDECLARED_CHAIN_TAXON already
     # forces every differing chain taxon into isolate_taxa. So this is
     # behaviour-neutral today and stops being luck tomorrow.
-    taxon_map = declared_taxa(
-        yaml.safe_load(args.config.read_text()))
+    register = yaml.safe_load(args.config.read_text())
+    taxon_map = declared_taxa(register)
     print(f"  {len(taxon_map)} viral taxids mapped to "
           f"{len(set(taxon_map.values()))} species")
+
+    # ATTRIBUTION, NOT IDENTITY. Some flavivirus rows are curated against an
+    # unreviewed strain-specific polyprotein; the register says which
+    # reference polyprotein each is attributed to and on what basis, and the
+    # edge records the accession actually measured.
+    acc_map = ppi_accession_map(register)
+    if acc_map:
+        print(f"  {len(acc_map)} measured accession(s) attributed to "
+              f"{len(set(acc_map.values()))} reference polyprotein(s)")
 
     # TWO SOURCES, ONE LAYER. This globbed vhn_*.tab27 only, and
     # data/raw/vhppi also held intact.zip -- 1.35 GB, dated 2026-01-14,
@@ -207,13 +216,21 @@ def main() -> int:
             continue
         part = ingest_mitab(em, fs, index, taxon_map,
                             source=src, default_date=args.date,
-                            per_file=per_file)
+                            per_file=per_file, accession_map=acc_map)
         print(f"\n  {src}: {part['rows']:,} rows -> {part['edges']:,} edges")
         s += part
 
     print(f"  {s['rows']:,} rows -> {s['edges']:,} edges")
     print(f"  {s['direct']:,} direct interaction, {s['co_complex']:,} co-complex/"
           f"association ({s['binary_method']:,} from a binary assay)")
+    if s["attributed"]:
+        # SAID OUT LOUD, EVERY RUN. An edge that exists only because the
+        # register attributed one accession to another is a curated claim,
+        # and a curated claim that shows up as an ordinary edge is how a
+        # decision stops being reviewable.
+        print(f"\n  {s['attributed']:,} edge(s) carry measured_accession: "
+              f"attributed to a reference polyprotein by the register's "
+              f"ppi_accession_map, at polyprotein resolution")
     print("\n  dropped:")
     for k in ("unparseable", "no_detection_method", "unresolved_id", "self_interaction",
               "not_a_protein", "host_host", "viral_viral", "unmapped_viral_taxon",
@@ -239,8 +256,7 @@ def main() -> int:
         n = index.nodes.get(e["object"])
         if n:
             per_virus[n["properties"].get("taxon_id", "?")] += 1
-    fetched = rows_per_taxon(per_file, yaml.safe_load(
-        args.config.read_text())["viruses"], taxon_map)
+    fetched = rows_per_taxon(per_file, register["viruses"], taxon_map)
     for line in coverage_lines(per_virus, taxon_map, index.nodes, fetched):
         print(line)
     return 0

@@ -8,7 +8,7 @@ import yaml
 from kgav.aliases import AliasIndex
 from kgav.emit import Emit
 from kgav.schema import load_schema
-from kgav.vhppi import ingest_mitab, parse_identifier, parse_row
+from kgav.vhppi import classify_row, ingest_mitab, parse_identifier, parse_row
 
 ROOT = Path(__file__).resolve().parents[1]
 VHPPI = ROOT / "data" / "raw" / "vhppi"
@@ -503,3 +503,124 @@ def test_omitting_per_file_still_works(world):
                          {"2697049": "2697049"}, "infores:virhostnet",
                          "2024-01-01")
     assert stats["edges"] > 0
+
+
+# ------------------- attribution to a reference polyprotein, not identity
+def test_a_mapped_accession_resolves_where_it_did_not_before(world):
+    """VirHostNet curates some flavivirus rows against an unreviewed,
+    strain-specific polyprotein. Without the map the row dies unresolved;
+    DENV-1 and TBEV lost 89 real host-viral rows that way."""
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    line = _row("uniprotkb:STRAIN9", f"uniprotkb:{ACE2.split(':')[1]}",
+                "MI:0018", "99", 2697049, 9606, "MI:0407", "0.5")
+    assert classify_row(line, index, {"2697049": "2697049"}).gate == \
+        "unresolved_id"
+    v = classify_row(line, index, {"2697049": "2697049"},
+                     {"STRAIN9": "P0DTC7"})
+    assert v.gate is None
+    assert v.viral == ORF7A
+
+
+def test_the_measured_accession_is_remembered_not_discarded(world):
+    """An attribution that left no trace is indistinguishable from a
+    measurement on the reference entry -- the silent identity claim this
+    design exists to avoid."""
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    line = _row("uniprotkb:STRAIN9", f"uniprotkb:{ACE2.split(':')[1]}",
+                "MI:0018", "99", 2697049, 9606, "MI:0407", "0.5")
+    v = classify_row(line, index, {"2697049": "2697049"},
+                     {"STRAIN9": "P0DTC7"})
+    assert v.measured == "STRAIN9"
+
+
+def test_an_unmapped_row_carries_no_measured_accession(world):
+    """Only a rewritten row gets the qualifier, so its presence means
+    something."""
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    line = _row(f"uniprotkb:P0DTD1-{NSP5_PP1A.split(':')[1]}",
+                f"uniprotkb:{ACE2.split(':')[1]}",
+                "MI:0018", "99", 2697049, 9606, "MI:0407", "0.5")
+    assert classify_row(line, index, {"2697049": "2697049"},
+                        {"STRAIN9": "P0DTC7"}).measured is None
+
+
+def test_the_qualifier_reaches_the_edge(world):
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    f = world / "vhn_mapped.tab27"
+    f.write_text(_row("uniprotkb:STRAIN9", f"uniprotkb:{ACE2.split(':')[1]}",
+                      "MI:0018", "99", 2697049, 9606, "MI:0407", "0.5"))
+    em = Emit()
+    stats = ingest_mitab(em, [f], index, {"2697049": "2697049"},
+                         "infores:virhostnet", "2024-01-01",
+                         accession_map={"STRAIN9": "P0DTC7"})
+    assert stats["edges"] == 1 and stats["attributed"] == 1
+    assert em.edges[0]["qualifiers"]["measured_accession"] == "STRAIN9"
+
+
+def test_no_same_as_edge_is_emitted_for_an_attribution(world):
+    """THE POINT OF THE WHOLE DESIGN. A SAME_AS would make AliasIndex treat
+    two different UniProt entries, from different isolates with different
+    sequences, as one protein. This project refuses that claim elsewhere
+    and must not make it here by a side door."""
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    f = world / "vhn_mapped2.tab27"
+    f.write_text(_row("uniprotkb:STRAIN9", f"uniprotkb:{ACE2.split(':')[1]}",
+                      "MI:0018", "99", 2697049, 9606, "MI:0407", "0.5"))
+    em = Emit()
+    ingest_mitab(em, [f], index, {"2697049": "2697049"},
+                 "infores:virhostnet", "2024-01-01",
+                 accession_map={"STRAIN9": "P0DTC7"})
+    assert [e for e in em.edges if e["predicate"] == "SAME_AS"] == []
+    assert all(e["predicate"] == "PHYSICALLY_INTERACTS_WITH"
+               for e in em.edges)
+
+
+def test_the_attribution_is_not_a_fallback_for_a_resolvable_id(world):
+    """Applying it only when resolution fails would make the graph's shape
+    depend on which proteomes a build happened to load: the same row would
+    attribute to the reference in one build and to a strain entry in
+    another, with nothing saying which."""
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    line = _row(f"uniprotkb:{ORF7A.split(':')[1]}",
+                f"uniprotkb:{ACE2.split(':')[1]}",
+                "MI:0018", "99", 2697049, 9606, "MI:0407", "0.5")
+    # ORF7A resolves perfectly well on its own; the map still fires and
+    # sends it somewhere visibly different.
+    v = classify_row(line, index, {"2697049": "2697049"},
+                     {"P0DTC7": NSP5.split(":")[1]})
+    assert v.viral == NSP5
+    assert v.measured == "P0DTC7"
+
+
+def test_the_map_applies_to_either_column(world):
+    """A MITAB row puts the viral protein in whichever column the curator
+    chose, and the real data uses both: the DENV-1 rows include partners
+    recorded as 9606 x 11053, with the virus in column B. A map that only
+    rewrote column A would lose exactly those rows while appearing to
+    work on the others.
+    """
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    amap = {"STRAIN9": "P0DTC7"}
+    host = f"uniprotkb:{ACE2.split(':')[1]}"
+    in_a = _row("uniprotkb:STRAIN9", host, "MI:0018", "99",
+                2697049, 9606, "MI:0407", "0.5")
+    in_b = _row(host, "uniprotkb:STRAIN9", "MI:0018", "98",
+                9606, 2697049, "MI:0407", "0.5")
+    for line in (in_a, in_b):
+        v = classify_row(line, index, {"2697049": "2697049"}, amap)
+        assert v.gate is None, line
+        assert v.viral == ORF7A and v.host == ACE2
+        assert v.measured == "STRAIN9"
+
+
+def test_a_host_side_rewrite_is_not_reported_as_the_viral_measurement(world):
+    """`measured` describes the VIRAL endpoint. If a map ever rewrote the
+    host side too, attributing that to the viral protein would put a human
+    accession in a qualifier that says which virus entry was assayed."""
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    line = _row(f"uniprotkb:{ORF7A.split(':')[1]}", "uniprotkb:HOSTX",
+                "MI:0018", "97", 2697049, 9606, "MI:0407", "0.5")
+    v = classify_row(line, index, {"2697049": "2697049"},
+                     {"HOSTX": ACE2.split(":")[1]})
+    assert v.gate is None and v.host == ACE2 and v.viral == ORF7A
+    assert v.measured is None

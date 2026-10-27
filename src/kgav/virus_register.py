@@ -123,6 +123,44 @@ def validate(doc: dict) -> list[RegisterViolation]:
                 f"chain_source.chains is {chains}: a polyprotein with no mature "
                 f"peptides gives the direct-acting channel nothing to point at", ref))
 
+        # A DECLARED MAPPING MUST POINT SOMEWHERE THIS BUILD CARRIES.
+        # ppi_accession_map attributes an interaction measured against one
+        # strain's polyprotein to the polyprotein this build holds. If the
+        # target is not an accession this entry brings in, the mapping is a
+        # claim that silently resolves to nothing and the rows stay lost
+        # while the register says they were handled.
+        pmap = v.get("ppi_accession_map") or {}
+        if pmap:
+            carried = set(v.get("extra_accessions") or [])
+            if cs.get("accession"):
+                carried.add(cs["accession"])
+            for src_acc, dst in sorted(pmap.items()):
+                if src_acc == dst:
+                    out.append(RegisterViolation(
+                        "PPI_MAP_SELF",
+                        f"ppi_accession_map maps {src_acc} to itself, which "
+                        f"records nothing", ref))
+                if dst not in carried:
+                    out.append(RegisterViolation(
+                        "PPI_MAP_TARGET_NOT_CARRIED",
+                        f"ppi_accession_map sends {src_acc} to {dst}, which "
+                        f"this entry does not carry (chain_source.accession "
+                        f"and extra_accessions give {sorted(carried) or '[]'})"
+                        f". The mapping would resolve to nothing", ref))
+                if src_acc in carried:
+                    out.append(RegisterViolation(
+                        "PPI_MAP_SOURCE_IS_CARRIED",
+                        f"ppi_accession_map rewrites {src_acc}, but this entry "
+                        f"carries that accession as a node of its own. "
+                        f"Rewriting it would discard the real protein", ref))
+            if "ppi_accession_note" not in v:
+                out.append(RegisterViolation(
+                    "PPI_MAP_UNEXPLAINED",
+                    "ppi_accession_map must carry ppi_accession_note saying on "
+                    "what basis the accessions were judged the same gene "
+                    "product; an undocumented identity claim is the thing this "
+                    "register exists to prevent", ref))
+
         if "mondo" not in v:
             out.append(RegisterViolation(
                 "MONDO_UNSTATED",
@@ -155,6 +193,38 @@ def declared_taxa(doc: dict, section: str = "viruses") -> dict[str, str]:
 # as support the agent does not have. "wnv", "yfv" and "jev" are therefore
 # NOT declared as aliases -- they would be inert.
 MIN_SEARCH_NAME = 4
+
+
+def ppi_accession_map(doc: dict, section: str = "viruses") -> dict[str, str]:
+    """Measured accession -> the accession this build attributes it to.
+
+    VirHostNet curates some flavivirus interactions against an unreviewed,
+    strain-specific polyprotein entry rather than the reviewed polyprotein
+    this build carries. The protein is the same gene product of the same
+    species -- identical length, same organism -- but it is NOT the same
+    UniProt entry, and SAME_AS would say it is.
+
+    So this is an ATTRIBUTION, not an identity: the edge lands on the
+    polyprotein this build holds and records the accession actually
+    measured in a `measured_accession` qualifier. Nothing in the graph
+    claims the two entries are one.
+
+    Keys are bare accessions as the register states them; callers that work
+    in node ids prefix them. Collisions across viruses raise, because one
+    accession attributed to two polyproteins is a curation error, not a
+    precedence question.
+    """
+    out: dict[str, str] = {}
+    owner: dict[str, str] = {}
+    for entry in doc.get(section) or []:
+        for src, dst in (entry.get("ppi_accession_map") or {}).items():
+            if src in out and out[src] != dst:
+                raise ValueError(
+                    f"{src} is mapped to {out[src]} by {owner[src]} and to "
+                    f"{dst} by {entry.get('name')}")
+            out[src] = dst
+            owner[src] = entry.get("name") or "<unnamed>"
+    return out
 
 
 def search_names(doc: dict, section: str = "viruses") -> dict[str, str]:

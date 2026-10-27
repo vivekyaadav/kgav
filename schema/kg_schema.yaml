@@ -486,6 +486,13 @@ edge_classes:
       interaction_type:  {type: string}
       string_score:      {type: float, min: 0, max: 1000}
       channel:           {type: string}
+      # The accession the experiment actually used, when it is not the one
+      # this edge points at. VirHostNet curates some flavivirus rows
+      # against an unreviewed, strain-specific polyprotein; the edge is
+      # attributed to the polyprotein this build carries and says so here.
+      # An attribution that left no trace would be indistinguishable from
+      # a measurement on the reference entry.
+      measured_accession: {type: string}
     required_qualifiers: [detection_method]
 
   - predicate: PARTICIPATES_IN
