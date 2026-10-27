@@ -195,6 +195,42 @@ def slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", name.lower())
 
 
+#: Filename prefixes that predate the sidecar, and the service each one
+#: came from. Declared rather than derived: these files were placed by
+#: hand and their names are the only record of where they came from, so
+#: the mapping is a curation claim and belongs where it can be read.
+LEGACY_PREFIX_SOURCE = {
+    "vhn": "infores:virhostnet",
+    "intact": "infores:intact",
+}
+
+
+def file_source(path) -> str | None:
+    """Which service produced this raw file, or None if nothing says.
+
+    THE SIDECAR IS AUTHORITATIVE. ingest_vhppi used to decide this from a
+    glob -- vhn_*.tab27 meant VirHostNet -- which is fine while one
+    service is ever fetched and silently wrong the moment another is:
+    fetch_vhppi takes --base and will happily query MINT, and its file
+    would have landed under VirHostNet's name. The tier ablation reads
+    these labels, so a mislabelled row is not a cosmetic error.
+
+    None rather than a guess. A file whose provenance nothing records is
+    refused by the caller; inventing a source here is the failure this
+    function exists to stop.
+    """
+    side = Path(str(path) + ".source.json")
+    if side.exists():
+        try:
+            src = (json.loads(side.read_text()) or {}).get("source")
+        except (ValueError, OSError):
+            src = None
+        if src:
+            return str(src)
+    stem = Path(path).stem
+    return LEGACY_PREFIX_SOURCE.get(stem.split("_", 1)[0])
+
+
 def file_taxon(path, by_stem: dict[str, str],
                taxon_map: dict[str, str] | None = None) -> str | None:
     """Which virus a raw MITAB file was fetched for, or None.

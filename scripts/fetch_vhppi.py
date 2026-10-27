@@ -54,6 +54,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 import urllib.error
 import urllib.parse
@@ -66,13 +67,27 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import yaml
 
-from kgav.vhppi import slug  # one implementation; ingest_vhppi reads the stem back
+from kgav.vhppi import LEGACY_PREFIX_SOURCE, slug
 
 TIMEOUT = 180
 # PSICQUIC's own REST shape, not a VirHostNet invention:
 #   <base>/webservices/current/search/query/<MIQL>?format=<fmt>
 # Spec: psicquic.github.io/PsicquicSpec_1_4_Rest.html
 QUERY_PATH = "webservices/current/search/query"
+
+
+def prefix_for(source: str) -> str:
+    """The filename stem prefix for a service.
+
+    The two services already on disk keep the prefixes their files
+    already carry -- renaming them would orphan the sidecars and the
+    provenance those record. Anything else derives its prefix from the
+    infores id, so a new service cannot collide with them by accident.
+    """
+    for pfx, infores in LEGACY_PREFIX_SOURCE.items():
+        if infores == source:
+            return pfx
+    return re.sub(r"[^a-z0-9]+", "", source.removeprefix("infores:").lower())
 
 
 def taxids_for(entry: dict) -> list[str]:
@@ -116,11 +131,17 @@ def sidecar_path(target: Path) -> Path:
 
 
 def write_with_provenance(target: Path, raw: bytes, url: str, entry: dict,
-                          taxids: list[str], n_rows: int) -> None:
+                          taxids: list[str], n_rows: int,
+                          source: str = "") -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(raw)
     sidecar_path(target).write_text(json.dumps({
         "url": url,
+        # WHICH SERVICE ANSWERED. ingest_vhppi reads this to label the
+        # edge; without it the label comes from the filename, and a file
+        # from one service in another's naming scheme is a false
+        # provenance claim the tier ablation then reads as fact.
+        "source": source,
         "retrieved": datetime.now(UTC).strftime("%Y-%m-%d"),
         "sha256": hashlib.sha256(raw).hexdigest(),
         "bytes": len(raw),
@@ -139,6 +160,12 @@ def main(argv=None) -> int:
                     help="PSICQUIC restUrl, from the registry. Required: a "
                          "URL defaulted from memory is the assumption this "
                          "project refuses.")
+    ap.add_argument("--source", required=True,
+                    help="infores id of the service at --base, e.g. "
+                         "infores:virhostnet. Required for the same reason "
+                         "--base is: the file is labelled with this, and a "
+                         "service guessed from a filename is a false "
+                         "provenance claim.")
     ap.add_argument("--config", type=Path, default=ROOT / "config/viruses.yaml")
     ap.add_argument("--out", type=Path, default=ROOT / "data/raw/vhppi")
     ap.add_argument("--family", default=None,
@@ -163,6 +190,7 @@ def main(argv=None) -> int:
 
     print(f"{len(viruses)} virus(es) from {args.config.name} against "
           f"{args.base}")
+    print(f"  labelling every file {args.source}")
     empty, failed, wrote = [], [], []
     for entry in viruses:
         taxids = taxids_for(entry)
@@ -181,7 +209,7 @@ def main(argv=None) -> int:
             continue
         if args.dry_run:
             continue
-        target = args.out / f"vhn_{slug(name)}.tab27"
+        target = args.out / f"{prefix_for(args.source)}_{slug(name)}.tab27"
         if target.exists() and not args.overwrite:
             print(f"    exists, left alone: {target.name} (--overwrite to "
                   f"replace)")
@@ -202,7 +230,8 @@ def main(argv=None) -> int:
             # exactly like a small one.
             print(f"    note: {rows:,} row(s) written against a count of "
                   f"{n:,} -- check before trusting either")
-        write_with_provenance(target, raw, data_url, entry, taxids, rows)
+        write_with_provenance(target, raw, data_url, entry, taxids, rows,
+                              source=args.source)
         print(f"    wrote {target.name}  {len(raw):,} bytes, {rows:,} rows")
         wrote.append(name)
 
