@@ -56,6 +56,44 @@ COL_TAX_A, COL_TAX_B = 9, 10
 MIN_COLUMNS = 15
 
 
+#: A member whose name marks it as IntAct's NEGATIVE set. Those rows record
+#: pairs an experiment showed do NOT interact, in the same MITAB columns as
+#: the positives, so nothing downstream can tell them apart once they are in
+#: a .tab27: ingest_vhppi would emit each one as a PHYSICALLY_INTERACTS_WITH
+#: edge asserting the opposite of what was measured.
+NEGATIVE_MARK = "negative"
+
+
+def is_negative_member(name: str) -> bool:
+    return NEGATIVE_MARK in Path(name).name.lower()
+
+
+def check_member(name: str, *, allow_negative: bool = False) -> str:
+    """The member to read, or exit rather than invert the evidence.
+
+    IntAct's release holds intact.txt AND intact_negative.txt. The inferring
+    branch below refuses to choose between them, which is what kept the
+    negative set out on the --inspect run that found them -- but --member
+    takes whatever it is handed, and the write step is where that matters.
+
+    Refused by NAME rather than by content because the MITAB columns this
+    script reads are identical in both files; by the time a row is here
+    there is nothing left to distinguish it by. --allow-negative exists so
+    the refusal can be overridden deliberately by someone who means to
+    study the negative set, never by a default.
+    """
+    if is_negative_member(name) and not allow_negative:
+        raise SystemExit(
+            f"{name} is IntAct's NEGATIVE interaction set: rows recording "
+            f"that a pair does NOT interact.\n"
+            f"ingest_vhppi cannot tell them from positives -- it would emit "
+            f"each as a PHYSICALLY_INTERACTS_WITH edge\n"
+            f"asserting the opposite of the experiment. Use the positive "
+            f"member (intact.txt), or --allow-negative if\n"
+            f"you mean to filter the negative set for its own sake.")
+    return name
+
+
 def member_name(zf: zipfile.ZipFile) -> str:
     """The one data member. IntAct ships intact.txt; be explicit if not."""
     names = [n for n in zf.namelist() if n.lower().endswith((".txt", ".tsv"))]
@@ -77,7 +115,7 @@ def taxids(line: bytes) -> set[bytes]:
 
 
 def scan(path: Path, wanted: set[bytes], member: str | None,
-         out: Path | None) -> Counter:
+         out: Path | None, allow_negative: bool = False) -> Counter:
     """One pass. Writes matching lines to `out`, or counts only if None.
 
     WRITES TO A TEMPORARY AND RENAMES. Opening `out` directly left an empty
@@ -92,7 +130,9 @@ def scan(path: Path, wanted: set[bytes], member: str | None,
     with ExitStack() as stack:
         sink = stack.enter_context(open(tmp, "wb")) if tmp is not None else None
         zf = stack.enter_context(zipfile.ZipFile(path))
-        fh = stack.enter_context(zf.open(member or member_name(zf)))
+        chosen = check_member(member or member_name(zf),
+                              allow_negative=allow_negative)
+        fh = stack.enter_context(zf.open(chosen))
         for line in fh:                      # streamed; never read whole
             stats["rows"] += 1
             if line.startswith(b"#"):
@@ -120,6 +160,11 @@ def main(argv=None) -> int:
                     default=ROOT / "data/raw/vhppi/intact.zip")
     ap.add_argument("--member", default=None,
                     help="member to read; inferred when there is only one")
+    ap.add_argument("--allow-negative", action="store_true",
+                    help="read a member whose name marks it as IntAct's "
+                         "NEGATIVE set. Refused by default: those rows say "
+                         "a pair does NOT interact, and nothing downstream "
+                         "can tell them from positives.")
     ap.add_argument("--config", type=Path, default=ROOT / "config/viruses.yaml")
     ap.add_argument("--out", type=Path,
                     default=ROOT / "data/raw/vhppi/intact_viral.tab27")
@@ -138,11 +183,25 @@ def main(argv=None) -> int:
     wanted = {t.encode() for t in taxon_map}
     species = {v["taxon"]: v["name"] for v in cfg["viruses"]}
     print(f"{args.zip.name} ({args.zip.stat().st_size / 1e9:.2f} GB)")
+
+    # RESOLVED HERE, NOT INSIDE THE SCAN. The sidecar recorded
+    # `args.member or "inferred"`, so a run that inferred the member left a
+    # provenance record that does not say which file it read -- and this
+    # archive holds two, one of which asserts the opposite of the other.
+    # Resolving first also puts the negative-set refusal before the pass
+    # rather than after the zip is open.
+    with zipfile.ZipFile(args.zip) as zf:
+        member = check_member(args.member or member_name(zf),
+                              allow_negative=args.allow_negative)
+    note = " (NEGATIVE SET, by explicit request)" if \
+        is_negative_member(member) else ""
+    print(f"reading member {member}{note}")
     print(f"filtering to {len(wanted)} declared viral taxids "
           f"({len(set(taxon_map.values()))} species)\n")
 
-    stats = scan(args.zip, wanted, args.member,
-                 None if args.inspect else args.out)
+    stats = scan(args.zip, wanted, member,
+                 None if args.inspect else args.out,
+                 allow_negative=args.allow_negative)
 
     print(f"{stats['rows']:,} rows read, {stats['header']} header, "
           f"{stats['kept']:,} kept\n")
@@ -175,7 +234,8 @@ def main(argv=None) -> int:
     side.write_text(json.dumps({
         "derived_from": str(args.zip.name),
         "archive_bytes": args.zip.stat().st_size,
-        "member": args.member or "inferred",
+        "member": member,
+        "negative_set": is_negative_member(member),
         "rows_kept": stats["kept"],
         "rows_read": stats["rows"],
         "sha256_16": digest,
