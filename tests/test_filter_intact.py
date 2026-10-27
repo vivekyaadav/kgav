@@ -309,3 +309,61 @@ def test_an_empty_directory_names_the_filter_script(tmp_path):
     out, code = _drive(tmp_path)
     assert code != 0
     assert "filter_intact.py" in str(out) + str(code)
+
+
+# ------------------------------------------- the negative set is not data
+def test_the_negative_member_is_refused():
+    """IntAct ships intact.txt AND intact_negative.txt. The negative file
+    records pairs an experiment showed do NOT interact, in the same MITAB
+    columns -- so once a row reaches a .tab27, ingest_vhppi emits it as a
+    PHYSICALLY_INTERACTS_WITH edge asserting the opposite of the result.
+    """
+    with pytest.raises(SystemExit) as e:
+        fi.check_member("intact_negative.txt")
+    assert "NEGATIVE" in str(e.value)
+    assert "opposite" in str(e.value)
+
+
+def test_the_positive_member_passes():
+    assert fi.check_member("intact.txt") == "intact.txt"
+
+
+@pytest.mark.parametrize("name", [
+    "intact_negative.txt", "INTACT_NEGATIVE.TXT",
+    "psimitab/intact_negative.txt", "some/path/Negative.tsv",
+])
+def test_the_mark_is_found_whatever_the_case_or_path(name):
+    assert fi.is_negative_member(name)
+
+
+@pytest.mark.parametrize("name", [
+    "intact.txt", "psimitab/intact.txt", "intact_positive.txt",
+])
+def test_an_ordinary_member_is_not_marked(name):
+    assert not fi.is_negative_member(name)
+
+
+def test_a_directory_called_negative_does_not_condemn_the_file():
+    """Only the FILE name carries the mark. A path component is not the
+    member's identity, and refusing on it would block a legitimate
+    release laid out differently."""
+    assert not fi.is_negative_member("negative/intact.txt")
+
+
+def test_the_refusal_can_be_overridden_deliberately():
+    """Someone studying the negative set for its own sake must be able to
+    filter it -- by saying so, never by default."""
+    assert fi.check_member("intact_negative.txt",
+                        allow_negative=True) == "intact_negative.txt"
+
+
+def test_the_scan_refuses_before_reading_anything(tmp_path):
+    """The guard is on the member, so it must fire whether the name came
+    from --member or from inference."""
+    z = tmp_path / "a.zip"
+    with zipfile.ZipFile(z, "w") as zf:
+        zf.writestr("intact_negative.txt", "x\n")
+    with pytest.raises(SystemExit):
+        fi.scan(z, set(), None, None)
+    with pytest.raises(SystemExit):
+        fi.scan(z, set(), "intact_negative.txt", None)
