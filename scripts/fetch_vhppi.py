@@ -51,7 +51,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import re
 import sys
 import urllib.error
 import urllib.parse
@@ -64,11 +63,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import yaml
 
-
-def slug(name: str) -> str:
-    """A filename stem from a register name, matching the existing files."""
-    return re.sub(r"[^a-z0-9]+", "", name.lower())
-
+from kgav.vhppi import slug  # one implementation; ingest_vhppi reads the stem back
 
 TIMEOUT = 180
 # PSICQUIC's own REST shape, not a VirHostNet invention:
