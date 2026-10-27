@@ -33,6 +33,7 @@ imply more than the assay supports.
 """
 from __future__ import annotations
 
+import json
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -166,6 +167,38 @@ def slug(name: str) -> str:
     trustworthy rule, two of the gate order.
     """
     return re.sub(r"[^a-z0-9]+", "", name.lower())
+
+
+def file_taxon(path, by_stem: dict[str, str],
+               taxon_map: dict[str, str] | None = None) -> str | None:
+    """Which virus a raw MITAB file was fetched for, or None.
+
+    ONE ATTRIBUTION RULE, because two callers need it and they must not
+    disagree: the ingest, to say which virus lost a row that died before
+    the taxon map, and diagnose_unresolved_ids, to narrow itself to that
+    virus. A diagnostic that attributed files differently from the report
+    that sent you to it would be worse than no diagnostic.
+
+    The sidecar fetch_vhppi writes names the virus outright and is read
+    first, because it survives a rename. The filename is the fallback for
+    the hand-placed coronavirus files that predate the fetcher.
+
+    Returns None for a file that covers no single virus -- an
+    intact_*.tab27 holds many -- so the caller can report it unattributed
+    rather than pin it on one by guesswork.
+    """
+    taxon = None
+    side = Path(str(path) + ".source.json")
+    if side.exists():
+        try:
+            taxon = str(json.loads(side.read_text()).get("taxon") or "")
+        except (ValueError, OSError):
+            taxon = None
+    if not taxon:
+        taxon = by_stem.get(Path(path).stem.removeprefix("vhn_"))
+    if not taxon:
+        return None
+    return (taxon_map or {}).get(taxon, taxon)
 
 
 def ingest_mitab(em, paths: list[Path], index, taxon_map: dict[str, str],
