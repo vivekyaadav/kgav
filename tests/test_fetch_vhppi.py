@@ -12,6 +12,7 @@ file already on disk is not silently replaced.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -240,3 +241,40 @@ def test_the_base_url_is_required():
     and a stale one fails in a way that looks like an empty database."""
     with pytest.raises(SystemExit):
         F.main(["--config", str(ROOT / "config/viruses.yaml"), "--dry-run"])
+
+
+# ------------------------------- the instruction the docstring gives out
+def test_the_docstring_asks_the_registry_for_the_rest_endpoint():
+    """A doc that hands the reader the wrong URL is worse than no doc.
+
+    Without protocol=rest the PSICQUIC registry returns the SOAP endpoint.
+    This docstring omitted it, the SOAP endpoint was passed to --base, and
+    it answered every REST query with HTTP 500 and a soap:Fault. That
+    reads as a broken service rather than a wrong URL, and nearly moved
+    this layer to a different data source.
+    """
+    doc = F.__doc__
+    assert "protocol=rest" in doc
+    assert "SOAP" in doc, "the trap has to be named, not just avoided"
+
+
+def test_no_url_in_the_docstring_is_the_soap_shaped_base():
+    """The SOAP endpoint ENDS /webservices/psicquic; the REST base does
+    not. Showing the former as a --base example is the same mistake again.
+
+    A plain substring test would fail on the EBI registry URL, which
+    carries that segment in the middle quite legitimately -- so this
+    checks where the segment sits, not whether it appears.
+    """
+    urls = re.findall(r"https?://[^\s\\]+", F.__doc__)
+    assert urls, "the docstring is supposed to show the registry call"
+    soap = [u for u in urls if u.rstrip("/").endswith("/webservices/psicquic")]
+    assert not soap, soap
+
+
+def test_the_query_path_is_appended_to_a_base_without_webservices():
+    """--base takes everything before /webservices; QUERY_PATH supplies
+    it. Both carrying it doubles the segment and the server 500s."""
+    assert not F.QUERY_PATH.startswith("/")
+    u = F.url_for("http://h:9090/psicquic", ["11060"], "count")
+    assert u.count("/webservices/") == 1
