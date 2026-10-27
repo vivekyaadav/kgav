@@ -546,3 +546,157 @@ def test_a_molecule_with_no_phase_is_unknown_not_preclinical(tmp_path):
     ph = c["untargeted_by_phase"]
     assert ph["unknown"] > 0
     assert ph["preclinical"] == 0
+
+
+# ------------------------------------------------- the interactome channel
+def _ppi_release(tmp_path: Path) -> Path:
+    """A virus with physical interactors and NO CRISPR screen.
+
+    The shape the channel exists for: six of nine flaviviruses have no
+    screen in this ORCS release, so the dependency channel cannot speak
+    about them however good the PPI data is.
+    """
+    d = tmp_path / "ppi"
+    d.mkdir(parents=True, exist_ok=True)
+    nodes = [{"id": "NCBITaxon:11053", "class": "OrganismTaxon",
+              "properties": {}},
+             {"id": "REACT:P1", "class": "Pathway", "properties": {}},
+             {"id": "UniProtKB:POLY", "class": "Protein",
+              "properties": {"taxon_id": "NCBITaxon:11053",
+                             "is_viral": True}},
+             # a viral protein of ANOTHER virus, to prove the channel
+             # does not pool taxa
+             {"id": "UniProtKB:OTHER", "class": "Protein",
+              "properties": {"taxon_id": "NCBITaxon:64320",
+                             "is_viral": True}},
+             {"id": "NCBITaxon:64320", "class": "OrganismTaxon",
+              "properties": {}}]
+    edges = []
+    for i in range(8):
+        p = f"UniProtKB:H{i}"
+        nodes.append({"id": p, "class": "Protein",
+                      "properties": {"taxon_id": "NCBITaxon:9606",
+                                     "is_viral": False}})
+        edges.append((p, "PARTICIPATES_IN", "REACT:P1", {}))
+    # H0..H3 touch the DENV-1 polyprotein; H4 touches the other virus only
+    for i in range(4):
+        edges.append((f"UniProtKB:H{i}", "PHYSICALLY_INTERACTS_WITH",
+                      "UniProtKB:POLY",
+                      {"detection_method": "MI:0018" if i == 0 else "MI:1314"}))
+    edges.append(("UniProtKB:H4", "PHYSICALLY_INTERACTS_WITH",
+                  "UniProtKB:OTHER", {"detection_method": "MI:1314"}))
+    # a host-host edge carrying the SAME predicate, from the STRING layer
+    edges.append(("UniProtKB:H5", "PHYSICALLY_INTERACTS_WITH",
+                  "UniProtKB:H6", {"detection_method": "MI:1314"}))
+    # a viral-viral edge
+    edges.append(("UniProtKB:POLY", "PHYSICALLY_INTERACTS_WITH",
+                  "UniProtKB:OTHER", {"detection_method": "MI:1314"}))
+    for i in range(3):
+        c = f"INCHIKEY:T{i}"
+        nodes.append({"id": c, "class": "SmallMolecule", "properties": {}})
+        edges.append((c, "TARGETS", f"UniProtKB:H{i}", {}))
+    (d / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
+    (d / "edges.jsonl").write_text("\n".join(json.dumps(
+        {"subject": s, "predicate": p, "object": o, "qualifiers": q,
+         "primary_knowledge_source": "infores:virhostnet", "evidence_tier": 1,
+         "first_asserted_date": "2021-01-01"}) for s, p, o, q in edges))
+    return d
+
+
+def test_partners_are_the_host_side_of_a_viral_edge(tmp_path):
+    g = _graph(_ppi_release(tmp_path))
+    partners, hubs = L.interactome_partners(
+        g, L.viral_proteins(g)["NCBITaxon:11053"])
+    assert partners == {f"UniProtKB:H{i}" for i in range(4)}
+    assert hubs == set()
+
+
+def test_a_host_host_edge_is_not_an_interactome_partner(tmp_path):
+    """STRING writes PHYSICALLY_INTERACTS_WITH between two human proteins.
+    The predicate is shared across layers, so the viral side has to be
+    established from the NODE, never from the edge."""
+    g = _graph(_ppi_release(tmp_path))
+    partners, _ = L.interactome_partners(
+        g, L.viral_proteins(g)["NCBITaxon:11053"])
+    assert "UniProtKB:H5" not in partners and "UniProtKB:H6" not in partners
+
+
+def test_a_viral_viral_edge_contributes_no_partner(tmp_path):
+    g = _graph(_ppi_release(tmp_path))
+    partners, _ = L.interactome_partners(
+        g, L.viral_proteins(g)["NCBITaxon:11053"])
+    assert not any(g.is_viral(p) for p in partners)
+
+
+def test_another_virus_partners_are_not_pooled(tmp_path):
+    """Each taxon's interactome is its own. H4 touches Zika's protein and
+    must not appear under DENV-1."""
+    g = _graph(_ppi_release(tmp_path))
+    vp = L.viral_proteins(g)
+    denv, _ = L.interactome_partners(g, vp["NCBITaxon:11053"])
+    zika, _ = L.interactome_partners(g, vp["NCBITaxon:64320"])
+    assert "UniProtKB:H4" in zika and "UniProtKB:H4" not in denv
+
+
+def test_hubs_are_returned_rather_than_silently_dropped(tmp_path):
+    """Ubiquitin and ribosomal proteins are the sticky partners of
+    pull-down data. How much of an interactome they account for is a
+    property of the assay and belongs in the report."""
+    g = _graph(_ppi_release(tmp_path))
+    partners, hubs = L.interactome_partners(
+        g, L.viral_proteins(g)["NCBITaxon:11053"], hub_cut=1)
+    assert hubs, "every partner here has degree > 1"
+    assert not (partners & hubs)
+
+
+def test_the_binary_share_counts_only_viral_host_edges(tmp_path):
+    """One of the four DENV-1 edges is two-hybrid; the rest are proximity.
+    The host-host and viral-viral edges are not this virus's evidence."""
+    g = _graph(_ppi_release(tmp_path))
+    binary, total = L.binary_share(
+        g, L.viral_proteins(g)["NCBITaxon:11053"])
+    assert (binary, total) == (1, 4)
+
+
+def test_a_virus_with_no_ppi_has_no_partners(tmp_path):
+    g = _graph(_release(tmp_path))
+    partners, _ = L.interactome_partners(
+        g, L.viral_proteins(g).get("NCBITaxon:2697049", set()))
+    assert partners == set()
+
+
+def test_the_two_channels_stay_separate_in_the_output(tmp_path):
+    """A loader that knows only the dependency channel must not pick up
+    interactome numbers under the keys it already reads. The two answer
+    different questions -- what a virus NEEDS versus what it TOUCHES --
+    and a mixed table means nothing.
+    """
+    out = tmp_path / "r.json"
+    rel = _ppi_release(tmp_path)
+    rc = L.main(["--release", str(rel), "--out", str(out),
+                 "--permutations", "50"])
+    assert rc in (0, 1)
+    doc = json.loads(out.read_text())
+    assert "interactome" in doc
+    # DENV-1 has partners but no dependency factor, so it appears in one
+    # table and not the other -- the whole reason for the second channel.
+    assert "NCBITaxon:11053" in doc["interactome"]
+    assert "NCBITaxon:11053" not in (doc.get("taxa") or {})
+    assert "NCBITaxon:11053" in doc["uncovered"]
+
+
+def test_the_overlap_statistic_has_one_implementation(tmp_path):
+    """Both channels call overlap_row. Two copies of a statistic drift,
+    and this project has paid that twice: two trustworthy rules, five
+    taxon maps."""
+    import ast
+    tree = ast.parse((ROOT / "scripts" / "pathway_landscape.py").read_text())
+    calls = [n.func.id for n in ast.walk(tree)
+             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)]
+    # CALLS, not substrings: a definition, an import and a comment all
+    # contain the name, and counting text instead of calls is how the
+    # provenance check came to be satisfied by its own comment.
+    for fn in ("matched_null", "fisher_one_sided", "empirical_p"):
+        assert calls.count(fn) == (2 if fn == "empirical_p" else 1), (
+            f"{fn} is called {calls.count(fn)} times; both channels "
+            f"should reach it through overlap_row")

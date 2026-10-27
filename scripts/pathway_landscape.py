@@ -65,6 +65,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from kgav.baselines import Graph  # noqa: E402
 from kgav.schema import load_schema  # noqa: E402
 from kgav.provenance import write_results
+from kgav.vhppi import BINARY_METHODS
 
 # THE ONE IMPLEMENTATION, imported. A second copy of an exact hypergeometric
 # tail would drift from the one Phase 4 validated against scipy over 400
@@ -74,6 +75,7 @@ from phase4_hcv_retrospective import fisher_one_sided  # noqa: E402
 TARGETS = "TARGETS"
 PARTICIPATES_IN = "PARTICIPATES_IN"
 HOST_FACTOR_FOR = "HOST_FACTOR_FOR"
+PHYSICALLY_INTERACTS_WITH = "PHYSICALLY_INTERACTS_WITH"
 DEPENDENCY = "dependency"
 DEGREE_BINS = 10
 MIN_PATHWAY_TARGETS = 5
@@ -188,6 +190,84 @@ def dependency_factors(g: Graph, virus: str) -> set[str]:
     return out
 
 
+def viral_proteins(g: Graph) -> dict[str, set[str]]:
+    """{virus taxon: its protein nodes}, for the interactome channel."""
+    out: dict[str, set[str]] = defaultdict(set)
+    for nid, node in g.nodes.items():
+        if node.get("class") != "Protein":
+            continue
+        props = node.get("properties") or {}
+        if not props.get("is_viral"):
+            continue
+        taxon = props.get("taxon_id")
+        if taxon:
+            out[str(taxon)].add(nid)
+    return dict(out)
+
+
+def interactome_partners(g: Graph, proteins: set[str],
+                         hub_cut: int | None = None
+                         ) -> tuple[set[str], set[str]]:
+    """Human proteins physically interacting with any of `proteins`.
+
+    A SECOND EVIDENCE CHANNEL, NOT A SECOND SOURCE FOR THE FIRST. A
+    dependency factor is a gene the virus NEEDS: knock it out and
+    replication drops. A physical interactor is a protein the viral
+    protein TOUCHES. Neither implies the other -- a virus binds plenty it
+    does not depend on, and depends on plenty it never touches -- so the
+    two sets are measured separately and never pooled. Pooling them would
+    make the count mean nothing, the same reason dependency_factors
+    refuses to pool restriction factors with dependency ones.
+
+    It exists because the CRISPR layer reaches six of nine flaviviruses
+    not at all: DENV-1, DENV-3, DENV-4, JEV, TBEV and Yellow fever have
+    no screen in this ORCS release, so the dependency channel is silent
+    about them by construction. Four of those now carry virus-host PPI.
+
+    THE HOST SIDE IS WHAT MATTERS HERE, which is why edges attributed by
+    the register's ppi_accession_map are usable despite resolving only to
+    a polyprotein: the human partner is identified exactly either way.
+
+    Returns (partners, hubs). Hubs are returned rather than silently
+    dropped: ubiquitin and ribosomal proteins are the classic sticky
+    partners of pull-down data, and how much of an interactome they
+    account for is a property of the assay worth reporting. The release
+    keeps them -- assemble_release reports the cut rather than applying
+    it -- so the decision is the consumer's and this one states it.
+    """
+    partners: set[str] = set()
+    hubs: set[str] = set()
+    for vp in sorted(proteins):
+        for nbr, _e in g.neighbours(PHYSICALLY_INTERACTS_WITH, vp):
+            if g.klass(nbr) != "Protein" or g.is_viral(nbr):
+                continue
+            if hub_cut and g.degree[nbr] > hub_cut:
+                hubs.add(nbr)
+                continue
+            partners.add(nbr)
+    return partners, hubs
+
+
+def binary_share(g: Graph, proteins: set[str]) -> tuple[int, int]:
+    """(edges from a binary assay, edges in total) into `proteins`.
+
+    WHAT THE EVIDENCE SAYS, carried forward from vhppi.py: VirHostNet's
+    SARS-CoV-2 rows are dominated by proximity labelling, which marks
+    anything within about 10 nm. "Physically interacts with" in this
+    graph mostly means "sits in the same complex neighbourhood", and a
+    pathway result built on it should not be read as binding.
+    """
+    binary = total = 0
+    for vp in sorted(proteins):
+        for nbr, e in g.neighbours(PHYSICALLY_INTERACTS_WITH, vp):
+            if g.klass(nbr) != "Protein" or g.is_viral(nbr):
+                continue
+            total += 1
+            if (e.get("qualifiers") or {}).get("detection_method") in BINARY_METHODS:
+                binary += 1
+    return binary, total
+
+
 def host_factor_coverage(g: Graph) -> dict[str, Counter]:
     """{taxon: Counter of HOST_FACTOR_FOR directions}.
 
@@ -290,6 +370,38 @@ def matched_null(observed: set[str], universe: set[str],
     return out
 
 
+def overlap_row(targets: set[str], universe: set[str], bins: dict[str, int],
+                factors: set[str], permutations: int,
+                rng: random.Random) -> tuple[dict, float]:
+    """One channel's overlap between the drugged proteome and `factors`.
+
+    ONE IMPLEMENTATION FOR BOTH CHANNELS. The interactome channel asks
+    the identical question of a different set -- how much of the drugged
+    proteome lands in it, against a degree-matched background -- so it
+    takes this rather than a copy. Two copies of a statistic drift, and
+    this project has already paid that twice over: two trustworthy
+    rules, five taxon maps.
+    """
+    a = len(targets & factors)
+    b = len(targets) - a
+    cc = len(factors - targets)
+    d = len(universe) - a - b - cc
+    p_naive = fisher_one_sided(a, b, cc, d, greater=True)
+    null = matched_null(targets, universe, bins, factors, permutations, rng)
+    exp = sum(null) / len(null) if null else 0.0
+    # BOTH TAILS, from the same null. Six of the eight taxa on v0.1 come
+    # back under ratio 1.0 and two far under, and with only the greater
+    # tail there was no way to tell a depletion from an ordinary low draw.
+    row = {"n_dependency": len(factors), "n_observed": a, "expected": exp,
+           "p_naive": p_naive,
+           "p_matched": empirical_p(a, null),
+           "p_matched_less": empirical_p(a, null, greater=False)}
+    # The ratio is NOT stored: a third number that can disagree with the
+    # two it is derived from, and infinite whenever the matched
+    # background expects nothing, which JSON cannot write.
+    return row, (a / exp if exp else float("inf"))
+
+
 def empirical_p(observed: int, null: list[int], greater: bool = True) -> float:
     """One-sided, with the +1 correction.
 
@@ -315,7 +427,7 @@ def empirical_p(observed: int, null: list[int], greater: bool = True) -> float:
 
 # ----------------------------------------------------------------- report
 def _write(out: Path, args, rows: dict[str, dict],
-           uncovered: list[str]) -> None:
+           uncovered: list[str], **channels) -> None:
     """Record the overlap table with the run that produced it.
 
     `partial` is the field that matters. A --virus run measures one taxon, and
@@ -346,6 +458,11 @@ def _write(out: Path, args, rows: dict[str, dict],
                            f"taxon only" if args.virus else ""),
         "taxa": rows,
         "uncovered": uncovered,
+        # SEPARATE KEYS, NEVER MERGED INTO `taxa`. A reader or loader that
+        # knows only the dependency channel must not silently pick up
+        # interactome numbers under the keys it already reads: the two
+        # answer different questions and a mixed table means nothing.
+        **channels,
     }
     write_results(out, doc, args.release)
     print(f"\n  wrote {out} — {len(rows)} taxon(s) measured, "
@@ -445,44 +562,93 @@ def main(argv=None) -> int:
     any_virus = False
     uncovered = []
     rows: dict[str, dict] = {}
+    # HOISTED. This was rebuilt inside the loop, once per virus, from the
+    # same two arguments. Identical output, 16x less work.
+    bins = degree_bins(g, universe)
     for virus in viruses:
         deps = dependency_factors(g, virus)
         if not deps:
             uncovered.append(virus)
             continue
         any_virus = True
-        hit = targets & deps
-        # Naive: is the drugged proteome enriched for dependency factors
-        # against the whole protein universe?
-        a = len(hit)
-        b = len(targets) - a
-        cc = len(deps - targets)
-        d = len(universe) - a - b - cc
-        p_naive = fisher_one_sided(a, b, cc, d, greater=True)
-        bins = degree_bins(g, universe)
-        null = matched_null(targets, universe, bins, deps,
-                            args.permutations, rng)
-        exp = sum(null) / len(null) if null else 0.0
-        p_match = empirical_p(a, null)
-        # THE OTHER DIRECTION, from the same null. Six of the eight taxa on
-        # v0.1 come back under ratio 1.0 and two come back far under, and
-        # with only the greater tail computed there was no way to tell a
-        # depletion from an ordinary low draw -- so the agent correctly, and
-        # uselessly, said so on every one of them.
-        p_match_less = empirical_p(a, null, greater=False)
-        ratio = a / exp if exp else float("inf")
-        # The ratio is NOT stored: it is a third number that can disagree with
-        # the two it is derived from, and it is infinite whenever a
-        # degree-matched background is expected to hit nothing, which JSON
-        # cannot write. landscape.TaxonOverlap derives it.
-        rows[virus] = {"n_dependency": len(deps), "n_observed": a,
-                       "expected": exp, "p_naive": p_naive,
-                       "p_matched": p_match, "p_matched_less": p_match_less}
-        print(f"    {virus:<18} {len(deps):6,} {a:8,} {exp:7.1f} "
-              f"{ratio:6.2f} {p_naive:9.2e} {p_match:10.4f} "
-              f"{p_match_less:10.4f}")
+        row, ratio = overlap_row(targets, universe, bins, deps,
+                                 args.permutations, rng)
+        rows[virus] = row
+        print(f"    {virus:<18} {len(deps):6,} {row['n_observed']:8,} "
+              f"{row['expected']:7.1f} {ratio:6.2f} {row['p_naive']:9.2e} "
+              f"{row['p_matched']:10.4f} {row['p_matched_less']:10.4f}")
+    # ---------------------------------------------- the interactome channel
+    # A SECOND CHANNEL, REPORTED BESIDE THE FIRST AND NEVER MERGED INTO IT.
+    # Six of nine flaviviruses have no CRISPR screen in this ORCS release,
+    # so the dependency channel is silent about them by construction. Four
+    # of those six carry virus-host PPI as of 2026-10-27, which is a
+    # different question about the same virus: what it TOUCHES rather than
+    # what it NEEDS.
+    hub_cut = int((schema.retrieval_limits or {}).get("hub_degree_cut") or 0)
+    vprot = viral_proteins(g)
+    irows: dict[str, dict] = {}
+    iuncovered = []
+    icov: dict[str, dict] = {}
+    for virus in viruses:
+        partners, hubs = interactome_partners(g, vprot.get(virus, set()),
+                                              hub_cut or None)
+        binary, total = binary_share(g, vprot.get(virus, set()))
+        icov[virus] = {"n_partners": len(partners), "n_hubs": len(hubs),
+                       "binary_edges": binary, "total_edges": total}
+        if not partners:
+            iuncovered.append(virus)
+            continue
+        row, ratio = overlap_row(targets, universe, bins, partners,
+                                 args.permutations, rng)
+        row["n_hubs_excluded"] = len(hubs)
+        row["binary_edges"] = binary
+        row["total_edges"] = total
+        irows[virus] = row
+
+    print("  INTERACTOME COVERAGE, per taxon  (host proteins a viral protein")
+    print(f"  physically interacts with; hubs over degree {hub_cut or 'n/a'} "
+          f"excluded)")
+    print(f"    {'taxon':<18} {'partners':>9} {'hubs cut':>9} "
+          f"{'edges':>8} {'binary':>8}")
+    for virus in viruses:
+        c = icov[virus]
+        flag = "" if c["n_partners"] else "   <- no virus-host PPI for this taxon"
+        print(f"    {virus:<18} {c['n_partners']:9,} {c['n_hubs']:9,} "
+              f"{c['total_edges']:8,} {c['binary_edges']:8,}{flag}")
+    print("    A BINARY edge is two-hybrid or pull-down: it reads out a")
+    print("    contact. The rest are proximity or co-complex, which say the")
+    print("    two sit in the same neighbourhood. This channel does not")
+    print("    separate them, so nothing here means 'binds'.\n")
+
+    if irows:
+        print("  OVERLAP WITH INTERACTION PARTNERS, naive against "
+              "degree-matched")
+        print(f"  {args.permutations:,} permutations, seed {args.seed}\n")
+        print(f"    {'virus':<18} {'partners':>8} {'drugged':>8} {'exp':>7} "
+              f"{'ratio':>6} {'p naive':>9} {'p up':>10} {'p down':>10}")
+        for virus, row in irows.items():
+            exp = row["expected"]
+            ratio = row["n_observed"] / exp if exp else float("inf")
+            print(f"    {virus:<18} {row['n_dependency']:8,} "
+                  f"{row['n_observed']:8,} {exp:7.1f} {ratio:6.2f} "
+                  f"{row['p_naive']:9.2e} {row['p_matched']:10.4f} "
+                  f"{row['p_matched_less']:10.4f}")
+        print()
+        print("    THIS IS NOT THE TABLE ABOVE WITH MORE VIRUSES. A gene the")
+        print("    virus needs and a protein it touches are different claims,")
+        print("    measured from different experiments, and a virus may")
+        print("    appear in one table and not the other for reasons that")
+        print("    have nothing to do with its biology.")
+    if iuncovered:
+        print(f"\n    {len(iuncovered)} of {len(viruses)} taxa have no "
+              f"virus-host PPI and are absent above:")
+        for v in iuncovered:
+            print(f"      {v}")
+
     if args.out:
-        _write(args.out, args, rows, uncovered)
+        _write(args.out, args, rows, uncovered,
+               interactome=irows, interactome_uncovered=iuncovered,
+               interactome_coverage=icov)
     if not any_virus:
         print("    NO VIRUS HAS DEPENDENCY FACTORS in this release, so there")
         print("    is no overlap to measure. That is the finding, not an")
