@@ -156,23 +156,46 @@ def classify_row(line: str, index, taxon_map: dict[str, str]) -> RowVerdict:
     return RowVerdict(None, r, a, b, host, viral, viral_tax)
 
 
+def slug(name: str) -> str:
+    """A register name -> the stem its raw file carries.
+
+    ONE IMPLEMENTATION. fetch_vhppi writes vhn_<slug>.tab27 and the ingest
+    has to read the virus back off the filename to say which virus a file
+    belongs to. Two copies of this rule drift, and this repo has already
+    paid for that: five hand-built copies of the taxon map, two of the
+    trustworthy rule, two of the gate order.
+    """
+    return re.sub(r"[^a-z0-9]+", "", name.lower())
+
+
 def ingest_mitab(em, paths: list[Path], index, taxon_map: dict[str, str],
-                 source: str, default_date: str) -> Counter:
+                 source: str, default_date: str,
+                 per_file: dict | None = None) -> Counter:
     """Emit host<->viral PHYSICALLY_INTERACTS_WITH edges.
 
     taxon_map maps every viral taxid that may appear (species AND isolate) to
     the species taxid the graph uses. Swiss-Prot and VirHostNet both file
     several coronaviruses under isolate taxa; without the map those rows look
     like an unknown organism and vanish.
+
+    per_file, if given, is filled with {Path: Counter} carrying the same keys
+    per file. A row that dies at `unresolved_id` has no taxon -- resolution
+    runs before the taxon map -- so the ONLY thing that can say which virus
+    it belonged to is the file it came from, which is why the per-file tally
+    exists and a per-taxon one cannot replace it. Deduplication is counted
+    against the file holding the later copy.
     """
     stats: Counter = Counter()
     seen: set[tuple] = set()
 
     for path in paths:
+        fstats: Counter = (per_file.setdefault(Path(path), Counter())
+                           if per_file is not None else Counter())
         for line in Path(path).read_text(errors="replace").splitlines():
             if not line.strip() or line.startswith("#"):
                 continue
             stats["rows"] += 1
+            fstats["rows"] += 1
             # Every gate, in order, lives in classify_row -- including the
             # ones whose comments used to live here: detection_method is a
             # required qualifier, so an edge without it is dropped rather
@@ -182,12 +205,14 @@ def ingest_mitab(em, paths: list[Path], index, taxon_map: dict[str, str],
             v = classify_row(line, index, taxon_map)
             if v.gate:
                 stats[v.gate] += 1
+                fstats[v.gate] += 1
                 continue
             r, host, viral = v.row, v.host, v.viral
 
             key = (host, viral, r["detection_method"], r["pmid"])
             if key in seen:
                 stats["duplicate"] += 1
+                fstats["duplicate"] += 1
                 continue
             seen.add(key)
 
@@ -206,6 +231,7 @@ def ingest_mitab(em, paths: list[Path], index, taxon_map: dict[str, str],
                     pmids=[f"PMID:{r['pmid']}"] if r["pmid"] else None,
                     score=float(r["score"]) if r["score"] else None)
             stats["edges"] += 1
+            fstats["edges"] += 1
             stats["direct" if r["interaction_type"] == DIRECT_INTERACTION else "co_complex"] += 1
             if r["detection_method"] in BINARY_METHODS:
                 stats["binary_method"] += 1

@@ -14,12 +14,58 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.aliases import AliasIndex
 from kgav.emit import Emit
+from kgav.vhppi import ingest_mitab, slug
 from kgav.virus_register import declared_taxa
-from kgav.vhppi import ingest_mitab
+
+#: Gates a zero-edge virus is reported against, worst-first. Not every gate
+#: in classify_row: host_host and not_a_protein cannot explain a vhn file,
+#: and no_detection_method is reported only when it actually fires.
+JOIN_GATES = ("unresolved_id", "unmapped_viral_taxon", "viral_viral",
+              "unparseable", "no_detection_method", "self_interaction",
+              "duplicate")
 
 
+def rows_per_taxon(per_file: dict, viruses: list, taxon_map: dict) -> dict:
+    """Attribute each raw file's gate tally to the virus it was fetched for.
 
-def coverage_lines(per_virus, taxon_map: dict, nodes: dict) -> list[str]:
+    The sidecar fetch_vhppi writes names the virus outright, so it is read
+    first and the filename is the fallback for the hand-placed coronavirus
+    files that predate the fetcher and have no sidecar.
+
+    This exists because a row that dies at `unresolved_id` carries no taxon
+    -- resolution runs before the taxon map -- so the file is the only thing
+    that can say which virus lost it. Attribution is per FILE, which is
+    exactly as precise as the fetcher's one-file-per-virus layout and no
+    more: an intact_*.tab27 holding many viruses attributes to none of them,
+    and is reported as unattributed rather than spread by guesswork.
+    """
+    by_stem = {slug(v["name"]): str(v["taxon"]) for v in viruses}
+    out: dict[str, Counter] = {}
+    unattributed: Counter = Counter()
+    for path, c in per_file.items():
+        taxon = None
+        side = Path(str(path) + ".source.json")
+        if side.exists():
+            try:
+                taxon = str(json.loads(side.read_text()).get("taxon") or "")
+            except (ValueError, OSError):
+                taxon = None
+        if not taxon:
+            stem = Path(path).stem
+            taxon = by_stem.get(stem.removeprefix("vhn_"))
+        taxon = taxon_map.get(taxon, taxon) if taxon else None
+        if not taxon:
+            unattributed += c
+            continue
+        out.setdefault(taxon, Counter())
+        out[taxon] += c
+    if unattributed:
+        out["?"] = unattributed
+    return out
+
+
+def coverage_lines(per_virus, taxon_map: dict, nodes: dict,
+                   fetched: dict | None = None) -> list[str]:
     """Edges per virus over EVERY declared-and-built virus, zeros included.
 
     This was per_virus.most_common(), so a virus with zero edges did not
@@ -46,22 +92,55 @@ def coverage_lines(per_virus, taxon_map: dict, nodes: dict) -> list[str]:
     header = ("edges per virus, over every virus the register declares "
               "and this release built:")
     out = ["", header]
-    zero = 0
+    nothing_fetched, all_dropped, unknown = [], [], []
     for taxon in built:
         tid = f"NCBITaxon:{taxon}"
         n = per_virus.get(tid, 0)
+        flag = ""
         if not n:
-            zero += 1
-        flag = "   <- NO virus-host PPI from either source" if not n else ""
+            rows = (fetched or {}).get(taxon, Counter()).get("rows", 0)
+            if fetched is None:
+                unknown.append(taxon)
+                flag = "   <- no edge"
+            elif not rows:
+                nothing_fetched.append(taxon)
+                flag = "   <- no edge, and no row was fetched for it"
+            else:
+                all_dropped.append((taxon, rows))
+                flag = f"   <- no edge from {rows:,} fetched row(s)"
         out.append(f"  {label(tid):<14} {n:>7,}{flag}")
+
+    zero = len(nothing_fetched) + len(all_dropped) + len(unknown)
     if zero:
         out.append("")
         out.append(f"  {zero} of {len(built)} built viruses have NO "
-                   f"virus-host PPI edge from VirHostNet or IntAct. That is "
-                   f"a gap in what was FETCHED as much as in what was "
-                   f"curated: the vhn_*.tab27 files are one coronavirus "
-                   f"each, and a taxon with no file cannot produce an edge "
-                   f"however well the source covers it.")
+                   f"virus-host PPI edge from VirHostNet or IntAct.")
+    # THE CAUSE IS COMPUTED, NOT ASSERTED. This said "the vhn_*.tab27 files
+    # are one coronavirus each" -- true when written, false the moment the
+    # flaviviruses were fetched, and still printed under five viruses whose
+    # files were sitting in the directory. A sentence naming a cause has to
+    # be derived from the same run that prints it or it becomes a confident
+    # wrong answer the moment the thing it describes is fixed.
+    if nothing_fetched:
+        out.append(f"    nothing fetched ({len(nothing_fetched)}): "
+                   + ", ".join(label(f"NCBITaxon:{t}") for t in nothing_fetched))
+        out.append("      A taxon with no file cannot produce an edge "
+                   "however well the source covers it. This is a FETCH gap "
+                   "and scripts/fetch_vhppi.py is what closes it.")
+    if all_dropped:
+        out.append(f"    fetched but nothing survived ({len(all_dropped)}):")
+        for taxon, rows in all_dropped:
+            c = (fetched or {}).get(taxon, Counter())
+            gates = [(g, c[g]) for g in JOIN_GATES if c[g]]
+            why = ", ".join(f"{g} {n:,}" for g, n in gates) or "no gate recorded"
+            out.append(f"      {label(f'NCBITaxon:{taxon}'):<14} "
+                       f"{rows:,} row(s): {why}")
+        out.append("      This is a JOIN gap, not a fetch gap: the rows are "
+                   "on disk and the ingest drops them. Fetching again "
+                   "changes nothing.")
+    if unknown:
+        out.append(f"    {len(unknown)} with no per-file tally available, so "
+                   f"this run cannot say whether they were fetched.")
     unbuilt = len(declared) - len(built)
     if unbuilt:
         out.append(f"  {unbuilt} further declared taxa are not in this "
@@ -132,11 +211,13 @@ def main() -> int:
 
     em = Emit()
     s = Counter()
+    per_file: dict = {}
     for src, fs in groups:
         if not fs:
             continue
         part = ingest_mitab(em, fs, index, taxon_map,
-                            source=src, default_date=args.date)
+                            source=src, default_date=args.date,
+                            per_file=per_file)
         print(f"\n  {src}: {part['rows']:,} rows -> {part['edges']:,} edges")
         s += part
 
@@ -168,7 +249,9 @@ def main() -> int:
         n = index.nodes.get(e["object"])
         if n:
             per_virus[n["properties"].get("taxon_id", "?")] += 1
-    for line in coverage_lines(per_virus, taxon_map, index.nodes):
+    fetched = rows_per_taxon(per_file, yaml.safe_load(
+        args.config.read_text())["viruses"], taxon_map)
+    for line in coverage_lines(per_virus, taxon_map, index.nodes, fetched):
         print(line)
     return 0
 

@@ -301,7 +301,7 @@ def test_a_virus_with_no_edges_is_named_not_omitted():
     lines = coverage_lines(Counter({"NCBITaxon:2697049": 12}), _MAP, _NODES)
     text = "\n".join(lines)
     assert "Zika" in text and "DENV-2" in text
-    assert "NO virus-host PPI from either source" in text
+    assert "have NO virus-host PPI edge" in text
 
 
 def test_it_counts_how_many_viruses_have_nothing():
@@ -311,13 +311,58 @@ def test_it_counts_how_many_viruses_have_nothing():
     assert "2 of 3 built viruses have NO virus-host PPI edge" in text
 
 
-def test_it_says_the_gap_is_in_what_was_fetched():
+def test_a_zero_with_no_rows_fetched_is_called_a_fetch_gap():
     """A zero reads as "the source does not cover this virus" when the
     truth is that no file for it was ever downloaded. Those need different
     work, and the report must not let them look the same."""
     from collections import Counter
+    text = "\n".join(coverage_lines(Counter(), _MAP, _NODES, fetched={}))
+    assert "nothing fetched (3)" in text
+    assert "FETCH gap" in text
+    assert "JOIN gap" not in text
+
+
+def test_a_zero_with_rows_fetched_is_called_a_join_gap_and_names_the_gate():
+    """The failure this was written for. 56 DENV-1 rows were fetched and
+    produced no edge; the report still said the cause was that no file had
+    been fetched, because that sentence was hardcoded. A virus whose rows
+    are on disk has a different problem and a different fix.
+    """
+    from collections import Counter
+    fetched = {"11060": Counter({"rows": 56, "unresolved_id": 56})}
+    text = "\n".join(coverage_lines(Counter(), _MAP, _NODES, fetched))
+    assert "no edge from 56 fetched row(s)" in text
+    assert "unresolved_id 56" in text
+    assert "JOIN gap" in text
+    assert "Fetching again changes nothing" in text
+
+
+def test_the_two_kinds_of_zero_are_reported_separately():
+    """Both causes in one run, each counted against its own viruses."""
+    from collections import Counter
+    fetched = {"11060": Counter({"rows": 9, "viral_viral": 9})}
+    text = "\n".join(coverage_lines(Counter(), _MAP, _NODES, fetched))
+    assert "nothing fetched (2)" in text          # SARS-CoV-2, Zika
+    assert "fetched but nothing survived (1)" in text
+    assert "3 of 3 built viruses" in text
+
+
+def test_no_cause_is_claimed_when_there_is_no_tally_to_derive_it_from():
+    """Older callers pass no per-file tally. The report must then say it
+    does not know, rather than fall back on the sentence that was wrong."""
+    from collections import Counter
     text = "\n".join(coverage_lines(Counter(), _MAP, _NODES))
-    assert "gap in what was FETCHED" in text
+    assert "cannot say whether they were fetched" in text
+    assert "FETCH gap" not in text and "JOIN gap" not in text
+
+
+def test_the_old_hardcoded_cause_is_gone():
+    """It survived into a run where every one of the five viruses it
+    blamed had a file on disk."""
+    from collections import Counter
+    for f in (None, {}, {"11060": Counter({"rows": 1, "duplicate": 1})}):
+        text = "\n".join(coverage_lines(Counter(), _MAP, _NODES, f))
+        assert "one coronavirus each" not in text
 
 
 def test_a_declared_but_unbuilt_taxon_is_not_counted_as_missing_data():
@@ -339,3 +384,122 @@ def test_full_coverage_says_nothing_about_gaps():
     text = "\n".join(coverage_lines(full, _MAP, _NODES))
     assert "NO virus-host PPI" not in text
     assert "have NO virus-host PPI edge" not in text
+
+
+# ------------------------------------- attributing a file back to a virus
+from ingest_vhppi import rows_per_taxon
+
+_VIRUSES = [{"name": "DENV-1", "taxon": "11053"},
+            {"name": "SARS-CoV-2", "taxon": "2697049"},
+            {"name": "Yellow fever", "taxon": "11089"}]
+
+
+def test_the_sidecar_says_which_virus_a_file_belongs_to(tmp_path):
+    """fetch_vhppi records the virus it asked for. That is better evidence
+    than the filename because it survives a rename."""
+    from collections import Counter
+    f = tmp_path / "whatever.tab27"
+    f.write_text("")
+    (tmp_path / "whatever.tab27.source.json").write_text(
+        '{"virus": "DENV-1", "taxon": "11053"}')
+    got = rows_per_taxon({f: Counter({"rows": 56})}, _VIRUSES, {})
+    assert got["11053"]["rows"] == 56
+
+
+def test_the_filename_is_the_fallback_for_a_file_with_no_sidecar(tmp_path):
+    """The coronavirus files were placed by hand before the fetcher existed
+    and carry no sidecar. They still have to be attributable."""
+    from collections import Counter
+    f = tmp_path / "vhn_sarscov2.tab27"
+    f.write_text("")
+    got = rows_per_taxon({f: Counter({"rows": 7})}, _VIRUSES, {})
+    assert got["2697049"]["rows"] == 7
+
+
+def test_a_stem_with_a_space_in_the_register_name_still_matches(tmp_path):
+    """vhn_yellowfever.tab27 <- "Yellow fever". The stem rule lives in one
+    place precisely so this cannot drift."""
+    from collections import Counter
+    f = tmp_path / "vhn_yellowfever.tab27"
+    f.write_text("")
+    got = rows_per_taxon({f: Counter({"rows": 4})}, _VIRUSES, {})
+    assert got["11089"]["rows"] == 4
+
+
+def test_an_isolate_taxon_in_a_sidecar_folds_to_the_species(tmp_path):
+    """The map is what the rest of the report counts in."""
+    from collections import Counter
+    f = tmp_path / "x.tab27"
+    f.write_text("")
+    (tmp_path / "x.tab27.source.json").write_text('{"taxon": "31634"}')
+    got = rows_per_taxon({f: Counter({"rows": 3})}, _VIRUSES,
+                         {"31634": "11060"})
+    assert got["11060"]["rows"] == 3
+
+
+def test_a_multi_virus_file_is_unattributed_rather_than_guessed(tmp_path):
+    """intact_*.tab27 holds many viruses. Spreading its rows over them, or
+    pinning them on one, would invent the evidence the report then uses to
+    name a cause."""
+    from collections import Counter
+    f = tmp_path / "intact_viral.tab27"
+    f.write_text("")
+    got = rows_per_taxon({f: Counter({"rows": 900})}, _VIRUSES, {})
+    assert list(got) == ["?"] and got["?"]["rows"] == 900
+
+
+def test_a_corrupt_sidecar_falls_back_rather_than_raising(tmp_path):
+    from collections import Counter
+    f = tmp_path / "vhn_denv1.tab27"
+    f.write_text("")
+    (tmp_path / "vhn_denv1.tab27.source.json").write_text("{not json")
+    got = rows_per_taxon({f: Counter({"rows": 2})}, _VIRUSES, {})
+    assert got["11053"]["rows"] == 2
+
+
+# --------------------------------------- the per-file tally is really filled
+def test_the_per_file_tally_matches_the_totals(world):
+    """If this stayed empty every zero would be reported as "nothing
+    fetched" -- the same confident wrong answer in a new shape, and one
+    that reads as correct because the old answer said the same thing.
+    """
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    per_file: dict = {}
+    stats = ingest_mitab(Emit(), [world / "vhn_test.tab27"], index,
+                         {"2697049": "2697049"}, "infores:virhostnet",
+                         "2024-01-01", per_file=per_file)
+    assert list(per_file) == [world / "vhn_test.tab27"]
+    c = per_file[world / "vhn_test.tab27"]
+    assert c["rows"] == stats["rows"] > 0
+    assert c["edges"] == stats["edges"] > 0
+    for gate in ("duplicate", "host_host", "viral_viral", "unresolved_id",
+                 "unmapped_viral_taxon"):
+        assert c[gate] == stats[gate], gate
+
+
+def test_rows_split_across_two_files_are_counted_against_each(world):
+    """One Counter for the lot would attribute every drop to whichever
+    virus happened to be read first."""
+    second = world / "vhn_other.tab27"
+    second.write_text((world / "vhn_test.tab27").read_text())
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    per_file: dict = {}
+    stats = ingest_mitab(Emit(), [world / "vhn_test.tab27", second], index,
+                         {"2697049": "2697049"}, "infores:virhostnet",
+                         "2024-01-01", per_file=per_file)
+    assert len(per_file) == 2
+    assert sum(c["rows"] for c in per_file.values()) == stats["rows"]
+    # The second file is a copy, so every one of its rows is a duplicate of
+    # one already seen -- and the duplicate must land on the file that holds
+    # the later copy, not be smeared over both.
+    assert per_file[second]["edges"] == 0
+    assert per_file[world / "vhn_test.tab27"]["edges"] > 0
+
+
+def test_omitting_per_file_still_works(world):
+    """Every other caller passes nothing and must be unaffected."""
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    stats = ingest_mitab(Emit(), [world / "vhn_test.tab27"], index,
+                         {"2697049": "2697049"}, "infores:virhostnet",
+                         "2024-01-01")
+    assert stats["edges"] > 0
