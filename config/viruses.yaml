@@ -473,6 +473,21 @@ viruses:
     # line says which was used.
     gene_symbol:
       P27909: POLY
+    ppi_accession_map:
+      A0A097PIH4: P27909
+      Q8B105: P27909
+      Q91NH1: P27909
+    ppi_accession_note: >-
+      VirHostNet curates these three DENV-1 interactions against unreviewed,
+      strain-specific genome polyprotein entries. Each is organism 11053
+      (Dengue virus type 1) and 3392 aa, identical to the reviewed P27909
+      (strain Brazil/97-11/1997, 3392 aa) this build carries, so they are
+      the same gene product of the same species from different isolates.
+      The edge is ATTRIBUTED to P27909 and records the measured accession;
+      no SAME_AS is asserted, because different isolates are not the same
+      UniProt entry. Resolution is polyprotein-level -- the source names no
+      mature peptide, so these edges cannot say which chain binds.
+      Verified against UniProt 2026-10-27.
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
     mondo: null
@@ -690,6 +705,15 @@ viruses:
     # line says which was used.
     gene_symbol:
       Q01299: POLY
+    ppi_accession_map:
+      Q88489: Q01299
+    ppi_accession_note: >-
+      Q88489 is an unreviewed TBEV genome polyprotein, organism 11084,
+      3414 aa -- identical in length and gene product to the reviewed
+      Q01299 (strain Hypr, 3414 aa) this build carries. Attributed, not
+      equated: the edge records the measured accession and no SAME_AS is
+      asserted. Resolution is polyprotein-level. Verified against UniProt
+      2026-10-27.
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
     mondo: null

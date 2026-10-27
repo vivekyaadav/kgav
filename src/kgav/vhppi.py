@@ -120,15 +120,40 @@ class RowVerdict:
     #: For an unresolved_id row: which side(s) failed to resolve, and the
     #: taxid column of each, verbatim from the file.
     unresolved: tuple[tuple[str, str | None, str | None], ...] = ()
+    #: The accession the experiment used, when ppi_accession_map attributed
+    #: this row's VIRAL side to a different one. None when nothing was
+    #: rewritten, so an edge without it was measured on the entry it names.
+    measured: str | None = None
 
 
-def classify_row(line: str, index, taxon_map: dict[str, str]) -> RowVerdict:
-    """Run one MITAB line through the ingest's gates, in the ingest's order."""
+def classify_row(line: str, index, taxon_map: dict[str, str],
+                 accession_map: dict[str, str] | None = None) -> RowVerdict:
+    """Run one MITAB line through the ingest's gates, in the ingest's order.
+
+    accession_map attributes a measured accession to the one this build
+    carries -- see virus_register.ppi_accession_map. It is applied BEFORE
+    resolution, because the whole point is that the measured accession does
+    not resolve, and the substitution is recorded on the verdict so the
+    edge can carry it rather than losing what was measured.
+    """
     r = parse_row(line)
     if not r or not r["a"] or not r["b"]:
         return RowVerdict("unparseable", r)
     if not r["detection_method"]:
         return RowVerdict("no_detection_method", r)
+
+    # UNCONDITIONAL, NOT A FALLBACK. Applying it only when resolution fails
+    # would make the graph's shape depend on which proteomes happened to be
+    # loaded: the same row would attribute to the reference in one build and
+    # to a strain entry in another, and nothing would say which.
+    measured = {}
+    if accession_map:
+        for side in ("a", "b"):
+            acc = (r[side] or "").removeprefix("UniProtKB:")
+            dst = accession_map.get(acc)
+            if dst and dst != acc:
+                measured[side] = acc
+                r[side] = f"UniProtKB:{dst}"
 
     a, b = index.resolve(r["a"]), index.resolve(r["b"])
     if a is None or b is None:
@@ -154,7 +179,8 @@ def classify_row(line: str, index, taxon_map: dict[str, str]) -> RowVerdict:
     viral_tax = r["taxid_a"] if va else r["taxid_b"]
     if viral_tax not in taxon_map:
         return RowVerdict("unmapped_viral_taxon", r, a, b, host, viral, viral_tax)
-    return RowVerdict(None, r, a, b, host, viral, viral_tax)
+    return RowVerdict(None, r, a, b, host, viral, viral_tax,
+                      measured=measured.get("a" if va else "b"))
 
 
 def slug(name: str) -> str:
@@ -203,7 +229,8 @@ def file_taxon(path, by_stem: dict[str, str],
 
 def ingest_mitab(em, paths: list[Path], index, taxon_map: dict[str, str],
                  source: str, default_date: str,
-                 per_file: dict | None = None) -> Counter:
+                 per_file: dict | None = None,
+                 accession_map: dict[str, str] | None = None) -> Counter:
     """Emit host<->viral PHYSICALLY_INTERACTS_WITH edges.
 
     taxon_map maps every viral taxid that may appear (species AND isolate) to
@@ -235,7 +262,7 @@ def ingest_mitab(em, paths: list[Path], index, taxon_map: dict[str, str],
             # than defaulted; and viral-viral and host-host pairs are real
             # but out of scope for a BRIDGE layer (host-host belongs to the
             # STRING pass).
-            v = classify_row(line, index, taxon_map)
+            v = classify_row(line, index, taxon_map, accession_map)
             if v.gate:
                 stats[v.gate] += 1
                 fstats[v.gate] += 1
@@ -253,6 +280,15 @@ def ingest_mitab(em, paths: list[Path], index, taxon_map: dict[str, str],
             # host protein node, and a fact stored twice is a fact that can
             # disagree with itself.
             quals = {"detection_method": r["detection_method"]}
+            if v.measured:
+                # WHAT WAS MEASURED, not what it was attributed to. Without
+                # this the edge is indistinguishable from one measured on
+                # the reference entry, and the attribution becomes an
+                # unrecorded claim -- exactly the silent identity this
+                # layer refused to make with SAME_AS.
+                quals["measured_accession"] = v.measured
+                stats["attributed"] += 1
+                fstats["attributed"] += 1
             # interaction_type is NOT stored. VirHostNet normalises every row
             # to MI:0915 "physical association" regardless of assay -- all
             # 8,252 SARS-CoV-2 rows, including all 153 two-hybrid ones. A

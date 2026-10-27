@@ -45,7 +45,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.aliases import AliasIndex
 from kgav.vhppi import classify_row, file_taxon, slug
-from kgav.virus_register import declared_taxa
+from kgav.virus_register import declared_taxa, ppi_accession_map
 
 
 def select_files(files: list, doc: dict, taxon_map: dict,
@@ -103,6 +103,10 @@ def main() -> int:
     index = AliasIndex.from_releases(args.spine, args.host)
     doc = yaml.safe_load(args.config.read_text())
     taxon_map = declared_taxa(doc)
+    # THE SAME ATTRIBUTION THE INGEST APPLIES. Without it this script would
+    # report rows as unresolved that the ingest resolves, and the reader
+    # would chase a loss that is already handled.
+    acc_map = ppi_accession_map(doc)
 
     # NARROWING IS BY THE SAME RULE THE REPORT USED. ingest_vhppi names the
     # viruses whose rows all died; this is the script you run next, and it
@@ -144,7 +148,7 @@ def main() -> int:
             if not line.strip() or line.startswith("#"):
                 continue
             rows += 1
-            v = classify_row(line, index, taxon_map)
+            v = classify_row(line, index, taxon_map, acc_map)
             gates[v.gate or "EMITTED (before dedupe)"] += 1
             if v.gate == "unparseable":
                 unparseable += 1

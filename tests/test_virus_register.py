@@ -407,3 +407,91 @@ def test_a_ppi_isolate_is_not_mistaken_for_a_chain_source(doc):
     assert str(sars["chain_source"]["taxon"]) == "694009"
     assert "227984" in [str(x) for x in sars["isolate_taxa"]]
     assert sars["chain_source"]["accession"] == "P0C6X7"
+
+
+# ---------------- attributing a measured accession to a carried reference
+def _codes(doc):
+    return {v.code for v in validate(doc)}
+
+
+def test_a_mapping_must_point_at_an_accession_this_entry_carries():
+    """Otherwise the register records that the rows were handled while the
+    mapping resolves to nothing and they stay lost."""
+    d = _entry(ppi_accession_map={"A0A0": "P99999"},
+               ppi_accession_note="x")
+    assert "PPI_MAP_TARGET_NOT_CARRIED" in _codes(d)
+
+
+def test_the_chain_source_accession_counts_as_carried():
+    d = _entry(ppi_accession_map={"A0A0": "P00000"},
+               ppi_accession_note="x")
+    assert "PPI_MAP_TARGET_NOT_CARRIED" not in _codes(d)
+
+
+def test_an_extra_accession_counts_as_carried():
+    d = _entry(extra_accessions=["P12345"],
+               ppi_accession_map={"A0A0": "P12345"},
+               ppi_accession_note="x")
+    assert "PPI_MAP_TARGET_NOT_CARRIED" not in _codes(d)
+
+
+def test_rewriting_an_accession_the_build_carries_is_refused():
+    """That accession is a real node here. Rewriting it would throw the
+    protein away and silently merge its edges onto another."""
+    d = _entry(extra_accessions=["P12345"],
+               ppi_accession_map={"P12345": "P00000"},
+               ppi_accession_note="x")
+    assert "PPI_MAP_SOURCE_IS_CARRIED" in _codes(d)
+
+
+def test_a_self_mapping_is_refused():
+    d = _entry(ppi_accession_map={"P00000": "P00000"},
+               ppi_accession_note="x")
+    assert "PPI_MAP_SELF" in _codes(d)
+
+
+def test_a_mapping_without_a_note_is_refused():
+    """An undocumented identity-adjacent claim is the thing this register
+    exists to prevent. chain_source and extra_accessions are both stated
+    where someone can check them; this must be too."""
+    d = _entry(ppi_accession_map={"A0A0": "P00000"})
+    assert "PPI_MAP_UNEXPLAINED" in _codes(d)
+
+
+def test_no_mapping_means_no_complaint():
+    assert not _codes(_entry()) & {
+        "PPI_MAP_SELF", "PPI_MAP_TARGET_NOT_CARRIED",
+        "PPI_MAP_SOURCE_IS_CARRIED", "PPI_MAP_UNEXPLAINED"}
+
+
+def test_one_accession_cannot_be_attributed_to_two_polyproteins(doc):
+    """A collision is a curation error, not a precedence question."""
+    from kgav.virus_register import ppi_accession_map
+    bad = {"viruses": [
+        {"name": "A", "taxon": "1", "ppi_accession_map": {"X": "P1"}},
+        {"name": "B", "taxon": "2", "ppi_accession_map": {"X": "P2"}}]}
+    with pytest.raises(ValueError, match="X"):
+        ppi_accession_map(bad)
+
+
+def test_the_real_register_declares_a_valid_mapping(doc):
+    """The live claim, checked: every measured accession is attributed to
+    a polyprotein the build carries, and the register is otherwise clean.
+    """
+    from kgav.virus_register import ppi_accession_map
+    m = ppi_accession_map(doc)
+    assert m == {"A0A097PIH4": "P27909", "Q8B105": "P27909",
+                 "Q91NH1": "P27909", "Q88489": "Q01299"}
+    assert validate(doc) == []
+
+
+def test_every_mapped_virus_explains_its_basis(doc):
+    """Length, organism and gene product are what justify the attribution,
+    and a reader has to be able to see them without leaving the file."""
+    for v in doc["viruses"]:
+        if not v.get("ppi_accession_map"):
+            continue
+        note = v["ppi_accession_note"]
+        assert "aa" in note, v["name"]
+        assert "SAME_AS" in note, v["name"]
+        assert "polyprotein" in note.lower(), v["name"]
