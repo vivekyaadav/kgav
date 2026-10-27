@@ -481,7 +481,8 @@ def test_the_real_register_declares_a_valid_mapping(doc):
     from kgav.virus_register import ppi_accession_map
     m = ppi_accession_map(doc)
     assert m == {"A0A097PIH4": "P27909", "Q8B105": "P27909",
-                 "Q91NH1": "P27909", "Q88489": "Q01299"}
+                 "Q91NH1": "P27909", "Q88489": "Q01299",
+                 "Q8QXP6": "P27395"}
     assert validate(doc) == []
 
 
@@ -495,3 +496,18 @@ def test_every_mapped_virus_explains_its_basis(doc):
         assert "aa" in note, v["name"]
         assert "SAME_AS" in note, v["name"]
         assert "polyprotein" in note.lower(), v["name"]
+
+
+def test_a_deleted_measured_accession_says_so_and_cites_uniparc(doc):
+    """Q8QXP6 is gone from UniProtKB, so a reader cannot check the claim
+    by fetching it. The note must point at the record that survives --
+    UniParc UPI00000ED99D -- and say that deletion is why the evidence is
+    organism plus length rather than a live entry to compare against.
+    An unverifiable claim stated like a verifiable one is the failure this
+    whole register is built against.
+    """
+    jev = next(v for v in doc["viruses"] if v["name"] == "JEV")
+    note = jev["ppi_accession_note"]
+    assert "DELETED" in note
+    assert "UPI00000ED99D" in note
+    assert "3432" in note
