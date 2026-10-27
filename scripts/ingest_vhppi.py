@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.aliases import AliasIndex
 from kgav.emit import Emit
-from kgav.vhppi import file_taxon, ingest_mitab, slug
+from kgav.vhppi import file_source, file_taxon, ingest_mitab, slug
 from kgav.virus_register import declared_taxa, ppi_accession_map
 
 #: Gates a zero-edge virus is reported against, worst-first. Not every gate
@@ -193,14 +193,41 @@ def main() -> int:
     # ("infores:string|infores:virhostnet"). What must NOT be shared is the
     # label: an IntAct row recorded as infores:virhostnet is a false
     # provenance claim, and the tier ablation reads these labels.
-    groups = [("infores:virhostnet", sorted(args.vhppi_dir.glob("vhn_*.tab27"))),
-              ("infores:intact", sorted(args.vhppi_dir.glob("intact_*.tab27")))]
-    files = [f for _src, fs in groups for f in fs]
+    files = sorted(args.vhppi_dir.glob("*.tab27"))
     if not files:
         raise SystemExit(
-            f"no vhn_*.tab27 or intact_*.tab27 files in {args.vhppi_dir}.\n"
-            f"If intact.zip is present, scripts/filter_intact.py cuts the "
+            f"no *.tab27 files in {args.vhppi_dir}.\n"
+            f"scripts/fetch_vhppi.py fetches from a PSICQUIC service, and "
+            f"if intact.zip is present scripts/filter_intact.py cuts the "
             f"viral rows out of it.")
+
+    # EVERY FILE, GROUPED BY WHAT ITS SIDECAR SAYS. This globbed vhn_* and
+    # intact_* and labelled by the pattern, which is correct exactly while
+    # no third service is ever fetched -- and fetch_vhppi takes --base, so
+    # a MINT file would have landed as vhn_*.tab27 and been recorded as
+    # VirHostNet. A glob cannot know where a file came from; the sidecar
+    # the fetcher wrote can, and a file predating sidecars is covered by
+    # the declared legacy prefixes.
+    grouped: dict[str, list] = {}
+    unlabelled = []
+    for f in files:
+        src = file_source(f)
+        if not src:
+            unlabelled.append(f)
+            continue
+        grouped.setdefault(src, []).append(f)
+    if unlabelled:
+        # REFUSED, NOT GUESSED. Picking a source here is the exact false
+        # provenance claim this grouping exists to prevent, and the tier
+        # ablation reads these labels as fact.
+        raise SystemExit(
+            "no source recorded for: "
+            + ", ".join(f.name for f in unlabelled)
+            + "\nEach raw file needs a <file>.source.json naming the "
+              "service, or a filename prefix in vhppi.LEGACY_PREFIX_SOURCE."
+              "\nRefusing rather than guessing: a row labelled with the "
+              "wrong service is read as fact by the tier ablation.")
+    groups = sorted(grouped.items())
     print(f"\nparsing {len(files)} MITAB files")
     for src, fs in groups:
         if fs:

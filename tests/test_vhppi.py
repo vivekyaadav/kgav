@@ -624,3 +624,84 @@ def test_a_host_side_rewrite_is_not_reported_as_the_viral_measurement(world):
                      {"HOSTX": ACE2.split(":")[1]})
     assert v.gate is None and v.host == ACE2 and v.viral == ORF7A
     assert v.measured is None
+
+
+# ------------------------------- which service a raw file actually came from
+def test_the_sidecar_names_the_service(tmp_path):
+    from kgav.vhppi import file_source
+    f = tmp_path / "anything.tab27"
+    f.write_text("")
+    (tmp_path / "anything.tab27.source.json").write_text('{"source": "infores:mint"}')
+    assert file_source(f) == "infores:mint"
+
+
+def test_the_sidecar_beats_a_misleading_filename(tmp_path):
+    """THE WHOLE POINT. fetch_vhppi takes --base and will query any
+    PSICQUIC service. A MINT file landing under VirHostNet's naming
+    scheme must not be recorded as VirHostNet: the tier ablation reads
+    these labels as fact."""
+    from kgav.vhppi import file_source
+    f = tmp_path / "vhn_denv1.tab27"
+    f.write_text("")
+    (tmp_path / "vhn_denv1.tab27.source.json").write_text('{"source": "infores:mint"}')
+    assert file_source(f) == "infores:mint"
+
+
+@pytest.mark.parametrize("name,src", [
+    ("vhn_denv1.tab27", "infores:virhostnet"),
+    ("intact_viral.tab27", "infores:intact"),
+])
+def test_a_file_predating_sidecars_falls_back_to_its_prefix(tmp_path, name, src):
+    """The coronavirus files were placed by hand and their names are the
+    only record of where they came from."""
+    from kgav.vhppi import file_source
+    f = tmp_path / name
+    f.write_text("")
+    assert file_source(f) == src
+
+
+def test_an_unknown_file_has_no_source_rather_than_a_guessed_one(tmp_path):
+    """None is the signal the ingest refuses on. Inventing a label here
+    is the false provenance claim this function exists to stop."""
+    from kgav.vhppi import file_source
+    f = tmp_path / "mint_denv4.tab27"
+    f.write_text("")
+    assert file_source(f) is None
+
+
+def test_a_corrupt_sidecar_falls_back_to_the_prefix(tmp_path):
+    from kgav.vhppi import file_source
+    f = tmp_path / "vhn_x.tab27"
+    f.write_text("")
+    (tmp_path / "vhn_x.tab27.source.json").write_text("{not json")
+    assert file_source(f) == "infores:virhostnet"
+
+
+def test_a_sidecar_with_no_source_field_falls_back(tmp_path):
+    """Sidecars written before --source existed have every other field."""
+    from kgav.vhppi import file_source
+    f = tmp_path / "vhn_y.tab27"
+    f.write_text("")
+    (tmp_path / "vhn_y.tab27.source.json").write_text('{"url": "http://x"}')
+    assert file_source(f) == "infores:virhostnet"
+
+
+def test_the_ingest_refuses_a_file_whose_source_nothing_records(tmp_path,
+                                                                world):
+    """Rather than labelling it with whichever group it was globbed into.
+    Guessing here is the false provenance claim the grouping exists to
+    prevent, and the tier ablation reads these labels as fact.
+    """
+    import subprocess
+    import sys
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    (raw / "mint_denv4.tab27").write_text("")
+    out = subprocess.run(
+        [sys.executable, str(ROOT / "scripts/ingest_vhppi.py"),
+         "--vhppi-dir", str(raw), "--spine", str(world / "spine"),
+         "--host", str(world / "host"), "--out", str(tmp_path / "o")],
+        capture_output=True, text=True, timeout=120, check=False)
+    assert out.returncode != 0
+    assert "no source recorded for: mint_denv4.tab27" in (out.stdout + out.stderr)
+    assert "Refusing rather than guessing" in (out.stdout + out.stderr)

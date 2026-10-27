@@ -25,6 +25,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import fetch_vhppi as F
 
 BASE = "https://example.invalid/psicquic"
+SRC = "infores:virhostnet"
 
 
 def _entry(**kw):
@@ -102,7 +103,7 @@ def test_an_empty_answer_is_not_a_failure(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(F, "fetch", lambda url: b"0")
     cfg = tmp_path / "v.yaml"
     cfg.write_text(yaml.safe_dump({"viruses": [_entry()]}))
-    rc = F.main(["--base", BASE, "--config", str(cfg),
+    rc = F.main(["--base", BASE, "--source", SRC, "--config", str(cfg),
                  "--out", str(tmp_path / "raw")])
     out = capsys.readouterr().out
     assert rc == 0
@@ -118,7 +119,7 @@ def test_a_failed_query_is_not_an_empty_result(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(F, "fetch", boom)
     cfg = tmp_path / "v.yaml"
     cfg.write_text(yaml.safe_dump({"viruses": [_entry()]}))
-    rc = F.main(["--base", BASE, "--config", str(cfg),
+    rc = F.main(["--base", BASE, "--source", SRC, "--config", str(cfg),
                  "--out", str(tmp_path / "raw")])
     out = capsys.readouterr().out
     assert rc == 1
@@ -131,7 +132,7 @@ def test_a_dry_run_writes_nothing(tmp_path, monkeypatch):
     monkeypatch.setattr(F, "fetch", lambda url: b"42")
     cfg = tmp_path / "v.yaml"
     cfg.write_text(yaml.safe_dump({"viruses": [_entry()]}))
-    F.main(["--base", BASE, "--config", str(cfg), "--dry-run",
+    F.main(["--base", BASE, "--source", SRC, "--config", str(cfg), "--dry-run",
             "--out", str(tmp_path / "raw")])
     assert not (tmp_path / "raw").exists() or not list(
         (tmp_path / "raw").glob("*"))
@@ -148,7 +149,7 @@ def test_an_existing_file_is_left_alone(tmp_path, monkeypatch, capsys):
     existing.write_bytes(b"ORIGINAL")
     cfg = tmp_path / "v.yaml"
     cfg.write_text(yaml.safe_dump({"viruses": [_entry()]}))
-    F.main(["--base", BASE, "--config", str(cfg), "--out", str(raw)])
+    F.main(["--base", BASE, "--source", SRC, "--config", str(cfg), "--out", str(raw)])
     assert existing.read_bytes() == b"ORIGINAL"
     assert "exists, left alone" in capsys.readouterr().out
 
@@ -161,7 +162,7 @@ def test_overwrite_replaces_it(tmp_path, monkeypatch):
     (raw / "vhn_denv2.tab27").write_bytes(b"ORIGINAL")
     cfg = tmp_path / "v.yaml"
     cfg.write_text(yaml.safe_dump({"viruses": [_entry()]}))
-    F.main(["--base", BASE, "--config", str(cfg), "--out", str(raw),
+    F.main(["--base", BASE, "--source", SRC, "--config", str(cfg), "--out", str(raw),
             "--overwrite"])
     assert (raw / "vhn_denv2.tab27").read_bytes() == b"new\trow\n"
 
@@ -174,7 +175,7 @@ def test_the_sidecar_records_what_was_asked_and_what_came_back(
     raw = tmp_path / "raw"
     cfg = tmp_path / "v.yaml"
     cfg.write_text(yaml.safe_dump({"viruses": [_entry(isolate_taxa=["31634"])]}))
-    F.main(["--base", BASE, "--config", str(cfg), "--out", str(raw)])
+    F.main(["--base", BASE, "--source", SRC, "--config", str(cfg), "--out", str(raw)])
     side = json.loads((raw / "vhn_denv2.tab27.source.json").read_text())
     assert side["taxids_queried"] == ["11060", "31634"]
     assert side["n_rows"] == 2
@@ -194,7 +195,7 @@ def test_the_sidecar_sits_beside_the_file_like_every_other(
     raw = tmp_path / "raw"
     cfg = tmp_path / "v.yaml"
     cfg.write_text(yaml.safe_dump({"viruses": [_entry()]}))
-    F.main(["--base", BASE, "--config", str(cfg), "--out", str(raw)])
+    F.main(["--base", BASE, "--source", SRC, "--config", str(cfg), "--out", str(raw)])
     assert (raw / "vhn_denv2.tab27.source.json").exists()
 
 
@@ -208,7 +209,7 @@ def test_a_row_count_differing_from_the_interaction_count_is_flagged(
                         else b"only\tone\n")
     cfg = tmp_path / "v.yaml"
     cfg.write_text(yaml.safe_dump({"viruses": [_entry()]}))
-    F.main(["--base", BASE, "--config", str(cfg),
+    F.main(["--base", BASE, "--source", SRC, "--config", str(cfg),
             "--out", str(tmp_path / "raw")])
     assert "against a count of" in capsys.readouterr().out
 
@@ -221,7 +222,7 @@ def test_family_selects_only_that_family(tmp_path, monkeypatch, capsys):
         _entry(),
         {"taxon": "2697049", "name": "SARS-CoV-2", "family": "Coronaviridae"},
     ]}))
-    F.main(["--base", BASE, "--config", str(cfg), "--dry-run",
+    F.main(["--base", BASE, "--source", SRC, "--config", str(cfg), "--dry-run",
             "--family", "Flaviviridae", "--out", str(tmp_path / "raw")])
     out = capsys.readouterr().out
     assert "DENV-2" in out and "SARS-CoV-2" not in out
@@ -230,7 +231,7 @@ def test_family_selects_only_that_family(tmp_path, monkeypatch, capsys):
 def test_a_family_matching_nothing_exits_two(tmp_path, capsys):
     cfg = tmp_path / "v.yaml"
     cfg.write_text(yaml.safe_dump({"viruses": [_entry()]}))
-    rc = F.main(["--base", BASE, "--config", str(cfg),
+    rc = F.main(["--base", BASE, "--source", SRC, "--config", str(cfg),
                  "--family", "Nope", "--out", str(tmp_path / "raw")])
     assert rc == 2
     assert "no virus in the register matches" in capsys.readouterr().out
@@ -278,3 +279,78 @@ def test_the_query_path_is_appended_to_a_base_without_webservices():
     assert not F.QUERY_PATH.startswith("/")
     u = F.url_for("http://h:9090/psicquic", ["11060"], "count")
     assert u.count("/webservices/") == 1
+
+
+# ----------------------------------------- the service is named, not guessed
+def test_the_source_is_required():
+    """Same reason --base is. The file is labelled with this, and a
+    service inferred from a filename is a false provenance claim that
+    the tier ablation then reads as fact."""
+    with pytest.raises(SystemExit):
+        F.main(["--base", BASE, "--config", str(ROOT / "config/viruses.yaml"),
+                "--dry-run"])
+
+
+@pytest.mark.parametrize("source,pfx", [
+    ("infores:virhostnet", "vhn"),
+    ("infores:intact", "intact"),
+])
+def test_the_two_services_already_on_disk_keep_their_prefixes(source, pfx):
+    """Renaming them would orphan the sidecars beside them, which are
+    the provenance those files have."""
+    assert F.prefix_for(source) == pfx
+
+
+@pytest.mark.parametrize("source,pfx", [
+    ("infores:mint", "mint"),
+    ("infores:biogrid", "biogrid"),
+    ("infores:matrix-db", "matrixdb"),
+])
+def test_a_new_service_derives_a_prefix_of_its_own(source, pfx):
+    assert F.prefix_for(source) == pfx
+
+
+def test_two_services_do_not_write_the_same_filename():
+    """A MINT fetch overwriting a VirHostNet file would destroy the
+    source it replaced and keep its sidecar."""
+    names = {F.prefix_for(s) for s in
+             ("infores:virhostnet", "infores:intact", "infores:mint",
+              "infores:biogrid", "infores:dip")}
+    assert len(names) == 5
+
+
+def test_the_file_is_named_for_its_service(tmp_path, monkeypatch):
+    monkeypatch.setattr(F, "fetch", lambda url: b"1" if "count" in url
+                        else b"r\n")
+    raw = tmp_path / "raw"
+    cfg = tmp_path / "v.yaml"
+    cfg.write_text(yaml.safe_dump({"viruses": [_entry()]}))
+    F.main(["--base", BASE, "--source", "infores:mint",
+            "--config", str(cfg), "--out", str(raw)])
+    assert (raw / "mint_denv2.tab27").exists()
+    assert not (raw / "vhn_denv2.tab27").exists()
+
+
+def test_the_sidecar_records_the_service(tmp_path, monkeypatch):
+    monkeypatch.setattr(F, "fetch", lambda url: b"1" if "count" in url
+                        else b"r\n")
+    raw = tmp_path / "raw"
+    cfg = tmp_path / "v.yaml"
+    cfg.write_text(yaml.safe_dump({"viruses": [_entry()]}))
+    F.main(["--base", BASE, "--source", "infores:mint",
+            "--config", str(cfg), "--out", str(raw)])
+    side = json.loads((raw / "mint_denv2.tab27.source.json").read_text())
+    assert side["source"] == "infores:mint"
+
+
+def test_the_ingest_reads_back_what_the_fetcher_wrote(tmp_path, monkeypatch):
+    """The two halves have to agree, or the label is decided twice."""
+    from kgav.vhppi import file_source
+    monkeypatch.setattr(F, "fetch", lambda url: b"1" if "count" in url
+                        else b"r\n")
+    raw = tmp_path / "raw"
+    cfg = tmp_path / "v.yaml"
+    cfg.write_text(yaml.safe_dump({"viruses": [_entry()]}))
+    F.main(["--base", BASE, "--source", "infores:mint",
+            "--config", str(cfg), "--out", str(raw)])
+    assert file_source(raw / "mint_denv2.tab27") == "infores:mint"

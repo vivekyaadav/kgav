@@ -453,7 +453,8 @@ def test_the_real_tree_is_searched_not_a_fixed_list():
     for expected in ("filter_intact.py", "ingest_vhppi.py",
                      "fetch_vhppi.py", "test_vhppi.py"):
         assert expected in names, sorted(names)
-    # src/kgav/vhppi.py is the PARSER: it names neither raw file, so it is
-    # correctly out of scope. Asserting it here was the test being wrong
-    # about the code rather than the other way round.
-    assert "vhppi.py" not in names
+    # No negative assertion here. An earlier version pinned
+    # "vhppi.py" as OUT of scope, which was true while the parser named
+    # neither raw file and false the moment it grew the legacy-prefix
+    # table. Membership is a property of what a file says, so locking a
+    # particular file out of the set tests a coincidence.
