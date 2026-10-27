@@ -59,11 +59,10 @@ def coverage_lines(per_virus, taxon_map: dict, nodes: dict,
     """Edges per virus over EVERY declared-and-built virus, zeros included.
 
     This was per_virus.most_common(), so a virus with zero edges did not
-    appear at all -- and the comment in main records that exactly this
-    happened: no flavivirus file was ever fetched, Zika sat in the taxon
-    map producing nothing, and the build said so nowhere. The absence was
-    discoverable only by noticing which labels were missing from a list
-    that never claimed to be complete.
+    appear at all. Before 2026-10-27 the flavivirus files had not been
+    fetched, Zika sat in the taxon map producing nothing, and the build
+    said so nowhere. The absence was discoverable only by noticing which
+    labels were missing from a list that never claimed to be complete.
 
     Same correction pathway_landscape already carries for its own coverage
     table. A zero is a finding about the SOURCE rather than about the
@@ -181,13 +180,13 @@ def main() -> int:
         print(f"  {len(acc_map)} measured accession(s) attributed to "
               f"{len(set(acc_map.values()))} reference polyprotein(s)")
 
-    # TWO SOURCES, ONE LAYER. This globbed vhn_*.tab27 only, and
-    # data/raw/vhppi also held intact.zip -- 1.35 GB, dated 2026-01-14,
-    # never read, because the pattern did not match it. The seven vhn files
-    # are one coronavirus each and no flavivirus file was ever fetched,
-    # which is why Zika produced zero edges while being in the taxon map
-    # since 2026-10-12. The broader source sat beside the narrower one and
-    # nothing said so.
+    # TWO SOURCES, ONE LAYER. This globbed vhn_*.tab27 only, so
+    # intact.zip -- 1.35 GB, in the same directory -- went unread until
+    # 2026-10-23: the pattern did not match it. The seven vhn files were
+    # one coronavirus each and the flaviviruses were missing entirely,
+    # which is why Zika produced zero edges while sitting in the taxon
+    # map. Both gaps closed 2026-10-27; the per-source lines this prints
+    # are the current answer, and no count is repeated here to go stale.
     #
     # They share a predicate and a layer, and assemble_release already
     # merges one fact from two sources into one edge carrying both

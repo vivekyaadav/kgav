@@ -4,15 +4,20 @@
     python scripts/filter_intact.py            # writes intact_viral.tab27
     python scripts/filter_intact.py --inspect  # counts per taxon, writes nothing
 
-WHY THIS EXISTS. data/raw/vhppi holds seven vhn_<taxid>.tab27 files, one per
-coronavirus, fetched 2026-09-11 -- and intact.zip, 1.35 GB, dated 2026-01-14,
-which nothing has ever read. ingest_vhppi globs `vhn_*.tab27`, so the larger
-and broader source sat beside the narrower one, unused and unmentioned, while
-the flavivirus PPI gap was recorded as a missing download.
+WHY THIS EXISTS (HISTORY, NOT CURRENT STATE). data/raw/vhppi once held
+seven vhn_<taxid>.tab27 files, one per coronavirus, fetched 2026-09-11, and
+intact.zip at 1.35 GB, unread until 2026-10-23, because ingest_vhppi
+globbed `vhn_*.tab27` and the pattern did not match it. The broader source sat
+beside the narrower one while the flavivirus PPI gap was recorded as a
+missing download.
 
-That gap is real for VirHostNet: no flavivirus file was ever fetched, which
-is why Zika produced zero edges despite being in the taxon map since
-2026-10-12. IntAct covers all species, so the rows may be here already.
+CURRENT STATE, 2026-10-27: both sources are in the layer. ingest_vhppi
+reads 12,638 VirHostNet rows across 15 files and 12,496 IntAct rows from
+intact_viral.tab27, for 20,895 edges. This paragraph is dated because the
+undated version of it misled a reader into calling IntAct unread weeks
+after it had been ingested -- the same stale-claim failure the zero-edge
+report carried. Check the ingest's own per-source line before
+believing any count written here.
 
 STREAMED, NOT EXTRACTED. The archive expands to several GB of which a tiny
 fraction is viral. zipfile.open gives a file object over the compressed

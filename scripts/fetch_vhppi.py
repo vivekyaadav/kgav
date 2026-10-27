@@ -4,11 +4,14 @@
     python scripts/fetch_vhppi.py --base <restUrl> --dry-run   # counts only
     python scripts/fetch_vhppi.py --base <restUrl>             # write files
 
-WHY THIS EXISTS. data/raw/vhppi held seven vhn_*.tab27 files, one
-coronavirus each, and no flavivirus file had ever been fetched -- nine of
-sixteen built viruses with no virus-host PPI at all, and 9 edges between
-them. The files were placed by hand from a host that has since moved, so
-there was nothing to re-run and nothing recording where they came from.
+WHY THIS EXISTS (HISTORY). data/raw/vhppi held seven vhn_*.tab27 files,
+one coronavirus each, and the flaviviruses were missing entirely --
+nine of sixteen built viruses with no virus-host PPI at all, and 9 edges
+between them. The files were placed by hand from a host that has since
+moved, so there was nothing to re-run and nothing recording where they
+came from. This script closed that: the flaviviruses were fetched
+2026-10-27 and every file it writes carries a sidecar. Ask the directory
+what is there now rather than this paragraph.
 
 THE BASE URL IS REQUIRED AND NOT DEFAULTED. VirHostNet moved from
 virhostnet.prabi.fr to virhostnet.univ-lyon1.fr and distributes through
