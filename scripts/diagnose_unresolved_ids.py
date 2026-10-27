@@ -4,8 +4,8 @@
     python scripts/diagnose_unresolved_ids.py
     python scripts/diagnose_unresolved_ids.py --samples 10
 
-WHY. ingest_vhppi.py reports `unresolved_id 513` (4.4% of rows on v0.1) and
-stops there. That single number is consistent with two opposite situations:
+WHY. ingest_vhppi.py reports a single `unresolved_id` count and stops
+there. That one number is consistent with two opposite situations:
 
     a HOST protein the build does not carry   -> interactome that is missing,
                                                  and M3/M4/M5 are thinner for it

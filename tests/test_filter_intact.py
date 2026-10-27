@@ -1,10 +1,11 @@
 """Cutting the viral rows out of IntAct's full release.
 
 WHAT THIS IS FOR. data/raw/vhppi held seven vhn_<taxid>.tab27 files, one per
-coronavirus, and intact.zip at 1.35 GB which nothing had ever read --
+coronavirus, and intact.zip at 1.35 GB, unread until 2026-10-23 --
 ingest_vhppi globbed `vhn_*.tab27` and the pattern did not match it. The
 flavivirus PPI gap was recorded as a missing download while a broader source
-sat in the same directory.
+sat in the same directory. Both are long since fixed: this file is the gate
+that keeps them fixed, and the paragraph above is history.
 """
 from __future__ import annotations
 
@@ -367,3 +368,92 @@ def test_the_scan_refuses_before_reading_anything(tmp_path):
         fi.scan(z, set(), None, None)
     with pytest.raises(SystemExit):
         fi.scan(z, set(), "intact_negative.txt", None)
+
+
+#: Phrasings that assert, in the present perfect, that a source has never
+#: been read or fetched. Banned outright in this layer's docs rather than
+#: allowed with a nearby disclaimer: the first version of this test looked
+#: for a marker within 400 characters, and a `HISTORY` heading at the top
+#: of a docstring whitewashed every claim below it. A ban has no window to
+#: aim at.
+NEVER_CLAIMS = ("nothing has ever read", "which nothing read",
+                "nothing had ever read", "was ever fetched",
+                "had ever been fetched", "never read, because")
+
+#: Derived, not listed. A hand-written list is a list someone forgets to
+#: add to: dropping filter_intact.py from it left the ban passing while
+#: the file that carried the original stale claim went unchecked. Any
+#: source or test that talks about this layer's raw directory is in scope
+#: by virtue of talking about it.
+#: What makes a file part of this layer's documentation.
+LAYER_MARKS = ("intact.zip", "vhn_*.tab27")
+
+
+def layer_docs(roots=None):
+    roots = roots or [ROOT / "scripts", ROOT / "src" / "kgav", ROOT / "tests"]
+    out = []
+    for r in roots:
+        for f in sorted(r.rglob("*.py")):
+            t = f.read_text()
+            if any(m in t for m in LAYER_MARKS):
+                out.append(f)
+    return out
+
+
+def test_no_doc_in_this_layer_says_a_source_has_never_been_read():
+    """The claim that cost an evening.
+
+    filter_intact's docstring said intact.zip was a file "nothing has ever
+    read". True when written, stale by the time it was quoted back as
+    current fact: IntAct had been in the layer for weeks, supplying 12,496
+    of the 25,134 rows the ingest reads. A reader acting on it went
+    looking for a source that was already there, and then reasoned about
+    DENV-4 and Yellow fever from a false premise.
+
+    Same failure as the zero-edge report -- a sentence naming a state of
+    the world with nothing tying it to the run that prints it. Prose
+    cannot be derived from the data, so the rule is: describe the past in
+    the past tense, with the date it stopped being true. "Was unread
+    until 2026-10-23" cannot rot. "Nothing has ever read it" rots the
+    moment someone reads it.
+    """
+    checked = layer_docs()
+    assert len(checked) >= 4, [f.name for f in checked]
+    for path in checked:
+        name = str(path.relative_to(ROOT))
+        text = path.read_text()
+        if name == "tests/test_filter_intact.py":
+            # This file necessarily quotes the banned phrasings to ban
+            # them; only its own NEVER_CLAIMS tuple and docstrings may.
+            text = text[:text.index("NEVER_CLAIMS = (")]
+        for phrase in NEVER_CLAIMS:
+            assert phrase not in text, (
+                f"{name} says {phrase!r}. Write the past in the past "
+                f"tense with the date it stopped being true.")
+
+
+def test_discovery_finds_a_file_by_either_mark(tmp_path):
+    """The ban passes trivially once every file is clean, so narrowing
+    this search would go unnoticed -- and it did: an earlier version
+    listed the files by hand and had dropped filter_intact.py, the very
+    file whose stale claim started this. Both marks are exercised here
+    because a file can belong to this layer by naming either one.
+    """
+    (tmp_path / "a.py").write_text('x = "intact.zip"\n')
+    (tmp_path / "b.py").write_text('y = "vhn_*.tab27"\n')
+    (tmp_path / "c.py").write_text("z = 1\n")
+    found = {f.name for f in layer_docs([tmp_path])}
+    assert found == {"a.py", "b.py"}
+
+
+def test_the_real_tree_is_searched_not_a_fixed_list():
+    """Every file that talks about this layer is in scope by virtue of
+    talking about it, so a new one is covered the day it is written."""
+    names = {f.name for f in layer_docs()}
+    for expected in ("filter_intact.py", "ingest_vhppi.py",
+                     "fetch_vhppi.py", "test_vhppi.py"):
+        assert expected in names, sorted(names)
+    # src/kgav/vhppi.py is the PARSER: it names neither raw file, so it is
+    # correctly out of scope. Asserting it here was the test being wrong
+    # about the code rather than the other way round.
+    assert "vhppi.py" not in names

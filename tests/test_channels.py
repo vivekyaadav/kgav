@@ -162,8 +162,10 @@ def test_m3_cannot_reach_a_newly_promoted_virus_without_virhostnet(metapaths):
 
     and the second Protein is the VIRAL one, because the Gene under it belongs
     to the virus. host's PPIs are human-human and cannot reach a viral taxon;
-    only vhppi bridges host to virus, and it has no flavivirus files. So M3
-    cannot reach Zika, and the report said it could.
+    only vhppi bridges host to virus, and at the time it had no flavivirus
+    files. So M3 could not reach Zika, and the report said it could. The
+    files exist now; this test pins the REACHABILITY RULE against the
+    layer set it is given, not the state of the directory.
     """
     from kgav.channels import reachable_for_virus
 

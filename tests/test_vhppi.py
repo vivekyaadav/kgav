@@ -293,9 +293,9 @@ _MAP = {"2697049": "2697049", "64320": "64320", "11060": "11060",
 def test_a_virus_with_no_edges_is_named_not_omitted():
     """The report was per_virus.most_common(), so a zero did not appear.
 
-    No flavivirus file was ever fetched for VirHostNet -- the vhn_*.tab27
-    files are one coronavirus each -- and Zika sat in the taxon map
-    producing nothing while the build said so nowhere.
+    Before 2026-10-27 no flavivirus file had been fetched for VirHostNet
+    -- the vhn_*.tab27 files were one coronavirus each -- and Zika sat in
+    the taxon map producing nothing while the build said so nowhere.
     """
     from collections import Counter
     lines = coverage_lines(Counter({"NCBITaxon:2697049": 12}), _MAP, _NODES)
