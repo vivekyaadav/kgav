@@ -5,6 +5,7 @@ before the selectivity layer added 1,568 activity edges, and was still read
 as a baseline afterwards. A positive count that had fallen 1,011 -> 889 read
 as a rise from 736, because nothing in the file said which graph it described.
 """
+import ast
 import json
 import re
 from pathlib import Path
@@ -487,3 +488,108 @@ def test_code_commit_returns_the_two_keys_with_usable_types():
     assert set(got) == {"commit", "dirty"}
     assert got["commit"] is None or re.fullmatch(r"[0-9a-f]{40}", got["commit"])
     assert got["dirty"] in (True, False, None)
+
+
+# ------------------- the claim that every results writer goes through here
+#: Calls that write a file, and calls that write it WITH the shared
+#: stamp. Matched as AST calls rather than as substrings: the first
+#: version grepped the source, and pathway_landscape.py passed while
+#: writing its own stamp, because the comment explaining the rule
+#: contained the word write_results. A comment voted on compliance.
+RAW_WRITES = {"write_text", "dump"}
+STAMPED_WRITES = {"write_results", "write_refusal"}
+
+
+def _called_names(tree) -> set[str]:
+    out = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        f = node.func
+        if isinstance(f, ast.Name):
+            out.add(f.id)
+        elif isinstance(f, ast.Attribute):
+            out.add(f.attr)
+    return out
+
+
+def _results_paths(tree) -> bool:
+    return any(isinstance(n, ast.Constant) and isinstance(n.value, str)
+               and re.search(r"data/results[^\"']*\.json", n.value)
+               for n in ast.walk(tree))
+
+
+def _offends(src: str) -> bool:
+    """Writes a results file without the shared stamp."""
+    tree = ast.parse(src)
+    called = _called_names(tree)
+    if not (called & (RAW_WRITES | STAMPED_WRITES)):
+        return False
+    if not _results_paths(tree):
+        return False
+    return not (called & STAMPED_WRITES)
+
+
+RESULT_PATH = '"data/results/x.json"'
+
+
+def test_the_detector_sees_a_raw_write_to_results():
+    """Exercised directly, because the check above passes trivially once
+    every script complies -- so narrowing the detector would be
+    invisible, which is how the substring version survived its mutants.
+    """
+    assert _offends(f"import json\np = {RESULT_PATH}\n"
+                    "open(p,'w').write_text(json.dumps({}))")
+
+
+def test_the_detector_accepts_a_stamped_write():
+    assert not _offends(f"from kgav.provenance import write_results\n"
+                        f"write_results({RESULT_PATH}, {{}}, r)")
+
+
+def test_a_raw_write_somewhere_else_is_not_this_rule():
+    """Writing a file is fine. Writing a RESULTS file unstamped is not."""
+    assert not _offends("open('/tmp/scratch.json','w').write_text('{}')")
+
+
+def test_reading_a_results_file_is_not_writing_one():
+    """calibrate.py and kgav_ask.py read hard_negatives.json and write
+    nothing. The first version of this check flagged both."""
+    assert not _offends(f"p = {RESULT_PATH}\nd = json.loads(open(p).read())")
+
+
+def test_a_comment_naming_the_helper_does_not_count_as_using_it():
+    """The regression that made the substring version useless: the
+    comment explaining why write_results is required contained the
+    words write_results, so the file reporting on itself passed."""
+    assert _offends(
+        f"# we go through write_results, like every other writer\n"
+        f"p = {RESULT_PATH}\n"
+        f"p.write_text('{{}}')")
+
+
+def test_every_script_writing_a_result_uses_write_results():
+    """write_results' docstring says "Every results writer goes through
+    here, so a new one cannot forget." It said that while
+    pathway_landscape.py did not, and so it forgot.
+
+    What that cost: pathway_landscape.json recorded `"release": "v0.1"`,
+    the directory NAME. v0.1 was reassembled in place on 2026-10-27 --
+    same name, different graph, 795 new edges -- and a file stamped with
+    the name cannot tell the two apart. That is the precise failure
+    kgav.provenance exists to prevent, and its own module docstring
+    describes it: "a release rebuilt in place keeps its name and is a
+    different graph."
+
+    A docstring asserting a property nothing checks is how the property
+    stops being true.
+    """
+    offenders = [p.name for p in sorted((ROOT / "scripts").glob("*.py"))
+                 if _offends(p.read_text())]
+    assert not offenders, (
+        "these write a results file without the shared stamp:\n  "
+        + "\n  ".join(offenders)
+        + "\n\nUse kgav.provenance.write_results. A hand-rolled stamp "
+          "records the release NAME, which does not change when a "
+          "release is rebuilt in place."
+    )
