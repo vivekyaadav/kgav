@@ -44,8 +44,34 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.aliases import AliasIndex
+from kgav.vhppi import classify_row, file_taxon, slug
 from kgav.virus_register import declared_taxa
-from kgav.vhppi import classify_row
+
+
+def select_files(files: list, doc: dict, taxon_map: dict,
+                 family: str | None, names: list | None) -> tuple[list, int]:
+    """The subset of raw files fetched for the viruses asked for.
+
+    A name that matches no register virus is an error rather than an empty
+    result: "--virus DENV1" silently returning nothing reads as "that virus
+    has no unresolved rows", which is the opposite of the truth.
+    """
+    viruses = doc["viruses"]
+    by_name = {v["name"].lower(): v for v in viruses}
+    wanted = {str(v["taxon"]) for v in viruses
+              if family and (v.get("family") or "") == family}
+    for n in names or []:
+        v = by_name.get(n.lower())
+        if v is None:
+            raise SystemExit(
+                f"--virus {n!r} is not a register virus. Known: "
+                + ", ".join(sorted(x["name"] for x in viruses)))
+        wanted.add(str(v["taxon"]))
+    wanted = {taxon_map.get(t, t) for t in wanted}
+    by_stem = {slug(v["name"]): str(v["taxon"]) for v in viruses}
+    keep = [f for f in files
+            if file_taxon(f, by_stem, taxon_map) in wanted]
+    return keep, len(files) - len(keep)
 
 
 def main() -> int:
@@ -57,6 +83,12 @@ def main() -> int:
     ap.add_argument("--host", type=Path, default=root / "data" / "releases" / "v0.1-host")
     ap.add_argument("--samples", type=int, default=6,
                     help="verbatim identifiers to print per taxon")
+    ap.add_argument("--family", default=None,
+                    help="only files fetched for viruses of this register "
+                         "family, e.g. Flaviviridae")
+    ap.add_argument("--virus", action="append", default=None,
+                    help="only files fetched for this register virus; "
+                         "repeatable")
     args = ap.parse_args()
 
     for p in (args.spine, args.host):
@@ -69,7 +101,23 @@ def main() -> int:
         return 2
 
     index = AliasIndex.from_releases(args.spine, args.host)
-    taxon_map = declared_taxa(yaml.safe_load(args.config.read_text()))
+    doc = yaml.safe_load(args.config.read_text())
+    taxon_map = declared_taxa(doc)
+
+    # NARROWING IS BY THE SAME RULE THE REPORT USED. ingest_vhppi names the
+    # viruses whose rows all died; this is the script you run next, and it
+    # has to look at exactly the files that report counted. Attribution
+    # therefore comes from vhppi.file_taxon rather than a glob written here
+    # -- a filter that disagreed with the report would send the reader to
+    # the wrong rows while looking like it had answered.
+    if args.family or args.virus:
+        files, dropped = select_files(files, doc, taxon_map,
+                                      args.family, args.virus)
+        if not files:
+            print(f"no file in {args.vhppi_dir} was fetched for "
+                  f"{args.family or ''}{args.virus or ''}", file=sys.stderr)
+            return 2
+        print(f"narrowed to {len(files)} file(s); {dropped} left out")
     print(f"index: {len(index):,} nodes, {len(index.alias):,} aliases")
     print(f"register: {len(taxon_map)} viral taxids -> "
           f"{len(set(taxon_map.values()))} species")

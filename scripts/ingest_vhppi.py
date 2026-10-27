@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.aliases import AliasIndex
 from kgav.emit import Emit
-from kgav.vhppi import ingest_mitab, slug
+from kgav.vhppi import file_taxon, ingest_mitab, slug
 from kgav.virus_register import declared_taxa
 
 #: Gates a zero-edge virus is reported against, worst-first. Not every gate
@@ -43,17 +43,7 @@ def rows_per_taxon(per_file: dict, viruses: list, taxon_map: dict) -> dict:
     out: dict[str, Counter] = {}
     unattributed: Counter = Counter()
     for path, c in per_file.items():
-        taxon = None
-        side = Path(str(path) + ".source.json")
-        if side.exists():
-            try:
-                taxon = str(json.loads(side.read_text()).get("taxon") or "")
-            except (ValueError, OSError):
-                taxon = None
-        if not taxon:
-            stem = Path(path).stem
-            taxon = by_stem.get(stem.removeprefix("vhn_"))
-        taxon = taxon_map.get(taxon, taxon) if taxon else None
+        taxon = file_taxon(path, by_stem, taxon_map)
         if not taxon:
             unattributed += c
             continue
