@@ -52,7 +52,6 @@ a file that looks complete because it was filtered.
 from __future__ import annotations
 
 import argparse
-import json
 import random
 import sys
 from collections import Counter, defaultdict
@@ -65,6 +64,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from kgav.baselines import Graph  # noqa: E402
 from kgav.schema import load_schema  # noqa: E402
+from kgav.provenance import write_results
 
 # THE ONE IMPLEMENTATION, imported. A second copy of an exact hypergeometric
 # tail would drift from the one Phase 4 validated against scipy over 400
@@ -323,6 +323,18 @@ def _write(out: Path, args, rows: dict[str, dict],
     enriched" on the strength of a single row. The loader refuses a partial
     file for exactly that reason.
     """
+    # THROUGH write_results, LIKE EVERY OTHER RESULTS WRITER. This wrote
+    # its own stamp -- measured_on, measured_by, and `release` as the
+    # directory NAME -- which is strictly weaker than the shared one and
+    # failed in exactly the way kgav.provenance was written to prevent:
+    # v0.1 was reassembled in place on 2026-10-27, keeping its name while
+    # becoming a different graph, and a file recording "release": "v0.1"
+    # cannot tell the two apart. The shared stamp fingerprints the CONTENT
+    # of nodes.jsonl and edges.jsonl, so it can.
+    #
+    # measured_on and measured_by are kept: the loader reads the first and
+    # the second names the script, which the provenance block's `code`
+    # (a commit) does not.
     doc = {
         "measured_on": date.today().isoformat(),
         "measured_by": "scripts/pathway_landscape.py",
@@ -335,9 +347,7 @@ def _write(out: Path, args, rows: dict[str, dict],
         "taxa": rows,
         "uncovered": uncovered,
     }
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(doc, indent=2, sort_keys=True,
-                              allow_nan=False) + "\n")
+    write_results(out, doc, args.release)
     print(f"\n  wrote {out} — {len(rows)} taxon(s) measured, "
           f"{len(uncovered)} with no dependency factor"
           + ("  [PARTIAL: one taxon only]" if args.virus else ""))
