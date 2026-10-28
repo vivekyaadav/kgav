@@ -113,7 +113,44 @@ def test_refusal_explains_and_offers_what_is_supported():
 
 def test_supported_queries_are_allowed():
     assert check(QueryKind.EXPLAIN, SARS2).allowed is True
-    assert check(QueryKind.TRIAGE, SARS2).warnings == []
+
+
+def test_the_calibrated_virus_is_not_exempt_from_the_caveat_by_name():
+    """THIS TEST USED TO ASSERT THE DEFECT: `check(TRIAGE, SARS2).warnings
+    == []`, with no calibration passed at all.
+
+    The gate was `virus != SUPPORTED_VIRUS`, so SARS-CoV-2 skipped the
+    not-validated caveat by string comparison rather than by anything
+    measured. Run the agent with the results file absent, unreadable, or
+    measured on another release and every other virus correctly reports
+    that its reliability is unknown, while the flagship virus -- the one
+    a reader is most likely to ask about and most likely to believe --
+    says nothing. Silence is the strongest claim the output can make,
+    and it was being made by a constant.
+
+    Handed nothing, the agent now says it knows nothing, about this
+    virus like any other.
+    """
+    v = check(QueryKind.TRIAGE, SARS2)
+    assert v.allowed is True
+    assert any(getattr(w, "label", "") == "VIRUS NOT VALIDATED"
+               for w in v.warnings), (
+        f"no calibration was supplied and nothing was said: {v.warnings}")
+
+
+def test_a_measured_discriminating_channel_is_reported_not_implied():
+    """The other half: the good case gets a label of its own rather than
+    being signalled by the absence of a bad one. docs/evaluation.md, on
+    the identical mistake in its verdict column: "printed only as an
+    absence of warning, the one condition every real result here depends
+    on was left for the reader to notice."
+    """
+    v = check(QueryKind.TRIAGE, SARS2, calibration=_real_cal(0.675, 0.660,
+                                                             0.690))
+    assert v.allowed is True
+    labels = [getattr(w, "label", "") for w in v.warnings]
+    assert "CALIBRATION" in labels, labels
+    assert "VIRUS NOT VALIDATED" not in labels
 
 
 def test_unsupported_virus_carries_a_warning():
@@ -524,3 +561,33 @@ def test_a_cited_caveat_still_passes_number_provenance():
                required_warnings=[warning])
     assert not [f for f in v.findings if f.code == "ungrounded_number"], \
         [f.detail for f in v.findings]
+
+
+def test_a_measured_at_chance_calibration_is_labelled_not_validated():
+    """ASSERTS THE LABEL, not the prose.
+
+    Mutating _is_validated to accept `usable` alone survived the suite:
+    the prose still read "scoring is not validated for this virus",
+    because _virus_caveat picks its sentence from discriminating() while
+    check() picked the KEY from the mutated predicate. Prose and label
+    disagreed and only the prose was under test -- the same split this
+    file's other docstring warns about, from the other side.
+    """
+    v = check(QueryKind.TRIAGE, SARS2,
+              calibration=_real_cal(0.511, 0.488, 0.534))
+    labels = [getattr(w, "label", "") for w in v.warnings]
+    assert "VIRUS NOT VALIDATED" in labels, labels
+    assert "CALIBRATION" not in labels
+
+
+def test_a_refused_calibration_is_not_validated():
+    """A protocol whose numbers must never become weights is refused by
+    name in calibration.REFUSED_PROTOCOLS. Refused is not measured, so
+    it cannot earn the CALIBRATION label -- and discriminating() is the
+    single place that rule lives."""
+    cal = _real_cal(0.675, 0.660, 0.690)
+    cal.refused_reason = "single-screen weights are not transferable"
+    assert not guards._is_validated(cal)
+    labels = [getattr(w, "label", "")
+              for w in check(QueryKind.TRIAGE, SARS2, calibration=cal).warnings]
+    assert "VIRUS NOT VALIDATED" in labels, labels
