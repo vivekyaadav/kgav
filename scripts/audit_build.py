@@ -284,6 +284,8 @@ def main(argv=None) -> int:
     print("                hundreds of these.")
     print("    inact       measured and found INACTIVE; evidence, not absence")
 
+    print("    dis         CAUSES edges to a Disease node")
+
     # ---------------------------------------- 4b. labels versus features
     # THE DISTINCTION THE TABLE ABOVE DOES NOT MAKE. antiv is
     # held_out: true and evaluation_label: true in the schema, and
@@ -293,14 +295,24 @@ def main(argv=None) -> int:
     # compound for it: every prediction is a miss by construction, and
     # the row above reads like its best-covered column.
     held = load_schema().held_out_predicates()
-    print(f"\n    LABELS vs FEATURES  (held out: {', '.join(sorted(held))})")
-    print(f"    {'virus':<14} {'labels':>7} {'feature routes':<26} verdict")
+    print(f"\n    LABELS vs FEATURES\n    held out of every metapath: "
+          f"{', '.join(sorted(held))}")
+    print("    `labels` counts POSITIVES only "
+          "(HAS_ANTIVIRAL_ACTIVITY_AGAINST).\n    "
+          "MEASURED_INACTIVE_AGAINST is the negative label and is held out "
+          "too,\n    so the `inact` column above is also answer sheet, not "
+          "evidence.")
+    print(f"\n    {'virus':<14} {'labels':>7} {'feature routes':<34} "
+          f"verdict")
     verdicts: dict[str, list[str]] = defaultdict(list)
     for t in sorted(taxa, key=lambda x: (family[x], label[x])):
         c = pv[t]
-        routes = [n for n, v in (("inhibits", c["inhibits"]),
-                                 ("crispr", c["hf_dependency"]),
-                                 ("ppi", c["vh_ppi_edges"])) if v]
+        # WITH THEIR SIZE. "evaluable" on seven PPI edges is true and
+        # reads like "evaluable" on eight thousand. No threshold is
+        # invented here: the number is shown and the reader judges.
+        routes = [f"{n}({v:,})" for n, v in (("inhibits", c["inhibits"]),
+                                             ("crispr", c["hf_dependency"]),
+                                             ("ppi", c["vh_ppi_edges"])) if v]
         if c["antiviral"] and routes:
             verdict = "evaluable"
         elif c["antiviral"]:
@@ -311,7 +323,7 @@ def main(argv=None) -> int:
             verdict = "neither"
         verdicts[verdict].append(label[t])
         print(f"    {label[t]:<14} {c['antiviral']:>7,} "
-              f"{'+'.join(routes) or '-':<26} {verdict}")
+              f"{'+'.join(routes) or '-':<34} {verdict}")
     for v in ("LABELS, NO FEATURE ROUTE", "features, nothing to score"):
         if verdicts[v]:
             print(f"\n    {v}: {', '.join(sorted(verdicts[v]))}")
@@ -319,7 +331,6 @@ def main(argv=None) -> int:
         print("      No metapath terminates at these, so every prediction "
               "is a miss by\n      construction. Scoring them measures the "
               "graph's reach, not the model.")
-    print("    dis         CAUSES edges to a Disease node")
 
     # --------------------------------------------------- 5. what is left
     print(f"\n{'-' * 74}\n5. WHAT IS MISSING\n{'-' * 74}")
