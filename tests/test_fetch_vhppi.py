@@ -527,3 +527,60 @@ def test_a_total_that_lands_on_a_page_boundary_costs_no_extra_request():
     fetch2, _ = _pager(2000)
     _raw2, pages2 = F.fetch_all(BASE, ["1"], "tab25", 0, fetch=fetch2)
     assert pages2 == 3
+
+
+def test_a_refetch_warns_about_the_same_virus_under_an_older_name(
+        tmp_path, monkeypatch, capsys):
+    """--overwrite replaces the path the fetcher computes and cannot
+    see a file named differently. The seven hand-placed coronavirus
+    files are taxid-named and this writes slug-named, so a refetch left
+    both on disk and both were ingested -- deduplicated, but the older
+    snapshot's rows survive, including any the service has retracted.
+    """
+    monkeypatch.setattr(F, "fetch", lambda url: b"1" if "count" in url
+                        else b"r\n")
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    old = raw / "vhn_11060.tab27"          # taxid-named, the old scheme
+    old.write_text("legacy\n")
+    (raw / "vhn_11060.tab27.source.json").write_text(
+        '{"taxon": "11060", "source": "infores:virhostnet"}')
+    cfg = tmp_path / "v.yaml"
+    cfg.write_text(yaml.safe_dump({"viruses": [_entry()]}))
+    F.main(["--base", BASE, "--source", SRC, "--config", str(cfg),
+            "--out", str(raw)])
+    out = capsys.readouterr().out
+    assert "ALSO ON DISK" in out and "vhn_11060.tab27" in out
+    assert (raw / "vhn_denv2.tab27").exists()
+
+
+def test_no_warning_when_only_the_expected_file_exists(tmp_path, monkeypatch,
+                                                       capsys):
+    """A plain refetch must stay quiet, or the warning is noise."""
+    monkeypatch.setattr(F, "fetch", lambda url: b"1" if "count" in url
+                        else b"r\n")
+    raw = tmp_path / "raw"
+    cfg = tmp_path / "v.yaml"
+    cfg.write_text(yaml.safe_dump({"viruses": [_entry()]}))
+    F.main(["--base", BASE, "--source", SRC, "--config", str(cfg),
+            "--out", str(raw)])
+    assert "ALSO ON DISK" not in capsys.readouterr().out
+
+
+def test_another_virus_file_is_not_mistaken_for_this_one(tmp_path,
+                                                          monkeypatch,
+                                                          capsys):
+    """Same service, same prefix, different virus -- which is the
+    normal state of that directory."""
+    monkeypatch.setattr(F, "fetch", lambda url: b"1" if "count" in url
+                        else b"r\n")
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    (raw / "vhn_zika.tab27").write_text("x\n")
+    cfg = tmp_path / "v.yaml"
+    cfg.write_text(yaml.safe_dump({"viruses": [
+        _entry(), {"taxon": "64320", "name": "Zika",
+                   "family": "Flaviviridae"}]}))
+    F.main(["--base", BASE, "--source", SRC, "--config", str(cfg),
+            "--out", str(raw)])
+    assert "ALSO ON DISK" not in capsys.readouterr().out
