@@ -1,4 +1,4 @@
-.PHONY: install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape clean
+.PHONY: kg-report kg-report-check install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape clean
 
 install:
 	pip install -e ".[dev]"
@@ -137,6 +137,16 @@ data-audit:
 # degree-matched null. Re-run this whenever the release changes --
 # src/kgav/landscape.py refuses a file measured on a different one rather
 # than quoting it.
+# THE REPORT'S RELEASE CENSUS. Section 4 of docs/kg_audit_report.txt is
+# generated from the assembled release and stamped with its content
+# hashes, so a rebuild without a regenerate is detectable rather than
+# merely wrong. kg-report-check is the read-only half, for the gate.
+kg-report:
+	python scripts/write_kg_report.py
+
+kg-report-check:
+	python scripts/write_kg_report.py --check
+
 pathway-landscape:
 	python scripts/pathway_landscape.py \
 	  --out data/results/pathway_landscape.json

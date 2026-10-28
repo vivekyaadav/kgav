@@ -50,6 +50,25 @@ def flat(text) -> str:
     return " ".join(text.split())
 
 
+
+def section(blob: str, title: str, until: str | None = None) -> str:
+    """The text of one numbered section, found by TITLE not by number.
+
+    Tests used to split on "5. METAPATHS". Inserting two sections
+    renumbered everything and five tests started raising IndexError on
+    a document that was perfectly correct. The number is the one part
+    of a heading guaranteed to move.
+    """
+    m = re.search(rf"\d+\.\s+{re.escape(title)}", blob)
+    assert m, f"no section titled {title!r}"
+    rest = blob[m.end():]
+    if until:
+        m2 = re.search(rf"\d+\.\s+{re.escape(until)}", rest)
+        assert m2, f"no section titled {until!r} after {title!r}"
+        return rest[:m2.start()]
+    return rest
+
+
 @pytest.fixture(scope="module")
 def schema():
     from kgav.schema import load_schema
@@ -143,7 +162,7 @@ def test_each_metapath_names_its_own_predicates(flat, schema):
     """Not the shape drawn in ASCII -- the PREDICATES it walks. A
     metapath described with a predicate it does not traverse is a
     reader being told the wrong mechanism."""
-    body = flat.split("5. METAPATHS", 1)[1].split("HUB EXCLUSION", 1)[0]
+    body = section(flat, "METAPATHS").split("HUB EXCLUSION", 1)[0]
     for name, spec in schema.metapaths.items():
         seg = body.split(name, 1)
         assert len(seg) == 2, f"{name} missing from the metapath section"
@@ -165,7 +184,7 @@ def test_the_dependency_constraint_is_stated_for_every_path_that_has_it(
     """direction=dependency is the difference between a therapeutic
     target and one it would be harmful to inhibit. Every metapath
     constrained on it must say so."""
-    body = flat.split("5. METAPATHS", 1)[1].split("HUB EXCLUSION", 1)[0]
+    body = section(flat, "METAPATHS").split("HUB EXCLUSION", 1)[0]
     for name, spec in schema.metapaths.items():
         want = (spec.get("constraints") or {}).get(
             "HOST_FACTOR_FOR.direction")
@@ -214,8 +233,7 @@ def test_each_layer_is_marked_required_or_optional_as_declared(text):
     prose and reported the layer table as wrong.
     """
     from kgav.pipeline import LAYERS
-    body = text.split("4. BUILD PIPELINE", 1)[1].split("WHY hosttargets",
-                                                       1)[0]
+    body = section(text, "BUILD PIPELINE").split("WHY hosttargets", 1)[0]
     rows = {}
     for line in body.splitlines():
         m = re.match(r"\s{4}(\w+)\s+(required|optional)\b", line)
@@ -283,8 +301,7 @@ def test_every_virus_in_the_register_is_placed_in_a_tier(flat):
     register and not to that list is a virus the report silently omits,
     which is how Zika went missing from the metapath table."""
     doc = yaml.safe_load(REGISTER.read_text())
-    block = flat.split("7. PER-VIRUS STATE", 1)[1].split("8. KNOWN GAPS",
-                                                         1)[0]
+    block = section(flat, "PER-VIRUS STATE", until="KNOWN GAPS")
     for v in doc["viruses"]:
         assert v["name"] in block, (
             f"{v['name']} is in the register and is in no tier in "
@@ -295,8 +312,7 @@ def test_the_tier_totals_add_up_to_the_register(flat):
     """(8) + (5) + (2) + (1) must be the register's size, or one virus is
     counted twice or not at all."""
     doc = yaml.safe_load(REGISTER.read_text())
-    block = flat.split("7. PER-VIRUS STATE", 1)[1].split("8. KNOWN GAPS",
-                                                         1)[0]
+    block = section(flat, "PER-VIRUS STATE", until="KNOWN GAPS")
     totals = [int(n) for n in re.findall(r"\((\d+)\) —", block)]
     assert len(totals) == 4, f"expected four tiers, found {totals}"
     assert sum(totals) == len(doc["viruses"]), (
@@ -325,3 +341,164 @@ def test_the_retracted_finding_is_recorded_as_retracted(flat):
     read as though the error never happened."""
     assert "circular" in flat
     assert "retracted" in flat
+
+
+# ------------------------------------------------- the generated census
+def test_the_census_block_has_its_markers(text):
+    """Without them write_kg_report.py cannot splice and the section
+    silently stops being regenerable."""
+    import scripts.write_kg_report as W
+    assert text.count(W.BEGIN) == 1
+    assert text.count(W.END) == 1
+    assert text.index(W.BEGIN) < text.index(W.END)
+
+
+def test_the_census_is_generated_from_a_release_not_typed(tmp_path):
+    """Runs the generator against the tracked smoke release and checks
+    the block it produces, so the generator is exercised on every run
+    rather than only when someone has a full release on disk.
+
+    Counting the smoke release here by hand would be a second
+    implementation of the thing under test, so the expected numbers are
+    read off the release itself.
+    """
+    import json
+    import shutil
+
+    import scripts.write_kg_report as W
+
+    rel = ROOT / "data" / "releases" / "smoke"
+    assert (rel / "nodes.jsonl").exists(), "the smoke release is tracked"
+    report = tmp_path / "r.txt"
+    shutil.copy(REPORT, report)
+    rc = W.main(["--release", str(rel), "--report", str(report)])
+    assert rc == 0
+    block = report.read_text().split(W.BEGIN, 1)[1].split(W.END, 1)[0]
+
+    n_nodes = sum(1 for ln in (rel / "nodes.jsonl").read_text().splitlines()
+                  if ln.strip())
+    n_edges = sum(1 for ln in (rel / "edges.jsonl").read_text().splitlines()
+                  if ln.strip())
+    assert f"{n_nodes:,} nodes" in block
+    assert f"{n_edges:,} edges" in block
+    for line in (rel / "edges.jsonl").read_text().splitlines():
+        if line.strip():
+            assert json.loads(line)["predicate"] in block
+    assert "nodes_sha" in block and "edges_sha" in block
+
+
+def test_the_census_stamp_is_the_release_it_was_built_from(tmp_path):
+    """The stamp is the whole protection. A block carrying a hash that
+    is not the release's own describes some other graph, which is the
+    defect `make check-results` exists to catch everywhere else."""
+    import shutil
+
+    import scripts.write_kg_report as W
+    from kgav.provenance import release_fingerprint
+
+    rel = ROOT / "data" / "releases" / "smoke"
+    report = tmp_path / "r.txt"
+    shutil.copy(REPORT, report)
+    W.main(["--release", str(rel), "--report", str(report)])
+    block = report.read_text().split(W.BEGIN, 1)[1].split(W.END, 1)[0]
+    fp = release_fingerprint(rel)
+    assert fp["nodes_sha"] in block
+    assert fp["edges_sha"] in block
+
+
+def test_check_mode_fails_on_a_stale_block(tmp_path):
+    """--check is what a gate would run. If it passed on a stale block
+    it would certify exactly the state it exists to detect."""
+    import shutil
+
+    import scripts.write_kg_report as W
+
+    rel = ROOT / "data" / "releases" / "smoke"
+    report = tmp_path / "r.txt"
+    shutil.copy(REPORT, report)
+    assert W.main(["--release", str(rel), "--report", str(report),
+                   "--check"]) == 1, "a placeholder block passed --check"
+    W.main(["--release", str(rel), "--report", str(report)])
+    assert W.main(["--release", str(rel), "--report", str(report),
+                   "--check"]) == 0
+    # And a hand-edit of a generated block is caught.
+    t = report.read_text().replace(" nodes\n", " nodes (approx)\n", 1)
+    report.write_text(t)
+    assert W.main(["--release", str(rel), "--report", str(report),
+                   "--check"]) == 1, "a hand-edited block passed --check"
+
+
+def test_the_committed_census_matches_the_release_when_one_is_present():
+    """If a full release is on disk, the block in the repository must
+    describe it. No skip when it is absent -- the assertion below is
+    about the placeholder, so this test runs either way."""
+    import scripts.write_kg_report as W
+
+    rel = ROOT / "data" / "releases" / "v0.1"
+    if (rel / "nodes.jsonl").exists():
+        assert W.main(["--release", str(rel), "--check"]) == 0, (
+            "docs/kg_audit_report.txt's census does not describe "
+            "data/releases/v0.1; run make kg-report")
+    else:
+        block = REPORT.read_text().split(W.BEGIN, 1)[1].split(W.END, 1)[0]
+        assert "not yet generated" in block, (
+            "no release is on disk and the census is not marked as "
+            "ungenerated, so it describes a graph nobody can check")
+
+
+# -------------------------------------------------------- architecture
+def test_the_module_counts_in_the_architecture_section_are_right(flat):
+    """The layout block states how many modules and scripts there are.
+    Those move, and a count in prose is exactly what this project has
+    repeatedly found stale."""
+    mods = sorted((ROOT / "src" / "kgav").glob("*.py"))
+    scripts = sorted((ROOT / "scripts").glob("*.py"))
+    assert f"{len(mods)} modules" in flat, (
+        f"src/kgav holds {len(mods)} modules")
+    assert f"{len(scripts)} entry points" in flat, (
+        f"scripts/ holds {len(scripts)} entry points")
+
+
+def test_every_agent_module_is_named_in_the_architecture_section(flat):
+    """The serve-side pipeline is described stage by stage. A module
+    added to the agent and not to that description is a stage nobody
+    outside the project knows runs."""
+    agent = sorted(p.stem for p in (ROOT / "src" / "kgav" / "agent")
+                   .glob("*.py") if p.stem != "__init__")
+    block = section(flat, "ARCHITECTURE", until="SCHEMA SPECIFICATION")
+    for mod in agent:
+        assert f"{mod}.py" in block, (
+            f"src/kgav/agent/{mod}.py is not described in the "
+            f"architecture section")
+
+
+def test_the_three_stages_are_named_in_the_dataflow_itself(flat):
+    """SCOPED TO THE DIAGRAM, not the section.
+
+    The fifth time in this project a membership check was satisfied by
+    an unrelated occurrence of the same string. "INGEST -> ASSEMBLE ->
+    SERVE" appears in the sentence above the diagram, so renaming the
+    ASSEMBLE box inside it passed. The diagram is what a reader follows;
+    the sentence is a summary of it.
+    """
+    block = section(flat, "ARCHITECTURE", until="SCHEMA SPECIFICATION")
+    diagram = block.split("no stage reaches past the one before it.", 1)[1] \
+        .split("WHY LAYERS ARE INDEPENDENT", 1)[0]
+    for stage in ("INGEST", "ASSEMBLE", "SERVE", "SCORE"):
+        assert stage in diagram, (
+            f"{stage} is not a labelled box in the data-flow diagram")
+    assert "data/raw" in diagram and "data/releases" in diagram
+
+
+def test_the_directory_layout_describes_each_tree(flat):
+    """Also scoped: data/results/ appears in the diagram above, so a
+    layout entry could be renamed and still be "present" in the
+    section."""
+    block = section(flat, "ARCHITECTURE", until="SCHEMA SPECIFICATION")
+    layout = block.split("DIRECTORY LAYOUT", 1)[1]
+    for tree in ("config/", "src/kgav/", "src/kgav/agent/", "scripts/",
+                 "tests/", "data/raw/", "data/releases/", "data/results/",
+                 "docs/"):
+        assert tree in layout, f"{tree} is not in the directory layout"
+    # data/results is tracked on purpose and the layout must say why.
+    assert "TRACKED" in layout
