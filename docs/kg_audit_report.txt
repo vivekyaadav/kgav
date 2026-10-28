@@ -374,10 +374,25 @@ VirHostNet                                      infores:virhostnet
     methods, which is recorded on each edge and surfaced as a caveat: a
     BioID hit means "in the same neighbourhood", not "binds".
 
-IntAct / IMEx                                       infores:intact
-    The second virus-host PPI source, reached through PSICQUIC and
-    attributed by the same column-12 rule. MINT rows arrive through the
-    IntAct endpoint and are attributed to MINT.
+IntAct, MINT, DIP, HPIDb          infores:intact, infores:mint,
+                                  infores:dip, infores:hpidb
+    The other virus-host PPI curators, reached through PSICQUIC and
+    attributed by the same column-12 rule rather than by the endpoint
+    that served them. MINT and DIP rows arrive through the IntAct and
+    VirHostNet endpoints and are attributed to MINT and DIP; a row
+    co-curated by HPIDb is attributed to it.
+
+    THEIR NAMES ARE NEVER LITERALS IN THIS CODEBASE. They are slugged
+    at runtime from the curator's own name in MITAB column 12, so a
+    source survey that greps the source tree cannot see them -- and an
+    earlier version of this report listed HPIDb among the endpoints
+    that "returned nothing usable" while the release carried its edge.
+    The release census in section 4 is the only place these names
+    appear, and a test now requires every source it shows to be
+    described here.
+
+    IMEx is absent from that list on purpose: it is an aggregator, and
+    on this query its rows are IntAct's.
 
 BioGRID ORCS                                 infores:biogrid-orcs
     CRISPR screen host factors — HOST_FACTOR_FOR with direction. The
@@ -433,7 +448,7 @@ SOURCES SURVEYED AND DELIBERATELY NOT USED
     NDEx                the VirHostNet network published there is a 2021
                         PSICQUIC dump of the same source, older than the
                         live endpoint.
-    HPIDb, InnateDB, MPIDB, UniProt and Reactome PSICQUIC endpoints
+    InnateDB, MPIDB, UniProt and Reactome PSICQUIC endpoints
                         returned nothing usable for these taxa.
 
     DENV-4 and Yellow fever have NO curated virus-host PPI in any of the
