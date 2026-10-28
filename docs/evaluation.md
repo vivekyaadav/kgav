@@ -147,65 +147,156 @@ So p-values make the *uncontrolled* protocol look full of discoveries.
 
 | virus | best readable channel | lift | p | degree | p | baseline verdict |
 |---|---|---|---|---|---|---|
-| SARS-CoV-2 | M4 | 1.99 | 0.1401 | 0.54 | 0.9622 | — |
-| Zika | — | — | — | 0.85 | 0.6887 | — |
-| HCoV-OC43 | — | — | — | 2.64 | 0.1753 | — |
-| SARS-CoV | M3 | 1.90 | 0.1424 | 11.40 | <.0001 | BASELINE NOT DETERMINED |
-| MERS-CoV | M2 | 1.13 | 0.5661 | 13.03 | <.0001 | CONFOUNDED |
-| HCoV-229E | — | — | — | 5.37 | 0.0186 | CONFOUNDED |
-| HCoV-NL63 | — | — | — | 43.33 | 0.0229 | CONFOUNDED |
+| SARS-CoV-2 | M4 | 1.99 | 0.1401 | 0.63 | 0.9077 | BASELINE AT CHANCE |
+| DENV-2 | M4 | 1.88 | 0.2892 | 1.21 | 0.3953 | — |
+| Zika | — | — | — | 0.99 | 0.5909 | — |
+| West Nile | — | — | — | 0.97 | 0.6464 | — |
+| DENV-3 | — | — | — | 2.38 | 0.2050 | — |
+| DENV-1 | — | — | — | 2.60 | 0.1793 | — |
+| HCoV-OC43 | — | — | — | 3.10 | 0.1367 | — |
+| DENV-4 | — | — | — | 3.32 | 0.1222 | — |
+| SARS-CoV | M3 | 2.17 | 0.0974 | 11.69 | <.0001 | CONFOUNDED |
+| Yellow fever | — | — | — | 1.88 | 0.4139 | — |
+| MERS-CoV | M2 | 1.13 | 0.5661 | 15.27 | <.0001 | CONFOUNDED |
+| HCoV-229E | — | — | — | 6.29 | 0.0122 | CONFOUNDED |
+| TBEV | — | — | — | 3.53 | 0.2477 | — |
+| JEV | — | — | — | 0.00 | 1.0000 | — |
+| HCoV-NL63 | — | — | — | 50.77 | 0.0195 | CONFOUNDED |
 
-**Four of seven viruses have no readable channel at all**, and that is the
-first thing this table should have said. The version it replaces named a
-"best channel" for six of them -- SARS-CoV M1 at 2.10, MERS-CoV M4 at 11.86,
-HCoV-229E M4 at 8.48, HCoV-OC43 M4 at 7.40 -- and of those six rows exactly
-one, SARS-CoV-2 M4, is readable under the rule the rest of this document
-spends four paragraphs establishing. The others fail it in two ways that the
-code already records and the table did not print: SARS-CoV M1 and Zika M1 are
-`hits_determined: False`, one draw from a tie block; the four M4 rows are
-`trustworthy: False`, because `exp >= 1.0` fails when a pool of ~2,960 holds
-4 to 15 positives and expects half a hit at k=100. HCoV-NL63 has **no
-positive reachable by any metapath** (`COMBINED` pool 2,653, `pos` 0), so its
-0.00 was never a measurement of anything. Zika is absent from the old table
-entirely, which is the omission this table's test now makes impossible.
+**Eleven of fifteen viruses have no readable channel at all**, and that is
+the first thing this table should say. It was four of seven when this table
+covered seven viruses; adding the eight remaining flaviviruses on 2026-10-23
+did not dilute the finding, it concentrated it. Only four rows name a
+channel, none is significant, and their lifts run 1.13 to 2.17.
 
-The headline the old table carried -- channels winning big on four viruses,
-degree winning bigger -- was therefore an artifact of printing rows the code
-refuses to read. The corrected reading is quieter and worse: where a channel
-IS readable it sits at 1.13 to 1.99, none of it significant, and the three
-significant columns on the page all belong to degree.
+A row is unreadable for one of two recorded reasons, and on this release
+both are severe.
+
+`hits_determined: False` means the published hit count is one draw from a
+tie block straddling k, so the lift computed from it is one draw too. The
+tie blocks here are not marginal. **DENV-2 M1** has a nominal lift of 2.04
+at p=3.6e-11 -- the smallest p-value anywhere in this project -- and its
+Hits@100 range is `[0, 44]` out of 44 positives, with 166 of a 236-compound
+pool tied at the cut and every one of the 44 positives inside that block.
+The hit count could as truthfully have been zero. **SARS-CoV M1** reads lift
+2.08 at p=3.9e-06 with range `[2, 23]` of 23, 219 of a 239 pool tied, 21
+positives in the block. **Zika M1** is `[7, 29]`, **West Nile M1** is
+`[0, 5]` with the entire pool of 106 tied. Four of the five largest-looking
+results in the table are a tie block being reported as a measurement.
+
+`trustworthy: False` means `exp >= 1.0` fails -- the pool is large, the
+positives are few, and the expectation at k=100 is a fraction of a hit, so
+a single hit produces an enormous lift. **MERS-CoV M4** at 11.86 expects
+0.51 hits; **HCoV-229E M4** at 8.48 expects 0.24; **HCoV-OC43 M4** at 7.40
+expects 0.14; **Zika M5** at 5.23 expects 0.57. Every one of the eye-catching
+double-digit lifts in this project is of this shape.
+
+**Seven of fifteen viruses have no positive reachable by any metapath**
+(`COMBINED.pos == 0`): DENV-1, DENV-3, DENV-4, JEV, TBEV, Yellow fever and
+HCoV-NL63. That is not a weak result, it is the absence of a measurement,
+and it comes in two different shapes that should not be read alike.
+**DENV-4 and Yellow fever reach no compound at all** -- `COMBINED` pool 0 --
+so nothing was ranked. **HCoV-NL63 reaches 2,660 compounds and not one of
+them carries a label**, so a ranking exists, is complete, and cannot be
+scored. DENV-1 and DENV-3 reach four compounds each, JEV five, TBEV fifty.
+A ranking over these is not a weak prediction; it is a prediction nothing
+in this graph can mark right or wrong.
+
+That distinction is now load-bearing outside this document. The agent's
+no-route guard refuses DENV-4 and Yellow fever, which are exactly the two
+with an empty pool -- but it answers for DENV-1, DENV-3, JEV, TBEV and
+HCoV-NL63, which have a route and no reachable positive. Edge counts are
+what that guard reads, and edge counts cannot see this.
+
+### The one readable cell that is significant, and why it is the least interesting one
+
+Across all fifteen viruses and eight metapaths, **thirteen cells are both
+`trustworthy` and `hits_determined`** -- readable, in the sense the rest of
+this document means. Exactly one of them is nominally significant:
+
+**SARS-CoV-2 M7, lift 1.34, p=0.000379**, reaching 234 positives in a pool
+of 515, against a degree baseline at 0.63 (p=0.9077) that is itself
+indistinguishable from random. It is the only cell in this table that
+clears any threshold while being readable, and the only reason the
+cross-sectional verdict for SARS-CoV-2 is BASELINE AT CHANCE.
+
+It survives correction under most reasonable families and not the
+strictest. This document has never declared one for this table, which is
+itself the defect; the sensitivity is given rather than a choice made after
+seeing the number:
+
+| family | n | alpha | M7 at p=0.000379 |
+|---|---|---|---|
+| readable cells only | 13 | 0.00385 | clears, by a factor of 10 |
+| every cell computed | 91 | 0.00055 | clears |
+| every cell planned (15 viruses x 8 metapaths) | 120 | 0.00042 | clears narrowly |
+| planned, plus COMBINED and degree | 150 | 0.00033 | **fails** |
+
+Correcting over cells that could be read is the defensible choice -- an
+unreadable cell yields no inference, so it is not a test -- but the family
+belongs in the prereg, before the next run, not here after this one.
+
+**What M7 is matters more than its p-value.** M7 is `SmallMolecule
+-CHEMICALLY_SIMILAR_TO-> SmallMolecule -INHIBITS-> Protein -ENCODED_BY->
+Gene -BELONGS_TO-> OrganismTaxon`: a compound resembling a known inhibitor
+of a viral protein. That is a QSAR baseline wearing a metapath's clothes.
+It predicting activity is not news, it is the premise of medicinal
+chemistry, and it is the channel in this schema that depends least on the
+knowledge graph being a knowledge graph. The honest statement of the best
+result here is: the only reasoning channel that beats a chance baseline on
+readable data is the one that reasons least.
+
+**The table names M4 on that row, not M7.** `best_readable` picks the
+highest lift among readable channels, so it prints M4 at 1.99 (p=0.1401)
+while the verdict beside it is about M7 at 1.34 (p=0.0004). A reader sees a
+channel named, a verdict given, and no way to tell they are about different
+things. Highest lift was the wrong selector on a page whose entire argument
+is that lift without a determined hit count and a credible expectation is
+not a result; the column is kept, because removing it would hide the
+comparison, and the row now carries the significant channel beside it.
 
 **Degree's own p-value is the diagnostic.** Where it is significant, the
 labels track how much a compound has been studied, and a channel beating
 random on those labels says nothing about mechanism -- only beating *degree*
 does. `confound_warning()` prints the verdict under every table, both ways:
 
-    CONFOUNDED            degree is itself significant -- MERS-CoV,
-                          HCoV-229E, HCoV-NL63 cross-sectionally, and
-                          MERS-CoV and SARS-CoV temporally (both the
-                          computed_only and include policies)
+    CONFOUNDED            degree is itself significant -- SARS-CoV,
+                          MERS-CoV, HCoV-229E and HCoV-NL63
+                          cross-sectionally, and MERS-CoV and SARS-CoV
+                          temporally (both the computed_only and include
+                          policies)
     BASELINE AT CHANCE    degree is indistinguishable from random AND a
                           TRUSTWORTHY, DETERMINED channel is significant --
-                          SARS-CoV-2 under temporal computed_only, and
-                          there alone: degree lift 1.15 (p=0.4262) against
-                          COMBINED's 3.31 (p=0.0162)
+                          SARS-CoV-2 cross-sectionally, and there alone:
+                          degree lift 0.63 (p=0.9077) against M7's 1.34
+                          (p=0.0004)
     BASELINE NOT          the degree row's own Hits@k is an interval, so no
     DETERMINED            comparison against it can be read -- including
                           every ratio in the vs-deg column, which divides
-                          by it. SARS-CoV cross-sectionally ([7, 8] from a
-                          9-row tie block) and SARS-CoV-2 under temporal
-                          include
+                          by it. SARS-CoV-2 under temporal computed_only
+                          ([7, 8] from a 7-row tie block) and under
+                          temporal include
     (nothing)             neither, so there is nothing to report
 
 **An earlier version of this block said BASELINE AT CHANCE "no longer holds
-anywhere".** It does hold, for SARS-CoV-2 under `computed_only`, and the
-artifact diff proves the claim was already false when it was written rather
-than overtaken by a later change: regenerating across the 2026-10-16
-`NSP_PATTERNS` fix moved SARS-CoV and nothing else, leaving that entire block
-byte-identical. The sentence was not stale -- it was never right. What is
-true is narrower and belongs in the row above: the condition holds under one
-of the three temporal policies, and under `include` the same virus falls to
-NOT DETERMINED because the tie block straddles the cut.
+anywhere".** It does hold, for SARS-CoV-2 -- and the artifact diff proved
+the claim was already false when it was written rather than overtaken by a
+later change: regenerating across the 2026-10-16 `NSP_PATTERNS` fix moved
+SARS-CoV and nothing else, leaving that entire block byte-identical. The
+sentence was not stale -- it was never right.
+
+**Where it holds has since moved, which is the better argument for printing
+it.** When this was written the condition held for SARS-CoV-2 under the
+temporal `computed_only` policy -- degree lift 1.15 (p=0.4262) against
+COMBINED's 3.31 (p=0.0162) -- and nowhere cross-sectionally. On the
+16-virus release it is the reverse. `computed_only` now reads NOT
+DETERMINED, because degree's Hits@100 is `[7, 8]`: a 7-compound tie block
+straddles the cut with one positive inside it, so its lift 1.08 and
+p=0.4693 are not measurements and nothing can be compared against them.
+Cross-sectionally the condition now holds, carried by M7. The verdict did
+not strengthen or weaken; it changed which run it describes, which no
+reader could have inferred from a table that prints the verdict and not
+the channel it refers to.
 
 Stating the good case out loud matters: printed only as an *absence* of
 warning, the one condition every real result here depends on was left for the
@@ -256,20 +347,28 @@ rather than comparing two draws.
 
 Both tables also carry a `vs deg` column, with `(~)` marking a ratio whose
 denominator is itself at chance. SARS-CoV-2 cross-sectional is why: M4 reads
-3.71x a degree lift of **0.54**, which is M4 lift 1.99 at p=0.1401, and the
+3.16x a degree lift of **0.63**, which is M4 lift 1.99 at p=0.1401, and the
 cell carries `vs_degree_readable: False` rather than the bare ratio. A ratio
 against a noisy denominator describes; it does not test.
 
 Note SARS-CoV especially. M1 there reads lift 2.08 at p<0.0001 and looks like
 the strongest result in the project -- and it is not readable at all:
 `hits_determined` is `False`, its Hits@100 is one draw from [2, 23] of 23
-positives, and the lift interval [0.21, 2.39] contains 1.00. The degree row
-beside it is undetermined too ([7, 8] from a 9-row tie block), which is why
-the virus reads BASELINE NOT DETERMINED and why no ratio against it can be
-quoted. An earlier version of this paragraph compared M1's 2.10 against a
-degree lift of 9.51 as though both were measurements; they were two draws.
-Reported alone, that p-value would have been the fifth wrong M1 number in
-this document -- and reported as a comparison, it was the sixth.
+positives, and the lift interval [0.21, 2.39] contains 1.00. An earlier
+version of this paragraph compared M1's 2.10 against a degree lift of 9.51
+as though both were measurements; they were two draws. Reported alone, that
+p-value would have been the fifth wrong M1 number in this document -- and
+reported as a comparison, it was the sixth.
+
+**On the 16-virus release the degree row beside it is no longer the
+problem.** It used to be undetermined as well ([7, 8] from a tie block), so
+the virus read BASELINE NOT DETERMINED and no ratio against it could be
+quoted at all. It is now determined at 7 hits, lift 11.69, p=2.4e-06, and
+SARS-CoV reads CONFOUNDED. The reason M1 cannot be reported is unchanged
+and sits entirely on M1's own side: a hit count of `[2, 23]` out of 23 is
+not a measurement whatever the baseline beside it is doing. A row can stop
+being unreadable for one reason while staying unreadable for another, and
+the verdict column shows only the baseline's half of that.
 
 ## The channel partly IS the baseline, and that is a defect in the scorer
 

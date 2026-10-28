@@ -154,6 +154,98 @@ def test_the_unreadable_rows_are_unreadable_for_a_stated_reason():
     assert per["HCoV-NL63"]["COMBINED"]["pos"] == 0
 
 
+WORD = {0: "No", 1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five",
+        6: "Six", 7: "Seven", 8: "Eight", 9: "Nine", 10: "Ten",
+        11: "Eleven", 12: "Twelve", 13: "Thirteen", 14: "Fourteen",
+        15: "Fifteen", 16: "Sixteen"}
+
+
+def test_the_unreadable_count_is_derived_not_typed(tables):
+    """"Four of seven" survived two releases as prose while the table
+    under it changed. The headline is the count, so the count is
+    derived."""
+    doc, _ = tables
+    n = sum(1 for cells in doc.values() if cells[0] == DASH)
+    text = " ".join(DOC.read_text().split())
+    assert (f"{WORD[n]} of {WORD[len(doc)].lower()} viruses have no "
+            f"readable channel") in text, (
+        f"{n} of {len(doc)} rows name no channel and the document does "
+        f"not say so in those words")
+
+
+def test_every_virus_with_no_reachable_positive_is_named():
+    """A virus whose COMBINED pool holds no positive cannot be scored at
+    all, which is a different statement from scoring badly. Naming them
+    individually is the only way a reader can tell which rows of the
+    table are weak evidence and which are no evidence."""
+    per = json.loads(RESULTS.read_text())["per_virus"]
+    text = DOC.read_text()
+    unreachable = sorted(v for v, ch in per.items()
+                         if ch.get("COMBINED", {}).get("pos") == 0)
+    assert unreachable, "no virus has an empty positive set; prose stale"
+    claim = (f"{WORD[len(unreachable)]} of {WORD[len(per)].lower()} viruses "
+             f"have no positive reachable")
+    # SCOPED TO THE PARAGRAPH MAKING THE CLAIM, not the whole document.
+    # Every one of these viruses also has a row in the table above, so a
+    # document-wide `v in text` was satisfied by the row and a name
+    # deleted from this list passed unnoticed.
+    paras = [" ".join(p.split()) for p in text.split("\n\n")]
+    hit = [p for p in paras if claim in p]
+    assert hit, f"the document does not state: {claim}"
+    assert len(hit) == 1, "the claim is made in more than one paragraph"
+    # SET EQUALITY ON THE ENUMERATION ITSELF, not membership in the
+    # paragraph. The paragraph goes on to discuss several of these
+    # viruses by name, so a name deleted from the list was still found
+    # a sentence later and the mutant passed. The list runs from the
+    # marker to the first full stop.
+    marker = "(`COMBINED.pos == 0`):"
+    assert marker in hit[0], "the list lost its machine-readable marker"
+    listed_text = hit[0].split(marker, 1)[1].split(".", 1)[0]
+    listed = {w.strip() for w in listed_text
+              .replace(" and ", ", ").split(",") if w.strip()}
+    assert listed == set(unreachable), (
+        f"the enumeration is {sorted(listed)} and the results file says "
+        f"{sorted(unreachable)}")
+    # The two shapes are not alike and the document must not merge them.
+    empty_pool = sorted(v for v, ch in per.items()
+                        if ch.get("COMBINED", {}).get("pool") == 0)
+    for v in empty_pool:
+        assert f"{v} and" in hit[0] or f"and {v}" in hit[0] \
+            or f"{v} reaches" in hit[0], (
+            f"{v} reaches no compound at all, which the paragraph must "
+            f"distinguish from reaching compounds with no label")
+
+
+def test_the_only_significant_readable_cell_is_the_one_claimed():
+    """The document names exactly one significant readable cell and
+    builds a section on it. If a second ever appears, or this one stops
+    being significant, the section is wrong before anyone reads it."""
+    per = json.loads(RESULTS.read_text())["per_virus"]
+    readable = [(v, n, m) for v, ch in per.items() for n, m in ch.items()
+                if n not in ("degree", "COMBINED")
+                and m.get("hits_determined") and m.get("trustworthy")]
+    sig = [(v, n, m) for v, n, m in readable
+           if m.get("p_value") is not None and m["p_value"] < 0.05]
+    flat = " ".join(DOC.read_text().split())
+    assert f"{WORD[len(readable)].lower()} cells are both" in flat, (
+        f"{len(readable)} readable cells; the document states a different "
+        f"number")
+    assert len(sig) == 1, (
+        f"the document says exactly one readable cell is significant; "
+        f"there are now {len(sig)}: {[(v, n) for v, n, _ in sig]}")
+    v, n, m = sig[0]
+    assert (f"{v} {n}, lift {m['lift']:.2f}, p={m['p_value']:.6f}") in flat
+
+
+def test_the_correction_families_are_arithmetic():
+    """The alpha table is four divisions. A typed alpha beside a live
+    p-value is a verdict nothing re-derives."""
+    flat = " ".join(DOC.read_text().split())
+    for n in (13, 91, 120, 150):
+        assert f"| {n} | {0.05 / n:.5f} |" in flat, (
+            f"the alpha row for n={n} is not 0.05/{n} = {0.05 / n:.5f}")
+
+
 def test_the_prose_figures_beside_the_table_are_the_tables_own():
     """The paragraphs under the table quote individual cells. They are prose,
     so nothing re-derives them -- except this, which checks the handful that
@@ -171,30 +263,72 @@ def test_the_prose_figures_beside_the_table_are_the_tables_own():
     assert f"[{m1['lift_lo']:.2f}, {m1['lift_hi']:.2f}] contains 1.00" in text
 
 
-def test_the_at_chance_claim_names_the_policy_it_holds_under():
-    """The document said BASELINE AT CHANCE "no longer holds anywhere". It
-    holds for SARS-CoV-2 under computed_only. The replacement sentence is
-    pinned to the run it describes."""
+def at_chance_runs() -> dict[str, dict]:
+    """Every (run, virus) whose verdict is BASELINE AT CHANCE, derived.
+
+    The first version of this test hard-coded the run: SARS-CoV-2 under
+    temporal computed_only. On the 16-virus release that run fell to NOT
+    DETERMINED and the condition moved to the cross-sectional table, so
+    the test failed for the right reason and then had to be rewritten
+    anyway. Deriving it means the next move is caught without a rewrite,
+    which is the property the document asks of its own figures.
+    """
     import sys
     sys.path.insert(0, str(ROOT / "src"))
     from kgav.baselines import confound_warning
 
-    path = ROOT / "data" / "results" / "temporal_2021_computed_only.json"
-    row = json.loads(path.read_text())["results"]["SARS-CoV-2"]
-    warning = confound_warning(row)
-    assert warning.startswith("BASELINE AT CHANCE")
+    runs = {"cross-sectional": ("metapath_comparison.json", "per_virus")}
+    for policy in ("computed_only", "include", "exclude"):
+        runs[f"temporal {policy}"] = (
+            f"temporal_2021_{policy}.json", "results")
+    out = {}
+    for label, (name, key) in runs.items():
+        path = ROOT / "data" / "results" / name
+        if not path.exists():
+            continue
+        for virus, row in json.loads(path.read_text())[key].items():
+            warning = confound_warning(row)
+            if warning and warning.startswith("BASELINE AT CHANCE"):
+                out[f"{label} / {virus}"] = row
+    return out
+
+
+def test_the_at_chance_claim_names_the_run_it_holds_under():
+    """The document said BASELINE AT CHANCE "no longer holds anywhere".
+    It does hold. The replacement sentence is pinned to whichever run
+    holds it now, and to the channel carrying it -- naming the verdict
+    without the channel is how the table came to print M4 beside a
+    verdict about M7."""
+    holding = at_chance_runs()
+    assert holding, (
+        "no run reads BASELINE AT CHANCE any more; the document still "
+        "says one does and must be corrected rather than this test "
+        "relaxed")
     text = DOC.read_text()
-    # Scoped to the verdict block, not the whole document: the correction
-    # paragraph beneath it QUOTES the retracted claim, and a test that
-    # forbade the words outright would forbid recording the mistake.
+    # Whitespace-normalised, because the verdict block is a wrapped
+    # indented paragraph: "M7's 1.34\n   (p=0.0004)" is the figure being
+    # present, and a raw substring search calls it missing.
+    flat = " ".join(text.split())
+    # Scoped to the verdict block: the correction paragraph beneath it
+    # QUOTES the retracted claim, and a test forbidding the words
+    # outright would forbid recording the mistake.
     block = text.split("    CONFOUNDED", 1)[1].split("    (nothing)", 1)[0]
     assert "no longer holds" not in block
-    assert "SARS-CoV-2 under temporal computed_only" in block
-    assert "It does hold, for SARS-CoV-2 under `computed_only`" in text
-    assert (f"degree lift {row['degree']['lift']:.2f} "
-            f"(p={row['degree']['p_value']:.4f})") in text
-    assert (f"COMBINED's {row['COMBINED']['lift']:.2f} "
-            f"(p={row['COMBINED']['p_value']:.4f})") in text
+    for label, row in holding.items():
+        virus = label.split("/")[1].strip()
+        assert virus in block, f"{label} holds AT CHANCE and is not named"
+        deg = row["degree"]
+        assert (f"degree lift {deg['lift']:.2f} "
+                f"(p={deg['p_value']:.4f})") in flat, label
+        # The channel that carries it, named with its own figures: the
+        # verdict text itself quotes one, so the document must agree.
+        from kgav.baselines import confound_warning
+        carried = confound_warning(row).split("so ", 1)[1].split("'s", 1)[0]
+        m = row[carried]
+        assert (f"{carried}'s {m['lift']:.2f} "
+                f"(p={m['p_value']:.4f})") in flat, (
+            f"{label} is carried by {carried} and the document does not "
+            f"name it with its figures")
 
 
 def test_the_table_is_marked_as_machine_checked():
