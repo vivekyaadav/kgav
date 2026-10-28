@@ -313,7 +313,50 @@ def pathway_members(g: Graph, cap: int | None) -> dict[str, set[str]]:
 
 
 # --------------------------------------------------- the matched test
-def degree_bins(g: Graph, universe: set[str], bins: int = DEGREE_BINS
+def study_degree(g: Graph) -> Counter:
+    """Host-host PPI degree: a study-volume proxy independent of the test.
+
+    WHY THE DEFAULT DEGREE IS NOT SAFE HERE. Graph.degree counts every
+    edge of every predicate, so it includes the edges that DEFINE both
+    sides of this comparison:
+
+      TARGETS                     ~8.8 per drugged protein, and the
+                                  drugged set is the observed set
+      PHYSICALLY_INTERACTS_WITH   several per virus partner, and the
+                                  partners are the hit set
+
+    Matching on that degree is circular twice over. Being drugged pushes
+    a protein into a high bin for a reason unrelated to touching a
+    virus; being a partner pushes it into a high bin by definition, so
+    the high bins the null draws from are enriched for hits. The
+    expectation inflates, the observed does not, and every ratio lands
+    under 1 -- which is what the 2026-10-28 run shows for all nine taxa
+    in the interactome channel, six of them at the 1/(N+1) floor.
+
+    This counts only PHYSICALLY_INTERACTS_WITH edges with NO viral
+    endpoint: the STRING host-host interactome. Well-studied proteins
+    have more of them, which is the confound worth controlling, and a
+    host-host edge is in neither the observed set nor the hit set.
+
+    Decided from the NODES rather than from the edge's source label.
+    STRING and VirHostNet write the same predicate, and tonight's
+    provenance work is the reminder that a label can be wrong while a
+    node property cannot be.
+    """
+    deg: Counter = Counter()
+    for (pred, node), edges in g.out.items():
+        if pred != PHYSICALLY_INTERACTS_WITH or g.is_viral(node):
+            continue
+        for nbr, _e in edges:
+            if g.is_viral(nbr):
+                continue
+            deg[node] += 1
+            deg[nbr] += 1
+    return deg
+
+
+def degree_bins(g: Graph, universe: set[str], bins: int = DEGREE_BINS,
+                degree: Counter | None = None
                 ) -> dict[str, int]:
     """Assign each protein to a degree quantile bin.
 
@@ -327,7 +370,8 @@ def degree_bins(g: Graph, universe: set[str], bins: int = DEGREE_BINS
     # python varies between processes through string hash randomisation.
     # Three runs of this script on one release and one seed returned
     # SARS-CoV-2 expectations of 353.3, 352.6 and 352.4.
-    ordered = sorted(universe, key=lambda n: (g.degree.get(n, 0), n))
+    deg = g.degree if degree is None else degree
+    ordered = sorted(universe, key=lambda n: (deg.get(n, 0), n))
     out = {}
     n = len(ordered)
     for i, node in enumerate(ordered):
@@ -453,6 +497,11 @@ def _write(out: Path, args, rows: dict[str, dict],
         "release": args.release.name,
         "permutations": args.permutations,
         "seed": args.seed,
+        # WHICH YARDSTICK. Two files measured on different bases are not
+        # comparable, and a file that does not say which it used cannot
+        # be checked -- the same failure as a results file recording a
+        # release by name.
+        "degree_basis": args.degree_from,
         "partial": bool(args.virus),
         "partial_reason": (f"run with --virus {args.virus}, so it covers that "
                            f"taxon only" if args.virus else ""),
@@ -473,6 +522,12 @@ def _write(out: Path, args, rows: dict[str, dict],
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--release", type=Path, default=ROOT / "data/releases/v0.1")
+    ap.add_argument("--degree-from", choices=("all", "study"), default="all",
+                    help="what the degree-matched null matches ON. 'all' is "
+                         "total graph degree, which includes the edges "
+                         "defining both the observed set and the hits. "
+                         "'study' uses host-host PPI only, which is in "
+                         "neither. See study_degree.")
     ap.add_argument("--virus", default=None)
     ap.add_argument("--permutations", type=int, default=DEFAULT_PERMUTATIONS)
     ap.add_argument("--seed", type=int, default=0)
@@ -564,7 +619,14 @@ def main(argv=None) -> int:
     rows: dict[str, dict] = {}
     # HOISTED. This was rebuilt inside the loop, once per virus, from the
     # same two arguments. Identical output, 16x less work.
-    bins = degree_bins(g, universe)
+    basis = study_degree(g) if args.degree_from == "study" else None
+    bins = degree_bins(g, universe, degree=basis)
+    if args.degree_from == "study":
+        print(f"  degree matched on HOST-HOST PPI only "
+              f"({sum(basis.values()) // 2:,} edges), not on total graph "
+              f"degree:\n    total degree includes the TARGETS edges that "
+              f"define the drugged set and the\n    virus-host edges that "
+              f"define the interactome, so matching on it is circular.\n")
     for virus in viruses:
         deps = dependency_factors(g, virus)
         if not deps:
