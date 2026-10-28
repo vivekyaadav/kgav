@@ -28,6 +28,15 @@ CFG = {"viruses": [
     # coronaviruses inherit it from defaults below. The fixture used to
     # declare it, so the audit's family column never took the defaults
     # path and a mutant reverting it survived.
+    # YELLOW FEVER'S SHAPE: held-out labels and no feature route at
+    # all. The fixture had DENV-1 (labels + PPI) and SARS-CoV-2
+    # (routes, no labels) and nothing in between, so the branch that
+    # names the unreachable case was never taken and a mutant removing
+    # it survived.
+    {"taxon": "11089", "name": "Yellow fever", "family": "Flaviviridae",
+     "mondo": None,
+     "chain_source": {"accession": "P03314", "taxon": "11089", "chains": 13,
+                      "verified": "2026-09-17"}},
     {"taxon": "2697049", "name": "SARS-CoV-2",
      "mondo": None,
      "chain_source": {"accession": "P0DTD1", "taxon": "2697049",
@@ -41,6 +50,8 @@ def _release(tmp_path: Path) -> Path:
     nodes = [
         {"id": "NCBITaxon:11053", "class": "OrganismTaxon", "properties": {}},
         {"id": "NCBITaxon:2697049", "class": "OrganismTaxon",
+         "properties": {}},
+        {"id": "NCBITaxon:11089", "class": "OrganismTaxon",
          "properties": {}},
         {"id": "MONDO:1", "class": "Disease", "properties": {}},
         {"id": "UniProtKB:POLY", "class": "Protein",
@@ -85,6 +96,9 @@ def _release(tmp_path: Path) -> Path:
         ("INCHIKEY:D2", "HAS_ANTIVIRAL_ACTIVITY_AGAINST", "NCBITaxon:11053",
          {}),
         ("INCHIKEY:D2", "MEASURED_INACTIVE_AGAINST", "UniProtKB:NSP5", {}),
+        # labels only, nothing to reach them with
+        ("INCHIKEY:D1", "HAS_ANTIVIRAL_ACTIVITY_AGAINST", "NCBITaxon:11089",
+         {}),
         ("NCBITaxon:2697049", "CAUSES", "MONDO:1", {}),
     ]
     (d / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
@@ -219,3 +233,47 @@ def test_an_inactive_measurement_is_reported_separately(tmp_path, capsys):
     row = next(ln for ln in out.splitlines()
                if "SARS-CoV-2" in ln and "Coro" in ln)
     assert row.split()[10] == "1", row
+
+
+def test_labels_without_a_feature_route_are_named(tmp_path, capsys):
+    """Yellow fever holds 1,030 held-out antiviral labels and has no
+    PPI, no CRISPR and no INHIBITS. Nothing can reach a compound for
+    it, so every prediction is a miss by construction -- and in the
+    per-virus table that row reads like its best-covered column.
+    """
+    _rc, out = _run(tmp_path, capsys)
+    # DENV-1 in the fixture: two antiviral labels, and PPI as a route
+    assert "LABELS vs FEATURES" in out
+    assert "evaluable" in out
+
+
+def test_a_virus_with_features_and_no_labels_is_distinguished(tmp_path,
+                                                               capsys):
+    """SARS-CoV-2 in the fixture has CRISPR and an inhibitor but no
+    antiviral label: it cannot be scored, which is the opposite
+    problem and needs the opposite work."""
+    _rc, out = _run(tmp_path, capsys)
+    block = out.split("LABELS vs FEATURES")[1]
+    row = next(ln for ln in block.splitlines() if "SARS-CoV-2" in ln)
+    assert "features, nothing to score" in row, row
+
+
+def test_the_held_out_set_comes_from_the_schema(tmp_path, capsys):
+    """Not a list in this script. The schema already marks which
+    predicates are labels, and a second copy would drift from it."""
+    _rc, out = _run(tmp_path, capsys)
+    assert "HAS_ANTIVIRAL_ACTIVITY_AGAINST" in out.split(
+        "LABELS vs FEATURES")[1].splitlines()[0]
+
+
+def test_a_virus_with_labels_and_no_route_is_called_out(tmp_path, capsys):
+    """Yellow fever: 1,030 held-out antiviral labels, no PPI, no
+    CRISPR, no INHIBITS. No metapath terminates there, so every
+    prediction is a miss by construction -- and in the per-virus table
+    that row reads like its best-covered column."""
+    _rc, out = _run(tmp_path, capsys)
+    block = out.split("LABELS vs FEATURES")[1]
+    row = next(ln for ln in block.splitlines() if "Yellow fever" in ln)
+    assert "LABELS, NO FEATURE ROUTE" in row, row
+    assert "miss by" in block
+    assert "measures the graph's reach, not the model" in block
