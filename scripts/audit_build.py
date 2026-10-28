@@ -40,7 +40,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from kgav.pipeline import LAYERS, availability, layer_dir
-from kgav.schema import print_capped
+from kgav.schema import load_schema, print_capped
 from kgav.virus_register import declared_taxa, family_of
 
 VIRAL_PPI = "PHYSICALLY_INTERACTS_WITH"
@@ -283,6 +283,42 @@ def main(argv=None) -> int:
     print("                TAXON. A virus can have none of the first and")
     print("                hundreds of these.")
     print("    inact       measured and found INACTIVE; evidence, not absence")
+
+    # ---------------------------------------- 4b. labels versus features
+    # THE DISTINCTION THE TABLE ABOVE DOES NOT MAKE. antiv is
+    # held_out: true and evaluation_label: true in the schema, and
+    # appears in NO metapath -- it is the ground truth being predicted,
+    # not evidence to predict from. Yellow fever has 1,030 of them and
+    # no PPI, no CRISPR and no INHIBITS, so nothing can reach a
+    # compound for it: every prediction is a miss by construction, and
+    # the row above reads like its best-covered column.
+    held = load_schema().held_out_predicates()
+    print(f"\n    LABELS vs FEATURES  (held out: {', '.join(sorted(held))})")
+    print(f"    {'virus':<14} {'labels':>7} {'feature routes':<26} verdict")
+    verdicts: dict[str, list[str]] = defaultdict(list)
+    for t in sorted(taxa, key=lambda x: (family[x], label[x])):
+        c = pv[t]
+        routes = [n for n, v in (("inhibits", c["inhibits"]),
+                                 ("crispr", c["hf_dependency"]),
+                                 ("ppi", c["vh_ppi_edges"])) if v]
+        if c["antiviral"] and routes:
+            verdict = "evaluable"
+        elif c["antiviral"]:
+            verdict = "LABELS, NO FEATURE ROUTE"
+        elif routes:
+            verdict = "features, nothing to score"
+        else:
+            verdict = "neither"
+        verdicts[verdict].append(label[t])
+        print(f"    {label[t]:<14} {c['antiviral']:>7,} "
+              f"{'+'.join(routes) or '-':<26} {verdict}")
+    for v in ("LABELS, NO FEATURE ROUTE", "features, nothing to score"):
+        if verdicts[v]:
+            print(f"\n    {v}: {', '.join(sorted(verdicts[v]))}")
+    if verdicts["LABELS, NO FEATURE ROUTE"]:
+        print("      No metapath terminates at these, so every prediction "
+              "is a miss by\n      construction. Scoring them measures the "
+              "graph's reach, not the model.")
     print("    dis         CAUSES edges to a Disease node")
 
     # --------------------------------------------------- 5. what is left
