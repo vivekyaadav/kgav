@@ -237,12 +237,17 @@ def main() -> int:
     em = Emit()
     s = Counter()
     per_file: dict = {}
+    # ONE SET FOR THE WHOLE RUN, because an aggregator serves another
+    # curator's records and the same fact must not be emitted twice
+    # under one label. See ingest_mitab.
+    seen: set = set()
     for src, fs in groups:
         if not fs:
             continue
         part = ingest_mitab(em, fs, index, taxon_map,
                             source=src, default_date=args.date,
-                            per_file=per_file, accession_map=acc_map)
+                            per_file=per_file, accession_map=acc_map,
+                            seen=seen)
         print(f"\n  {src}: {part['rows']:,} rows -> {part['edges']:,} edges")
         s += part
 

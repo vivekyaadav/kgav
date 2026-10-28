@@ -784,3 +784,60 @@ def test_an_unreadable_source_column_yields_no_curator():
     assert source_infores(None) is None
     assert source_infores("") is None
     assert source_infores("!!!") is None
+
+
+# ---------------------------------- an aggregator serves the same fact twice
+def _dup_pair(world, src_a: str, src_b: str):
+    """The same interaction in two files, with the given curators."""
+    line = _row(f"uniprotkb:P0DTD1-{NSP5_PP1A.split(':')[1]}",
+                f"uniprotkb:{ACE2.split(':')[1]}", "MI:0018", "77",
+                2697049, 9606, "MI:0407", "0.5")
+    a = world / "intact_one.tab27"
+    b = world / "imex_one.tab27"
+    a.write_text(_row_src(line, src_a))
+    b.write_text(_row_src(line, src_b))
+    return a, b
+
+
+def test_an_aggregator_reserving_the_same_record_does_not_double_it(world):
+    """IMEx serves IntAct's records: its SARS-CoV-2 count is within six
+    of IntAct's own. With the label now read from the row, both copies
+    say infores:intact -- one fact twice, not two sources. A per-call
+    dedup set cannot see across services."""
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    a, b = _dup_pair(world, 'psi-mi:"MI:0469"(IntAct)',
+                     'psi-mi:"MI:0469"(IntAct)')
+    em, shared = Emit(), set()
+    for f, svc in ((a, "infores:intact"), (b, "infores:imex")):
+        ingest_mitab(em, [f], index, {"2697049": "2697049"}, svc,
+                     "2024-01-01", seen=shared)
+    assert len(em.edges) == 1
+    assert em.edges[0]["primary_knowledge_source"] == "infores:intact"
+
+
+def test_two_real_curators_of_one_fact_are_both_kept(world):
+    """The opposite case, and it must not regress: the same interaction
+    curated by VirHostNet AND by IntAct is two provenance records, and
+    assemble_release merges them into one edge carrying both."""
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    a, b = _dup_pair(world, 'psi-mi:"MI:0469"(IntAct)',
+                     'psi-mi:"MI:1114"(virhostnet)')
+    em, shared = Emit(), set()
+    for f, svc in ((a, "infores:intact"), (b, "infores:virhostnet")):
+        ingest_mitab(em, [f], index, {"2697049": "2697049"}, svc,
+                     "2024-01-01", seen=shared)
+    assert len(em.edges) == 2
+    assert {e["primary_knowledge_source"] for e in em.edges} == {
+        "infores:intact", "infores:virhostnet"}
+
+
+def test_without_a_shared_set_each_call_still_dedups_itself(world):
+    """Callers that pass nothing keep the old behaviour."""
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    a, b = _dup_pair(world, 'psi-mi:"MI:0469"(IntAct)',
+                     'psi-mi:"MI:0469"(IntAct)')
+    em = Emit()
+    for f in (a, b):
+        ingest_mitab(em, [f], index, {"2697049": "2697049"},
+                     "infores:intact", "2024-01-01")
+    assert len(em.edges) == 2, "no shared set means no cross-call dedup"
