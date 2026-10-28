@@ -198,6 +198,16 @@ class MondoResolver:
         if x.startswith("MONDO:"):
             if x in self.obsolete:
                 return Resolved(None, "deleted", xref, "MONDO term is deprecated")
+            # EXISTENCE, NOT JUST NON-DEPRECATION. This returned
+            # "primary" for any well-formed MONDO CURIE, including one
+            # the loaded ontology has never heard of -- so a typo in a
+            # curated identifier resolved cleanly and became a Disease
+            # node that joins to nothing. Checking the obsolete set and
+            # not the live set answers "has this been withdrawn" while
+            # appearing to answer "is this real".
+            if self.labels and x not in self.labels:
+                return Resolved(None, "unmapped", xref,
+                                "no such MONDO term in this release")
             return Resolved(x, "primary", xref, self.labels.get(x, ""))
         hits = self.xref_to_mondo.get(x, [])
         if not hits:

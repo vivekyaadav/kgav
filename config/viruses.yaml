@@ -52,7 +52,8 @@ viruses:
       - "sarscov2"
     proteome_id: UP000464024
     mondo: "MONDO:0100096"
-    mondo_source: "DOID:0080600 xref, verified 2026-09"
+    mondo_source: >-
+      DOID:0080600 xref, verified 2026-10-28 against mondo.json by xref
 
   - taxon: "694009"
     chain_source: {accession: P0C6X7, taxon: "694009", chains: 15,
@@ -155,7 +156,8 @@ viruses:
     curation_note: "isolates present in VirHostNet; INERT and expected to stay so -- all 73 rows are viral-viral and would be dropped at that gate even once their identifiers resolve. No ChEMBL activity under either."
     proteome_id: UP000000354
     mondo: "MONDO:0005091"
-    mondo_source: "severe acute respiratory syndrome; sole exact match, verified 2026-09"
+    mondo_source: >-
+      DOID:2945 xref, verified 2026-10-28 against mondo.json by xref (was recorded as a label match)
 
   - taxon: "1335626"
     chain_source: {accession: K9N7C7, taxon: "1263720", chains: 15,
@@ -178,7 +180,8 @@ viruses:
                        K9N643, K9N7D2, K9N4V0, K9N796]
     curation_note: "reviewed entries filed under isolate taxon 1263720"
     mondo: "MONDO:0100116"
-    mondo_source: "Middle East respiratory syndrome; verified 2026-09"
+    mondo_source: >-
+      DOID:0080642 xref, verified 2026-10-28 against mondo.json by xref (was recorded as a label match)
 
   - taxon: "11137"
     chain_source: {accession: P0C6X1, taxon: "11137", chains: 15,
@@ -196,8 +199,9 @@ viruses:
     # and a prediction "for the common cold" could not be attributed back to
     # the virus it came from. Left null: nothing in M1-M6 routes through
     # Disease, so no signal is lost.
-    mondo: null
-    mondo_source: null
+    mondo: "MONDO:0005709"
+    mondo_source: >-
+      DOID:10459 xref, verified 2026-10-28 against mondo.json by xref. MONDO has no term for an individual seasonal coronavirus; common cold is what this virus causes and is shared with rhinovirus and others, so the CAUSES edge is true and NOT specific to this taxon
 
   - taxon: "277944"
     chain_source: {accession: P0C6X5, taxon: "277944", chains: 15,
@@ -215,8 +219,9 @@ viruses:
     # and a prediction "for the common cold" could not be attributed back to
     # the virus it came from. Left null: nothing in M1-M6 routes through
     # Disease, so no signal is lost.
-    mondo: null
-    mondo_source: null
+    mondo: "MONDO:0005709"
+    mondo_source: >-
+      DOID:10459 xref, verified 2026-10-28 against mondo.json by xref. MONDO has no term for an individual seasonal coronavirus; common cold is what this virus causes and is shared with rhinovirus and others, so the CAUSES edge is true and NOT specific to this taxon
 
   - taxon: "31631"
     chain_source: {accession: P0C6X6, taxon: "31631", chains: 15,
@@ -234,8 +239,9 @@ viruses:
     # and a prediction "for the common cold" could not be attributed back to
     # the virus it came from. Left null: nothing in M1-M6 routes through
     # Disease, so no signal is lost.
-    mondo: null
-    mondo_source: null
+    mondo: "MONDO:0005709"
+    mondo_source: >-
+      DOID:10459 xref, verified 2026-10-28 against mondo.json by xref. MONDO has no term for an individual seasonal coronavirus; common cold is what this virus causes and is shared with rhinovirus and others, so the CAUSES edge is true and NOT specific to this taxon
 
   - taxon: "290028"
     chain_source: {accession: P0C6X2, taxon: "443239", chains: 15,
@@ -256,8 +262,9 @@ viruses:
     # and a prediction "for the common cold" could not be attributed back to
     # the virus it came from. Left null: nothing in M1-M6 routes through
     # Disease, so no signal is lost.
-    mondo: null
-    mondo_source: null
+    mondo: "MONDO:0005709"
+    mondo_source: >-
+      DOID:10459 xref, verified 2026-10-28 against mondo.json by xref. MONDO has no term for an individual seasonal coronavirus; common cold is what this virus causes and is shared with rhinovirus and others, so the CAUSES edge is true and NOT specific to this taxon
 
   # ------------------------------------------------------------------------
   # ZIKA, PROMOTED 2026-10-12 -- the second attempt, with the evidence the
@@ -378,8 +385,9 @@ viruses:
                    verified: "2026-09-17"}
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
-    mondo: null
-    mondo_source: null
+    mondo: "MONDO:0018661"
+    mondo_source: >-
+      DOID:0060478 xref, verified 2026-10-28 against mondo.json by xref
 
   - taxon: "11060"
     name: DENV-2
@@ -436,8 +444,9 @@ viruses:
     curation_note: "chains live on strain 31634's P29990, which has no proteome xref; pulled via EXTRA_11060.json.gz and reassigned to species 11060"
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
-    mondo: null
-    mondo_source: null
+    mondo: "MONDO:0005502"
+    mondo_source: >-
+      DOID:12205 xref, verified 2026-10-28 against mondo.json by xref. MONDO has no serotype-specific dengue term, so all four serotypes CAUSE the same disease node; that is the ontology's granularity, not a merge
 
   - taxon: "11053"
     name: DENV-1
@@ -490,8 +499,9 @@ viruses:
       Verified against UniProt 2026-10-27.
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
-    mondo: null
-    mondo_source: null
+    mondo: "MONDO:0005502"
+    mondo_source: >-
+      DOID:12205 xref, verified 2026-10-28 against mondo.json by xref. MONDO has no serotype-specific dengue term, so all four serotypes CAUSE the same disease node; that is the ontology's granularity, not a merge
 
 
   - taxon: "11069"
@@ -530,8 +540,9 @@ viruses:
       P27915: POLY
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
-    mondo: null
-    mondo_source: null
+    mondo: "MONDO:0005502"
+    mondo_source: >-
+      DOID:12205 xref, verified 2026-10-28 against mondo.json by xref. MONDO has no serotype-specific dengue term, so all four serotypes CAUSE the same disease node; that is the ontology's granularity, not a merge
 
   - taxon: "11070"
     name: DENV-4
@@ -569,8 +580,9 @@ viruses:
       Q2YHF2: POLY
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
-    mondo: null
-    mondo_source: null
+    mondo: "MONDO:0005502"
+    mondo_source: >-
+      DOID:12205 xref, verified 2026-10-28 against mondo.json by xref. MONDO has no serotype-specific dengue term, so all four serotypes CAUSE the same disease node; that is the ontology's granularity, not a merge
 
 
   - taxon: "11082"
@@ -608,8 +620,9 @@ viruses:
       P06935: POLY
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
-    mondo: null
-    mondo_source: null
+    mondo: "MONDO:0002282"
+    mondo_source: >-
+      DOID:2366 xref, verified 2026-10-28 against mondo.json by xref
 
   - taxon: "11072"
     name: JEV
@@ -657,8 +670,9 @@ viruses:
       UniParc 2026-10-27.
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
-    mondo: null
-    mondo_source: null
+    mondo: "MONDO:0019209"
+    mondo_source: >-
+      DOID:10844 xref, verified 2026-10-28 against mondo.json by xref
 
   - taxon: "11089"
     name: Yellow fever
@@ -688,8 +702,9 @@ viruses:
       P03314: POLY
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
-    mondo: null
-    mondo_source: null
+    mondo: "MONDO:0020502"
+    mondo_source: >-
+      DOID:9682 xref, verified 2026-10-28 against mondo.json by xref
 
   - taxon: "11084"
     name: TBEV
@@ -732,8 +747,9 @@ viruses:
       2026-10-27.
     # No MONDO term pinned. Label matching is banned (normalize_bio.
     # MondoResolver), and no xref has been curated for this taxon yet.
-    mondo: null
-    mondo_source: null
+    mondo: "MONDO:0017572"
+    mondo_source: >-
+      DOID:0050175 xref, verified 2026-10-28 against mondo.json by xref
 
 # Shared properties. All Coronaviridae are Baltimore class IV (+ssRNA) and
 # enveloped; asserted once here rather than repeated per virus.
