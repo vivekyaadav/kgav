@@ -388,3 +388,78 @@ def test_the_assumption_caveat_is_enforced_like_every_other(orch):
         str(w) for w in brief.warnings)
     assert not any(getattr(w, "key", "") == "virus_assumed"
                    for w in dropped_warnings(kept, brief.warnings))
+
+
+# ------------- routes are counted from the graph being served, not recalled
+def _ppi_tools(tmp_path, pairs):
+    """A release holding only PHYSICALLY_INTERACTS_WITH, from `pairs`.
+
+    Built on disk and read back through GraphTools, so routes_for is
+    exercised against a real release rather than a hand-made object.
+    """
+    def prot(pid, viral):
+        return {"id": pid, "class": "Protein",
+                "properties": {"taxon_id": V if viral else "NCBITaxon:9606",
+                               "is_viral": viral, "sequence_hash": "h",
+                               "reviewed": True}}
+
+    nodes = [
+        {"id": V, "class": "OrganismTaxon",
+         "properties": {"label": "SARS-CoV-2", "family": "Coronaviridae",
+                        "baltimore_class": "IV", "is_enveloped": True}},
+        prot("UniProtKB:NSP5", True), prot("UniProtKB:NSP12", True),
+        prot("UniProtKB:SIGMAR1", False), prot("UniProtKB:TMEM41B", False),
+    ]
+    edges = [{"subject": s, "predicate": "PHYSICALLY_INTERACTS_WITH",
+              "object": o, "qualifiers": {},
+              "primary_knowledge_source": "infores:virhostnet",
+              "evidence_tier": 2, "first_asserted_date": "2020-06-01"}
+             for s, o in pairs]
+    (tmp_path / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text(
+        "\n".join(json.dumps(x) for x in edges))
+    return GraphTools(tmp_path)
+
+
+def test_routes_are_counted_from_the_release(tmp_path):
+    """A virus whose routes vanish in a rebuild must stop being
+    answerable in the SAME run. A figure carried from a results file
+    cannot do that."""
+    from kgav.agent import guards
+    routes = _ppi_tools(
+        tmp_path, [("UniProtKB:NSP5", "UniProtKB:SIGMAR1")]
+    ).routes_for(V)
+    assert isinstance(routes, guards.VirusRoutes)
+    assert routes.ppi == 1 and routes.routes == ("ppi",)
+
+
+def test_a_host_host_edge_is_not_a_virus_route(tmp_path):
+    """PHYSICALLY_INTERACTS_WITH is shared with the STRING layer, so a
+    host-host pair carries the same predicate. Counting one would give a
+    virus a route it does not have -- and this route is exactly what
+    suppresses the no-route refusal."""
+    routes = _ppi_tools(
+        tmp_path, [("UniProtKB:SIGMAR1", "UniProtKB:TMEM41B")]).routes_for(V)
+    assert routes.ppi == 0
+    assert routes.routes == ()
+
+
+def test_a_viral_viral_edge_is_not_a_virus_route(tmp_path):
+    """Both endpoints are this virus, so `virus in (a, b)` would count it.
+    The edge says nothing about a host protein, which is what the PPI
+    channel scores, so the check is exactly-one-endpoint."""
+    routes = _ppi_tools(
+        tmp_path, [("UniProtKB:NSP5", "UniProtKB:NSP12")]).routes_for(V)
+    assert routes.ppi == 0
+    assert routes.routes == ()
+
+
+def test_only_the_host_viral_edge_of_a_mixed_release_is_counted(tmp_path):
+    """All three shapes in one release: the count is 1, not 3."""
+    routes = _ppi_tools(tmp_path, [
+        ("UniProtKB:NSP5", "UniProtKB:SIGMAR1"),      # host-viral
+        ("UniProtKB:NSP5", "UniProtKB:NSP12"),        # viral-viral
+        ("UniProtKB:SIGMAR1", "UniProtKB:TMEM41B"),   # host-host
+    ]).routes_for(V)
+    assert routes.ppi == 1

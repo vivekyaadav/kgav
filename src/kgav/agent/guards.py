@@ -195,6 +195,65 @@ class Verdict:
 # reproduction, and editing any caveat's wording silently changed the
 # requirement without touching the verifier. Editing a LABEL is now a visible,
 # deliberate act; editing prose is free.
+#: How few edges make a route worth a caveat. Not a cutoff: the route is
+#: used either way and the number is stated. JEV reaches its 46 labels
+#: through seven virus-host interactions, which is a true "evaluable"
+#: that reads exactly like SARS-CoV-2's 8,316.
+THIN_ROUTE = 25
+
+
+@dataclass(frozen=True)
+class VirusRoutes:
+    """Which feature channels exist for one virus in the release served.
+
+    WHY THE AGENT NEEDS THIS. A metapath ends at an INHIBITS edge, a
+    CRISPR host factor or a virus-host interaction. A virus with none
+    of the three cannot be ranked or explained however much is known
+    about it -- and in this release two of sixteen are in exactly that
+    state while holding the MOST evaluation labels after the big four.
+
+    n_labels is held-out positives. It is carried only so the refusal
+    can say what is there, never to answer from: quoting a label as
+    evidence is the leak every other guard here exists to prevent.
+    """
+    label: str
+    n_labels: int = 0
+    inhibits: int = 0
+    crispr: int = 0
+    ppi: int = 0
+
+    @property
+    def routes(self) -> tuple[str, ...]:
+        return tuple(n for n, v in (("inhibits", self.inhibits),
+                                    ("crispr", self.crispr),
+                                    ("ppi", self.ppi)) if v)
+
+    @property
+    def thin(self) -> bool:
+        """Every route it has is small. One big route is not thin."""
+        sizes = [v for v in (self.inhibits, self.crispr, self.ppi) if v]
+        return bool(sizes) and max(sizes) < THIN_ROUTE
+
+    def thin_text(self) -> str:
+        parts = ", ".join(
+            f"{n} ({v:,} edge{'s' if v != 1 else ''})"
+            for n, v in (("direct-acting evidence", self.inhibits),
+                         ("CRISPR host factors", self.crispr),
+                         ("virus-host interactions", self.ppi)) if v)
+        return (f"Every route to a compound for {self.label} in this release "
+                f"is small: {parts}. A ranking over so few edges is dominated "
+                f"by which handful of proteins happen to have been studied, "
+                f"and the order below should not be read as a comparison of "
+                f"the compounds themselves.")
+
+
+#: Query kinds whose answer is a RANKING or a route through the graph.
+#: A virus with no feature route cannot support one: there is nothing to
+#: rank and nothing to walk. PROFILE and EVIDENCE still work -- they
+#: report what is stored about a node, which exists either way.
+ROUTED_KINDS = frozenset({QueryKind.EXPLAIN, QueryKind.TRIAGE,
+                          QueryKind.PATHWAY})
+
 CAVEAT_LABELS: dict[str, str] = {
     "cell_context":          "CELL CONTEXT",
     "host_directed_route":   "HOST-DIRECTED ROUTE",
@@ -210,6 +269,7 @@ CAVEAT_LABELS: dict[str, str] = {
     "ranking":               "RANKING",
     "pathway_route":         "PATHWAY ROUTE",
     "target_direction":      "TARGET DIRECTION",
+    "thin_route":            "THIN ROUTE",
 }
 
 
@@ -332,12 +392,17 @@ def _virus_caveat(calibration) -> str:
 
 
 def check(kind: QueryKind, virus: str | None = None,
-          calibration=None, temporal=None) -> Verdict:
+          calibration=None, temporal=None, routes=None) -> Verdict:
     """Whether a query of this kind, about this virus, may be answered.
 
     `calibration` is this virus's cross-sectional Calibration and `temporal`
     its post-cutoff one. Both optional: absent, the messages state the limit
     without a figure, which is weaker than a measurement and true.
+
+    `routes` is this virus's VirusRoutes: which feature channels exist for
+    it in the release being served. Optional for the same reason -- a
+    caller that cannot compute it gets the old behaviour rather than a
+    refusal it cannot justify.
     """
     if kind is QueryKind.PROSPECT:
         return Verdict(
@@ -361,9 +426,41 @@ def check(kind: QueryKind, virus: str | None = None,
             ),
         )
 
+    if kind in ROUTED_KINDS and routes is not None and not routes.routes:
+        # LABELS WITHOUT A ROUTE. Yellow fever holds 1,030 antiviral
+        # measurements in this release and no INHIBITS edge, no CRISPR
+        # host factor and no virus-host interaction -- so no metapath
+        # terminates at it and nothing can be ranked. DENV-4 is the
+        # same with 312.
+        #
+        # An empty ranking would be returned instead, and an empty
+        # ranking reads as "no compound looks promising". The
+        # difference between finding nothing and being unable to look
+        # is the whole distinction this module exists to keep, and it
+        # was absent in the one place the user actually reads.
+        return Verdict(
+            allowed=False,
+            reason=(
+                f"This release cannot answer that about {routes.label}. It "
+                f"holds {routes.n_labels:,} antiviral measurement(s) for it, "
+                f"which are held out as evaluation labels, and no route to "
+                f"reach a compound: no protein-level inhibitor, no CRISPR "
+                f"host factor, and no virus-host interaction. Every metapath "
+                f"this agent walks ends at one of those three, so there is "
+                f"nothing to rank and nothing to explain — not because no "
+                f"compound looks promising, but because none can be "
+                f"reached.\n\n"
+                f"What still works for {routes.label}: asking what the graph "
+                f"stores about a specific compound or protein, and retrieving "
+                f"evidence for a named claim."
+            ),
+        )
+
     warnings: list[str] = []
     if virus and virus != SUPPORTED_VIRUS:
         warnings.append(caveat("virus_not_validated", _virus_caveat(calibration)))
+    if routes is not None and routes.thin:
+        warnings.append(caveat("thin_route", routes.thin_text()))
     return Verdict(allowed=True, warnings=warnings)
 
 

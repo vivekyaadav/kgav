@@ -275,6 +275,45 @@ class GraphTools:
                     f"a calibration must be keyed by the virus it measured")
             self._calibrations[key] = cal
 
+    def routes_for(self, virus: str) -> guards.VirusRoutes:
+        """Which feature channels this release holds for one virus.
+
+        COUNTED FROM THE GRAPH BEING SERVED, not from a results file
+        or a note. A virus whose routes all disappeared in a rebuild
+        must stop being answerable in the same run, and a figure
+        carried from elsewhere cannot do that.
+
+        The label count is held-out positives. It is here so the
+        refusal can say what exists, and is never an input to an
+        answer: quoting a label as evidence is the leak the rest of
+        this module exists to stop.
+        """
+        inhibits = crispr = ppi = labels = 0
+        for e in self.edges:
+            pred, subj, obj = e["predicate"], e["subject"], e["object"]
+            if pred == "HAS_ANTIVIRAL_ACTIVITY_AGAINST":
+                labels += obj == virus
+            elif pred == "HOST_FACTOR_FOR":
+                crispr += (obj == virus
+                           and (e.get("qualifiers") or {}).get("direction")
+                           == "dependency")
+            elif pred == "INHIBITS":
+                inhibits += self._taxon_of(obj) == virus
+            elif pred == "PHYSICALLY_INTERACTS_WITH":
+                # Exactly one endpoint viral AND this virus: a host-host
+                # STRING edge and a viral-viral pair are both excluded,
+                # by the same check, because the predicate is shared.
+                a, b = self._taxon_of(subj), self._taxon_of(obj)
+                ppi += (a == virus) != (b == virus)
+        return guards.VirusRoutes(label=self._label(virus), n_labels=labels,
+                                  inhibits=inhibits, crispr=crispr, ppi=ppi)
+
+    def _taxon_of(self, node_id: str) -> str | None:
+        """The virus a VIRAL protein belongs to, else None."""
+        props = (self.nodes.get(node_id) or {}).get("properties") or {}
+        return str(props["taxon_id"]) if props.get("is_viral") \
+            and props.get("taxon_id") else None
+
     def calibration_for(self, virus: str):
         """The calibration measured ON this virus, or None.
 
