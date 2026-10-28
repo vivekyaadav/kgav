@@ -16,6 +16,7 @@ fails an answer that drops it.
 """
 from __future__ import annotations
 
+import itertools
 import json
 import math
 from pathlib import Path
@@ -677,3 +678,72 @@ def test_nothing_claims_depletion_at_the_real_denv2_figure(tmp_path):
     land = _both_tails(tmp_path)
     assert land.depleted() == []
     assert "FEWER" not in guards.pathway_caveat(land, V)
+
+
+# ------------- the correction answers to every test the run performed
+_FILE_N = itertools.count()
+
+
+def _file(tmp_path, taxa, **extra):
+    import json
+    d = tmp_path / f"f{next(_FILE_N)}"
+    d.mkdir()
+    p = d / "pathway_landscape.json"
+    doc = {"release": "v0.1", "permutations": 2000, "seed": 0,
+           "measured_on": "2026-10-28", "partial": False,
+           "taxa": taxa, "uncovered": []}
+    doc.update(extra)
+    p.write_text(json.dumps(doc))
+    return p
+
+
+def _rows(n):
+    return {f"NCBITaxon:{i}": {"n_dependency": 100, "n_observed": 10,
+                               "expected": 10.0, "p_naive": 0.5,
+                               "p_matched": 0.5, "p_matched_less": 0.5}
+            for i in range(n)}
+
+
+def test_a_second_channels_tests_tighten_the_threshold(tmp_path):
+    """The interactome channel landed 2026-10-28 and measures fourteen
+    taxa in two directions. Counting only this module's eight leaves the
+    bar at 0.0031 when the family is forty-four tests and the bar is
+    0.0011 -- and the agent would have called a p of 0.0035 significant
+    on a run where nothing was.
+    """
+    eight = _rows(8)
+    alone = L.load(_file(tmp_path, eight))
+    assert alone.n_tests == 16
+    both = L.load(_file(tmp_path, eight, n_tests=44))
+    assert both.n_tests == 44
+    assert both.alpha < alone.alpha
+    assert abs(both.alpha - 0.05 / 44) < 1e-12
+
+
+def test_a_file_cannot_weaken_the_threshold_by_under_reporting(tmp_path):
+    """Taken as a FLOOR. A file claiming fewer tests than this module can
+    see must not buy a more permissive bar."""
+    land = L.load(_file(tmp_path, _rows(8), n_tests=2))
+    assert land.n_tests == 16
+
+
+def test_an_old_file_with_no_count_still_corrects_for_its_own_rows(tmp_path):
+    """Files written before the writer recorded a total."""
+    assert L.load(_file(tmp_path, _rows(8))).n_tests == 16
+
+
+def test_the_protocol_sentence_states_the_whole_family(tmp_path):
+    """A reader checking the threshold has to see the number it came
+    from, or the correction is unauditable."""
+    land = L.load(_file(tmp_path, _rows(8), n_tests=44))
+    assert "44 tests" in land.protocol
+    assert "0.0011" in land.protocol
+
+
+def test_every_taxon_carries_the_corrected_threshold(tmp_path):
+    """Not just the Landscape. Each verdict is judged against it, and a
+    row holding the uncorrected 0.05 would decide on its own."""
+    land = L.load(_file(tmp_path, _rows(8), n_tests=44))
+    for row in land.taxa.values():
+        assert row.n_tests == 44
+        assert abs(row.alpha - 0.05 / 44) < 1e-12

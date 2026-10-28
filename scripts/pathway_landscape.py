@@ -502,6 +502,11 @@ def _write(out: Path, args, rows: dict[str, dict],
         # be checked -- the same failure as a results file recording a
         # release by name.
         "degree_basis": args.degree_from,
+        # EVERY TEST THIS RUN PERFORMED, across all channels. The
+        # correction answers to the family of tests done, not to the
+        # subset a consumer happens to read, and only this script knows
+        # how many channels it ran. landscape.load takes it as a floor.
+        "n_tests": 2 * (len(rows) + len(channels.get("interactome") or {})),
         "partial": bool(args.virus),
         "partial_reason": (f"run with --virus {args.virus}, so it covers that "
                            f"taxon only" if args.virus else ""),
@@ -522,12 +527,14 @@ def _write(out: Path, args, rows: dict[str, dict],
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--release", type=Path, default=ROOT / "data/releases/v0.1")
-    ap.add_argument("--degree-from", choices=("all", "study"), default="all",
-                    help="what the degree-matched null matches ON. 'all' is "
-                         "total graph degree, which includes the edges "
-                         "defining both the observed set and the hits. "
-                         "'study' uses host-host PPI only, which is in "
-                         "neither. See study_degree.")
+    ap.add_argument("--degree-from", choices=("all", "study"),
+                    default="study",
+                    help="what the degree-matched null matches ON. 'study' "
+                         "(the default) uses host-host PPI only, which is "
+                         "in neither the observed set nor the hits. 'all' "
+                         "is total graph degree, which includes the edges "
+                         "defining both and is kept only as the sensitivity "
+                         "comparison. See study_degree.")
     ap.add_argument("--virus", default=None)
     ap.add_argument("--permutations", type=int, default=DEFAULT_PERMUTATIONS)
     ap.add_argument("--seed", type=int, default=0)
@@ -627,6 +634,18 @@ def main(argv=None) -> int:
               f"degree:\n    total degree includes the TARGETS edges that "
               f"define the drugged set and the\n    virus-host edges that "
               f"define the interactome, so matching on it is circular.\n")
+    else:
+        # SAID EVERY TIME, because this basis is kept for comparison and
+        # not because it is defensible. On 2026-10-28 it put all nine
+        # interactome taxa under ratio 1.0, six at the 1/(N+1) floor;
+        # under `study` the dependency channel's ratios move to 0.96-1.20
+        # and the depletion is gone. A number produced here is a
+        # sensitivity check, not a result.
+        print("  degree matched on TOTAL graph degree, which includes the\n"
+              "    TARGETS edges defining the drugged set and the virus-host\n"
+              "    edges defining the interactome. That is circular, and it\n"
+              "    biases every ratio downward. Kept for comparison with\n"
+              "    --degree-from study, which is the default.\n")
     for virus in viruses:
         deps = dependency_factors(g, virus)
         if not deps:

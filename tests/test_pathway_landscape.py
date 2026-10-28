@@ -803,12 +803,33 @@ def test_the_basis_is_recorded_in_the_results_file(tmp_path):
     assert json.loads(out.read_text())["degree_basis"] == "study"
 
 
-def test_the_default_basis_is_unchanged(tmp_path):
-    """Switching the default would silently move every published number."""
+def test_the_default_basis_is_the_one_that_is_not_circular(tmp_path):
+    """Changed from `all` on 2026-10-28, deliberately and not silently.
+
+    Matching on total graph degree means matching on a variable built
+    from the edges under test: TARGETS defines the observed set and
+    virus-host PPI defines the hits, and both count toward degree. The
+    measured consequence was every interactome ratio under 1.0, six at
+    the permutation floor, and a dependency channel whose depletion
+    vanished the moment the basis was fixed.
+
+    `all` stays reachable as the sensitivity comparison, and the file
+    records which was used, so the two are never confused.
+    """
     out = tmp_path / "r2.json"
     L.main(["--release", str(_ppi_release(tmp_path)), "--out", str(out),
             "--permutations", "50"])
-    assert json.loads(out.read_text())["degree_basis"] == "all"
+    assert json.loads(out.read_text())["degree_basis"] == "study"
+
+
+def test_the_circular_basis_says_so_when_it_is_used(tmp_path, capsys):
+    """It is kept for comparison, not because it is defensible. A run
+    that produces those numbers has to say what they are."""
+    L.main(["--release", str(_ppi_release(tmp_path)),
+            "--permutations", "50", "--degree-from", "all"])
+    out = capsys.readouterr().out
+    assert "circular" in out
+    assert "biases every ratio downward" in out
 
 
 def test_a_viral_subject_edge_is_excluded_from_the_study_basis(tmp_path):
@@ -826,3 +847,33 @@ def test_a_viral_subject_edge_still_yields_its_partner(tmp_path):
     partners, _ = L.interactome_partners(
         g, L.viral_proteins(g)["NCBITaxon:64320"])
     assert "UniProtKB:H7" in partners
+
+
+def test_the_file_records_every_test_the_run_performed(tmp_path):
+    """Both channels, two tails each. landscape.load takes this as the
+    floor for its Bonferroni correction, so a run that under-reports
+    buys a threshold more permissive than the tests it actually did --
+    and the agent calls noise significant on the strength of it.
+    """
+    out = tmp_path / "r3.json"
+    L.main(["--release", str(_ppi_release(tmp_path)), "--out", str(out),
+            "--permutations", "50"])
+    doc = json.loads(out.read_text())
+    expected = 2 * (len(doc["taxa"]) + len(doc["interactome"]))
+    assert doc["n_tests"] == expected
+    # and the interactome channel is not empty here, or this proves
+    # nothing about counting it
+    assert doc["interactome"]
+
+
+def test_the_recorded_count_reaches_the_loader(tmp_path):
+    """The two halves have to agree. Writer and reader were built an
+    hour apart and nothing had checked them end to end."""
+    from kgav.landscape import load
+    out = tmp_path / "pathway_landscape.json"
+    L.main(["--release", str(_ppi_release(tmp_path)), "--out", str(out),
+            "--permutations", "2000"])
+    doc = json.loads(out.read_text())
+    land = load(out)
+    if land.usable:
+        assert land.n_tests == doc["n_tests"]
