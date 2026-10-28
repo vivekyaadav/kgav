@@ -341,6 +341,16 @@ def ingest_mitab(em, paths: list[Path], index, taxon_map: dict[str, str],
 
             curator = source_infores(r.get("source_db")) or source
             key = (host, viral, r["detection_method"], r["pmid"], curator)
+            # ELIGIBLE: this row passed every gate and would have become
+            # an edge had no other source carried it. Counted BEFORE the
+            # dedup check, because `edges` alone is order-dependent --
+            # groups run in sorted order, so IMEx preceded IntAct and
+            # the identical 12,496 records read as "12,496 rows -> 10
+            # edges", which looks like a source that contributed almost
+            # nothing rather than one fully covered by its aggregator.
+            # Renaming a file would have changed the figure.
+            stats["eligible"] += 1
+            fstats["eligible"] += 1
             if key in seen:
                 stats["duplicate"] += 1
                 fstats["duplicate"] += 1

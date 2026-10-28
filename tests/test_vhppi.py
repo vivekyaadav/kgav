@@ -841,3 +841,35 @@ def test_without_a_shared_set_each_call_still_dedups_itself(world):
         ingest_mitab(em, [f], index, {"2697049": "2697049"},
                      "infores:intact", "2024-01-01")
     assert len(em.edges) == 2, "no shared set means no cross-call dedup"
+
+
+def test_a_source_covered_by_an_aggregator_reports_its_real_content(world):
+    """`edges` is order-dependent: groups run in sorted order and the
+    first to carry a fact claims it. IMEx preceded IntAct, the same
+    12,496 records read as "12,496 rows -> 10 edges", and that looks
+    like a source contributing nothing rather than one fully covered.
+    Renaming a file would have changed the figure.
+    """
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    a, b = _dup_pair(world, 'psi-mi:"MI:0469"(IntAct)',
+                     'psi-mi:"MI:0469"(IntAct)')
+    em, shared = Emit(), set()
+    first = ingest_mitab(em, [b], index, {"2697049": "2697049"},
+                         "infores:imex", "2024-01-01", seen=shared)
+    second = ingest_mitab(em, [a], index, {"2697049": "2697049"},
+                          "infores:intact", "2024-01-01", seen=shared)
+    assert first["edges"] == 1 and second["edges"] == 0
+    # the order-free number is the same for both
+    assert first["eligible"] == second["eligible"] == 1
+    assert second["duplicate"] == 1
+
+
+def test_eligible_counts_only_rows_that_passed_every_gate(world):
+    """Not rows read. A row dropped as unparseable or viral-viral was
+    never going to be an edge and must not inflate the figure."""
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    stats = ingest_mitab(Emit(), [world / "vhn_test.tab27"], index,
+                         {"2697049": "2697049"}, "infores:virhostnet",
+                         "2024-01-01")
+    assert stats["eligible"] == stats["edges"] + stats["duplicate"]
+    assert stats["eligible"] < stats["rows"], "the fixture has dropped rows"
