@@ -216,6 +216,10 @@ class Landscape:
     uncovered: list[str] = field(default_factory=list)
     source_file: str = ""
     refused_reason: str = ""
+    #: Tests the run performed in OTHER channels of the same file. The
+    #: correction answers to the family of tests performed, not to the
+    #: subset this module reports -- see n_tests.
+    other_channel_tests: int = 0
 
     @property
     def usable(self) -> bool:
@@ -230,9 +234,23 @@ class Landscape:
 
     @property
     def n_tests(self) -> int:
-        """Tests performed: one per taxon per measured direction."""
+        """Every test the RUN performed, not every test this module reports.
+
+        One per taxon per measured direction, plus the tests any other
+        channel in the same file performed. The interactome channel
+        landed 2026-10-28 and measures fourteen taxa in two directions:
+        counting only this module's eight would leave the threshold at
+        0.0031 when the family is forty-four tests and the bar is
+        0.0011. The agent would then have called a p of 0.0035
+        significant on a run where nothing was.
+
+        A correction answers to what was DONE, not to what gets quoted.
+        Leaving the other channel out because the agent cannot cite it
+        would be choosing the tests after seeing them.
+        """
         rows = self._sorted()
-        return max(1, len(rows) * (2 if self.depletion_tested() else 1))
+        mine = len(rows) * (2 if self.depletion_tested() else 1)
+        return max(1, mine + max(0, self.other_channel_tests))
 
     @property
     def alpha(self) -> float:
@@ -472,7 +490,27 @@ def load(results: Path, release: str | None = None) -> Landscape:
     # printed beside every verdict so nothing is hidden by it.
     directions = 2 if rows and all(
         r.get("p_matched_less") is not None for r in rows.values()) else 1
-    n_tests = max(1, len(rows) * directions)
+
+    # TESTS THE RUN PERFORMED ELSEWHERE IN THE SAME FILE. The writer
+    # records its own total, because only the writer knows how many
+    # channels it ran -- a reader that inferred the count from keys it
+    # recognises would silently miss a channel added later, which is
+    # exactly how this module came to be correcting for eight tests on a
+    # run of forty-four.
+    #
+    # Taken as a FLOOR, never as the answer: max() against what can be
+    # seen here means a file cannot weaken the threshold by
+    # under-reporting, only strengthen it by reporting more than this
+    # module can account for.
+    mine = len(rows) * directions
+    declared = int(doc.get("n_tests") or 0)
+    base.other_channel_tests = max(0, declared - mine)
+    # COMPUTED HERE, not read back off base.n_tests: that property counts
+    # base.taxa, which is still empty on this line. Reading it gave every
+    # TaxonOverlap alpha 0.05 and n_tests 1 -- an UNCORRECTED threshold,
+    # the exact failure this function exists to prevent, introduced while
+    # tightening it.
+    n_tests = max(1, mine + base.other_channel_tests)
     alpha = ALPHA / n_tests
 
     base.taxa = {v: _overlap(v, r, alpha=alpha, n_tests=n_tests)
