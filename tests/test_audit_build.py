@@ -1,0 +1,166 @@
+"""Gate for the build audit.
+
+The facts it joins live in five places -- pipeline.LAYERS, data/raw,
+the per-layer releases, the assembled release and the register -- and
+answering "can the agent handle DENV-1 yet" meant holding that join in
+your head. That is how a virus with a taxon in the map and no file on
+disk went unnoticed for weeks.
+"""
+from __future__ import annotations
+
+import json
+import sys
+from importlib import import_module
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "src"))
+
+A = import_module("audit_build")
+
+CFG = {"viruses": [
+    {"taxon": "11053", "name": "DENV-1", "family": "Flaviviridae",
+     "mondo": None,
+     "chain_source": {"accession": "P27909", "taxon": "11053", "chains": 14,
+                      "verified": "2026-09-17"}},
+    {"taxon": "2697049", "name": "SARS-CoV-2", "family": "Coronaviridae",
+     "mondo": None,
+     "chain_source": {"accession": "P0DTD1", "taxon": "2697049",
+                      "chains": 16, "verified": "2026-09-17"}},
+]}
+
+
+def _release(tmp_path: Path) -> Path:
+    d = tmp_path / "v0.1"
+    d.mkdir(parents=True)
+    nodes = [
+        {"id": "NCBITaxon:11053", "class": "OrganismTaxon", "properties": {}},
+        {"id": "NCBITaxon:2697049", "class": "OrganismTaxon",
+         "properties": {}},
+        {"id": "MONDO:1", "class": "Disease", "properties": {}},
+        {"id": "UniProtKB:POLY", "class": "Protein",
+         "properties": {"is_viral": True, "taxon_id": "NCBITaxon:11053"}},
+        {"id": "UniProtKB:PRO_1", "class": "Protein",
+         "properties": {"is_viral": True, "taxon_id": "NCBITaxon:11053"}},
+        {"id": "UniProtKB:NSP5", "class": "Protein",
+         "properties": {"is_viral": True, "taxon_id": "NCBITaxon:2697049"}},
+        {"id": "UniProtKB:H1", "class": "Protein",
+         "properties": {"is_viral": False, "taxon_id": "NCBITaxon:9606"}},
+        {"id": "UniProtKB:H2", "class": "Protein",
+         "properties": {"is_viral": False, "taxon_id": "NCBITaxon:9606"}},
+        {"id": "INCHIKEY:D1", "class": "SmallMolecule", "properties": {}},
+    ]
+    edges = [
+        # DENV-1: two PPI edges, two distinct partners, no CRISPR, no drug
+        ("UniProtKB:H1", "PHYSICALLY_INTERACTS_WITH", "UniProtKB:POLY", {}),
+        ("UniProtKB:H2", "PHYSICALLY_INTERACTS_WITH", "UniProtKB:PRO_1", {}),
+        # a host-host edge, which is NOT virus-host: excluded because
+        # neither endpoint resolves to a viral taxon
+        ("UniProtKB:H1", "PHYSICALLY_INTERACTS_WITH", "UniProtKB:H2", {}),
+        # a VIRAL-VIRAL edge, which is excluded by a DIFFERENT check --
+        # both endpoints resolve to a viral taxon, so without the guard
+        # each virus would count the other's protein as a host partner.
+        # The fixture had none, and a mutant removing that guard
+        # survived while the host-host case went on passing.
+        ("UniProtKB:POLY", "PHYSICALLY_INTERACTS_WITH", "UniProtKB:NSP5",
+         {}),
+        # SARS-CoV-2: CRISPR both directions, a drug, a disease
+        ("UniProtKB:H1", "HOST_FACTOR_FOR", "NCBITaxon:2697049",
+         {"direction": "dependency"}),
+        ("UniProtKB:H2", "HOST_FACTOR_FOR", "NCBITaxon:2697049",
+         {"direction": "restriction"}),
+        ("INCHIKEY:D1", "INHIBITS", "UniProtKB:NSP5", {}),
+        ("NCBITaxon:2697049", "CAUSES", "MONDO:1", {}),
+    ]
+    (d / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
+    (d / "edges.jsonl").write_text("\n".join(json.dumps(
+        {"subject": s, "predicate": p, "object": o, "qualifiers": q,
+         "primary_knowledge_source": "infores:test", "evidence_tier": 1,
+         "first_asserted_date": "2021-01-01"}) for s, p, o, q in edges))
+    return d
+
+
+def _run(tmp_path, capsys):
+    cfg = tmp_path / "v.yaml"
+    import yaml
+    cfg.write_text(yaml.safe_dump(CFG))
+    rc = A.main(["--config", str(cfg), "--release", str(_release(tmp_path)),
+                 "--root", str(tmp_path)])
+    return rc, capsys.readouterr().out
+
+
+def test_it_counts_virus_host_ppi_and_nothing_else(tmp_path, capsys):
+    """The predicate is shared with the STRING layer, so the fixture
+    carries all three shapes: virus-host, host-host and viral-viral.
+    Only the first is this layer's evidence, and the other two are
+    excluded by different checks."""
+    _rc, out = _run(tmp_path, capsys)
+    denv = [ln for ln in out.splitlines() if "DENV-1" in ln and "Flav" in ln]
+    assert denv, out
+    # proteins 2, chains 1, vhPPI 2, partners 2
+    assert denv[0].split()[2:6] == ["2", "1", "2", "2"]
+
+
+def test_a_virus_with_no_data_on_an_axis_is_named(tmp_path, capsys):
+    """A zero that appears nowhere is the failure this whole audit is
+    for: DENV-1 has PPI and no CRISPR, SARS-CoV-2 the reverse."""
+    _rc, out = _run(tmp_path, capsys)
+    assert "no CRISPR dependency factor" in out
+    assert "no virus-host PPI" in out
+    gap = out.split("5. WHAT IS MISSING")[1]
+    assert "DENV-1" in gap and "SARS-CoV-2" in gap
+
+
+def test_dependency_and_restriction_are_not_pooled(tmp_path, capsys):
+    """Opposite claims. One of each here, and they must not add to two
+    in a single column."""
+    _rc, out = _run(tmp_path, capsys)
+    row = [ln for ln in out.splitlines() if "SARS-CoV-2" in ln and "Coro" in ln]
+    assert row[0].split()[6:8] == ["1", "1"]
+
+
+def test_an_unassembled_release_says_so_and_stops(tmp_path, capsys):
+    """Rather than printing an empty per-virus table that reads as 'no
+    data for any virus'."""
+    import yaml
+    cfg = tmp_path / "v.yaml"
+    cfg.write_text(yaml.safe_dump(CFG))
+    rc = A.main(["--config", str(cfg), "--release", str(tmp_path / "nope"),
+                 "--root", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert rc == 1 and "NOT ASSEMBLED" in out
+    assert "PER-VIRUS" not in out
+
+
+def test_a_layer_that_built_nothing_is_distinguished_from_one_not_built(
+        tmp_path, capsys):
+    """Identical in a directory listing, and they need different work."""
+    d = tmp_path / "data" / "releases" / "v0.1-vhppi"
+    d.mkdir(parents=True)
+    (d / "nodes.jsonl").write_text("")
+    (d / "edges.jsonl").write_text("")
+    _rc, out = _run(tmp_path, capsys)
+    assert "ran and joined nothing" in out
+    assert "NOT BUILT" in out
+
+
+def test_a_blocked_layer_names_what_is_absent(tmp_path, capsys):
+    """"skipped" sends the reader to look for a bug in a layer that
+    simply had no input."""
+    _rc, out = _run(tmp_path, capsys)
+    assert "BLOCKED:" in out
+    assert "nothing matches" in out or "no data/raw" in out
+
+
+def test_a_viral_viral_edge_is_not_a_host_partner(tmp_path, capsys):
+    """POLY touches NSP5 in the fixture. Counting it would give DENV-1
+    a host partner that is a SARS-CoV-2 protein."""
+    _rc, out = _run(tmp_path, capsys)
+    for name in ("DENV-1", "SARS-CoV-2"):
+        row = next(ln for ln in out.splitlines()
+                   if name in ln and ("Flav" in ln or "Coro" in ln))
+        cols = row.split()
+        vhppi, partners = int(cols[4]), int(cols[5])
+        assert vhppi == (2 if name == "DENV-1" else 0), row
+        assert partners == (2 if name == "DENV-1" else 0), row
