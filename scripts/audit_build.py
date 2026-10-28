@@ -41,7 +41,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from kgav.pipeline import LAYERS, availability, layer_dir
 from kgav.schema import print_capped
-from kgav.virus_register import declared_taxa
+from kgav.virus_register import declared_taxa, family_of
 
 VIRAL_PPI = "PHYSICALLY_INTERACTS_WITH"
 HOST_FACTOR = "HOST_FACTOR_FOR"
@@ -178,7 +178,11 @@ def main(argv=None) -> int:
     register = {str(v["taxon"]): v for v in doc["viruses"]}
     taxa = [f"NCBITaxon:{t}" for t in register]
     label = {f"NCBITaxon:{t}": v["name"] for t, v in register.items()}
-    family = {f"NCBITaxon:{t}": (v.get("family") or "?")
+    # DEFAULTS APPLIED. Reading the per-entry key alone printed "?" for
+    # every coronavirus, because they inherit Coronaviridae from the
+    # register's defaults block -- and the audit's own family column was
+    # the fourth copy of that bug.
+    family = {f"NCBITaxon:{t}": (family_of(v, doc) or "?")
               for t, v in register.items()}
 
     print("=" * 74)

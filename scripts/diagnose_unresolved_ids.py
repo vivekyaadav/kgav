@@ -45,7 +45,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.aliases import AliasIndex
 from kgav.vhppi import classify_row, file_taxon, slug
-from kgav.virus_register import declared_taxa, ppi_accession_map
+from kgav.virus_register import declared_taxa, family_of, ppi_accession_map
 
 
 def select_files(files: list, doc: dict, taxon_map: dict,
@@ -59,7 +59,7 @@ def select_files(files: list, doc: dict, taxon_map: dict,
     viruses = doc["viruses"]
     by_name = {v["name"].lower(): v for v in viruses}
     wanted = {str(v["taxon"]) for v in viruses
-              if family and (v.get("family") or "") == family}
+              if family and family_of(v, doc) == family}
     for n in names or []:
         v = by_name.get(n.lower())
         if v is None:

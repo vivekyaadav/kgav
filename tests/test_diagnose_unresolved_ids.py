@@ -19,10 +19,13 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from diagnose_unresolved_ids import select_files
 
-DOC = {"viruses": [
+DOC = {"defaults": {"family": "Coronaviridae"}, "viruses": [
     {"name": "DENV-1", "taxon": "11053", "family": "Flaviviridae"},
     {"name": "Yellow fever", "taxon": "11089", "family": "Flaviviridae"},
-    {"name": "SARS-CoV-2", "taxon": "2697049", "family": "Coronaviridae"},
+    # NO per-entry family, like the real register: inherited from
+    # defaults. The fixture declared it, so --family Coronaviridae was
+    # never exercised against the path that was broken.
+    {"name": "SARS-CoV-2", "taxon": "2697049"},
 ]}
 MAP = {"11053": "11053", "11089": "11089", "2697049": "2697049"}
 
@@ -122,3 +125,13 @@ def test_a_register_virus_declared_under_a_strain_still_matches_its_file():
             '{"taxon": "11060"}')
         keep, dropped = select_files([f], doc, tmap, "Flaviviridae", None)
     assert keep == [f] and dropped == 0
+
+
+def test_family_coronaviridae_selects_the_inheriting_entries(tmp_path):
+    """They carry no per-entry family. A filter reading the key alone
+    matched nothing, and an empty selection here reads as "that virus
+    has no unresolved rows"."""
+    files = _files(tmp_path, "denv1", "sarscov2")
+    keep, dropped = select_files(files, DOC, MAP, "Coronaviridae", None)
+    assert [f.name for f in keep] == ["vhn_sarscov2.tab27"]
+    assert dropped == 1
