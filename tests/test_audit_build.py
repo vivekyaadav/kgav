@@ -404,3 +404,63 @@ def test_a_stale_comparison_is_not_quoted(tmp_path, capsys):
     assert "ROUTES REACH NO LABEL" not in block, (
         "a stale comparison was quoted as a measurement")
     assert "reach unmeasured" in block
+
+
+def _verdict_sections(block: str) -> dict[str, str]:
+    """Each verdict heading mapped to the text until the next heading.
+
+    The point is attachment. Asserting a paragraph is somewhere in the
+    section passes while it sits under the wrong list, which is exactly
+    what happened: "No metapath terminates at these" is true of DENV-4
+    and Yellow fever and printed under `features, nothing to score`,
+    then under ROUTES REACH NO LABEL where it is false.
+    """
+    heads = [v for v, _ in A.VERDICT_NOTES]
+    out, current = {}, None
+    for line in block.splitlines():
+        hit = next((h for h in heads if line.strip().startswith(h + ":")),
+                   None)
+        if hit:
+            current = hit
+            out[hit] = ""
+        elif current:
+            out[current] += line + "\n"
+    return out
+
+
+def test_each_explanation_sits_under_its_own_verdict(tmp_path, capsys):
+    """A route that reaches no label is NOT a virus no metapath reaches,
+    and the two paragraphs say opposite things about whether a path
+    exists. Printed after the loop they stacked under whichever list
+    came last."""
+    _rc, out = _run_with_reach(tmp_path, capsys, {"DENV-1": 0})
+    secs = _verdict_sections(out.split("LABELS vs FEATURES")[1])
+    assert "ROUTES REACH NO LABEL" in secs, secs.keys()
+    mine = " ".join(secs["ROUTES REACH NO LABEL"].split())
+    assert "A metapath does terminate at these" in mine, mine
+    assert "No metapath terminates at these" not in mine, (
+        "the no-route explanation is attached to the reaches-no-label "
+        "list, where it is false")
+    if "LABELS, NO FEATURE ROUTE" in secs:
+        theirs = " ".join(secs["LABELS, NO FEATURE ROUTE"].split())
+        assert "No metapath terminates at these" in theirs, theirs
+        assert "reaches none of the held-out" not in theirs
+
+
+def test_every_called_out_verdict_has_a_paired_note():
+    """VERDICT_NOTES is the only list of these headings. A tier added to
+    the verdict logic and not to it prints no list at all, which is a
+    silent omission rather than a visible one."""
+    src = (ROOT / "scripts" / "audit_build.py").read_text()
+    for verdict, _note in A.VERDICT_NOTES:
+        assert f'verdict = "{verdict}"' in src, (
+            f"{verdict!r} is in VERDICT_NOTES and no branch assigns it")
+    for line in src.splitlines():
+        if line.strip().startswith('verdict = "'):
+            name = line.split('"')[1]
+            if name in ("evaluable", "neither",
+                        "evaluable (reach unmeasured)"):
+                continue
+            assert any(name == v for v, _ in A.VERDICT_NOTES), (
+                f"{name!r} is assigned as a verdict and is not in "
+                f"VERDICT_NOTES, so its list is never printed")
