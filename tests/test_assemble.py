@@ -667,3 +667,100 @@ def test_every_ingest_script_writes_where_assemble_reads():
             bad.append(f"{f.name}: --out default {found and found.group(0)!r}, "
                        f"assemble reads 'v0.1-{name}'")
     assert not bad, bad
+
+
+# ------------- a fact with many witnesses must not grow a source list
+def _e(src, **kw):
+    e = {"subject": "A", "predicate": "PHYSICALLY_INTERACTS_WITH",
+         "object": "B", "primary_knowledge_source": src,
+         "evidence_tier": 1, "first_asserted_date": "2020-01-01"}
+    e.update(kw)
+    return e
+
+
+def test_merging_sources_is_idempotent():
+    """The same source twice is one source.
+
+    This built a set of the two STRINGS, and a side already merged
+    carries a compound one, so {"x|y", "y"} rejoined as "x|y|y". On
+    v0.1 that produced an edge citing infores:intact thirty-five times."""
+    m = merge_edges(_e("infores:virhostnet"), _e("infores:virhostnet"))
+    assert m["primary_knowledge_source"] == "infores:virhostnet"
+
+
+def test_merging_sources_is_associative():
+    """Grouping must not change the answer. It did: the value depended
+    on the order edges happened to arrive out of the layer files."""
+    a, b, c = _e("infores:intact"), _e("infores:mint"), _e("infores:virhostnet")
+    left = merge_edges(merge_edges(a, b), c)["primary_knowledge_source"]
+    right = merge_edges(a, merge_edges(b, c))["primary_knowledge_source"]
+    assert left == right == "infores:intact|infores:mint|infores:virhostnet"
+
+
+def test_a_source_list_never_repeats_an_entry():
+    """The property, over a long merge chain rather than one pair --
+    which is where this failed. Ten witnesses drawn from three real
+    sources must yield three."""
+    srcs = ["infores:virhostnet", "infores:intact", "infores:virhostnet",
+            "infores:mint", "infores:virhostnet", "infores:intact",
+            "infores:mint", "infores:virhostnet", "infores:intact",
+            "infores:mint"]
+    m = _e(srcs[0])
+    for s in srcs[1:]:
+        m = merge_edges(m, _e(s))
+    parts = m["primary_knowledge_source"].split("|")
+    assert parts == sorted(set(parts)), m["primary_knowledge_source"]
+    assert set(parts) == set(srcs)
+    assert m["support_count"] == len(srcs)
+
+
+def test_support_count_still_counts_every_witness():
+    """Deduplicating the NAMES must not deduplicate the EVIDENCE. Three
+    screens from one source is three assertions, and support_count is
+    what DWPC weights by."""
+    m = _e("infores:biogrid-orcs")
+    for _ in range(4):
+        m = merge_edges(m, _e("infores:biogrid-orcs"))
+    assert m["primary_knowledge_source"] == "infores:biogrid-orcs"
+    assert m["support_count"] == 5
+
+
+def test_the_source_list_is_stable_across_hash_seeds():
+    """Sorted, not whatever order the set iterates in.
+
+    Removing sorted() survived the suite: with three elements the set
+    happened to come out ordered in that process. Python randomises
+    string hashing PER PROCESS, so the order is stable within a run and
+    varies between them -- exactly the shape that passes in CI and
+    produces two different releases from one input. The same trap as
+    the set(sorted(...)) no-op elsewhere in this project, and it needs
+    the same remedy: separate processes, different seeds.
+    """
+    import subprocess
+    import sys
+
+    prog = (
+        "import sys; sys.path.insert(0, 'src')\n"
+        "from kgav.assemble import merge_edges\n"
+        "def e(s):\n"
+        "    return {'subject':'A','predicate':'P','object':'B',\n"
+        "            'primary_knowledge_source':s,'evidence_tier':1,\n"
+        "            'first_asserted_date':'2020-01-01'}\n"
+        "m = e('infores:zeta')\n"
+        "for s in ('infores:alpha','infores:mint','infores:beta',\n"
+        "          'infores:virhostnet','infores:intact'):\n"
+        "    m = merge_edges(m, e(s))\n"
+        "print(m['primary_knowledge_source'])\n"
+    )
+    seen = set()
+    for seed in ("0", "1", "42", "12345"):
+        out = subprocess.run([sys.executable, "-c", prog], cwd=ROOT,
+                             capture_output=True, text=True, check=False,
+                             env={"PATH": "/usr/bin:/bin",
+                                  "PYTHONHASHSEED": seed})
+        assert out.returncode == 0, out.stderr
+        seen.add(out.stdout.strip())
+    assert len(seen) == 1, (
+        f"the merged source list differs across hash seeds: {seen}")
+    assert seen.pop() == ("infores:alpha|infores:beta|infores:intact|"
+                          "infores:mint|infores:virhostnet|infores:zeta")
