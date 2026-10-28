@@ -747,3 +747,119 @@ def test_every_taxon_carries_the_corrected_threshold(tmp_path):
     for row in land.taxa.values():
         assert row.n_tests == 44
         assert abs(row.alpha - 0.05 / 44) < 1e-12
+
+
+# -------------------- a virus whose labels cannot be reached from anywhere
+def _routes(**kw):
+    kw.setdefault("label", "Yellow fever")
+    return guards.VirusRoutes(**kw)
+
+
+def test_a_virus_with_no_feature_route_refuses_a_ranking():
+    """Yellow fever holds 1,030 held-out antiviral measurements in this
+    release and no INHIBITS edge, no CRISPR host factor and no
+    virus-host interaction. No metapath terminates at it.
+
+    The agent would have returned an EMPTY RANKING, and an empty
+    ranking reads as "no compound looks promising". The difference
+    between finding nothing and being unable to look is the whole
+    distinction this module keeps, and it was missing in the one place
+    the user reads.
+    """
+    v = guards.check(guards.QueryKind.TRIAGE, "NCBITaxon:11089",
+                     routes=_routes(n_labels=1030))
+    assert not v.allowed
+    assert "1,030" in v.reason
+    assert "none can be reached" in v.reason
+    # THE CONTRAST, not a banned phrase. The refusal legitimately says
+    # "not because no compound looks promising, but because none can be
+    # reached", so banning that wording fails on the sentence drawing
+    # the distinction. Assert the distinction is drawn.
+    assert "not because" in v.reason
+
+
+@pytest.mark.parametrize("kind", [guards.QueryKind.EXPLAIN,
+                                  guards.QueryKind.TRIAGE,
+                                  guards.QueryKind.PATHWAY])
+def test_every_routed_question_is_refused(kind):
+    assert not guards.check(kind, "NCBITaxon:11089",
+                            routes=_routes(n_labels=312)).allowed
+
+
+@pytest.mark.parametrize("kind", [guards.QueryKind.PROFILE,
+                                  guards.QueryKind.EVIDENCE])
+def test_a_lookup_about_the_same_virus_still_works(kind):
+    """PROFILE and EVIDENCE report what is STORED about a node, which
+    exists whether or not a metapath reaches it. Refusing those would
+    be refusing to read the graph."""
+    assert guards.check(kind, "NCBITaxon:11089",
+                        routes=_routes(n_labels=1030)).allowed
+
+
+def test_one_route_is_enough_to_answer():
+    """DENV-1 reaches its 349 labels through virus-host interactions
+    alone. Thin, and not nothing."""
+    v = guards.check(guards.QueryKind.TRIAGE, "NCBITaxon:11053",
+                     routes=_routes(label="DENV-1", n_labels=349, ppi=53))
+    assert v.allowed
+
+
+def test_a_thin_route_is_answered_with_a_caveat():
+    """JEV reaches 46 labels through seven interactions. True, and it
+    reads exactly like SARS-CoV-2's 8,316 without a word beside it."""
+    v = guards.check(guards.QueryKind.TRIAGE, "NCBITaxon:11072",
+                     routes=_routes(label="JEV", n_labels=46, ppi=7))
+    assert v.allowed
+    text = " ".join(v.warnings)   # Caveat subclasses str
+    assert "7 edges" in text and "JEV" in text
+    assert "should not be read as a comparison" in text
+
+
+def test_one_large_route_is_not_thin():
+    """SARS-CoV has no CRISPR at all and 1,422 interactions. Having
+    few CHANNELS is not the same as having few edges."""
+    v = guards.check(guards.QueryKind.TRIAGE, "NCBITaxon:694009",
+                     routes=_routes(label="SARS-CoV", n_labels=250,
+                                    inhibits=240, ppi=1422))
+    assert not any(w.key == "thin_route" for w in v.warnings)
+
+
+def test_a_large_route_beside_two_small_ones_is_not_thin():
+    """West Nile: inhibits(106) + crispr(18) + ppi(6). Its SMALLEST
+    channel is below the floor and its largest is four times above it.
+
+    SARS-CoV cannot discriminate here -- both of its channels clear the
+    floor, so min and max agree and a test using it passes either way.
+    This is the shape that separates them: thin means every route is
+    small, so the answer rests on nothing, not that one route happens
+    to be. Scoring a compound through the 106 inhibits edges is not made
+    uncertain by six interactions sitting beside them.
+    """
+    v = guards.check(guards.QueryKind.TRIAGE, "NCBITaxon:11082",
+                     routes=_routes(label="West Nile", n_labels=594,
+                                    inhibits=106, crispr=18, ppi=6))
+    assert v.allowed
+    assert not any(w.key == "thin_route" for w in v.warnings)
+
+
+def test_a_release_where_every_route_is_small_is_thin():
+    """The same three channels, all below the floor. The caveat is on
+    the SIZE of the biggest route, not the number of channels."""
+    v = guards.check(guards.QueryKind.TRIAGE, "NCBITaxon:11082",
+                     routes=_routes(label="West Nile", n_labels=594,
+                                    inhibits=11, crispr=18, ppi=6))
+    assert any(w.key == "thin_route" for w in v.warnings)
+
+
+def test_no_routes_object_means_the_old_behaviour():
+    """A caller that cannot compute routes must not get a refusal it
+    cannot justify."""
+    assert guards.check(guards.QueryKind.TRIAGE, "NCBITaxon:11089").allowed
+
+
+def test_the_refusal_never_quotes_a_label_as_evidence():
+    """n_labels is held-out ground truth. It is said to explain what
+    exists, and must never become an answer."""
+    v = guards.check(guards.QueryKind.TRIAGE, "NCBITaxon:11089",
+                     routes=_routes(n_labels=1030))
+    assert "held out" in v.reason
