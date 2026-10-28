@@ -40,6 +40,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from kgav.pipeline import LAYERS, availability, layer_dir
+from kgav.provenance import check_file
 from kgav.schema import load_schema, print_capped
 from kgav.virus_register import declared_taxa, family_of
 
@@ -182,12 +183,53 @@ def per_virus(a: dict, taxa: list[str]) -> dict[str, Counter]:
     return out
 
 
+def measured_reach(results: Path, release: Path) -> dict[str, int] | None:
+    """Held-out positives each virus's metapaths actually reach.
+
+    `{virus label: COMBINED.pos}`, or None when that cannot be known.
+
+    WHY THIS IS NOT DERIVED FROM THE GRAPH. Whether a metapath reaches a
+    labelled compound is the result of walking it against a label set,
+    which is what compare_metapaths.py does. Edge counts cannot answer
+    it: DENV-1 has 349 labels and 53 virus-host interactions and reaches
+    none of the 349.
+
+    ONLY IF THE FILE IS CURRENT. provenance.check_file is the same audit
+    `make check-results` runs, so a comparison measured on a graph that
+    has since moved is reported as unmeasured rather than quoted here.
+    Returning None for "cannot be known" rather than 0 for "reaches
+    nothing" is the whole point: those are opposite claims, and this
+    script has twice shipped a figure from a previous graph.
+    """
+    path = Path(results) / "metapath_comparison.json"
+    if not path.exists():
+        return None
+    status, _msg = check_file(path, release)
+    if status != "ok":
+        return None
+    try:
+        per = json.loads(path.read_text())["per_virus"]
+    except (OSError, ValueError, KeyError):
+        return None
+    out = {}
+    for virus, channels in per.items():
+        pos = (channels.get("COMBINED") or {}).get("pos")
+        if isinstance(pos, int):
+            out[virus] = pos
+    return out or None
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--config", type=Path, default=ROOT / "config/viruses.yaml")
     ap.add_argument("--release", type=Path,
                     default=ROOT / "data/releases/v0.1")
     ap.add_argument("--root", type=Path, default=ROOT)
+    # EXPLICIT, not derived from --release. release.parent.parent happens
+    # to give data/results for the default layout and walks out of the
+    # tree for any other, which is how a test would silently exercise a
+    # path no run uses.
+    ap.add_argument("--results", type=Path, default=ROOT / "data/results")
     args = ap.parse_args(argv)
 
     doc = yaml.safe_load(args.config.read_text())
@@ -294,6 +336,7 @@ def main(argv=None) -> int:
     # no PPI, no CRISPR and no INHIBITS, so nothing can reach a
     # compound for it: every prediction is a miss by construction, and
     # the row above reads like its best-covered column.
+    reach = measured_reach(args.results, args.release)
     held = load_schema().held_out_predicates()
     print(f"\n    LABELS vs FEATURES\n    held out of every metapath: "
           f"{', '.join(sorted(held))}")
@@ -313,7 +356,17 @@ def main(argv=None) -> int:
         routes = [f"{n}({v:,})" for n, v in (("inhibits", c["inhibits"]),
                                              ("crispr", c["hf_dependency"]),
                                              ("ppi", c["vh_ppi_edges"])) if v]
-        if c["antiviral"] and routes:
+        # MEASURED REACH, WHERE IT IS AVAILABLE AND CURRENT. A route
+        # that exists and reaches no labelled compound is invisible in
+        # edge counts: DENV-1 carries 349 labels and 53 PPI edges and
+        # this column read "evaluable", while the scorer reached 0 of
+        # those 349. Seven of fifteen viruses are in that state.
+        hit = reach.get(label[t]) if reach is not None else None
+        if c["antiviral"] and routes and hit == 0:
+            verdict = "ROUTES REACH NO LABEL"
+        elif c["antiviral"] and routes and reach is None:
+            verdict = "evaluable (reach unmeasured)"
+        elif c["antiviral"] and routes:
             verdict = "evaluable"
         elif c["antiviral"]:
             verdict = "LABELS, NO FEATURE ROUTE"
@@ -324,13 +377,25 @@ def main(argv=None) -> int:
         verdicts[verdict].append(label[t])
         print(f"    {label[t]:<14} {c['antiviral']:>7,} "
               f"{'+'.join(routes) or '-':<34} {verdict}")
-    for v in ("LABELS, NO FEATURE ROUTE", "features, nothing to score"):
+    for v in ("LABELS, NO FEATURE ROUTE", "features, nothing to score",
+              "ROUTES REACH NO LABEL"):
         if verdicts[v]:
             print(f"\n    {v}: {', '.join(sorted(verdicts[v]))}")
     if verdicts["LABELS, NO FEATURE ROUTE"]:
         print("      No metapath terminates at these, so every prediction "
               "is a miss by\n      construction. Scoring them measures the "
               "graph's reach, not the model.")
+    if verdicts["ROUTES REACH NO LABEL"]:
+        print("      A route exists and walks it, and reaches none of the "
+              "held-out\n      positives. A ranking for these is complete, "
+              "and nothing in this\n      graph can mark it right or wrong. "
+              "Edge counts cannot see this,\n      which is why the column "
+              "beside them read `evaluable`.")
+    if reach is None:
+        print("\n      reach unmeasured: metapath_comparison.json is "
+              "absent, stale or\n      unstamped for this release, so "
+              "whether a route reaches a label is\n      unknown rather "
+              "than assumed. `make check-results` says which.")
 
     # --------------------------------------------------- 5. what is left
     print(f"\n{'-' * 74}\n5. WHAT IS MISSING\n{'-' * 74}")

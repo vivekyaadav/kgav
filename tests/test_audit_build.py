@@ -307,3 +307,100 @@ def test_the_legend_is_not_split_by_the_verdict_section(tmp_path, capsys):
     legend_end = out.index("dis         CAUSES edges to a Disease node")
     section = out.index("LABELS vs FEATURES")
     assert legend_end < section, "the legend must finish before the section"
+
+
+# ------------- a route that exists and reaches none of the held-out labels
+def _comparison(dirpath, release, pos_by_virus, stale=False):
+    """A metapath_comparison.json stamped against `release`.
+
+    Written through provenance.write_results so the stamp is the one
+    check_file reads, rather than a hand-made dict that happens to have
+    the right keys today.
+    """
+    import sys
+    sys.path.insert(0, str(ROOT / "src"))
+    from kgav.provenance import write_results
+    dirpath.mkdir(parents=True, exist_ok=True)
+    per = {v: {"COMBINED": {"pos": n, "pool": max(n, 1)}}
+           for v, n in pos_by_virus.items()}
+    write_results(dirpath / "metapath_comparison.json", {"per_virus": per},
+                  release=release)
+    if stale:
+        doc = json.loads((dirpath / "metapath_comparison.json").read_text())
+        doc["provenance"]["release"]["edges_sha"] = "0" * 16
+        (dirpath / "metapath_comparison.json").write_text(json.dumps(doc))
+    return dirpath
+
+
+def _run_with_reach(tmp_path, capsys, pos_by_virus, stale=False):
+    import yaml
+    cfg = tmp_path / "v.yaml"
+    cfg.write_text(yaml.safe_dump(CFG))
+    rel = _release(tmp_path)
+    res = _comparison(tmp_path / "results", rel, pos_by_virus, stale=stale)
+    rc = A.main(["--config", str(cfg), "--release", str(rel),
+                 "--root", str(tmp_path), "--results", str(res)])
+    return rc, capsys.readouterr().out
+
+
+def test_a_route_reaching_no_label_is_not_called_evaluable(tmp_path, capsys):
+    """DENV-1 on the real release: 349 held-out antiviral labels, 53
+    virus-host interactions, and the scorer reaches NONE of the 349.
+    This column read `evaluable`, because edge counts cannot see
+    reachability. Seven of fifteen viruses are in that state.
+    """
+    _rc, out = _run_with_reach(tmp_path, capsys, {"DENV-1": 0})
+    block = out.split("LABELS vs FEATURES")[1]
+    row = next(ln for ln in block.splitlines() if "DENV-1" in ln)
+    assert "ROUTES REACH NO LABEL" in row, row
+    assert "evaluable" not in row, row
+    # Whitespace-normalised: the explanation is a wrapped indented
+    # paragraph, so the phrase spans a newline and a raw search misses it.
+    assert "nothing in this graph can mark it right or wrong" in \
+        " ".join(block.split())
+
+
+def test_a_route_reaching_labels_is_still_evaluable(tmp_path, capsys):
+    """The other side, so the verdict is not simply renamed."""
+    _rc, out = _run_with_reach(tmp_path, capsys, {"DENV-1": 11})
+    row = next(ln for ln in out.split("LABELS vs FEATURES")[1].splitlines()
+               if "DENV-1" in ln)
+    assert "evaluable" in row and "NO LABEL" not in row, row
+
+
+def test_an_absent_comparison_is_unmeasured_not_zero(tmp_path, capsys):
+    """"Cannot be known" and "reaches nothing" are opposite claims. With
+    no comparison file the audit must say the first; returning 0 would
+    print the second about every virus in the release.
+
+    --results POINTS AT AN EMPTY DIRECTORY, deliberately. This used
+    _run(), which leaves --results at its default -- the repository's
+    real data/results -- so the file existed, the absent-file branch
+    never ran, and the test passed on a stale comparison while its name
+    claimed an absent one. Mutating that branch to return {} survived.
+    """
+    import yaml
+    cfg = tmp_path / "v.yaml"
+    cfg.write_text(yaml.safe_dump(CFG))
+    empty = tmp_path / "no-results"
+    empty.mkdir()
+    rc = A.main(["--config", str(cfg), "--release", str(_release(tmp_path)),
+                 "--root", str(tmp_path), "--results", str(empty)])
+    out = capsys.readouterr().out
+    assert rc is not None
+    block = out.split("LABELS vs FEATURES")[1]
+    row = next(ln for ln in block.splitlines() if "DENV-1" in ln)
+    assert "reach unmeasured" in row, row
+    assert "ROUTES REACH NO LABEL" not in block
+    assert "absent, stale or" in " ".join(block.split())
+
+
+def test_a_stale_comparison_is_not_quoted(tmp_path, capsys):
+    """It is the same check `make check-results` runs. A comparison
+    measured on a graph that has since moved describes that graph, and
+    this script has twice shipped a figure from a previous run."""
+    _rc, out = _run_with_reach(tmp_path, capsys, {"DENV-1": 0}, stale=True)
+    block = out.split("LABELS vs FEATURES")[1]
+    assert "ROUTES REACH NO LABEL" not in block, (
+        "a stale comparison was quoted as a measurement")
+    assert "reach unmeasured" in block
