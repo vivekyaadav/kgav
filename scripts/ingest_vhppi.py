@@ -248,10 +248,20 @@ def main() -> int:
                             source=src, default_date=args.date,
                             per_file=per_file, accession_map=acc_map,
                             seen=seen)
-        print(f"\n  {src}: {part['rows']:,} rows -> {part['edges']:,} edges")
+        # TWO NUMBERS, BECAUSE ONE OF THEM DEPENDS ON THE ORDER. `new`
+        # is what this source added given what had already been read;
+        # `eligible` is what it would have contributed alone. For a
+        # source fully covered by an aggregator read earlier the first
+        # is near zero and the second is its real content.
+        print(f"\n  {src}: {part['rows']:,} rows -> {part['edges']:,} new "
+              f"edge(s), {part['eligible']:,} eligible "
+              f"({part['duplicate']:,} already seen)")
         s += part
 
     print(f"  {s['rows']:,} rows -> {s['edges']:,} edges")
+    print("  'new' is order-dependent: sources are read in sorted order "
+          "and the\n  first to carry a fact claims it. 'eligible' is what "
+          "each would give alone.")
     print(f"  {s['direct']:,} direct interaction, {s['co_complex']:,} co-complex/"
           f"association ({s['binary_method']:,} from a binary assay)")
     if s["attributed"]:
