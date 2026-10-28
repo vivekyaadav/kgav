@@ -873,3 +873,61 @@ def test_eligible_counts_only_rows_that_passed_every_gate(world):
                          "2024-01-01")
     assert stats["eligible"] == stats["edges"] + stats["duplicate"]
     assert stats["eligible"] < stats["rows"], "the fixture has dropped rows"
+
+
+# ------------------- a source this ingest cannot read, versus an empty one
+def _run_ingest(tmp_path, world, files: dict[str, str]):
+    """Run the real driver over a directory of raw files."""
+    import subprocess
+    import sys
+    raw = tmp_path / "raw"
+    raw.mkdir()
+    for name, text in files.items():
+        (raw / name).write_text(text)
+        svc = name.split("_")[0]
+        (raw / f"{name}.source.json").write_text(
+            json.dumps({"source": f"infores:{svc}"}))
+    out = subprocess.run(
+        [sys.executable, str(ROOT / "scripts/ingest_vhppi.py"),
+         "--vhppi-dir", str(raw), "--spine", str(world / "spine"),
+         "--host", str(world / "host"), "--out", str(tmp_path / "o")],
+        capture_output=True, text=True, timeout=180, check=False)
+    return out.stdout + out.stderr
+
+
+def test_a_source_the_ingest_cannot_read_says_so(tmp_path, world):
+    """BioGrid landed 3,563 rows and ZERO eligible because it
+    identifies proteins by Entrez Gene, not UniProt, so every row died
+    at `unparseable`. Reported in the same neutral tone as an empty
+    source, that reads as "BioGrid has nothing" -- the opposite of
+    true, and the distinction this layer keeps losing.
+    """
+    rows = "\n".join(
+        _row("entrez gene/locuslink:59272",
+             "entrez gene/locuslink:43740568", "MI:0018", str(i),
+             9606, 2697049, "MI:0407", "0.5") for i in range(3))
+    out = _run_ingest(tmp_path, world, {"biogrid_x.tab27": rows,
+                                        "vhn_y.tab27": rows})
+    assert "NOTHING FROM THIS SOURCE SURVIVED" in out
+    assert "unparseable" in out
+    assert "identifier namespace" in out
+
+
+def test_a_source_that_is_merely_covered_is_not_flagged(tmp_path, world):
+    """High eligible, low new. IntAct reads 12,496 rows for 10 new
+    edges and is entirely healthy."""
+    # THE SAME CURATOR IN COLUMN 12, or these are two curators and
+    # neither group is ever covered by the other. The first version of
+    # this left column 12 empty, so each file fell back to its own
+    # service, both rows produced edges, and the test asserted the
+    # absence of a warning that could not have fired either way -- a
+    # mutant weakening the guard to `not part["edges"]` survived it.
+    line = _row_src(
+        _row(f"uniprotkb:P0DTD1-{NSP5_PP1A.split(':')[1]}",
+             f"uniprotkb:{ACE2.split(':')[1]}", "MI:0018", "7",
+             2697049, 9606, "MI:0407", "0.5"),
+        'psi-mi:"MI:0469"(IntAct)')
+    out = _run_ingest(tmp_path, world,
+                      {"vhn_a.tab27": line, "imex_b.tab27": line})
+    assert "already seen" in out, out
+    assert "NOTHING FROM THIS SOURCE SURVIVED" not in out

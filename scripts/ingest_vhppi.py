@@ -54,6 +54,14 @@ def rows_per_taxon(per_file: dict, viruses: list, taxon_map: dict) -> dict:
     return out
 
 
+#: Every gate a row can die at, in the order classify_row applies them.
+#: One list, because the per-source warning and the dropped table were
+#: about to grow a second copy of it.
+GATES = ("unparseable", "no_detection_method", "unresolved_id",
+         "self_interaction", "not_a_protein", "host_host", "viral_viral",
+         "unmapped_viral_taxon")
+
+
 def coverage_lines(per_virus, taxon_map: dict, nodes: dict,
                    fetched: dict | None = None) -> list[str]:
     """Edges per virus over EVERY declared-and-built virus, zeros included.
@@ -256,6 +264,25 @@ def main() -> int:
         print(f"\n  {src}: {part['rows']:,} rows -> {part['edges']:,} new "
               f"edge(s), {part['eligible']:,} eligible "
               f"({part['duplicate']:,} already seen)")
+        if part["rows"] and not part["eligible"]:
+            # ROWS IN, NOTHING ELIGIBLE: every single one was dropped
+            # before the dedup gate. That is not a source with little
+            # to say -- a covered source shows high `eligible` and low
+            # `new` -- it is this ingest failing to read the file.
+            # BioGrid landed 3,563 rows and zero eligible because it
+            # identifies proteins by Entrez Gene, not UniProt, so every
+            # row died at `unparseable`. Reported in the same neutral
+            # tone as an empty source, that reads as "BioGrid has
+            # nothing", which is the opposite of true.
+            worst = max(((g, part[g]) for g in GATES if part[g]),
+                        key=lambda kv: kv[1], default=(None, 0))
+            print(f"    NOTHING FROM THIS SOURCE SURVIVED. {part['rows']:,} "
+                  f"row(s) read and none reached an edge"
+                  + (f"; {worst[1]:,} died at `{worst[0]}`" if worst[0]
+                     else "")
+                  + ".\n      A source this ingest cannot read looks "
+                    "identical to a source with no\n      data. Check the "
+                    "identifier namespace before concluding the second.")
         s += part
 
     print(f"  {s['rows']:,} rows -> {s['edges']:,} edges")
@@ -288,9 +315,7 @@ def main() -> int:
                   f"{s['source_db_absent']:>8,}  fell back to the file's "
                   f"service")
     print("\n  dropped:")
-    for k in ("unparseable", "no_detection_method", "unresolved_id", "self_interaction",
-              "not_a_protein", "host_host", "viral_viral", "unmapped_viral_taxon",
-              "duplicate"):
+    for k in GATES + ("duplicate",):
         if s[k]:
             print(f"    {k:<24} {s[k]:>8,}")
 
