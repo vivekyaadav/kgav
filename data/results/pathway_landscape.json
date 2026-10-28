@@ -345,14 +345,14 @@
   "provenance": {
     "release": {
       "id": "v0.1",
-      "nodes_sha": "534bfc9922bfbc79",
-      "edges_sha": "14a09533052f5579"
+      "nodes_sha": "73638934bacd7827",
+      "edges_sha": "a9a68fe6a41380c6"
     },
     "code": {
-      "commit": "6b40209e83351c4838a7619cd4639004b6e04d49",
+      "commit": "637a5a589b03ff287fdf5cb73c9282f33d408da7",
       "dirty": false
     },
     "schema_version": null,
-    "generated_utc": "2026-10-28T10:33:12+00:00"
+    "generated_utc": "2026-10-28T15:41:39+00:00"
   }
 }
