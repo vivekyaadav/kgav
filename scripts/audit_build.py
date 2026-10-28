@@ -46,6 +46,14 @@ from kgav.virus_register import declared_taxa, family_of
 VIRAL_PPI = "PHYSICALLY_INTERACTS_WITH"
 HOST_FACTOR = "HOST_FACTOR_FOR"
 INHIBITS = "INHIBITS"
+# THE OTHER CHEMISTRY EDGE. chembl.py writes four predicates and this
+# counted one. A cell-based assay measuring "compound inhibits yellow
+# fever virus" has no protein to point at, so it lands on the
+# OrganismTaxon instead -- and Yellow fever has 1,070 ChEMBL compounds
+# while reading zero here. "No direct-acting compound" was true and
+# "no compound" was what it looked like.
+ANTIVIRAL = "HAS_ANTIVIRAL_ACTIVITY_AGAINST"
+INACTIVE = "MEASURED_INACTIVE_AGAINST"
 CAUSES = "CAUSES"
 TARGETS = "TARGETS"
 
@@ -159,6 +167,14 @@ def per_virus(a: dict, taxa: list[str]) -> dict[str, Counter]:
             t = viral_taxon(o)
             if t and t in out:
                 out[t]["inhibits"] += 1
+        elif pred == INACTIVE:
+            t = viral_taxon(o)
+            if t and t in out:
+                out[t]["inactive"] += 1
+        elif pred == ANTIVIRAL and o in out:
+            # Object is the TAXON, not a protein: that is the whole
+            # point of the predicate.
+            out[o]["antiviral"] += 1
         elif pred == CAUSES and s in out:
             out[s]["causes_disease"] += 1
     for t, ps in partners.items():
@@ -248,7 +264,7 @@ def main(argv=None) -> int:
     pv = per_virus(a, taxa)
     hdr = (f"    {'virus':<14} {'fam':<5} {'prot':>5} {'chain':>6} "
            f"{'vhPPI':>7} {'partn':>6} {'dep':>6} {'restr':>6} {'inhib':>6} "
-           f"{'dis':>4}")
+           f"{'antiv':>6} {'inact':>6} {'dis':>4}")
     print(hdr)
     for t in sorted(taxa, key=lambda x: (family[x], label[x])):
         c = pv[t]
@@ -256,11 +272,17 @@ def main(argv=None) -> int:
               f"{c['chains']:>6,} {c['vh_ppi_edges']:>7,} "
               f"{c['host_partners']:>6,} {c['hf_dependency']:>6,} "
               f"{c['hf_restriction']:>6,} {c['inhibits']:>6,} "
+              f"{c['antiviral']:>6,} {c['inactive']:>6,} "
               f"{c['causes_disease']:>4,}")
     print("\n    prot/chain  viral proteins and mature peptides in the spine")
     print("    vhPPI       virus-host edges; partn, distinct host proteins")
     print("    dep/restr   CRISPR host factors, by direction")
     print("    inhib       compounds with an INHIBITS edge to a viral protein")
+    print("    antiv       organism-level antivirals: a cell-based assay has")
+    print("                no protein to point at, so the edge lands on the")
+    print("                TAXON. A virus can have none of the first and")
+    print("                hundreds of these.")
+    print("    inact       measured and found INACTIVE; evidence, not absence")
     print("    dis         CAUSES edges to a Disease node")
 
     # --------------------------------------------------- 5. what is left
@@ -282,8 +304,11 @@ def main(argv=None) -> int:
             gaps["no virus-host PPI"].append(label[t])
         if not c["hf_dependency"]:
             gaps["no CRISPR dependency factor"].append(label[t])
-        if not c["inhibits"]:
-            gaps["no direct-acting compound"].append(label[t])
+        if not c["inhibits"] and not c["antiviral"]:
+            gaps["no compound of any kind"].append(label[t])
+        elif not c["inhibits"]:
+            gaps["no protein-level inhibitor (organism-level only)"].append(
+                label[t])
         if not c["causes_disease"]:
             gaps["no disease link"].append(label[t])
     for why, names in sorted(gaps.items(), key=lambda kv: -len(kv[1])):
