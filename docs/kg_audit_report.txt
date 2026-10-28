@@ -18,9 +18,11 @@ restated here; they live in one place:
     make audit                     # per-layer, per-virus, what is missing
     make check-results             # every results file against the graph
 
-Any figure quoted in this file that a rebuild could move is marked with
-the run it came from. This project has shipped two reports that quoted a
-figure from a previous graph, which is why the rule exists.
+Release COUNTS are in section 4 and are GENERATED from the release,
+stamped with its content hashes, and checked by the same test. Any other
+figure here that a rebuild could move is marked with the run it came
+from. This project has shipped two reports that quoted a figure from a
+previous graph, which is why none of this is left to hand-editing.
 
 
 ================================================================================
@@ -58,7 +60,133 @@ same reason: it is answer sheet, not feature.
 
 
 ================================================================================
-2. SCHEMA SPECIFICATION
+2. ARCHITECTURE
+================================================================================
+
+Three stages, deliberately separated: INGEST -> ASSEMBLE -> SERVE. Each
+stage writes something a human can read and a test can check, and no
+stage reaches past the one before it.
+
+    data/raw/*            sources as they arrived, with sidecar
+      |                   provenance (URL, date, checksum). Gitignored:
+      |                   large, and reconstructible from the sidecars.
+      v
+    INGEST                12 independent layers (section 6). Each is a
+      |                   script in scripts/ plus a library module in
+      |                   src/kgav/, and each writes its OWN release
+      |                   directory of nodes.jsonl / edges.jsonl.
+      v
+    ASSEMBLE              assemble.py merges the layers under a declared
+      |                   precedence and writes MANIFEST.json.
+      v
+    data/releases/v0.1    nodes.jsonl + edges.jsonl + MANIFEST.json
+      |
+      +---> SCORE         baselines, calibration, temporal split,
+      |                   pathway landscape -> data/results/*.json,
+      |                   each stamped with the release hash
+      |
+      +---> SERVE         the agent: orchestrator -> guards -> tools ->
+                          verify
+
+WHY LAYERS ARE INDEPENDENT. A source that fails, or arrives late, or
+turns out to be unreadable blocks only its own layer. Each layer's
+output is separately inspectable, so "what did VirHostNet actually
+contribute" is a question with a file as its answer rather than a diff.
+It is also what lets `make audit` report a layer as BLOCKED with a
+reason instead of a build simply producing less.
+
+ONE WRITER. Every node and edge in the graph goes through emit.py.
+Schema validation and the provenance requirement are enforced there, so
+"an edge with no source" is not a thing a new layer can accidentally
+create. A second writer would be a second place for those rules to be
+half-applied.
+
+NORMALISATION HAPPENS AT INGEST, NOT AT QUERY TIME.
+    normalize_chem   any structure representation -> a stable node key:
+                     an InChIKey plus a 14-character skeleton that
+                     groups salts, stereoisomers and tautomers together.
+    normalize_bio    UniProt secondary -> primary accessions, taxa,
+                     MONDO terms. These are lookup problems, and their
+                     failure mode is SILENT: a source cites a secondary
+                     accession, the lookup misses, and the edge vanishes
+                     with no error.
+    aliases          an identifier the graph chooses not to keep as a
+                     node must still RESOLVE. Sources cite the ids they
+                     cite, and a dropped identifier fails silently.
+
+THE SCHEMA IS DATA, NOT CODE. schema.py loads one declaration of node
+classes, predicates, required qualifiers, held-out flags and metapaths.
+Metapaths in particular are DECLARED rather than written as queries, so
+each route's reach and performance can be measured separately and a
+route cannot quietly change shape between the evaluation and the agent.
+
+PROVENANCE IS A STAGE, NOT A FIELD. provenance.py computes a release
+fingerprint (content hashes of nodes.jsonl and edges.jsonl), stamps
+every results file with it, and audits them back. check_results.py walks
+data/results and fails anything that no longer describes the graph on
+disk, including the derived train/test split that the hard-negative
+protocol reads.
+
+THE AGENT IS A FIXED PIPELINE, NOT A LOOP.
+
+    question
+      |
+      v
+    orchestrator.py   classifies intent, resolves the virus, and runs a
+      |               FIXED sequence. A model that decides its own next
+      |               action is non-deterministic by construction, and a
+      |               researcher who runs the same query twice and gets
+      |               two answers cannot cite the tool. Per-step
+      |               reliability also compounds: five chained decisions
+      |               at 90% each leave 59%.
+      v
+    guards.py         refusals and caveats, BEFORE retrieval. Refuses
+      |               prospective candidate generation outright, refuses
+      |               a virus with no feature route, and attaches the
+      |               thin-route and not-validated caveats.
+      v
+    tools.py          parameterised graph tools. The model never writes
+      |               a traversal: a malformed query returns an empty
+      |               result, an empty result is indistinguishable from
+      |               "no evidence exists", and the model then reports
+      |               the latter. Every tool is a fixed function with
+      |               typed parameters and a bounded output.
+      v
+    llm.py            the only stage a model writes prose in.
+      |
+      v
+    verify.py         a separate stage with a fresh context, and MOSTLY
+                      NOT A MODEL: citation ids are checked against the
+                      edges retrieved, numbers against the facts they
+                      claim to quote, and every mandatory caveat's label
+                      must survive into the answer or the answer is
+                      discarded. Self-critique inside one context is
+                      weak, because the model is checking work it has
+                      already committed to.
+
+DIRECTORY LAYOUT
+
+    config/           viruses.yaml (the register), schema, ORCS polarity
+                      overrides
+    src/kgav/         28 modules: one per source layer, plus schema,
+                      assemble, emit, provenance, normalisation,
+                      baselines, calibration, temporal, landscape
+    src/kgav/agent/   orchestrator, guards, tools, verify, llm
+    scripts/          57 entry points: 12 ingests, the assembler, the
+                      evaluation protocols, the diagnostics, the audits
+    tests/            the gate; every figure in docs/ that a rebuild
+                      could move is re-derived here
+    data/raw/         sources as they arrived            (gitignored)
+    data/releases/    assembled graphs                   (gitignored,
+                      except MANIFEST.json and the smoke release)
+    data/results/     every measured figure              (TRACKED, on
+                      purpose: a result that exists only on the machine
+                      that produced it is not evidence for anything)
+    docs/             this report, and evaluation.md
+
+
+================================================================================
+3. SCHEMA SPECIFICATION
 ================================================================================
 
 11 node classes:
@@ -131,7 +259,32 @@ a confidently wrong recommendation rather than a missing one.
 
 
 ================================================================================
-3. DATA SOURCES — WHAT WAS USED AND HOW
+4. RELEASE CENSUS
+================================================================================
+
+GENERATED, NOT WRITTEN. The block below is produced by
+scripts/write_kg_report.py from the assembled release and stamped with
+the content hashes of nodes.jsonl and edges.jsonl -- the same hashes
+`make check-results` audits every results file against. A rebuild
+without a regenerate leaves a block whose stamp no longer matches the
+graph, and tests/test_kg_audit_report.py fails on it.
+
+    make kg-report          # regenerate
+    make kg-report-check    # fail if stale, write nothing
+
+<<<BEGIN GENERATED: release census — python scripts/write_kg_report.py>>>
+
+    (not yet generated — run `make kg-report` against an assembled
+    release)
+
+<<<END GENERATED>>>
+
+The per-virus breakdown of these totals is `make audit`, which also
+reports what each layer contributed and what is missing.
+
+
+================================================================================
+5. DATA SOURCES — WHAT WAS USED AND HOW
 ================================================================================
 
 UniProt                                            infores:uniprot
@@ -289,7 +442,7 @@ SOURCES SURVEYED AND DELIBERATELY NOT USED
 
 
 ================================================================================
-4. BUILD PIPELINE — 12 LAYERS
+6. BUILD PIPELINE — 12 LAYERS
 ================================================================================
 
 Each layer is an independent ingest writing its own release directory, and
@@ -334,7 +487,7 @@ that no longer exists is reported as stale rather than quoted.
 
 
 ================================================================================
-5. METAPATHS
+7. METAPATHS
 ================================================================================
 
 8 reasoning routes, declared in the schema rather than written as
@@ -387,7 +540,7 @@ score measures connectivity rather than biology.
 
 
 ================================================================================
-6. HOW THE GRAPH SUPPORTS PATHWAY ANALYSIS
+8. HOW THE GRAPH SUPPORTS PATHWAY ANALYSIS
 ================================================================================
 
 Three distinct capabilities, in increasing order of what they claim.
@@ -456,7 +609,7 @@ uncorrected version is an artifact of protein popularity.
 
 
 ================================================================================
-7. PER-VIRUS STATE — WHAT EACH VIRUS CAN SUPPORT
+9. PER-VIRUS STATE — WHAT EACH VIRUS CAN SUPPORT
 ================================================================================
 
 From `make audit`, release v0.1, 2026-10-28. Four tiers, and the
@@ -492,7 +645,7 @@ clears chance, so every answerable virus carries VIRUS NOT VALIDATED.
 
 
 ================================================================================
-8. KNOWN GAPS
+10. KNOWN GAPS
 ================================================================================
 
   gtop layer           needs the Guide to PHARMACOLOGY registration
