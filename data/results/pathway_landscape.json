@@ -1,75 +1,77 @@
 {
-  "measured_on": "2026-10-27",
+  "measured_on": "2026-10-28",
   "measured_by": "scripts/pathway_landscape.py",
   "release": "v0.1",
   "permutations": 2000,
   "seed": 0,
+  "degree_basis": "study",
+  "n_tests": 44,
   "partial": false,
   "partial_reason": "",
   "taxa": {
     "NCBITaxon:11060": {
       "n_dependency": 50,
       "n_observed": 2,
-      "expected": 7.539,
+      "expected": 5.6625,
       "p_naive": 0.918886138937349,
-      "p_matched": 0.9975012493753124,
-      "p_matched_less": 0.014492753623188406
+      "p_matched": 0.9825087456271864,
+      "p_matched_less": 0.06546726636681659
     },
     "NCBITaxon:11082": {
       "n_dependency": 18,
       "n_observed": 0,
-      "expected": 3.1245,
+      "expected": 2.312,
       "p_naive": 1.0,
       "p_matched": 1.0,
-      "p_matched_less": 0.03798100949525238
+      "p_matched_less": 0.09395302348825588
     },
     "NCBITaxon:11137": {
       "n_dependency": 1367,
       "n_observed": 113,
-      "expected": 125.3965,
+      "expected": 114.7955,
       "p_naive": 0.38909697536021604,
-      "p_matched": 0.9080459770114943,
-      "p_matched_less": 0.11244377811094453
+      "p_matched": 0.5897051474262869,
+      "p_matched_less": 0.4427786106946527
     },
     "NCBITaxon:1335626": {
       "n_dependency": 678,
       "n_observed": 54,
-      "expected": 60.6805,
+      "expected": 56.0755,
       "p_naive": 0.5496000786876414,
-      "p_matched": 0.848575712143928,
-      "p_matched_less": 0.18840579710144928
+      "p_matched": 0.6356821589205397,
+      "p_matched_less": 0.4172913543228386
     },
     "NCBITaxon:2697049": {
       "n_dependency": 3460,
       "n_observed": 333,
-      "expected": 352.75,
+      "expected": 308.2425,
       "p_naive": 0.00012758199469994094,
-      "p_matched": 0.9150424787606197,
-      "p_matched_less": 0.095952023988006
+      "p_matched": 0.0559720139930035,
+      "p_matched_less": 0.9500249875062469
     },
     "NCBITaxon:277944": {
       "n_dependency": 57,
       "n_observed": 8,
-      "expected": 9.1175,
+      "expected": 6.6845,
       "p_naive": 0.08439426157980655,
-      "p_matched": 0.7141429285357321,
-      "p_matched_less": 0.4172913543228386
+      "p_matched": 0.3473263368315842,
+      "p_matched_less": 0.7801099450274862
     },
     "NCBITaxon:31631": {
       "n_dependency": 657,
       "n_observed": 53,
-      "expected": 61.8825,
+      "expected": 55.17,
       "p_naive": 0.5103186416271014,
-      "p_matched": 0.9170414792603698,
-      "p_matched_less": 0.10644677661169415
+      "p_matched": 0.6441779110444777,
+      "p_matched_less": 0.41179410294852575
     },
     "NCBITaxon:64320": {
       "n_dependency": 815,
       "n_observed": 65,
-      "expected": 73.6455,
+      "expected": 67.852,
       "p_naive": 0.5461147644496354,
-      "p_matched": 0.8850574712643678,
-      "p_matched_less": 0.14142928535732133
+      "p_matched": 0.6696651674162919,
+      "p_matched_less": 0.3798100949525237
     }
   },
   "uncovered": [
@@ -82,6 +84,264 @@
     "NCBITaxon:290028",
     "NCBITaxon:694009"
   ],
+  "interactome": {
+    "NCBITaxon:11053": {
+      "n_dependency": 53,
+      "n_observed": 11,
+      "expected": 6.573,
+      "p_naive": 0.0028553645331987846,
+      "p_matched": 0.05997001499250375,
+      "p_matched_less": 0.9715142428785607,
+      "n_hubs_excluded": 0,
+      "binary_edges": 48,
+      "total_edges": 53
+    },
+    "NCBITaxon:11060": {
+      "n_dependency": 271,
+      "n_observed": 38,
+      "expected": 32.1935,
+      "p_naive": 0.0005463389426871371,
+      "p_matched": 0.14992503748125938,
+      "p_matched_less": 0.8835582208895553,
+      "n_hubs_excluded": 3,
+      "binary_edges": 0,
+      "total_edges": 276
+    },
+    "NCBITaxon:11069": {
+      "n_dependency": 33,
+      "n_observed": 6,
+      "expected": 4.046,
+      "p_naive": 0.0453208453564013,
+      "p_matched": 0.21389305347326337,
+      "p_matched_less": 0.9015492253873063,
+      "n_hubs_excluded": 0,
+      "binary_edges": 34,
+      "total_edges": 34
+    },
+    "NCBITaxon:11072": {
+      "n_dependency": 7,
+      "n_observed": 1,
+      "expected": 0.758,
+      "p_naive": 0.443806425721193,
+      "p_matched": 0.5562218890554723,
+      "p_matched_less": 0.8365817091454273,
+      "n_hubs_excluded": 0,
+      "binary_edges": 7,
+      "total_edges": 7
+    },
+    "NCBITaxon:11082": {
+      "n_dependency": 6,
+      "n_observed": 4,
+      "expected": 0.865,
+      "p_naive": 0.000546600657065924,
+      "p_matched": 0.0034982508745627187,
+      "p_matched_less": 0.9995002498750625,
+      "n_hubs_excluded": 0,
+      "binary_edges": 0,
+      "total_edges": 6
+    },
+    "NCBITaxon:11084": {
+      "n_dependency": 35,
+      "n_observed": 2,
+      "expected": 4.217,
+      "p_naive": 0.784104824237305,
+      "p_matched": 0.9330334832583708,
+      "p_matched_less": 0.191904047976012,
+      "n_hubs_excluded": 0,
+      "binary_edges": 35,
+      "total_edges": 35
+    },
+    "NCBITaxon:11137": {
+      "n_dependency": 397,
+      "n_observed": 30,
+      "expected": 45.7375,
+      "p_naive": 0.6660207795512898,
+      "p_matched": 0.9965017491254373,
+      "p_matched_less": 0.004997501249375313,
+      "n_hubs_excluded": 4,
+      "binary_edges": 24,
+      "total_edges": 412
+    },
+    "NCBITaxon:1335626": {
+      "n_dependency": 622,
+      "n_observed": 57,
+      "expected": 72.484,
+      "p_naive": 0.16458445426529517,
+      "p_matched": 0.9820089955022488,
+      "p_matched_less": 0.025487256371814093,
+      "n_hubs_excluded": 6,
+      "binary_edges": 342,
+      "total_edges": 696
+    },
+    "NCBITaxon:2697049": {
+      "n_dependency": 3494,
+      "n_observed": 401,
+      "expected": 381.9765,
+      "p_naive": 2.3950899438134247e-15,
+      "p_matched": 0.11144427786106946,
+      "p_matched_less": 0.9030484757621189,
+      "n_hubs_excluded": 15,
+      "binary_edges": 871,
+      "total_edges": 8316
+    },
+    "NCBITaxon:277944": {
+      "n_dependency": 311,
+      "n_observed": 29,
+      "expected": 37.2125,
+      "p_naive": 0.22681288641684505,
+      "p_matched": 0.9455272363818091,
+      "p_matched_less": 0.079960019990005,
+      "n_hubs_excluded": 4,
+      "binary_edges": 24,
+      "total_edges": 324
+    },
+    "NCBITaxon:290028": {
+      "n_dependency": 279,
+      "n_observed": 22,
+      "expected": 33.7255,
+      "p_naive": 0.5698109781764602,
+      "p_matched": 0.9940029985007496,
+      "p_matched_less": 0.011494252873563218,
+      "n_hubs_excluded": 4,
+      "binary_edges": 0,
+      "total_edges": 284
+    },
+    "NCBITaxon:31631": {
+      "n_dependency": 289,
+      "n_observed": 25,
+      "expected": 35.187,
+      "p_naive": 0.38051629227324524,
+      "p_matched": 0.9715142428785607,
+      "p_matched_less": 0.04397801099450275,
+      "n_hubs_excluded": 4,
+      "binary_edges": 4,
+      "total_edges": 295
+    },
+    "NCBITaxon:64320": {
+      "n_dependency": 353,
+      "n_observed": 45,
+      "expected": 40.8835,
+      "p_naive": 0.0013990747718110922,
+      "p_matched": 0.25737131434282856,
+      "p_matched_less": 0.7886056971514243,
+      "n_hubs_excluded": 0,
+      "binary_edges": 0,
+      "total_edges": 354
+    },
+    "NCBITaxon:694009": {
+      "n_dependency": 1238,
+      "n_observed": 152,
+      "expected": 133.91,
+      "p_naive": 6.569375321814997e-08,
+      "p_matched": 0.047976011994003,
+      "p_matched_less": 0.9645177411294353,
+      "n_hubs_excluded": 6,
+      "binary_edges": 448,
+      "total_edges": 1422
+    }
+  },
+  "interactome_uncovered": [
+    "NCBITaxon:11070",
+    "NCBITaxon:11089"
+  ],
+  "interactome_coverage": {
+    "NCBITaxon:11053": {
+      "n_partners": 53,
+      "n_hubs": 0,
+      "binary_edges": 48,
+      "total_edges": 53
+    },
+    "NCBITaxon:11060": {
+      "n_partners": 271,
+      "n_hubs": 3,
+      "binary_edges": 0,
+      "total_edges": 276
+    },
+    "NCBITaxon:11069": {
+      "n_partners": 33,
+      "n_hubs": 0,
+      "binary_edges": 34,
+      "total_edges": 34
+    },
+    "NCBITaxon:11070": {
+      "n_partners": 0,
+      "n_hubs": 0,
+      "binary_edges": 0,
+      "total_edges": 0
+    },
+    "NCBITaxon:11072": {
+      "n_partners": 7,
+      "n_hubs": 0,
+      "binary_edges": 7,
+      "total_edges": 7
+    },
+    "NCBITaxon:11082": {
+      "n_partners": 6,
+      "n_hubs": 0,
+      "binary_edges": 0,
+      "total_edges": 6
+    },
+    "NCBITaxon:11084": {
+      "n_partners": 35,
+      "n_hubs": 0,
+      "binary_edges": 35,
+      "total_edges": 35
+    },
+    "NCBITaxon:11089": {
+      "n_partners": 0,
+      "n_hubs": 0,
+      "binary_edges": 0,
+      "total_edges": 0
+    },
+    "NCBITaxon:11137": {
+      "n_partners": 397,
+      "n_hubs": 4,
+      "binary_edges": 24,
+      "total_edges": 412
+    },
+    "NCBITaxon:1335626": {
+      "n_partners": 622,
+      "n_hubs": 6,
+      "binary_edges": 342,
+      "total_edges": 696
+    },
+    "NCBITaxon:2697049": {
+      "n_partners": 3494,
+      "n_hubs": 15,
+      "binary_edges": 871,
+      "total_edges": 8316
+    },
+    "NCBITaxon:277944": {
+      "n_partners": 311,
+      "n_hubs": 4,
+      "binary_edges": 24,
+      "total_edges": 324
+    },
+    "NCBITaxon:290028": {
+      "n_partners": 279,
+      "n_hubs": 4,
+      "binary_edges": 0,
+      "total_edges": 284
+    },
+    "NCBITaxon:31631": {
+      "n_partners": 289,
+      "n_hubs": 4,
+      "binary_edges": 4,
+      "total_edges": 295
+    },
+    "NCBITaxon:64320": {
+      "n_partners": 353,
+      "n_hubs": 0,
+      "binary_edges": 0,
+      "total_edges": 354
+    },
+    "NCBITaxon:694009": {
+      "n_partners": 1238,
+      "n_hubs": 6,
+      "binary_edges": 448,
+      "total_edges": 1422
+    }
+  },
   "provenance": {
     "release": {
       "id": "v0.1",
@@ -89,10 +349,10 @@
       "edges_sha": "14a09533052f5579"
     },
     "code": {
-      "commit": "be748dd051596ce0352a2b5863e211f4d5b400db",
+      "commit": "6b40209e83351c4838a7619cd4639004b6e04d49",
       "dirty": false
     },
     "schema_version": null,
-    "generated_utc": "2026-10-27T18:24:03+00:00"
+    "generated_utc": "2026-10-28T10:33:12+00:00"
   }
 }
