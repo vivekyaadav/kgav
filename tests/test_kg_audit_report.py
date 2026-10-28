@@ -529,3 +529,111 @@ def test_the_directory_layout_describes_each_tree(flat):
         assert tree in layout, f"{tree} is not in the directory layout"
     # data/results is tracked on purpose and the layout must say why.
     assert "TRACKED" in layout
+
+
+def test_every_declared_class_and_predicate_appears_in_a_census(tmp_path):
+    """Presence AND absence. Listing only what the release holds reports
+    presence and stays silent on absence -- the thing this project
+    refuses everywhere else ("a source this ingest cannot read is not a
+    source with no data"). v0.1 holds 7 of 11 node classes and 14 of 24
+    predicates, and the first census showed neither fact."""
+    import shutil
+
+    import scripts.write_kg_report as W
+    rel = ROOT / "data" / "releases" / "smoke"
+    report = tmp_path / "r.txt"
+    shutil.copy(REPORT, report)
+    W.main(["--release", str(rel), "--report", str(report)])
+    block = report.read_text().split(W.BEGIN, 1)[1].split(W.END, 1)[0]
+    s = __import__("kgav.schema", fromlist=["load_schema"]).load_schema()
+    for name in s.node_classes:
+        assert name in block, f"node class {name} missing from the census"
+    for e in s.edge_classes:
+        assert e.predicate in block, f"{e.predicate} missing from the census"
+    assert "declared classes are empty" in block
+    assert "declared predicates are empty" in block
+
+
+def test_an_absent_evaluation_label_is_called_out_as_one(tmp_path):
+    """TREATS and IN_TRIAL_FOR are both empty on v0.1, so every
+    evaluation in this project rests on HAS_ANTIVIRAL_ACTIVITY_AGAINST
+    alone. A census that lists them among twenty other empty predicates
+    buries the one fact that changes how the results read."""
+    import shutil
+
+    import scripts.write_kg_report as W
+    rel = ROOT / "data" / "releases" / "smoke"
+    report = tmp_path / "r.txt"
+    shutil.copy(REPORT, report)
+    W.main(["--release", str(rel), "--report", str(report)])
+    block = report.read_text().split(W.BEGIN, 1)[1].split(W.END, 1)[0]
+    s = __import__("kgav.schema", fromlist=["load_schema"]).load_schema()
+    labels = s.evaluation_label_predicates()
+    assert "EVALUATION LABEL" in block, (
+        "an absent label predicate is not marked as a label")
+    assert f"of {len(labels)} evaluation label" in block
+
+
+def test_the_census_totals_reconcile(tmp_path):
+    """The per-class and per-predicate counts must sum to the totals. If
+    they ever do not, the census is quietly describing a subset and the
+    block says so rather than printing a figure that looks whole."""
+    import shutil
+
+    import scripts.write_kg_report as W
+    rel = ROOT / "data" / "releases" / "smoke"
+    report = tmp_path / "r.txt"
+    shutil.copy(REPORT, report)
+    W.main(["--release", str(rel), "--report", str(report)])
+    block = report.read_text().split(W.BEGIN, 1)[1].split(W.END, 1)[0]
+    assert "!!" not in block, f"the census failed to reconcile:\n{block}"
+
+
+def undescribed_sources(text: str) -> list[str]:
+    """infores ids the census shows carrying edges that the prose never
+    mentions. Factored out so it can be tested on a synthetic block as
+    well as on the committed one."""
+    import re as _re
+
+    import scripts.write_kg_report as W
+    block = text.split(W.BEGIN, 1)[1].split(W.END, 1)[0]
+    prose = text.split(W.BEGIN, 1)[0] + text.split(W.END, 1)[1]
+    ids = {i.rstrip(".") for i in
+           _re.findall(r"infores:[a-z0-9][a-z0-9._-]*", block)}
+    return sorted(i for i in ids if i not in prose)
+
+
+def test_the_source_check_catches_a_source_the_report_never_names():
+    """Exercised on a synthetic census, so it runs whether or not a
+    release has been assembled here. A test that returns early when its
+    input is a placeholder is a test that reports green having checked
+    nothing, which is the defect this suite keeps finding in itself."""
+    import scripts.write_kg_report as W
+    fake = (f"infores:uniprot is described in the prose.\n{W.BEGIN}\n"
+            f"      infores:uniprot    10\n"
+            f"      infores:nosuchdb    1\n{W.END}\ntail\n")
+    assert undescribed_sources(fake) == ["infores:nosuchdb"]
+    ok = fake.replace("tail", "infores:nosuchdb is described here.")
+    assert undescribed_sources(ok) == []
+
+
+def test_every_source_in_the_census_is_described_in_the_report(text):
+    """THE GAP THIS CLOSES. The sibling test reads infores ids out of
+    the SOURCE CODE, and several -- infores:dip, infores:mint,
+    infores:hpidb -- are derived at runtime from a curator's own name in
+    MITAB column 12, so they are never literals anywhere in the tree.
+    v0.1 carries edges from all three while the report said those
+    endpoints returned nothing usable. The census is the only place
+    their names appear, so it is what the report must agree with.
+    """
+    import scripts.write_kg_report as W
+    block = text.split(W.BEGIN, 1)[1].split(W.END, 1)[0]
+    if "not yet generated" in block:
+        # Not silent: the placeholder is itself asserted, so this test
+        # can never pass by finding nothing to look at.
+        assert "run `make kg-report`" in block
+        return
+    missing = undescribed_sources(text)
+    assert not missing, (
+        f"these sources carry edges in the release and are not described "
+        f"anywhere in the report: {missing}")

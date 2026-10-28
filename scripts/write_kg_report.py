@@ -30,12 +30,26 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+import textwrap
+
 from kgav.provenance import release_fingerprint
 from kgav.schema import load_schema
 
 REPORT = ROOT / "docs" / "kg_audit_report.txt"
 BEGIN = "<<<BEGIN GENERATED: release census — python scripts/write_kg_report.py>>>"
 END = "<<<END GENERATED>>>"
+
+
+def _wrap(text: str, indent: str = "      ") -> list[str]:
+    """Wrapped to the report's 80 columns.
+
+    A summary line naming eight absent classes runs past the margin,
+    and the rest of this file is hard-wrapped, so an unwrapped line is
+    the one thing in a generated block a reader notices before the
+    content.
+    """
+    return textwrap.wrap(text, width=78, initial_indent=indent,
+                         subsequent_indent=indent + "  ") or [indent]
 
 
 def _assembled(release: Path):
@@ -77,14 +91,61 @@ def block(release: Path) -> list[str]:
     out.append(f"    {n_nodes:,} nodes")
     out.append(f"    {n_edges:,} edges")
     out.append("")
-    out.append("    NODES BY CLASS")
-    for k, v in classes.most_common():
-        out.append(f"      {k:<24} {v:>12,}")
+    # EVERY DECLARED CLASS, INCLUDING THE EMPTY ONES. Listing only what
+    # is present reports presence and stays silent on absence, which is
+    # the thing this project refuses everywhere else: "a source this
+    # ingest cannot read is not a source with no data". v0.1 holds 7 of
+    # 11 declared node classes and 14 of 24 predicates, and the first
+    # version of this census showed neither fact.
+    schema = load_schema()
+    out.append("    NODES BY CLASS   (0 = declared in the schema, "
+               "absent from this release)")
+    empty_c = []
+    for k in sorted(schema.node_classes, key=lambda n: (-classes[n], n)):
+        out.append(f"      {k:<24} {classes[k]:>12,}")
+        if not classes[k]:
+            empty_c.append(k)
+    total_c = sum(classes.values())
+    if total_c != n_nodes:
+        out.append(f"      !! class counts sum to {total_c:,}, "
+                   f"not {n_nodes:,}")
+    if empty_c:
+        out.extend(_wrap(f"{len(empty_c)} of {len(schema.node_classes)} "
+                         f"declared classes are empty: "
+                         + ", ".join(empty_c)))
     out.append("")
-    out.append("    EDGES BY PREDICATE   (L = held out of every metapath)")
-    for k, v in preds.most_common():
+    held = set(schema.held_out_predicates())
+    labels = set(schema.evaluation_label_predicates())
+    out.append("    EDGES BY PREDICATE   (L = held out of every metapath, "
+               "0 = declared, absent)")
+    empty_p = []
+    for e in sorted(schema.edge_classes,
+                    key=lambda e: (-preds[e.predicate], e.predicate)):
+        k = e.predicate
         flag = " L" if k in held else "  "
-        out.append(f"      {k:<34}{flag} {v:>12,}")
+        out.append(f"      {k:<34}{flag} {preds[k]:>12,}")
+        if not preds[k]:
+            empty_p.append(k)
+    total_p = sum(preds.values())
+    if total_p != n_edges:
+        out.append(f"      !! predicate counts sum to {total_p:,}, "
+                   f"not {n_edges:,}")
+    if empty_p:
+        out.append(f"      {len(empty_p)} of {len(schema.edge_classes)} "
+                   f"declared predicates are empty:")
+        for k in empty_p:
+            why = "  <- EVALUATION LABEL" if k in labels else ""
+            out.append(f"        {k}{why}")
+        absent_labels = sorted(k for k in empty_p if k in labels)
+        if absent_labels:
+            kept = sorted(labels - set(absent_labels))
+            tail = (f"so every evaluation rests on {', '.join(kept)} alone"
+                    if kept else
+                    "so this release carries NO evaluation label at all "
+                    "and nothing in it can be scored")
+            out.extend(_wrap(
+                f"{len(absent_labels)} of {len(labels)} evaluation label "
+                f"predicate(s) carry no edges, {tail}."))
     out.append("")
     out.append("    EDGES BY SOURCE")
     for k, v in sources.most_common():
