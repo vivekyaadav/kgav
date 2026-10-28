@@ -30,10 +30,13 @@ HTTP 500 and a soap:Fault reading "No binding operation info while
 invoking unknown method" -- which reads as a broken service rather than a
 wrong URL, and nearly sent this layer to a different data source.
 
-The registry's REST entry ends at .../webservices/current/search/ and
---base takes everything before /webservices, so VirHostNet's is
-http://virhostnet.prabi.fr:9090/psicquic -- the host that serves the data,
-even though the web interface has moved to virhostnet.univ-lyon1.fr.
+PASTE THE REGISTRY LINE STRAIGHT IN. Every REST entry ends at
+.../webservices/current/search/ and normalise_base strips exactly that
+tail, so both the full restUrl and the trimmed base work. Do NOT trim
+it by hand at the first `/webservices`: eleven of the fourteen active
+services are EBI-hosted and carry that segment twice --
+.../Tools/webservices/psicquic/hpidb/webservices/current/search/ --
+so that rule yields http://www.ebi.ac.uk/Tools and every query 404s.
 
 It is recorded in every sidecar this writes, so a release can always say
 which service answered.
@@ -77,6 +80,37 @@ TIMEOUT = 180
 QUERY_PATH = "webservices/current/search/query"
 
 
+#: What the registry's restUrl ends with. PSICQUIC's own shape, and the
+#: part this script supplies itself from QUERY_PATH.
+REGISTRY_TAIL = "webservices/current/search"
+
+
+def normalise_base(url: str) -> str:
+    """Accept the registry's restUrl verbatim, or the trimmed base.
+
+    THE DOCSTRING USED TO SAY to trim at the first `/webservices`, and on
+    VirHostNet's http://virhostnet.prabi.fr:9090/psicquic/webservices/...
+    that happens to work. On every EBI-hosted service it does not:
+
+        http://www.ebi.ac.uk/Tools/webservices/psicquic/hpidb/webservices/current/search/
+
+    `webservices` appears TWICE, so cutting at the first leaves
+    http://www.ebi.ac.uk/Tools and every query 404s. Eleven of the
+    fourteen active REST services are EBI-hosted, so the rule was
+    wrong for most of the registry -- the same shape as the SOAP
+    endpoint: a doc handing the reader a URL that fails in a way that
+    looks like a dead service.
+
+    Stripping the KNOWN TAIL cannot make that mistake. A base that
+    does not carry it is returned unchanged, so both forms work and
+    the caller can paste the registry line straight in.
+    """
+    u = url.rstrip("/")
+    if u.endswith(REGISTRY_TAIL):
+        u = u[: -len(REGISTRY_TAIL)].rstrip("/")
+    return u
+
+
 def prefix_for(source: str) -> str:
     """The filename stem prefix for a service.
 
@@ -118,7 +152,7 @@ def miql(taxids: list[str]) -> str:
 
 def url_for(base: str, taxids: list[str], fmt: str) -> str:
     q = urllib.parse.quote(miql(taxids), safe="")
-    return f"{base.rstrip('/')}/{QUERY_PATH}/{q}?format={fmt}"
+    return f"{normalise_base(base)}/{QUERY_PATH}/{q}?format={fmt}"
 
 
 def fetch(url: str) -> bytes:
