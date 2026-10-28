@@ -54,6 +54,7 @@ def _release(tmp_path: Path) -> Path:
         {"id": "UniProtKB:H2", "class": "Protein",
          "properties": {"is_viral": False, "taxon_id": "NCBITaxon:9606"}},
         {"id": "INCHIKEY:D1", "class": "SmallMolecule", "properties": {}},
+        {"id": "INCHIKEY:D2", "class": "SmallMolecule", "properties": {}},
     ]
     edges = [
         # DENV-1: two PPI edges, two distinct partners, no CRISPR, no drug
@@ -75,6 +76,15 @@ def _release(tmp_path: Path) -> Path:
         ("UniProtKB:H2", "HOST_FACTOR_FOR", "NCBITaxon:2697049",
          {"direction": "restriction"}),
         ("INCHIKEY:D1", "INHIBITS", "UniProtKB:NSP5", {}),
+        # DENV-1 has NO protein-level inhibitor and two organism-level
+        # antivirals, which is the real shape of Yellow fever: 1,070
+        # ChEMBL compounds and zero INHIBITS, because a cell-based
+        # assay has no protein to point at.
+        ("INCHIKEY:D1", "HAS_ANTIVIRAL_ACTIVITY_AGAINST", "NCBITaxon:11053",
+         {}),
+        ("INCHIKEY:D2", "HAS_ANTIVIRAL_ACTIVITY_AGAINST", "NCBITaxon:11053",
+         {}),
+        ("INCHIKEY:D2", "MEASURED_INACTIVE_AGAINST", "UniProtKB:NSP5", {}),
         ("NCBITaxon:2697049", "CAUSES", "MONDO:1", {}),
     ]
     (d / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
@@ -178,3 +188,34 @@ def test_the_family_column_applies_the_registers_defaults(tmp_path, capsys):
                and "prot" not in ln)
     assert "Coro" in row, row
     assert "?" not in row.split()[1]
+
+
+def test_organism_level_antivirals_are_counted(tmp_path, capsys):
+    """A cell-based assay measuring "compound inhibits yellow fever
+    virus" has no protein to point at, so chembl.py lands it on the
+    TAXON. Counting only INHIBITS reported Yellow fever as having no
+    compound while ChEMBL holds 1,070 of them."""
+    _rc, out = _run(tmp_path, capsys)
+    row = next(ln for ln in out.splitlines() if "DENV-1" in ln and "Flav" in ln)
+    cols = row.split()
+    assert cols[8] == "0", f"no protein-level inhibitor: {row}"
+    assert cols[9] == "2", f"two organism-level antivirals: {row}"
+
+
+def test_the_two_kinds_of_absence_are_not_the_same_gap(tmp_path, capsys):
+    """"No compound of any kind" and "organism-level only" need
+    different work: the first is a source limit, the second is a
+    resolution limit on data that is present."""
+    _rc, out = _run(tmp_path, capsys)
+    gaps = out.split("5. WHAT IS MISSING")[1]
+    assert "no protein-level inhibitor (organism-level only)" in gaps
+    assert "DENV-1" in gaps.split("organism-level only")[1].split("\n")[1]
+
+
+def test_an_inactive_measurement_is_reported_separately(tmp_path, capsys):
+    """Measured and found inactive is evidence, not absence, and must
+    not read as either a hit or a gap."""
+    _rc, out = _run(tmp_path, capsys)
+    row = next(ln for ln in out.splitlines()
+               if "SARS-CoV-2" in ln and "Coro" in ln)
+    assert row.split()[10] == "1", row
