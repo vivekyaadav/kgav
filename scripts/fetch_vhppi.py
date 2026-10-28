@@ -70,8 +70,8 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import yaml
 
-from kgav.vhppi import LEGACY_PREFIX_SOURCE, slug
-from kgav.virus_register import family_of
+from kgav.vhppi import LEGACY_PREFIX_SOURCE, file_taxon, slug
+from kgav.virus_register import declared_taxa, family_of
 
 TIMEOUT = 180
 # PSICQUIC's firstResult/maxResults paging. 1,000 is IMEx's own cap and
@@ -282,6 +282,8 @@ def main(argv=None) -> int:
     print(f"{len(viruses)} virus(es) from {args.config.name} against "
           f"{args.base}")
     print(f"  labelling every file {args.source}")
+    by_stem = {slug(v["name"]): str(v["taxon"]) for v in register["viruses"]}
+    taxon_map = declared_taxa(register)
     empty, failed, wrote = [], [], []
     for entry in viruses:
         taxids = taxids_for(entry)
@@ -301,6 +303,22 @@ def main(argv=None) -> int:
         if args.dry_run:
             continue
         target = args.out / f"{prefix_for(args.source)}_{slug(name)}.tab27"
+        # A FILE FOR THIS VIRUS UNDER ANOTHER NAME. --overwrite replaces
+        # the path this computes and cannot see a file named differently.
+        # The seven hand-placed coronavirus files are taxid-named
+        # (vhn_2697049.tab27) and this writes slug-named
+        # (vhn_sarscov2.tab27), so a refetch left both on disk and both
+        # were ingested -- deduplicated, but the older snapshot's rows
+        # survive, including any the service has since retracted.
+        for other in sorted(args.out.glob(
+                f"{prefix_for(args.source)}_*.tab27")):
+            if other == target:
+                continue
+            if file_taxon(other, by_stem, taxon_map) == str(entry["taxon"]):
+                print(f"    ALSO ON DISK: {other.name} is the same virus "
+                      f"from the same service under an older naming\n"
+                      f"      scheme. Both will be ingested; delete it "
+                      f"once this file is verified.")
         if target.exists() and not args.overwrite:
             print(f"    exists, left alone: {target.name} (--overwrite to "
                   f"replace)")
