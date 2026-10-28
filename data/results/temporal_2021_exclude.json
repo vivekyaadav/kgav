@@ -4,26 +4,34 @@
   "overlap_policy": "drop-from-test",
   "reachability_floor": 10,
   "stats": {
-    "edge_train": 194251,
-    "edge_dropped_future": 156624,
-    "undated_dropped": 3401,
-    "label_train_inactive": 11987,
-    "label_train_active": 1045,
-    "held_out_not_a_label": 1205,
-    "label_undecidable": 164,
-    "label_test_active": 2485,
-    "label_test_inactive": 3630,
+    "edge_train": 195518,
+    "edge_dropped_future": 159749,
+    "undated_dropped": 5342,
+    "label_train_inactive": 13481,
+    "label_train_active": 2477,
+    "held_out_not_a_label": 2421,
+    "label_undecidable": 342,
+    "label_test_active": 3160,
+    "label_test_inactive": 6816,
     "train_ambiguous_dropped": 136,
     "test_positive_already_known_dropped": 5,
     "test_negative_already_known_dropped": 14
   },
   "audits": [
+    "ceiling: 69/71 test compounds for NCBITaxon:11053 have no pre-2021 evidence",
+    "ceiling: 226/230 test compounds for NCBITaxon:11060 have no pre-2021 evidence",
+    "ceiling: 68/70 test compounds for NCBITaxon:11069 have no pre-2021 evidence",
+    "ceiling: 65/67 test compounds for NCBITaxon:11070 have no pre-2021 evidence",
+    "ceiling: 16/16 test compounds for NCBITaxon:11072 have no pre-2021 evidence",
+    "ceiling: 179/181 test compounds for NCBITaxon:11082 have no pre-2021 evidence",
+    "ceiling: 10/11 test compounds for NCBITaxon:11084 have no pre-2021 evidence",
+    "ceiling: 28/30 test compounds for NCBITaxon:11089 have no pre-2021 evidence",
     "ceiling: 73/78 test compounds for NCBITaxon:11137 have no pre-2021 evidence",
     "ceiling: 41/50 test compounds for NCBITaxon:1335626 have no pre-2021 evidence",
-    "ceiling: 1,551/1,575 test compounds for NCBITaxon:2697049 have no pre-2021 evidence",
+    "ceiling: 1,550/1,575 test compounds for NCBITaxon:2697049 have no pre-2021 evidence",
     "ceiling: 4/5 test compounds for NCBITaxon:277944 have no pre-2021 evidence",
     "ceiling: 145/148 test compounds for NCBITaxon:31631 have no pre-2021 evidence",
-    "ceiling: 575/581 test compounds for NCBITaxon:64320 have no pre-2021 evidence",
+    "ceiling: 575/580 test compounds for NCBITaxon:64320 have no pre-2021 evidence",
     "ceiling: 34/43 test compounds for NCBITaxon:694009 have no pre-2021 evidence"
   ],
   "already_known": [
@@ -61,7 +69,7 @@
         "auc_coverage_neg": 0.0020325203252032522,
         "auc_evaluable": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.9150046026388464,
+        "lift_vs_degree": 0.8977601156069366,
         "vs_degree_readable": false
       },
       "M2": {
@@ -93,7 +101,7 @@
         "auc_coverage_neg": 0.0,
         "auc_evaluable": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.809012405207557,
+        "lift_vs_degree": 0.7937654830718415,
         "vs_degree_readable": false
       },
       "M4": {
@@ -125,7 +133,7 @@
         "auc_coverage_neg": 0.0,
         "auc_evaluable": true,
         "beats_degree": true,
-        "lift_vs_degree": 1.5753298557839828,
+        "lift_vs_degree": 1.5456406551059731,
         "vs_degree_readable": false
       },
       "COMBINED": {
@@ -157,35 +165,35 @@
         "auc_coverage_neg": 0.0020325203252032522,
         "auc_evaluable": true,
         "beats_degree": true,
-        "lift_vs_degree": 1.0995946447893283,
+        "lift_vs_degree": 1.0788713112260422,
         "vs_degree_readable": false
       },
       "degree": {
-        "pool": 3259,
-        "pos": 24,
+        "pool": 3460,
+        "pos": 25,
         "hits": 2,
-        "expected": 0.7364222154034981,
-        "lift": 2.7158333333333333,
+        "expected": 0.7225433526011561,
+        "lift": 2.768,
         "mrr": 0.01694915254237288,
         "hits_lo": 2,
         "hits_hi": 2,
         "hits_expected": 2.0,
-        "lift_expected": 2.7158333333333333,
+        "lift_expected": 2.768,
         "hits_determined": true,
         "tied_at_cut": 9,
         "tied_at_cut_positives": 0,
-        "lift_lo": 2.7158333333333333,
-        "lift_hi": 2.7158333333333333,
+        "lift_lo": 2.768,
+        "lift_hi": 2.768,
         "trustworthy": false,
         "lift_is_pool_artifact": false,
-        "p_value": 0.16667119158842228,
-        "auc": 0.506099174086979,
-        "auc_ci_lo": 0.48312710886558796,
-        "auc_ci_hi": 0.5290712393083701,
+        "p_value": 0.16180974783931162,
+        "auc": 0.5064176022712608,
+        "auc_ci_lo": 0.48344688897308524,
+        "auc_ci_hi": 0.5293883155694362,
         "auc_n_pos": 1575,
         "auc_n_neg": 984,
-        "auc_reached_pos": 24,
-        "auc_coverage_pos": 0.015238095238095238,
+        "auc_reached_pos": 25,
+        "auc_coverage_pos": 0.015873015873015872,
         "auc_coverage_neg": 0.003048780487804878,
         "auc_evaluable": true,
         "lift_vs_degree": null,
@@ -195,8 +203,22 @@
     },
     "Zika": {
       "not_evaluable": {
-        "reachable": 6,
-        "test_positives": 581,
+        "reachable": 5,
+        "test_positives": 580,
+        "floor": 10
+      }
+    },
+    "DENV-2": {
+      "not_evaluable": {
+        "reachable": 4,
+        "test_positives": 230,
+        "floor": 10
+      }
+    },
+    "West Nile": {
+      "not_evaluable": {
+        "reachable": 2,
+        "test_positives": 181,
         "floor": 10
       }
     },
@@ -214,6 +236,27 @@
         "floor": 10
       }
     },
+    "DENV-1": {
+      "not_evaluable": {
+        "reachable": 2,
+        "test_positives": 71,
+        "floor": 10
+      }
+    },
+    "DENV-3": {
+      "not_evaluable": {
+        "reachable": 2,
+        "test_positives": 70,
+        "floor": 10
+      }
+    },
+    "DENV-4": {
+      "not_evaluable": {
+        "reachable": 2,
+        "test_positives": 67,
+        "floor": 10
+      }
+    },
     "MERS-CoV": {
       "not_evaluable": {
         "reachable": 9,
@@ -228,6 +271,27 @@
         "floor": 10
       }
     },
+    "Yellow fever": {
+      "not_evaluable": {
+        "reachable": 2,
+        "test_positives": 30,
+        "floor": 10
+      }
+    },
+    "JEV": {
+      "not_evaluable": {
+        "reachable": 0,
+        "test_positives": 16,
+        "floor": 10
+      }
+    },
+    "TBEV": {
+      "not_evaluable": {
+        "reachable": 1,
+        "test_positives": 11,
+        "floor": 10
+      }
+    },
     "HCoV-NL63": {
       "not_evaluable": {
         "reachable": 1,
@@ -239,14 +303,14 @@
   "provenance": {
     "release": {
       "id": "v0.1",
-      "nodes_sha": "4b527a17d8df2827",
-      "edges_sha": "63ff3592d992128e"
+      "nodes_sha": "73638934bacd7827",
+      "edges_sha": "a9a68fe6a41380c6"
     },
     "code": {
-      "commit": "e7d145100851c4cbe9b3ab6223d63ab7ead61657",
+      "commit": "502d81e06ba251ef0f7538f3c117153c9eabf1c5",
       "dirty": false
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-10-16T05:20:02+00:00"
+    "generated_utc": "2026-10-28T16:01:27+00:00"
   }
 }
