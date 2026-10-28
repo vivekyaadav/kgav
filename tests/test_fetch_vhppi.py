@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import urllib.parse
 from pathlib import Path
 
 import pytest
@@ -430,3 +431,99 @@ def test_the_docstring_does_not_give_the_before_webservices_rule():
     doc = F.__doc__
     assert "everything before /webservices" not in doc
     assert "normalise_base" in doc
+
+
+# --------------------------------------------- paging a capped service
+def _pager(total: int, cap: int = 1000):
+    """A PSICQUIC service holding `total` rows and capping at `cap`."""
+    calls = []
+
+    def fetch(url):
+        calls.append(url)
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+        first = int(q.get("firstResult", ["0"])[0])
+        want = min(int(q.get("maxResults", [str(cap)])[0]), cap)
+        rows = [f"row{i}".encode() for i in range(first, min(first + want,
+                                                            total))]
+        return b"\n".join(rows) + (b"\n" if rows else b"")
+    return fetch, calls
+
+
+def test_a_capped_service_still_yields_every_row():
+    """IMEx caps at 1,000. Asked for SARS-CoV-2's 8,059 it returned
+    exactly 1,000, and SARS-CoV's 2,291 likewise: 12,496 interactions
+    arrived as 4,146 rows. Every virus under the cap came back whole,
+    so the truncation was invisible except in the row-vs-count note."""
+    fetch, calls = _pager(8059)
+    raw, pages = F.fetch_all(BASE, ["2697049"], "tab25", 8059, fetch=fetch)
+    assert len([ln for ln in raw.split(b"\n") if ln.strip()]) == 8059
+    assert pages == 9 and len(calls) == 9
+
+
+def test_the_first_page_asks_from_zero():
+    fetch, calls = _pager(10)
+    F.fetch_all(BASE, ["1"], "tab25", 10, fetch=fetch)
+    assert "firstResult=0" in calls[0] and "maxResults=" in calls[0]
+
+
+def test_a_short_page_ends_the_loop():
+    """A service free to return fewer than asked must not be polled
+    forever."""
+    fetch, _calls = _pager(1500)
+    _raw, pages = F.fetch_all(BASE, ["1"], "tab25", 0, fetch=fetch)
+    assert pages == 2
+
+
+def test_an_under_cap_virus_is_one_request():
+    """Most viruses here are well under the cap, and a second request
+    per virus against 16 viruses and several services is not free."""
+    fetch, _calls = _pager(53)
+    _raw, pages = F.fetch_all(BASE, ["11060"], "tab25", 53, fetch=fetch)
+    assert pages == 1
+
+
+def test_a_server_ignoring_first_result_does_not_loop_forever(capsys):
+    """It would return page one until the end of time. The run says so
+    instead of spinning."""
+    def stuck(url):
+        return b"\n".join(b"same" for _ in range(1000)) + b"\n"
+    _raw, pages = F.fetch_all(BASE, ["1"], "tab25", 10_000_000, fetch=stuck)
+    assert pages == F.MAX_PAGES
+    assert "ignoring firstResult" in capsys.readouterr().out
+
+
+def test_the_url_carries_no_paging_when_not_asked():
+    """The count query and anything else built by url_for stay as they
+    were, so an unpaged caller is unaffected."""
+    u = F.url_for(BASE, ["11060"], "count")
+    assert "firstResult" not in u and "maxResults" not in u
+
+
+def test_rows_fetched_across_pages_reach_the_file(tmp_path, monkeypatch):
+    """End to end: the written file holds every page, not the first."""
+    fetch, _calls = _pager(2500)
+    monkeypatch.setattr(F, "fetch",
+                        lambda url: b"2500" if "count" in url else fetch(url))
+    raw = tmp_path / "raw"
+    cfg = tmp_path / "v.yaml"
+    cfg.write_text(yaml.safe_dump({"viruses": [_entry()]}))
+    F.main(["--base", BASE, "--source", SRC, "--config", str(cfg),
+            "--out", str(raw)])
+    side = json.loads((raw / "vhn_denv2.tab27.source.json").read_text())
+    assert side["n_rows"] == 2500
+
+
+def test_a_total_that_lands_on_a_page_boundary_costs_no_extra_request():
+    """`expected` is an optimisation, not a correctness guard: without
+    it the loop still terminates on the empty page after the last full
+    one. With it, a virus whose count is an exact multiple of the page
+    size costs no spare round trip -- and across 16 viruses and several
+    services the spare requests add up."""
+    fetch, _calls = _pager(2000)
+    raw, pages = F.fetch_all(BASE, ["1"], "tab25", 2000, fetch=fetch)
+    assert len([ln for ln in raw.split(b"\n") if ln.strip()]) == 2000
+    assert pages == 2, "the empty third page should not be requested"
+    # and with no count to go on, it costs exactly one more
+    fetch2, _ = _pager(2000)
+    _raw2, pages2 = F.fetch_all(BASE, ["1"], "tab25", 0, fetch=fetch2)
+    assert pages2 == 3

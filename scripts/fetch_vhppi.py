@@ -74,6 +74,13 @@ from kgav.vhppi import LEGACY_PREFIX_SOURCE, slug
 from kgav.virus_register import family_of
 
 TIMEOUT = 180
+# PSICQUIC's firstResult/maxResults paging. 1,000 is IMEx's own cap and
+# a safe ask elsewhere; a server free to return fewer ends the loop on
+# the short page.
+PAGE_SIZE = 1000
+# A server that ignores firstResult returns page one forever. At this
+# many pages the run says so rather than spinning.
+MAX_PAGES = 200
 # PSICQUIC's own REST shape, not a VirHostNet invention:
 #   <base>/webservices/current/search/query/<MIQL>?format=<fmt>
 # Spec: psicquic.github.io/PsicquicSpec_1_4_Rest.html
@@ -150,9 +157,57 @@ def miql(taxids: list[str]) -> str:
     return " OR ".join(f"({p})" for p in parts)
 
 
-def url_for(base: str, taxids: list[str], fmt: str) -> str:
+def url_for(base: str, taxids: list[str], fmt: str,
+            first: int | None = None, max_results: int | None = None) -> str:
     q = urllib.parse.quote(miql(taxids), safe="")
-    return f"{normalise_base(base)}/{QUERY_PATH}/{q}?format={fmt}"
+    url = f"{normalise_base(base)}/{QUERY_PATH}/{q}?format={fmt}"
+    if first is not None:
+        url += f"&firstResult={first}"
+    if max_results is not None:
+        url += f"&maxResults={max_results}"
+    return url
+
+
+def fetch_all(base: str, taxids: list[str], fmt: str, expected: int,
+              page: int = PAGE_SIZE, fetch=None) -> tuple[bytes, int]:
+    """Every row, following PSICQUIC's firstResult/maxResults paging.
+
+    WHY THIS IS NOT ONE REQUEST. IMEx caps a response at 1,000 rows.
+    Asked for SARS-CoV-2's 8,059 interactions it returned exactly
+    1,000, and SARS-CoV's 2,291 likewise -- 12,496 interactions
+    arrived as 4,146 rows, and every virus under the cap came back
+    whole, so the truncation was invisible except in the row-vs-count
+    note. A silently short download is indistinguishable from a small
+    source, which is the failure this whole layer keeps producing.
+
+    Stops on a short page, on reaching `expected`, or on a page that
+    repeats nothing new -- a server ignoring firstResult would
+    otherwise loop forever returning page one.
+
+    Returns (rows, pages). The caller compares the row count against
+    the service's own count, as before: paging makes truncation less
+    likely, not impossible.
+    """
+    fetch = fetch or globals()["fetch"]
+    out: list[bytes] = []
+    got = pages = 0
+    while True:
+        if expected and got >= expected:
+            break
+        if pages >= MAX_PAGES:
+            print(f"    stopped at {MAX_PAGES} pages ({got:,} rows); the "
+                  f"service may be ignoring firstResult")
+            break
+        chunk = fetch(url_for(base, taxids, fmt, first=got, max_results=page))
+        lines = [ln for ln in chunk.split(b"\n") if ln.strip()]
+        pages += 1
+        if not lines:
+            break
+        out.extend(lines)
+        got += len(lines)
+        if len(lines) < page:
+            break
+    return (b"\n".join(out) + (b"\n" if out else b"")), pages
 
 
 def fetch(url: str) -> bytes:
@@ -252,11 +307,13 @@ def main(argv=None) -> int:
             continue
         data_url = url_for(args.base, taxids, args.format)
         try:
-            raw = fetch(data_url)
+            raw, pages = fetch_all(args.base, taxids, args.format, n)
         except (urllib.error.URLError, OSError) as exc:
             print(f"    DOWNLOAD FAILED: {exc}")
             failed.append(name)
             continue
+        if pages > 1:
+            print(f"    {pages} pages")
         rows = sum(1 for ln in raw.decode("utf-8", "replace").splitlines()
                    if ln.strip())
         if rows != n:
