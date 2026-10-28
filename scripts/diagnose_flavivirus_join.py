@@ -56,21 +56,62 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.chembl import assay_readout, query_activities
-from kgav.schema import print_capped
 from kgav.orcs import is_virus_resistance_screen, virus_taxon
+from kgav.schema import print_capped
 from kgav.vhppi import parse_row
+from kgav.virus_register import family_of
 
 # Names ChEMBL may file these under. Matched case-insensitively against
 # target_dictionary.organism to FIND tax_ids, never to resolve one: every
 # match is reported with its id for curation, not silently adopted.
-FLAVI_NAME_HINTS = ("dengue", "zika", "west nile", "japanese encephalitis",
-                    "yellow fever", "tick-borne encephalitis",
-                    "tick borne encephalitis", "flavivirus")
+EXTRA_NAME_HINTS = ("dengue", "flavivirus", "coronavirus",
+                    "tick borne encephalitis")
 
 
-def _surveyed(config: Path) -> list[dict]:
+def name_hints(entries: list[dict]) -> tuple[str, ...]:
+    """Organism-name fragments to look for, taken from the register.
+
+    DERIVED, NOT LISTED. The hardcoded list was eight flavivirus
+    phrases, written when this script covered the `surveyed:` block.
+    The viruses it was asking about are now in `viruses:` alongside
+    seven coronaviruses -- and of the nine with no direct-acting
+    compound, three are coronaviruses the list could never have
+    matched. A register-driven set grows when the register does.
+
+    EXTRA_NAME_HINTS stays for the genus and family words ChEMBL files
+    some targets under ("Dengue virus", with no serotype), which no
+    single entry's name contains.
+    """
+    out = set(EXTRA_NAME_HINTS)
+    for e in entries:
+        for key in ("name", "full_name"):
+            v = (e.get(key) or "").strip().lower()
+            if len(v) >= 4:
+                out.add(v)
+        for a in e.get("aliases") or []:
+            a = str(a).strip().lower()
+            if len(a) >= 4:
+                out.add(a)
+    return tuple(sorted(out))
+
+
+def _entries(config: Path, family: str | None = None) -> list[dict]:
+    """The viruses to ask about: the BUILT ones, not `surveyed:`.
+
+    This read `surveyed:` only. The nine flaviviruses it was written
+    for were promoted into `viruses:` and the block emptied, so the
+    script exited with "no `surveyed:` entries" and answered nothing
+    -- for weeks, while the question it exists for (where did ChEMBL
+    actually put the data) was the open one.
+
+    `surveyed:` is still read, so an entry staged there and not yet
+    built is still covered.
+    """
     cfg = yaml.safe_load(config.read_text())
-    return cfg.get("surveyed") or []
+    out = list(cfg.get("viruses") or []) + list(cfg.get("surveyed") or [])
+    if family:
+        out = [e for e in out if family_of(e, cfg) == family]
+    return out
 
 
 def _register_taxa(entry: dict) -> list[str]:
@@ -83,21 +124,22 @@ def _register_taxa(entry: dict) -> list[str]:
     return taxa
 
 
-def _sweep_organisms(db: Path) -> dict[str, tuple[str, int]]:
-    """tax_id -> (organism name, target rows) for anything flavivirus-named.
+def _sweep_organisms(db: Path, hints: tuple[str, ...]
+                     ) -> dict[str, tuple[str, int]]:
+    """tax_id -> (organism name, target rows) for anything so named.
 
     Finds where ChEMBL actually put the data, which the register cannot know:
     it records UniProt's curation decisions, not ChEMBL's.
     """
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     con.row_factory = sqlite3.Row
-    like = " OR ".join("LOWER(t.organism) LIKE ?" for _ in FLAVI_NAME_HINTS)
+    like = " OR ".join("LOWER(t.organism) LIKE ?" for _ in hints)
     rows = con.execute(f"""
         SELECT t.tax_id, t.organism, COUNT(DISTINCT t.tid) AS targets
         FROM target_dictionary t
         WHERE t.tax_id IS NOT NULL AND ({like})
         GROUP BY t.tax_id, t.organism
-    """, [f"%{h}%" for h in FLAVI_NAME_HINTS]).fetchall()
+    """, [f"%{h}%" for h in hints]).fetchall()
     con.close()
     return {str(r["tax_id"]): (r["organism"], r["targets"]) for r in rows}
 
@@ -301,6 +343,8 @@ def main() -> int:
                                    "/chembl_37_sqlite/chembl_37.db")
     ap.add_argument("--orcs-dir", type=Path, default=root / "data/raw/orcs")
     ap.add_argument("--vhppi-dir", type=Path, default=root / "data/raw/vhppi")
+    ap.add_argument("--family", default=None,
+                    help="limit to one register family, e.g. Flaviviridae")
     ap.add_argument("--cutoff", type=int, default=2016,
                     help="temporal split year; 2016 is the Zika outbreak")
     ap.add_argument("--min-compounds", type=int, default=10,
@@ -308,11 +352,16 @@ def main() -> int:
                          "this a channel cannot be evaluated at all")
     args = ap.parse_args()
 
-    surveyed = _surveyed(args.config)
+    surveyed = _entries(args.config, args.family)
     if not surveyed:
-        sys.exit(f"no `surveyed:` entries in {args.config}")
+        sys.exit(f"no entries in {args.config}"
+                 + (f" for family {args.family}" if args.family else ""))
 
-    print(f"{len(surveyed)} surveyed flaviviruses in {args.config}")
+    hints = name_hints(surveyed)
+    print(f"{len(surveyed)} virus(es) from {args.config.name}"
+          + (f", family {args.family}" if args.family else "")
+          + f"\n  {len(hints)} organism-name hint(s) derived from the "
+            f"register")
     print(f"temporal cutoff {args.cutoff} | evaluability floor "
           f"{args.min_compounds} compounds\n")
 
@@ -323,7 +372,7 @@ def main() -> int:
               "ORCS/VirHostNet below still will\n")
         sweep, per_virus = {}, {}
     else:
-        sweep = _sweep_organisms(args.db)
+        sweep = _sweep_organisms(args.db, hints)
         print("=" * 78)
         print("WHERE ChEMBL ACTUALLY FILES FLAVIVIRUS TARGETS")
         print("=" * 78)
@@ -402,7 +451,7 @@ def main() -> int:
     print("HOST-SIDE LAYERS  (M2/M4/M5 depend entirely on these)")
     print("=" * 78)
 
-    orcs = _orcs_report(args.orcs_dir, FLAVI_NAME_HINTS)
+    orcs = _orcs_report(args.orcs_dir, hints)
     print(f"\n  ORCS: {orcs['status']}")
     if orcs.get("status") == "ok":
         print(f"    {orcs['screens']:,} human screens | "
