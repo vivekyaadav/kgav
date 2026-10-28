@@ -1,0 +1,518 @@
+================================================================================
+kgav — KNOWLEDGE GRAPH AUDIT REPORT
+A Biolink-conformant knowledge graph for antiviral drug repurposing across
+Coronaviridae and Flaviviridae, and what it can and cannot be used to measure.
+================================================================================
+
+Repository      github.com/vivekyaadav/kgav
+Schema version  0.13.0
+Release audited v0.1
+Scope           16 viruses — 7 Coronaviridae, 9 Flaviviridae
+
+HOW TO READ THIS FILE. Structural facts (classes, predicates, metapaths,
+layers, sources) are pinned by tests/test_kg_audit_report.py against the
+schema, the pipeline and the register, so they cannot drift from the code
+without a test failing. Release-dependent COUNTS are deliberately not
+restated here; they live in one place:
+
+    make audit                     # per-layer, per-virus, what is missing
+    make check-results             # every results file against the graph
+
+Any figure quoted in this file that a rebuild could move is marked with
+the run it came from. This project has shipped two reports that quoted a
+figure from a previous graph, which is why the rule exists.
+
+
+================================================================================
+1. WHAT THE GRAPH IS FOR
+================================================================================
+
+One question, asked two ways.
+
+The FIRST question is "which existing drug works against this virus". It
+needs antiviral activity labels, and it is the question the evaluation in
+docs/evaluation.md failed to answer honestly: 92.2% of labelled compounds
+share a publication between the evidence edge and the label it was
+supposed to predict, so a scorer is partly reading its own answer sheet.
+The result on this release is that 11 of 15 scored viruses have no
+readable reasoning channel at all and exactly one readable cell in the
+whole table is significant.
+
+The SECOND question is "where does the drugged human proteome overlap
+what this virus depends on". It touches no label predicate, so the
+shared-publication confound has nothing to attach to. That is the
+pathway-analysis question, and section 7 is about it.
+
+The graph is built so that the second question can be asked without the
+first contaminating it. Four predicates are HELD OUT of every metapath
+and are never evidence:
+
+    HAS_ANTIVIRAL_ACTIVITY_AGAINST   SmallMolecule -> OrganismTaxon
+    MEASURED_INACTIVE_AGAINST        SmallMolecule -> Protein
+    TREATS                           SmallMolecule -> Disease
+    IN_TRIAL_FOR                     SmallMolecule -> Disease
+
+Three of those are evaluation labels — the ground truth being predicted.
+MEASURED_INACTIVE_AGAINST is the NEGATIVE label and is held out for the
+same reason: it is answer sheet, not feature.
+
+
+================================================================================
+2. SCHEMA SPECIFICATION
+================================================================================
+
+11 node classes:
+
+    SmallMolecule     a compound, keyed on InChIKey skeleton
+    Protein           viral or host, keyed on UniProt accession or chain
+    TargetClass       a protein family / fold class
+    Gene              viral or host
+    OrganismTaxon     a virus (or host) at NCBI Taxonomy
+    VirusStrain       a named strain, for resistance
+    Disease           a MONDO term
+    Variant           a sequence variant
+    Pathway           a Reactome pathway
+    CellLine          a Cellosaurus line, for assay context
+    Publication       a PMID
+
+24 predicates. Direction is subject -> object.
+
+    CHEMISTRY
+      INHIBITS                      SmallMolecule -> Protein     (viral)
+      TARGETS                       SmallMolecule -> Protein     (host)
+      MEASURED_INACTIVE_AGAINST     SmallMolecule -> Protein     HELD OUT
+      CHEMICALLY_SIMILAR_TO         SmallMolecule -> SmallMolecule  symmetric
+      COMBINED_WITH                 SmallMolecule -> SmallMolecule  symmetric
+
+    VIRAL SPINE
+      ENCODED_BY                    Protein -> Gene
+      BELONGS_TO                    Gene -> OrganismTaxon
+      HAS_STRAIN                    OrganismTaxon -> VirusStrain
+      SUBCLASS_OF                   OrganismTaxon -> OrganismTaxon
+      CAUSES                        OrganismTaxon -> Disease
+      CONFERS_RESISTANCE_TO         VirusStrain -> SmallMolecule
+
+    HOST BIOLOGY
+      HOST_FACTOR_FOR               Protein -> OrganismTaxon
+      PHYSICALLY_INTERACTS_WITH     Protein -> Protein           symmetric
+      PARTICIPATES_IN               Protein -> Pathway
+      HAS_VARIANT                   Gene -> Variant
+      OCCURS_IN                     Variant -> Protein
+
+    STRUCTURE
+      MEMBER_OF_CLASS               Protein -> TargetClass
+      FOLD_SIMILAR_TO               Protein -> Protein           symmetric
+
+    LABELS (all HELD OUT)
+      HAS_ANTIVIRAL_ACTIVITY_AGAINST  SmallMolecule -> OrganismTaxon
+      TREATS                          SmallMolecule -> Disease
+      IN_TRIAL_FOR                    SmallMolecule -> Disease
+
+    IDENTITY AND OUTPUT
+      SUBCLASS_OF_DISEASE           Disease -> Disease
+      SAME_AS                       any -> any                   symmetric
+      PREDICTED_INDICATION          SmallMolecule -> OrganismTaxon  model output
+
+EVERY EDGE CARRIES PROVENANCE. primary_knowledge_source is required and is
+an infores identifier; evidence_tier and first_asserted_date are required.
+The schema validates this on ingest, so an edge without a source cannot
+enter the graph. Qualifiers carry the measurement context that makes an
+edge interpretable — assay_type, direction, screen_type, cell_line, ic50_nm,
+target_resolution, detection_method, pmid.
+
+HOST_FACTOR_FOR.direction is the qualifier that matters most. A CRISPR
+screen reports a gene whose loss changes infection, and the SIGN decides
+the meaning: direction=dependency means the virus needs it, so inhibiting
+it is a candidate therapy; direction=restriction means the host uses it to
+fight the virus, so inhibiting it would be actively harmful. Every
+pathway and host-directed metapath constrains on direction=dependency.
+Getting that sign backwards is the one error in this graph that produces
+a confidently wrong recommendation rather than a missing one.
+
+
+================================================================================
+3. DATA SOURCES — WHAT WAS USED AND HOW
+================================================================================
+
+UniProt                                            infores:uniprot
+    The viral spine and the host proteome. Reviewed human proteome gives
+    Protein and Gene nodes. Per-virus reference proteomes give the viral
+    side.
+    POLYPROTEIN EXPANSION is the real work here. Coronavirus replicase is
+    translated as one polyprotein and cleaved into nsp1-nsp16, so the
+    targets that matter — Mpro (nsp5), RdRp (nsp12), helicase (nsp13) — are
+    CHAINS INSIDE P0DTD1, not separate accessions. Flaviviruses are the
+    same: one polyprotein cleaved into C-prM-E-NS1-NS2A-NS2B-NS3-NS4A-
+    NS4B-NS5. Without expanding chains the direct-acting channel has
+    nothing to point at. The register records, per virus, which accession
+    carries the chains.
+    Also the source of PARTICIPATES_IN: UniProt's own Reactome and GO
+    cross-references are read rather than Reactome being ingested
+    separately, so pathway membership inherits UniProt's mapping decisions
+    and its release stamp.
+
+NCBI Taxonomy                                infores:ncbi-taxonomy
+    OrganismTaxon identity. The register pins each virus to one taxid, and
+    this matters because curation disagrees: ChEMBL files some activities
+    under a parent taxon ("Dengue virus", "Flavivirus") and some under
+    strain-level taxa ("Yellow fever virus strain 17D"). The register
+    declares which taxa belong to which virus so an ingest cannot silently
+    drop rows or merge two viruses.
+
+MONDO                                               infores:mondo
+    Disease nodes and CAUSES edges, for all 16 viruses. Each term is
+    verified live by scripts/verify_mondo.py, which also checks the term
+    was reached by the cross-reference its mondo_source names — a
+    label-string match is not accepted as a basis, and a MONDO id citing
+    itself is rejected.
+    The four dengue serotypes share MONDO:0005502 and the four endemic
+    human coronaviruses share MONDO:0005709, which is correct: the disease
+    is one entity and the viruses are four.
+
+ChEMBL 37                                           infores:chembl
+    The chemistry, and four different things come out of it.
+      INHIBITS                        compound -> viral protein
+      MEASURED_INACTIVE_AGAINST       compound -> viral protein   (held out)
+      TARGETS                         compound -> human protein
+      HAS_ANTIVIRAL_ACTIVITY_AGAINST  compound -> virus           (held out)
+    The split between the first and the last is the assay READOUT, not the
+    source. An activity measured against a purified protein is
+    protein-level evidence; an activity measured as cytopathic effect in
+    cells is organism-level and is a LABEL. 1,884 of 7,677 protein-target
+    rows (24.5%) described a cellular readout while being filed against a
+    viral protein, and are now reattributed to the organism. Every INHIBITS
+    edge carries target_resolution recording how the chain was identified.
+    ChEMBL also supplies the SELECTIVITY layer, from same-document
+    EC50/CC50 pairs. An earlier version of this project recorded that
+    ChEMBL holds almost no cytotoxicity data for coronaviruses — 2 CC50
+    records. That was a query error, not a database fact: cytotoxicity is
+    filed against the CELL LINE it was measured in, not the virus, so a
+    search restricted to viral organism targets finds nothing.
+
+STRING v12.0                                        infores:string
+    The host interactome, which is what gives network proximity a distance
+    to measure.
+    THE THRESHOLD IS NOT THE CONVENTIONAL ONE, deliberately.
+    combined_score >= 700 is conventional and keeps ~474k human edges —
+    but 60% of those have experimental < 400 and clear the bar on
+    text-mining and co-expression, while ~120k edges with strong
+    experimental support fall below 700 and would be discarded.
+    Text-mining co-occurrence measures how often two proteins are written
+    about together, which tracks study volume rather than binding. For a
+    proximity baseline, where distance through the interactome IS the
+    quantity of interest, that inflates closeness around well-studied
+    proteins and makes the score partly a measure of literature volume.
+    So the filter is experimental >= 400 (~309k edges). Every channel
+    score is kept as an edge qualifier, so the combined>=700 variant is
+    reconstructible by query rather than by re-ingest, and both can be
+    reported as a sensitivity analysis.
+
+VirHostNet                                      infores:virhostnet
+    Virus-host physical interactions, in PSI-MITAB 2.7. This is the layer
+    that makes the graph antiviral rather than generic: it is the only
+    bridge between the viral spine and the host interactome, so metapath
+    M3 exists entirely because of it.
+    Attribution is read from MITAB column 12 (source database), not from
+    the file it arrived in, because one PSICQUIC endpoint serves rows
+    curated elsewhere. A row VirHostNet serves but IntAct curated is
+    attributed to IntAct.
+    The evidence is dominated by proximity-dependent biotin
+    identification (MI:1314) and affinity capture rather than by binary
+    methods, which is recorded on each edge and surfaced as a caveat: a
+    BioID hit means "in the same neighbourhood", not "binds".
+
+IntAct / IMEx                                       infores:intact
+    The second virus-host PPI source, reached through PSICQUIC and
+    attributed by the same column-12 rule. MINT rows arrive through the
+    IntAct endpoint and are attributed to MINT.
+
+BioGRID ORCS                                 infores:biogrid-orcs
+    CRISPR screen host factors — HOST_FACTOR_FOR with direction. The
+    densest repurposing signal in the graph and the only layer where a
+    sign error produces a confidently wrong recommendation. Polarity is
+    determined per screen rather than assumed, with manual overrides
+    recorded in config/orcs_polarity_overrides.json.
+
+NCATS OpenData                             infores:ncats-opendata
+    The SARS-CoV-2 cytopathic-effect screen AND its host-toxicity
+    counterscreen. Both, because a compound that reduces CPE by killing
+    the cells is not an antiviral, and the counterscreen is what
+    distinguishes them. Used as an independent label source, which is why
+    the final hard-negative protocol is run with
+    --label-source infores:ncats-opendata.
+
+InterPro                                          infores:interpro
+    Target classes and fold assignments, feeding MEMBER_OF_CLASS and
+    FOLD_SIMILAR_TO. The fold layer found that all three virus families'
+    proteases SHARE a fold — the original assumption that they differ was
+    wrong. What separates them is the catalytic nucleophile, read from
+    UniProt's annotated active site: cysteine in coronaviruses and
+    picornaviruses, serine in flaviviruses. FOLD_SIMILAR_TO therefore
+    carries catalytic_type_match, and the cross-family metapath is gated
+    on it.
+
+Guide to PHARMACOLOGY                 infores:guidetopharmacology
+    A second drug -> human protein TARGETS source. NOT BUILT on this
+    release: the download requires registration and the files are absent.
+    The layer is implemented and will run when they are placed.
+
+Curated published screens                 infores:curated-screen
+    Host factors from papers BioGRID ORCS does not carry. ORCS supplies
+    flavivirus screens for DENV-2, Zika and West Nile and nothing for
+    DENV-1, DENV-3, DENV-4, JEV or TBEV. NOT BUILT on this release:
+    data/raw/curated_screens/*.tsv is absent and the provenance of a
+    hand-placed screen file has to be established before it can be
+    trusted.
+
+kgav itself                                 infores:kgav-computed
+    Edges this project derives rather than reads: CHEMICALLY_SIMILAR_TO
+    (Tanimoto over Morgan fingerprints), and SAME_AS identity edges. Marked
+    as computed so a derived edge is never mistaken for a curated one.
+
+SOURCES SURVEYED AND DELIBERATELY NOT USED
+    BioGRID (PSICQUIC)  keys on Entrez Gene / LocusLink identifiers, not
+                        UniProt accessions, so its rows cannot be joined
+                        to this graph's proteins. 0 usable rows. Not
+                        ingested, and recorded as unreadable rather than
+                        as having no data — those are different claims.
+    IMEx                fully redundant with IntAct on this query (differs
+                        by ~10 edges). Ingesting both would double-count.
+    NDEx                the VirHostNet network published there is a 2021
+                        PSICQUIC dump of the same source, older than the
+                        live endpoint.
+    HPIDb, InnateDB, MPIDB, UniProt and Reactome PSICQUIC endpoints
+                        returned nothing usable for these taxa.
+
+    DENV-4 and Yellow fever have NO curated virus-host PPI in any of the
+    ten sources surveyed. That is a property of the literature, not of
+    this ingest.
+
+
+================================================================================
+4. BUILD PIPELINE — 12 LAYERS
+================================================================================
+
+Each layer is an independent ingest writing its own release directory, and
+assemble.py merges them under a declared precedence. A layer that cannot
+run is reported as blocked rather than skipped silently.
+
+  PHASE 1 — structure and primary evidence
+    spine         required   viral taxa, genes, chain-expanded proteins,
+                             disease nodes                      [UniProt,
+                             NCBI Taxonomy, MONDO]
+    host          required   human proteome, pathway membership, host
+                             interactome                   [UniProt, STRING]
+    vhppi         optional   virus-host physical interactions
+                                           [VirHostNet, IntAct, MINT]
+    orcs          optional   CRISPR host factors with direction
+                                                        [BioGRID ORCS]
+    curated       optional   host factors from published screens   NOT BUILT
+    chembl        optional   viral-target chemistry and antiviral labels
+    hosttargets   optional   drug -> human protein TARGETS         [ChEMBL]
+    ncats         optional   CPE screen plus host-toxicity counterscreen
+    folds         optional   target classes and fold similarity  [InterPro]
+
+  PHASE 3 — derived and secondary
+    selectivity   optional   selectivity index from same-document
+                             EC50/CC50 pairs                      [ChEMBL]
+    similarity    optional   CHEMICALLY_SIMILAR_TO cold-start edges
+                                                         [kgav-computed]
+    gtop          optional   second TARGETS source                 NOT BUILT
+
+WHY hosttargets IS A SEPARATE LAYER. After the chemistry layer first ran,
+the graph held thousands of HOST_FACTOR_FOR edges and ZERO TARGETS edges,
+because only activities against coronavirus targets had been ingested.
+That left five of the eight metapaths with nothing to traverse: every
+host-directed route starts with a drug targeting a HUMAN protein.
+
+PROVENANCE DISCIPLINE. Every results file carries the release it was
+computed against, by content hash of nodes.jsonl and edges.jsonl.
+`make check-results` compares all of them to the graph on disk and fails
+any that no longer describe it, including the derived train/test split
+that the hard-negative protocol reads. A figure computed from a graph
+that no longer exists is reported as stale rather than quoted.
+
+
+================================================================================
+5. METAPATHS
+================================================================================
+
+8 reasoning routes, declared in the schema rather than written as
+queries, so each one's reach and performance can be measured separately.
+
+  M1  direct-acting
+      Drug -INHIBITS-> ViralProtein -ENCODED_BY-> Gene -BELONGS_TO-> Virus
+      Constrained on target_resolution, so a chain identified only by an
+      assay description is distinguishable from one resolved properly.
+
+  M2  host-directed, single hop
+      Drug -TARGETS-> HostProtein -HOST_FACTOR_FOR-> Virus
+      direction=dependency.
+
+  M3  host-directed via virus-host PPI
+      Drug -TARGETS-> HostProtein -PHYSICALLY_INTERACTS_WITH->
+      ViralProtein -ENCODED_BY-> Gene -BELONGS_TO-> Virus
+      Exists only because of the vhppi layer.
+
+  M4  PATHWAY-MEDIATED
+      Drug -TARGETS-> HostProtein -PARTICIPATES_IN-> Pathway
+      <-PARTICIPATES_IN- HostProtein -HOST_FACTOR_FOR-> Virus
+      direction=dependency, hubs excluded. This is the pathway-analysis
+      route: a drug reaches a virus because it hits a protein sharing a
+      pathway with something the virus depends on.
+
+  M5  host PPI-mediated
+      Drug -TARGETS-> HostProtein -PHYSICALLY_INTERACTS_WITH->
+      HostProtein -HOST_FACTOR_FOR-> Virus
+      direction=dependency, hubs excluded.
+
+  M6  cold start via chemical similarity, host-directed
+      Drug -CHEMICALLY_SIMILAR_TO-> Drug -TARGETS-> HostProtein
+      -HOST_FACTOR_FOR-> Virus
+      direction=dependency.
+
+  M7  cold start via chemical similarity, direct-acting
+      Drug -CHEMICALLY_SIMILAR_TO-> Drug -INHIBITS-> ViralProtein
+      -ENCODED_BY-> Gene -BELONGS_TO-> Virus
+
+  M8  cross-family direct-acting via conserved fold
+      Drug -INHIBITS-> ViralProtein -FOLD_SIMILAR_TO-> ViralProtein
+      -ENCODED_BY-> Gene -BELONGS_TO-> Virus
+      Gated on catalytic_type_match, so a cysteine-protease inhibitor is
+      not transferred to a serine protease on fold similarity alone.
+
+HUB EXCLUSION on M4 and M5 is not cosmetic. Without it, every drug
+reaches every virus through ubiquitin or a ribosomal protein, and the
+score measures connectivity rather than biology.
+
+
+================================================================================
+6. HOW THE GRAPH SUPPORTS PATHWAY ANALYSIS
+================================================================================
+
+Three distinct capabilities, in increasing order of what they claim.
+
+(a) PER-VIRUS DEPENDENCY PATHWAY CENSUS — descriptive, no model.
+    For any virus, the graph can list the Reactome pathways its
+    dependency factors sit in, how many factors each pathway holds, and
+    which of those factors have a drug that targets them. This is a join
+    over HOST_FACTOR_FOR (direction=dependency), PARTICIPATES_IN and
+    TARGETS. It needs no labels and no scorer, so none of the
+    label-confound problems apply. The agent exposes it as a PATHWAY
+    query and reports every pathway found, with the count capped for
+    output and the census stated in full.
+
+(b) CROSS-VIRUS PATHWAY COMPARISON — descriptive.
+    Because all 16 viruses hang off one host proteome with one pathway
+    vocabulary, the same census is directly comparable across viruses and
+    across families. "Which pathways do flaviviruses depend on that
+    coronaviruses do not" is a set operation on this graph, and the answer
+    carries each edge's screen, cell line and publication.
+
+(c) ENRICHMENT — inferential, and the part that must be done carefully.
+    scripts/pathway_landscape.py asks whether a virus's dependency
+    factors are over-represented in particular pathways. It reads only
+    TARGETS, PARTICIPATES_IN and HOST_FACTOR_FOR and never touches a
+    label predicate, so the shared-publication confound that defeated the
+    compound-ranking evaluation has nothing to attach to.
+
+    THE CONFOUND MOVES RATHER THAN VANISHING, and this is the single most
+    important methodological point in this file. Well-studied proteins
+    carry more pathway annotations, are likelier to be drug targets, AND
+    are likelier to come out of a CRISPR screen with enough coverage to
+    be called a dependency factor. An over-representation test against
+    the whole proteome measures study volume, not biology.
+
+    So every enrichment is reported twice: naive, and against a
+    background sampled to match the observed degree distribution. The
+    gap between the two is a measurement, not a footnote.
+
+    Two channels ask it two ways. The TAXA channel takes dependency
+    factors asserted directly against the organism. The INTERACTOME
+    channel takes the host partners of viral proteins, which is a larger
+    and much softer set.
+
+    RESULT ON RELEASE v0.1, run 2026-10-28, degree_basis=study, 2,000
+    permutations, seed 0: 22 rows tested, 44 tests with both directions,
+    Bonferroni alpha 0.00114. ZERO rows clear it. The uncorrected version
+    of the same test would have reported four. DENV-1's interactome
+    overlap is p=0.0029 naive and 0.0600 degree-matched; DENV-2's is
+    0.0005 and 0.1499. Neither number moved because the data changed.
+    docs/evaluation.md holds the full table, machine-checked against the
+    results file.
+
+    An earlier run of this binned against the whole graph, which is
+    circular — the background included the proteins under test — and
+    produced a uniform, confident-looking depletion across every virus.
+    That finding was an artifact and is retracted.
+
+WHAT PATHWAY ANALYSIS HERE DOES NOT CLAIM. Not that viral dependency
+factors are unstructured: a test that reaches half the register and
+rests on six interaction partners for one of its rows is not positioned
+to say so. Not that Reactome is the wrong decomposition. The claim is
+narrower and it is a real result: on this release, with this null, no
+pathway-level enrichment survives correction, and the honest-looking
+uncorrected version is an artifact of protein popularity.
+
+
+================================================================================
+7. PER-VIRUS STATE — WHAT EACH VIRUS CAN SUPPORT
+================================================================================
+
+From `make audit`, release v0.1, 2026-10-28. Four tiers, and the
+distinction between them is the point: they are not degrees of weak
+evidence, they are different kinds of absence.
+
+  EVALUABLE (8) — labels present, a route present, and the route reaches
+  at least one held-out positive.
+      SARS-CoV-2, SARS-CoV, MERS-CoV, HCoV-229E, HCoV-OC43,
+      DENV-2, West Nile, Zika
+
+  ROUTES REACH NO LABEL (5) — a metapath terminates at the virus and
+  walks it, and reaches NONE of the held-out positives. A ranking for
+  these is complete and nothing in this graph can mark it right or wrong.
+      DENV-1, DENV-3, HCoV-NL63, JEV, TBEV
+
+  LABELS, NO FEATURE ROUTE (2) — antiviral measurements exist and no
+  metapath terminates at the virus. Every prediction is a miss by
+  construction. The agent REFUSES to rank these.
+      DENV-4 (312 labels), Yellow fever (1,030 labels)
+
+  FEATURES, NOTHING TO SCORE (1) — routes exist, no label exists.
+      HCoV-HKU1
+
+THE AGENT ENFORCES THIS. src/kgav/agent/guards.py refuses EXPLAIN,
+TRIAGE and PATHWAY queries for a virus with no feature route, naming the
+label count and stating that the refusal is "not because no compound
+looks promising, but because none can be reached" — because an empty
+ranking reads as the former. Below 25 edges a route is allowed with a
+THIN ROUTE caveat. Reliability is reported from the virus's own
+calibration, and on this release NO virus has a channel whose interval
+clears chance, so every answerable virus carries VIRUS NOT VALIDATED.
+
+
+================================================================================
+8. KNOWN GAPS
+================================================================================
+
+  gtop layer           needs the Guide to PHARMACOLOGY registration
+                       download. Implemented, not built.
+  curated layer        needs data/raw/curated_screens/*.tsv with
+                       established provenance. Would give DENV-1,
+                       DENV-3, DENV-4, JEV and TBEV their first
+                       dependency factors, which is the single change
+                       that would move the most viruses out of the
+                       bottom three tiers.
+  correction family    the cross-sectional channel table has never
+                       declared one. It must be set in the
+                       pre-registration BEFORE the next regeneration,
+                       not after a p-value is in hand.
+  DENV-4, Yellow fever no curated virus-host PPI exists in any of ten
+                       sources. Not a build gap.
+  M8 transfers         34 of 36 allowed cross-family transfers are
+                       blocked by comparator chains the spine does not
+                       build.
+
+================================================================================
+end of report
+================================================================================
