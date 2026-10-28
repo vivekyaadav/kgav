@@ -7,7 +7,7 @@
     "infores:ncats-opendata"
   ],
   "label_stats": {
-    "other_source": 11879,
+    "other_source": 18844,
     "inactive": 7343,
     "active": 89
   },
@@ -33,10 +33,10 @@
       "M2": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.49245478763693007,
+        "auc": 0.4924517273196058,
         "evaluable": true,
-        "auc_ci_lo": 0.43241866235575693,
-        "auc_ci_hi": 0.5524909129181031,
+        "auc_ci_lo": 0.43241572956771107,
+        "auc_ci_hi": 0.5524877250715006,
         "imputed": true,
         "coverage_pos": 0.056179775280898875,
         "coverage_neg": 0.07340324118207817
@@ -44,21 +44,21 @@
       "M3": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5230778529425716,
+        "auc": 0.5183840912464214,
         "evaluable": true,
-        "auc_ci_lo": 0.4619162064254535,
-        "auc_ci_hi": 0.5842394994596897,
+        "auc_ci_lo": 0.4573752965310499,
+        "auc_ci_hi": 0.5793928859617928,
         "imputed": true,
         "coverage_pos": 0.10112359550561797,
-        "coverage_neg": 0.05433746425166826
+        "coverage_neg": 0.06482364156339371
       },
       "M4": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5074220345907667,
+        "auc": 0.5074159139561181,
         "evaluable": true,
-        "auc_ci_lo": 0.446798046089048,
-        "auc_ci_hi": 0.5680460230924855,
+        "auc_ci_lo": 0.4467921511524232,
+        "auc_ci_hi": 0.5680396767598129,
         "imputed": true,
         "coverage_pos": 0.16853932584269662,
         "coverage_neg": 0.16137818330382678
@@ -66,10 +66,10 @@
       "M5": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5158998786584181,
+        "auc": 0.5159029389757424,
         "evaluable": true,
-        "auc_ci_lo": 0.4549748797316835,
-        "auc_ci_hi": 0.5768248775851528,
+        "auc_ci_lo": 0.45497783558885563,
+        "auc_ci_hi": 0.5768280423626291,
         "imputed": true,
         "coverage_pos": 0.15730337078651685,
         "coverage_neg": 0.12651504834536292
@@ -77,24 +77,24 @@
       "M6": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5024780919533547,
+        "auc": 0.5242139957492192,
         "evaluable": true,
-        "auc_ci_lo": 0.4420403388026174,
-        "auc_ci_hi": 0.562915845104092,
+        "auc_ci_lo": 0.4630164296245174,
+        "auc_ci_hi": 0.5854115618739211,
         "imputed": true,
-        "coverage_pos": 0.011235955056179775,
-        "coverage_neg": 0.006264469562848972
+        "coverage_pos": 0.07865168539325842,
+        "coverage_neg": 0.029688138363066868
       },
       "M7": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.499455263516274,
+        "auc": 0.49734440964183574,
         "evaluable": true,
-        "auc_ci_lo": 0.4391352460764968,
-        "auc_ci_hi": 0.5597752809560512,
+        "auc_ci_lo": 0.4371083439453017,
+        "auc_ci_hi": 0.5575804753383699,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.001089472967451995
+        "coverage_neg": 0.005311180716328476
       },
       "M8": {
         "n_pos": 89,
@@ -110,21 +110,21 @@
       "COMBINED": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5215981895162709,
+        "auc": 0.5413548330826423,
         "evaluable": true,
-        "auc_ci_lo": 0.46048395406538273,
-        "auc_ci_hi": 0.582712424967159,
+        "auc_ci_lo": 0.47966670764546304,
+        "auc_ci_hi": 0.6030429585198216,
         "imputed": true,
-        "coverage_pos": 0.21348314606741572,
-        "coverage_neg": 0.17377093830859322
+        "coverage_pos": 0.2808988764044944,
+        "coverage_neg": 0.2005992101320986
       },
       "degree": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5844372152948539,
+        "auc": 0.6062052524226237,
         "evaluable": true,
-        "auc_ci_lo": 0.5219499999086692,
-        "auc_ci_hi": 0.6469244306810387,
+        "auc_ci_lo": 0.5435578629105505,
+        "auc_ci_hi": 0.6688526419346968,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0
@@ -135,8 +135,10 @@
   "metapath_reach": {
     "cross_sectional": {
       "M1": {
-        "drugs_reached": 2448,
+        "drugs_reached": 2618,
         "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:11082",
           "NCBITaxon:11137",
           "NCBITaxon:1335626",
           "NCBITaxon:2697049",
@@ -151,13 +153,15 @@
         "missing_predicates": []
       },
       "M2": {
-        "drugs_reached": 1545,
+        "drugs_reached": 1605,
         "viruses_reached": [
+          "NCBITaxon:11060",
           "NCBITaxon:11137",
           "NCBITaxon:1335626",
           "NCBITaxon:2697049",
           "NCBITaxon:277944",
-          "NCBITaxon:31631"
+          "NCBITaxon:31631",
+          "NCBITaxon:64320"
         ],
         "predicates": [
           "TARGETS",
@@ -166,14 +170,21 @@
         "missing_predicates": []
       },
       "M3": {
-        "drugs_reached": 960,
+        "drugs_reached": 1131,
         "viruses_reached": [
+          "NCBITaxon:11053",
+          "NCBITaxon:11060",
+          "NCBITaxon:11069",
+          "NCBITaxon:11072",
+          "NCBITaxon:11082",
+          "NCBITaxon:11084",
           "NCBITaxon:11137",
           "NCBITaxon:1335626",
           "NCBITaxon:2697049",
           "NCBITaxon:277944",
           "NCBITaxon:290028",
           "NCBITaxon:31631",
+          "NCBITaxon:64320",
           "NCBITaxon:694009"
         ],
         "predicates": [
@@ -187,11 +198,14 @@
       "M4": {
         "drugs_reached": 2983,
         "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:11082",
           "NCBITaxon:11137",
           "NCBITaxon:1335626",
           "NCBITaxon:2697049",
           "NCBITaxon:277944",
-          "NCBITaxon:31631"
+          "NCBITaxon:31631",
+          "NCBITaxon:64320"
         ],
         "predicates": [
           "TARGETS",
@@ -202,13 +216,16 @@
         "missing_predicates": []
       },
       "M5": {
-        "drugs_reached": 2489,
+        "drugs_reached": 2505,
         "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:11082",
           "NCBITaxon:11137",
           "NCBITaxon:1335626",
           "NCBITaxon:2697049",
           "NCBITaxon:277944",
-          "NCBITaxon:31631"
+          "NCBITaxon:31631",
+          "NCBITaxon:64320"
         ],
         "predicates": [
           "TARGETS",
@@ -218,13 +235,15 @@
         "missing_predicates": []
       },
       "M6": {
-        "drugs_reached": 303,
+        "drugs_reached": 576,
         "viruses_reached": [
+          "NCBITaxon:11060",
           "NCBITaxon:11137",
           "NCBITaxon:1335626",
           "NCBITaxon:2697049",
           "NCBITaxon:277944",
-          "NCBITaxon:31631"
+          "NCBITaxon:31631",
+          "NCBITaxon:64320"
         ],
         "predicates": [
           "CHEMICALLY_SIMILAR_TO",
@@ -234,8 +253,10 @@
         "missing_predicates": []
       },
       "M7": {
-        "drugs_reached": 152,
+        "drugs_reached": 431,
         "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:11082",
           "NCBITaxon:11137",
           "NCBITaxon:1335626",
           "NCBITaxon:2697049",
@@ -251,8 +272,9 @@
         "missing_predicates": []
       },
       "M8": {
-        "drugs_reached": 27,
+        "drugs_reached": 82,
         "viruses_reached": [
+          "NCBITaxon:11060",
           "NCBITaxon:2697049",
           "NCBITaxon:64320",
           "NCBITaxon:694009"
@@ -268,8 +290,10 @@
     },
     "temporal": {
       "M1": {
-        "drugs_reached": 533,
+        "drugs_reached": 690,
         "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:11082",
           "NCBITaxon:1335626",
           "NCBITaxon:2697049",
           "NCBITaxon:64320",
@@ -283,13 +307,15 @@
         "missing_predicates": []
       },
       "M2": {
-        "drugs_reached": 1309,
+        "drugs_reached": 1364,
         "viruses_reached": [
+          "NCBITaxon:11060",
           "NCBITaxon:11137",
           "NCBITaxon:1335626",
           "NCBITaxon:2697049",
           "NCBITaxon:277944",
-          "NCBITaxon:31631"
+          "NCBITaxon:31631",
+          "NCBITaxon:64320"
         ],
         "predicates": [
           "TARGETS",
@@ -313,11 +339,14 @@
       "M4": {
         "drugs_reached": 2703,
         "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:11082",
           "NCBITaxon:11137",
           "NCBITaxon:1335626",
           "NCBITaxon:2697049",
           "NCBITaxon:277944",
-          "NCBITaxon:31631"
+          "NCBITaxon:31631",
+          "NCBITaxon:64320"
         ],
         "predicates": [
           "TARGETS",
@@ -340,13 +369,15 @@
         ]
       },
       "M6": {
-        "drugs_reached": 270,
+        "drugs_reached": 502,
         "viruses_reached": [
+          "NCBITaxon:11060",
           "NCBITaxon:11137",
           "NCBITaxon:1335626",
           "NCBITaxon:2697049",
           "NCBITaxon:277944",
-          "NCBITaxon:31631"
+          "NCBITaxon:31631",
+          "NCBITaxon:64320"
         ],
         "predicates": [
           "CHEMICALLY_SIMILAR_TO",
@@ -356,8 +387,10 @@
         "missing_predicates": []
       },
       "M7": {
-        "drugs_reached": 69,
+        "drugs_reached": 134,
         "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:11082",
           "NCBITaxon:1335626",
           "NCBITaxon:2697049",
           "NCBITaxon:64320",
@@ -372,7 +405,7 @@
         "missing_predicates": []
       },
       "M8": {
-        "drugs_reached": 5,
+        "drugs_reached": 60,
         "viruses_reached": [
           "NCBITaxon:2697049",
           "NCBITaxon:694009"
@@ -390,14 +423,14 @@
   "provenance": {
     "release": {
       "id": "v0.1",
-      "nodes_sha": "4b527a17d8df2827",
-      "edges_sha": "63ff3592d992128e"
+      "nodes_sha": "73638934bacd7827",
+      "edges_sha": "a9a68fe6a41380c6"
     },
     "code": {
-      "commit": "e7d145100851c4cbe9b3ab6223d63ab7ead61657",
-      "dirty": true
+      "commit": "502d81e06ba251ef0f7538f3c117153c9eabf1c5",
+      "dirty": false
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-10-16T05:40:56+00:00"
+    "generated_utc": "2026-10-28T16:31:26+00:00"
   }
 }
