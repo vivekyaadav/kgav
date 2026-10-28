@@ -30,6 +30,39 @@ Consequence to carry into the write-up: paths through this layer mean the drug
 target sits in the same complex neighbourhood as a viral protein. That is
 weaker than binding, and "physically interacts with" should not be allowed to
 imply more than the assay supports.
+
+SOURCES SURVEYED AND WHAT CAME OF THEM, 2026-10-28. Ten PSICQUIC
+services and one bulk network were queried for all sixteen viruses:
+
+  VirHostNet   11,644 edges. The only source for DENV-3.
+  IntAct        9,251 edges, of which 943 are MINT-curated, 19 DIP and
+                one HPIDb -- the release carries IMEx partner records,
+                which is why the curator is read from column 12.
+  IMEx          the same 12,496 records as IntAct, differing by ten.
+  BioGrid       3,563 rows, ZERO usable. It identifies proteins by
+                Entrez Gene ("entrez gene/locuslink:59272"), and this
+                parser reads UniProt accessions and PRO_ chains. Using
+                it needs an Entrez->protein mapping on both sides: the
+                host side already exists via NCBIGene nodes and
+                ENCODED_BY, but viral genes here are KGAV:GENE_<tax>_
+                <symbol> and have no Entrez counterpart, so roughly
+                thirty genes across three viruses would need curating.
+                Those three -- SARS-CoV-2, SARS-CoV, MERS -- already
+                hold 8,316, 1,422 and 696 edges. NOT DONE, on cost
+                against value, and recorded here so it is not
+                rediscovered as a bug.
+  MINT          subsumed by IMEx.
+  HPIDb         one row across all sixteen viruses; its index looks
+                stale.
+  InnateDB, MPIDB, UniProt, Reactome
+                nothing for any of the sixteen.
+  NDEx          "VirHostNet-v3.0321", property "created by: PSICQUIC
+                Web Service" -- a March 2021 dump of the endpoint
+                already queried live, in CX format carrying none of
+                the MITAB columns this model reads.
+
+DENV-4 and Yellow fever returned nothing from ANY of them. That is a
+statement about curated coverage, not a gap left to close.
 """
 from __future__ import annotations
 
