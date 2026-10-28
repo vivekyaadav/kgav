@@ -821,7 +821,17 @@ python scripts/hard_negatives.py --selectivity all --publication-disjoint \
     --label-source infores:ncats-opendata
 python scripts/calibrate.py          # which channels were evaluable, and why not
 
-# 4. every results file, AND the derived release they depend on, must
+# 4. the pathway landscape. It depends on nothing above -- it reads the
+#    release directly and scores no compounds -- but check-results globs
+#    data/results and audits it like everything else, so leaving it out
+#    meant a reader could run this block top to bottom and still be told
+#    a file was stale. It was missing here from the day the file was added
+#    until 2026-10-28; it looked fine only because it was being rebuilt by
+#    hand. tests/test_reproduce_block.py now fails on a results file that
+#    no step here regenerates.
+make pathway-landscape
+
+# 5. every results file, AND the derived release they depend on, must
 #    describe the graph on disk
 make check-results
 ```
