@@ -637,3 +637,64 @@ def test_every_source_in_the_census_is_described_in_the_report(text):
     assert not missing, (
         f"these sources carry edges in the release and are not described "
         f"anywhere in the report: {missing}")
+
+
+def test_the_census_counts_curators_not_source_strings(tmp_path):
+    """primary_knowledge_source is a "|" list once an edge is merged, so
+    counting raw values reports "infores:intact|infores:virhostnet" as a
+    source of its own. v0.1 showed 35 such values for 13 real curators,
+    and VirHostNet read 5,222 when it curated 10,163."""
+    import json
+    import shutil
+
+    import scripts.write_kg_report as W
+    rel = tmp_path / "rel"
+    rel.mkdir()
+    (rel / "nodes.jsonl").write_text(json.dumps(
+        {"id": "A", "class": "Protein", "properties": {}}) + "\n")
+    e = {"subject": "A", "predicate": "PHYSICALLY_INTERACTS_WITH",
+         "object": "B", "evidence_tier": 1,
+         "first_asserted_date": "2020-01-01"}
+    rows = [dict(e, primary_knowledge_source=s) for s in (
+        "infores:virhostnet",
+        "infores:intact|infores:virhostnet",
+        "infores:intact|infores:virhostnet|infores:virhostnet")]
+    (rel / "edges.jsonl").write_text(
+        "\n".join(json.dumps(r) for r in rows))
+    report = tmp_path / "r.txt"
+    shutil.copy(REPORT, report)
+    W.main(["--release", str(rel), "--report", str(report)])
+    block = report.read_text().split(W.BEGIN, 1)[1].split(W.END, 1)[0]
+    assert "EDGES BY CURATOR" in block
+    # virhostnet on all three, intact on two -- not three "sources".
+    assert re.search(r"infores:virhostnet\s+3\b", block), block
+    assert re.search(r"infores:intact\s+2\b", block), block
+    assert "infores:intact|infores:virhostnet" not in block
+    assert "2 edge(s) cite more than one curator" in block
+
+
+def test_a_repeated_curator_is_reported_as_the_defect_it_is(tmp_path):
+    """542 edges in v0.1 carry the same curator twice in one value --
+    the footprint of merge_edges unioning strings. A census that merely
+    deduplicated them for display would hide that the release predates
+    the fix."""
+    import json
+    import shutil
+
+    import scripts.write_kg_report as W
+    rel = tmp_path / "rel"
+    rel.mkdir()
+    (rel / "nodes.jsonl").write_text(json.dumps(
+        {"id": "A", "class": "Protein", "properties": {}}) + "\n")
+    (rel / "edges.jsonl").write_text(json.dumps(
+        {"subject": "A", "predicate": "PHYSICALLY_INTERACTS_WITH",
+         "object": "B", "evidence_tier": 1,
+         "first_asserted_date": "2020-01-01",
+         "primary_knowledge_source":
+             "infores:intact|infores:virhostnet|infores:virhostnet"}))
+    report = tmp_path / "r.txt"
+    shutil.copy(REPORT, report)
+    W.main(["--release", str(rel), "--report", str(report)])
+    block = report.read_text().split(W.BEGIN, 1)[1].split(W.END, 1)[0]
+    assert "REPEATED curator" in block
+    assert "assembled before the fix" in block
