@@ -542,6 +542,119 @@ This is the third figure in this project to have had two implementations with
 only one of them fixed, after AUC 0.826 in `guards.py` and `tools.py` and the
 coverage floor.
 
+## The pathway landscape: nothing is enriched, and half of it was not asked
+
+Everything above scores *compounds*. This section scores *pathways*, and it is
+the one measurement in this document that was designed to come back negative
+and did.
+
+The question is whether the host proteins a virus depends on cluster in
+particular Reactome pathways — because if they did, a pathway would be a
+repurposing target in its own right, and a compound hitting any member of it
+would inherit the hypothesis. Two channels ask it two ways. The **taxa**
+channel takes the dependency factors asserted directly against the organism
+(`HOST_FACTOR_FOR`). The **interactome** channel takes the host partners of
+viral proteins (`PHYSICALLY_INTERACTS_WITH`), which is a larger and much
+softer set.
+
+**Why the null is degree-matched, and why that mattered more than the test.**
+A protein in many pathways is also a protein in many screens, many
+interaction datasets and many papers. Compare observed overlap against a
+*uniform* random draw and well-studied proteins carry the signal; every
+answer is then a restatement of how much attention a protein has already had.
+So the null permutes within connectivity bins. An earlier run of this binned
+against the whole graph, which is circular — the background included the
+proteins under test — and it produced a uniform, confident-looking depletion
+across every virus. That finding was an artifact and is retracted. The run
+below uses `degree_basis = study`, binning within the studied set.
+
+**The correction.** Each row is tested in both directions, enrichment and
+depletion, so `n_tests = 44` over 22 rows and the Bonferroni threshold is
+`alpha = 0.00114`. 2,000 permutations, seed 0.
+
+<!-- TABLE: pathway_landscape — asserted cell-by-cell by
+     tests/test_landscape_table.py against data/results/pathway_landscape.json.
+     Do not hand-edit; re-derive with `make pathway-landscape`. The verdict
+     column is ENRICHED when p enriched < alpha, DEPLETED when p depleted <
+     alpha, and an em-dash otherwise, where alpha is 0.05/n_tests read from
+     the file rather than restated here. -->
+
+| channel | virus | dependency factors | observed | expected | p enriched | p depleted | verdict |
+|---|---|---|---|---|---|---|---|
+| taxa | SARS-CoV-2 | 3,460 | 333 | 308.24 | 0.0560 | 0.9500 | — |
+| taxa | DENV-2 | 50 | 2 | 5.66 | 0.9825 | 0.0655 | — |
+| taxa | West Nile | 18 | 0 | 2.31 | 1.0000 | 0.0940 | — |
+| taxa | HCoV-NL63 | 57 | 8 | 6.68 | 0.3473 | 0.7801 | — |
+| taxa | Zika | 815 | 65 | 67.85 | 0.6697 | 0.3798 | — |
+| taxa | HCoV-OC43 | 657 | 53 | 55.17 | 0.6442 | 0.4118 | — |
+| taxa | MERS-CoV | 678 | 54 | 56.08 | 0.6357 | 0.4173 | — |
+| taxa | HCoV-229E | 1,367 | 113 | 114.80 | 0.5897 | 0.4428 | — |
+| interactome | West Nile | 6 | 4 | 0.86 | 0.0035 | 0.9995 | — |
+| interactome | HCoV-229E | 397 | 30 | 45.74 | 0.9965 | 0.0050 | — |
+| interactome | HCoV-HKU1 | 279 | 22 | 33.73 | 0.9940 | 0.0115 | — |
+| interactome | MERS-CoV | 622 | 57 | 72.48 | 0.9820 | 0.0255 | — |
+| interactome | HCoV-OC43 | 289 | 25 | 35.19 | 0.9715 | 0.0440 | — |
+| interactome | SARS-CoV | 1,238 | 152 | 133.91 | 0.0480 | 0.9645 | — |
+| interactome | DENV-1 | 53 | 11 | 6.57 | 0.0600 | 0.9715 | — |
+| interactome | HCoV-NL63 | 311 | 29 | 37.21 | 0.9455 | 0.0800 | — |
+| interactome | SARS-CoV-2 | 3,494 | 401 | 381.98 | 0.1114 | 0.9030 | — |
+| interactome | DENV-2 | 271 | 38 | 32.19 | 0.1499 | 0.8836 | — |
+| interactome | TBEV | 35 | 2 | 4.22 | 0.9330 | 0.1919 | — |
+| interactome | DENV-3 | 33 | 6 | 4.05 | 0.2139 | 0.9015 | — |
+| interactome | Zika | 353 | 45 | 40.88 | 0.2574 | 0.7886 | — |
+| interactome | JEV | 7 | 1 | 0.76 | 0.5562 | 0.8366 | — |
+
+**0 of 22** rows clear the threshold, in either direction.
+
+**The uncorrected view is where the discoveries live.** DENV-1's interactome
+overlap is `0.0029 naive` and `0.0600 matched`; DENV-2's is `0.0005 naive`
+and `0.1499 matched`. Neither number moved because the data changed. The
+naive p-value asks whether these proteins are over-represented in pathways;
+the matched one asks whether they are over-represented *compared with
+proteins as well-connected as they are*. A twentieth-of-a-percent result
+becomes nothing, twice. That gap is the finding of this section, and it is
+the same confound the rest of this document measures on compounds.
+
+**The two closest rows, and why neither is a result.** West Nile's
+interactome is the smallest p in the table at 0.0035 — three times the
+threshold, and it rests on **six** interaction partners, four of which land
+in a pathway where 0.86 were expected. Six. The agent attaches a thin-route
+caveat to exactly this virus for exactly this reason. On the other side,
+HCoV-229E reads depleted at 0.0050, four times the threshold.
+
+**A pattern worth naming and not claiming.** On the interactome side the five
+coronaviruses with data all lean depleted: HCoV-229E 0.0050, HCoV-HKU1
+0.0115, MERS-CoV 0.0255, HCoV-OC43 0.0440, HCoV-NL63 0.0800. Same direction,
+five related viruses, and four of the five would be significant uncorrected.
+Not one clears correction. Five correlated tests pointing the same way is the
+situation multiple-testing correction exists for, not evidence that survives
+it. It is recorded here as an observation to re-examine when the interactome
+grows, and nothing more.
+
+**Half the register was never asked.** The taxa channel tested **8 of 16**
+viruses; the interactome channel **14 of 16**. A negative result over half a
+register is a weaker statement than a negative result over a register, and
+the table above only lists what was testable. The two viruses missing from
+*both* channels are **DENV-4** and **Yellow fever** — which is the same pair
+`guards.check` refuses to rank, arrived at independently. The statistics and
+the agent agree on which viruses this graph cannot reach.
+
+**One figure in the table should not be read as it looks.** DENV-2's
+interactome row counts 271 partners across 276 edges, of which **zero are
+binary**. Every one is spoke-expanded from a complex, so "DENV-2 interacts
+with 271 host proteins" means "DENV-2 was found in complexes containing 271
+host proteins". It is the second-largest interactome row in the table and the
+weakest-evidenced, and a reader comparing it against SARS-CoV-2's 3,494 is
+comparing two different kinds of claim.
+
+**What this section does not claim.** Not that viral dependency factors are
+unstructured — a test that cannot reach half the register and rests on six
+partners for one of its rows is not positioned to say so. Not that Reactome
+is the wrong decomposition. Not that the depletion lean is real. The claim is
+narrower: on this release, with this null, no pathway-level enrichment
+survives correction, and the uncorrected version of the same test would have
+reported four.
+
 ## Seven measured causes
 
 | Cause | Measurement |
