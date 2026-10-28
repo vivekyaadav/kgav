@@ -45,6 +45,10 @@ ACC_RE = re.compile(r"uniprotkb:([A-Z0-9]+)(?:-PRO_\d+)?", re.IGNORECASE)
 TAXID_RE = re.compile(r"taxid:(-?\d+)")
 PMID_RE = re.compile(r"pubmed:(\d+)")
 SCORE_RE = re.compile(r"miscore:([0-9.]+)")
+# MITAB column 12, "Source database(s)": psi-mi:"MI:0471"(MINT). The name
+# in parentheses is the curator's own, so the label is DERIVED from the
+# data rather than from a MI-code table that would drift.
+SOURCE_DB_RE = re.compile(r'psi-mi:"?MI:\d+"?\(([^)]+)\)')
 
 # MI:0407 "direct interaction" asserts a binary contact. MI:0915 "physical
 # association" and MI:0914 "association" only assert co-membership of a complex.
@@ -86,8 +90,25 @@ def parse_row(line: str) -> dict | None:
         "taxid_a": _first(TAXID_RE, f[9]),
         "taxid_b": _first(TAXID_RE, f[10]),
         "interaction_type": _first(MI_RE, f[11]),
+        # WHO CURATED THIS ROW, which is not always who served the file.
+        # IntAct's release carries IMEx partner records: of 12,496 viral
+        # rows, 1,059 are MINT, 110 DIP, and two others -- 9.4% of the
+        # layer attributing someone else's curation to IntAct.
+        "source_db": _first(SOURCE_DB_RE, f[12]) if len(f) > 12 else None,
         "score": _first(SCORE_RE, f[14]),
     }
+
+
+def source_infores(name: str | None) -> str | None:
+    """A curator's self-reported name -> an infores id.
+
+    Slugged from the name the file gives, not mapped from the MI code.
+    A code table is a second place for the truth to live and drift, and
+    the six names in this corpus -- virhostnet, IntAct, MINT, DIP,
+    HPIDb, matrixdb -- all slug cleanly and unambiguously.
+    """
+    slug_name = re.sub(r"[^a-z0-9]+", "", (name or "").lower())
+    return f"infores:{slug_name}" if slug_name else None
 
 
 @dataclass(frozen=True)
@@ -331,8 +352,20 @@ def ingest_mitab(em, paths: list[Path], index, taxon_map: dict[str, str],
             # qualifier with one value across every edge is noise that looks
             # like signal. The assay distinction survives in detection_method.
 
+            # THE CURATOR, NOT THE SERVER. `source` is the service the
+            # file came from, which is retrieval provenance and lives in
+            # the sidecar. primary_knowledge_source is a claim about who
+            # established the fact, and the row says so itself. A row
+            # with no readable source column falls back to the file's
+            # service and is counted, because a silent fallback is how
+            # 1,171 MINT and DIP rows came to be filed as IntAct.
+            curator = source_infores(r.get("source_db")) or source
+            stats[f"src:{curator}"] += 1
+            fstats[f"src:{curator}"] += 1
+            if not r.get("source_db"):
+                stats["source_db_absent"] += 1
             em.edge(host, "PHYSICALLY_INTERACTS_WITH", viral,
-                    source=source, date=default_date, tier=1, quals=quals,
+                    source=curator, date=default_date, tier=1, quals=quals,
                     pmids=[f"PMID:{r['pmid']}"] if r["pmid"] else None,
                     score=float(r["score"]) if r["score"] else None)
             stats["edges"] += 1

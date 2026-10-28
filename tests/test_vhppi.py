@@ -705,3 +705,82 @@ def test_the_ingest_refuses_a_file_whose_source_nothing_records(tmp_path,
     assert out.returncode != 0
     assert "no source recorded for: mint_denv4.tab27" in (out.stdout + out.stderr)
     assert "Refusing rather than guessing" in (out.stdout + out.stderr)
+
+
+# ------------------------- who curated a row, versus who served the file
+def _row_src(line: str, src: str) -> str:
+    """Set MITAB column 12 on a row built by _row."""
+    f = line.split("\t")
+    f[12] = src
+    return "\t".join(f)
+
+
+def test_the_curator_comes_from_the_row_not_the_file(world):
+    """THE LIVE DEFECT. IntAct's release carries IMEx partner records:
+    of 12,496 viral rows, 1,059 are MINT, 110 DIP, and two others. All
+    were filed as infores:intact, because the label came from the glob
+    the file matched. The tier ablation reads these labels.
+    """
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    f = world / "intact_mixed.tab27"
+    f.write_text("\n".join(
+        _row_src(_row(f"uniprotkb:P0DTD1-{NSP5_PP1A.split(':')[1]}",
+                      f"uniprotkb:{ACE2.split(':')[1]}", "MI:0018", str(p),
+                      2697049, 9606, "MI:0407", "0.5"), src)
+        for p, src in ((1, 'psi-mi:"MI:0469"(IntAct)'),
+                       (2, 'psi-mi:"MI:0471"(MINT)'),
+                       (3, 'psi-mi:"MI:0465"(DIP)'))))
+    em = Emit()
+    ingest_mitab(em, [f], index, {"2697049": "2697049"},
+                 "infores:intact", "2024-01-01")
+    got = sorted(e["primary_knowledge_source"] for e in em.edges)
+    assert got == ["infores:dip", "infores:intact", "infores:mint"]
+
+
+def test_a_row_with_no_source_column_falls_back_and_is_counted(world):
+    """A silent fallback is how 1,171 rows came to be filed wrongly.
+    The fallback is correct -- the serving service is the best
+    available answer -- but it has to be visible."""
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    stats = ingest_mitab(Emit(), [world / "vhn_test.tab27"], index,
+                         {"2697049": "2697049"}, "infores:virhostnet",
+                         "2024-01-01")
+    assert stats["source_db_absent"] == stats["edges"] > 0
+    assert stats["src:infores:virhostnet"] == stats["edges"]
+
+
+def test_a_self_curated_file_keeps_its_label(world):
+    """VirHostNet's own rows say virhostnet in column 12, so the fix
+    must not move the 12,638 edges that were already right."""
+    index = AliasIndex.from_releases(world / "spine", world / "host")
+    f = world / "vhn_self.tab27"
+    f.write_text(_row_src(
+        _row(f"uniprotkb:P0DTD1-{NSP5_PP1A.split(':')[1]}",
+             f"uniprotkb:{ACE2.split(':')[1]}", "MI:0018", "9",
+             2697049, 9606, "MI:0407", "0.5"),
+        'psi-mi:"MI:1114"(virhostnet)'))
+    em = Emit()
+    ingest_mitab(em, [f], index, {"2697049": "2697049"},
+                 "infores:virhostnet", "2024-01-01")
+    assert em.edges[0]["primary_knowledge_source"] == "infores:virhostnet"
+
+
+@pytest.mark.parametrize("name,infores", [
+    ("virhostnet", "infores:virhostnet"), ("IntAct", "infores:intact"),
+    ("MINT", "infores:mint"), ("DIP", "infores:dip"),
+    ("HPIDb", "infores:hpidb"), ("matrixdb", "infores:matrixdb"),
+])
+def test_every_curator_in_this_corpus_slugs_cleanly(name, infores):
+    """All six names present across both files, derived rather than
+    mapped: a MI-code table is a second place for the truth to drift."""
+    from kgav.vhppi import source_infores
+    assert source_infores(name) == infores
+
+
+def test_an_unreadable_source_column_yields_no_curator():
+    """None is the signal to fall back, and it must not be an empty
+    infores id that joins to nothing."""
+    from kgav.vhppi import source_infores
+    assert source_infores(None) is None
+    assert source_infores("") is None
+    assert source_infores("!!!") is None

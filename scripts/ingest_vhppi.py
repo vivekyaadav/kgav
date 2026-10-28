@@ -257,6 +257,21 @@ def main() -> int:
         print(f"\n  {s['attributed']:,} edge(s) carry measured_accession: "
               f"attributed to a reference polyprotein by the register's "
               f"ppi_accession_map, at polyprotein resolution")
+    by_curator = {k[4:]: v for k, v in s.items() if k.startswith("src:")}
+    if by_curator:
+        # SAID EVERY RUN. The file a row arrived in is not the authority
+        # that curated it: IntAct's release carries IMEx partner
+        # records, and 1,171 of its 12,496 viral rows are MINT, DIP,
+        # HPIDb or MatrixDB. Those were filed as infores:intact until
+        # 2026-10-28, and the tier ablation reads these labels.
+        print("\n  edges by CURATOR, read from MITAB column 12 rather than "
+              "from the file:")
+        for k, v in sorted(by_curator.items(), key=lambda kv: -kv[1]):
+            print(f"    {k:<28} {v:>8,}")
+        if s["source_db_absent"]:
+            print(f"    {'(no source column)':<28} "
+                  f"{s['source_db_absent']:>8,}  fell back to the file's "
+                  f"service")
     print("\n  dropped:")
     for k in ("unparseable", "no_detection_method", "unresolved_id", "self_interaction",
               "not_a_protein", "host_host", "viral_viral", "unmapped_viral_taxon",
