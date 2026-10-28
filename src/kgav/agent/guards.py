@@ -264,6 +264,12 @@ CAVEAT_LABELS: dict[str, str] = {
     "proximity_evidence":    "PROXIMITY EVIDENCE",
     "evidence_tier":         "EVIDENCE",
     "virus_not_validated":   "VIRUS NOT VALIDATED",
+    # The GOOD case, labelled separately so it is reported rather than
+    # implied by silence. docs/evaluation.md on the same mistake in the
+    # verdict column: "printed only as an absence of warning, the one
+    # condition every real result here depends on was left for the
+    # reader to notice."
+    "virus_calibrated":      "CALIBRATION",
     "virus_assumed":         "VIRUS ASSUMED",
     "contradicted":          "CONTRADICTED",
     "ranking":               "RANKING",
@@ -363,6 +369,37 @@ def _measured_at_chance(temporal) -> str:
             f"[{best.ci_lo:.3f}, {best.ci_hi:.3f}] under {temporal.protocol}")
 
 
+def _is_validated(calibration) -> bool:
+    """Whether THIS virus has a measured channel that clears chance.
+
+    THIS GATE USED TO BE `virus != SUPPORTED_VIRUS`. SARS-CoV-2 was exempt
+    from the not-validated caveat by name, so it was the one virus the
+    agent presented as validated, and it was exempt whether or not
+    anything had been measured for it. Run the agent with the results
+    file missing, unreadable or covering a different release and every
+    other virus correctly says its reliability is unknown while
+    SARS-CoV-2 says nothing at all -- the strongest claim in the output,
+    made by a string comparison.
+
+    It is the same defect this project keeps finding in its own figures:
+    an assumption that was true when it was written standing in for the
+    measurement it was shorthand for. Calibration already answers the
+    real question, and _virus_caveat below already has a branch for each
+    of its three outcomes.
+
+    discriminating(), not usable(): a calibration that loaded fine and
+    shows no channel above chance has measured this virus and found
+    nothing to rank with, which is not grounds for silence.
+
+    AND discriminating() ALONE, with no `usable` check beside it.
+    Calibration.discriminating() returns [] when the calibration is
+    refused, so a second check here is a second copy of that rule --
+    and this project's own count is five copies of one rule with three
+    of them wrong. One owner.
+    """
+    return bool(calibration is not None and calibration.discriminating())
+
+
 def _virus_caveat(calibration) -> str:
     """What is measured for THIS virus, from its own calibration.
 
@@ -457,8 +494,14 @@ def check(kind: QueryKind, virus: str | None = None,
         )
 
     warnings: list[str] = []
-    if virus and virus != SUPPORTED_VIRUS:
-        warnings.append(caveat("virus_not_validated", _virus_caveat(calibration)))
+    if virus:
+        # EMITTED EITHER WAY, with the key chosen by what was measured.
+        # Suppressing it when a channel does clear chance would put the
+        # strongest statement in the output back into silence, which is
+        # the hole the name-based gate left on SARS-CoV-2.
+        warnings.append(caveat(
+            "virus_calibrated" if _is_validated(calibration)
+            else "virus_not_validated", _virus_caveat(calibration)))
     if routes is not None and routes.thin:
         warnings.append(caveat("thin_route", routes.thin_text()))
     return Verdict(allowed=True, warnings=warnings)

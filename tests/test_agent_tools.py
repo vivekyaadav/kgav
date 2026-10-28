@@ -436,6 +436,17 @@ class _Cal:
         self.refused_reason = ""
         self.usable = True
 
+    def discriminating(self):
+        """Matches Calibration's interface.
+
+        This double had no such method: the only caller sat behind a
+        `virus != SUPPORTED_VIRUS` gate and SARS-CoV-2 is the virus
+        these tests calibrate, so the branch was unreachable and the
+        gap invisible.
+        """
+        return [n for n, c in sorted(self.channels.items())
+                if getattr(c, "discriminates", False)]
+
 
 @pytest.fixture
 def two_virus_graph(tmp_path):
