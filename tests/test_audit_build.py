@@ -24,11 +24,15 @@ CFG = {"viruses": [
      "mondo": None,
      "chain_source": {"accession": "P27909", "taxon": "11053", "chains": 14,
                       "verified": "2026-09-17"}},
-    {"taxon": "2697049", "name": "SARS-CoV-2", "family": "Coronaviridae",
+    # NO per-entry family, exactly like the real register: the
+    # coronaviruses inherit it from defaults below. The fixture used to
+    # declare it, so the audit's family column never took the defaults
+    # path and a mutant reverting it survived.
+    {"taxon": "2697049", "name": "SARS-CoV-2",
      "mondo": None,
      "chain_source": {"accession": "P0DTD1", "taxon": "2697049",
                       "chains": 16, "verified": "2026-09-17"}},
-]}
+], "defaults": {"family": "Coronaviridae"}}
 
 
 def _release(tmp_path: Path) -> Path:
@@ -164,3 +168,13 @@ def test_a_viral_viral_edge_is_not_a_host_partner(tmp_path, capsys):
         vhppi, partners = int(cols[4]), int(cols[5])
         assert vhppi == (2 if name == "DENV-1" else 0), row
         assert partners == (2 if name == "DENV-1" else 0), row
+
+
+def test_the_family_column_applies_the_registers_defaults(tmp_path, capsys):
+    """Coronaviruses carry no per-entry family. Reading the key alone
+    printed "?" for all seven of them."""
+    _rc, out = _run(tmp_path, capsys)
+    row = next(ln for ln in out.splitlines() if "SARS-CoV-2" in ln
+               and "prot" not in ln)
+    assert "Coro" in row, row
+    assert "?" not in row.split()[1]

@@ -354,3 +354,31 @@ def test_the_ingest_reads_back_what_the_fetcher_wrote(tmp_path, monkeypatch):
     F.main(["--base", BASE, "--source", "infores:mint",
             "--config", str(cfg), "--out", str(raw)])
     assert file_source(raw / "mint_denv2.tab27") == "infores:mint"
+
+
+def test_family_coronaviridae_selects_the_coronaviruses(tmp_path, monkeypatch,
+                                                        capsys):
+    """It matched NOTHING and exited 2. Coronaviruses inherit their
+    family from the register's defaults block, and the filter read the
+    per-entry key -- so every --family run this week covered
+    flaviviruses only, and a coronavirus fetch reported the register as
+    having none."""
+    monkeypatch.setattr(F, "fetch", lambda url: b"0")
+    rc = F.main(["--base", BASE, "--source", SRC, "--dry-run",
+                 "--config", str(ROOT / "config/viruses.yaml"),
+                 "--family", "Coronaviridae", "--out", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert rc == 0, out
+    assert "7 virus(es)" in out
+    assert "SARS-CoV-2" in out and "DENV-2" not in out
+
+
+def test_family_flaviviridae_still_selects_only_those(tmp_path, monkeypatch,
+                                                      capsys):
+    monkeypatch.setattr(F, "fetch", lambda url: b"0")
+    F.main(["--base", BASE, "--source", SRC, "--dry-run",
+            "--config", str(ROOT / "config/viruses.yaml"),
+            "--family", "Flaviviridae", "--out", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert "9 virus(es)" in out
+    assert "DENV-2" in out and "SARS-CoV-2" not in out

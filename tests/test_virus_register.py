@@ -511,3 +511,37 @@ def test_a_deleted_measured_accession_says_so_and_cites_uniparc(doc):
     assert "DELETED" in note
     assert "UPI00000ED99D" in note
     assert "3432" in note
+
+
+# --------------------------------------- family, with defaults applied
+def test_every_registered_virus_resolves_to_a_family(doc):
+    """Coronaviruses carry no per-entry family: they inherit it from
+    defaults, which is why the block exists. A filter reading only the
+    entry sees None for all seven."""
+    from kgav.virus_register import families, family_of
+    fams = families(doc)
+    assert all(fams.values()), [k for k, v in fams.items() if not v]
+    assert set(fams.values()) == {"Coronaviridae", "Flaviviridae"}
+    corona = [v for v in doc["viruses"] if v.get("family") is None]
+    assert corona, "the defaults path must actually be exercised"
+    assert all(family_of(v, doc) == "Coronaviridae" for v in corona)
+
+
+def test_the_per_entry_key_alone_would_miss_the_coronaviruses(doc):
+    """The bug itself, pinned. fetch_vhppi and diagnose_unresolved_ids
+    were both written as `v.get("family") or ""`, so
+    --family Coronaviridae matched nothing and exited 2 -- which reads
+    as "the register has no coronaviruses"."""
+    naive = [v["name"] for v in doc["viruses"]
+             if (v.get("family") or "") == "Coronaviridae"]
+    correct = [v["name"] for v in doc["viruses"]
+               if __import__("kgav.virus_register", fromlist=["x"]).family_of(
+                   v, doc) == "Coronaviridae"]
+    assert naive == []
+    assert len(correct) == 7
+
+
+def test_a_declared_family_overrides_the_default(doc):
+    from kgav.virus_register import family_of
+    denv = next(v for v in doc["viruses"] if v["name"] == "DENV-1")
+    assert family_of(denv, doc) == "Flaviviridae"

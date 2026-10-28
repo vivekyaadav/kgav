@@ -195,6 +195,34 @@ def declared_taxa(doc: dict, section: str = "viruses") -> dict[str, str]:
 MIN_SEARCH_NAME = 4
 
 
+def family_of(entry: dict, doc: dict) -> str | None:
+    """A virus's family, with the register's defaults applied.
+
+    THE RULE HAS FIVE COPIES AND THREE WERE WRONG. Coronaviruses carry
+    no per-entry `family`: they inherit it from defaults, which exists
+    precisely so the shared Coronaviridae properties are stated once.
+    Nine flaviviruses state theirs because they differ from the default.
+
+    So `entry.get("family")` returns None for every coronavirus, and a
+    filter written that way covers flaviviruses only. fetch_vhppi and
+    diagnose_unresolved_ids were both written that way this week:
+    `--family Coronaviridae` matched nothing and exited 2, which reads
+    as "the register has no coronaviruses".
+
+    ingest_spine already had it right -- `cfg.get("family") or
+    defaults["family"]`, with a comment about the surveyed: block -- and
+    so did three diagnostics. Four correct copies did not stop the fifth
+    being wrong, which is the argument for there being one.
+    """
+    return entry.get("family") or (doc.get("defaults") or {}).get("family")
+
+
+def families(doc: dict, section: str = "viruses") -> dict[str, str]:
+    """{taxon: family} for every entry, defaults applied."""
+    return {str(v["taxon"]): family_of(v, doc) or ""
+            for v in doc.get(section) or []}
+
+
 def ppi_accession_map(doc: dict, section: str = "viruses") -> dict[str, str]:
     """Measured accession -> the accession this build attributes it to.
 

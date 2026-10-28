@@ -68,6 +68,7 @@ sys.path.insert(0, str(ROOT / "src"))
 import yaml
 
 from kgav.vhppi import LEGACY_PREFIX_SOURCE, slug
+from kgav.virus_register import family_of
 
 TIMEOUT = 180
 # PSICQUIC's own REST shape, not a VirHostNet invention:
@@ -180,10 +181,11 @@ def main(argv=None) -> int:
                     help="replace a file that already exists")
     args = ap.parse_args(argv)
 
-    viruses = yaml.safe_load(args.config.read_text())["viruses"]
+    register = yaml.safe_load(args.config.read_text())
+    viruses = register["viruses"]
     if args.family:
         viruses = [v for v in viruses
-                   if (v.get("family") or "") == args.family]
+                   if family_of(v, register) == args.family]
     if not viruses:
         print(f"no virus in the register matches --family {args.family!r}")
         return 2
