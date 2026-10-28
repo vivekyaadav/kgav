@@ -171,8 +171,24 @@ def merge_edges(a: dict, b: dict, derive: DeriveFn | None = None) -> dict:
     """
     out = dict(a)
     out["support_count"] = a.get("support_count", 1) + b.get("support_count", 1)
-    sources = {a.get("primary_knowledge_source"), b.get("primary_knowledge_source")}
-    sources.discard(None)
+    # SPLIT BEFORE UNIONING. This built a set of the two STRINGS, and a
+    # side that has already been merged carries a compound one. So
+    # {"infores:intact|infores:virhostnet", "infores:virhostnet"} joined
+    # back to "infores:intact|infores:virhostnet|infores:virhostnet" and
+    # every further witness appended the whole previous string again.
+    #
+    # Merging was therefore neither associative nor idempotent: the
+    # value depended on the order edges happened to arrive, and a fact
+    # with many witnesses grew a source list quadratically. v0.1 carried
+    # one with infores:intact repeated thirty-five times and another
+    # with roughly ninety entries, and the release held 30 distinct
+    # "sources" that were permutations of six real ones -- which breaks
+    # every group-by and every filter that reads this field.
+    sources: set[str] = set()
+    for side in (a, b):
+        src = side.get("primary_knowledge_source")
+        if src:
+            sources.update(p for p in str(src).split("|") if p)
     out["primary_knowledge_source"] = "|".join(sorted(sources))
     pubs = set(a.get("publications") or []) | set(b.get("publications") or [])
     if pubs:
