@@ -386,6 +386,22 @@ graph, and tests/test_kg_audit_report.py fails on it.
 
 <<<END GENERATED>>>
 
+EDGES BY CURATOR COUNTS CURATORS, NOT SOURCE STRINGS.
+primary_knowledge_source is a "|" separated list once an edge has been
+merged, because one fact can have several witnesses. Counting the raw
+values reports "infores:intact|infores:virhostnet" as a source of its
+own: v0.1 held 35 such values for 13 real curators, and VirHostNet read
+5,222 where it had curated 10,163. An edge with several curators counts
+once for each, so the curator column sums to more than the edge total
+and says by how much.
+
+A REPEATED curator inside one value is a different thing and is flagged
+separately. merge_edges unioned source STRINGS rather than the curators
+inside them, so a fact with several witnesses accumulated duplicates --
+one v0.1 edge cites infores:intact thirty-five times. That is fixed in
+the assembler; a release assembled before the fix still carries the
+field as written, and reassembling rewrites it.
+
 The per-virus breakdown of these totals is `make audit`, which also
 reports what each layer contributed and what is missing.
 

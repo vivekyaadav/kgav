@@ -147,9 +147,41 @@ def block(release: Path) -> list[str]:
                 f"{len(absent_labels)} of {len(labels)} evaluation label "
                 f"predicate(s) carry no edges, {tail}."))
     out.append("")
-    out.append("    EDGES BY SOURCE")
-    for k, v in sources.most_common():
+    # PER CURATOR, NOT PER STRING. primary_knowledge_source is a "|"
+    # separated list once an edge has been merged, so counting the raw
+    # values reports "infores:intact|infores:virhostnet" as a source of
+    # its own. v0.1 showed thirty such permutations of six real
+    # curators, which made the real distribution unreadable in the one
+    # place it is supposed to be legible.
+    from collections import Counter as _C
+    per_curator: _C = _C()
+    multi = 0
+    repeated = 0
+    for value, n in sources.items():
+        parts = [q for q in str(value).split("|") if q]
+        if len(parts) > 1:
+            multi += n
+        if len(parts) != len(set(parts)):
+            repeated += n
+        for q in set(parts):
+            per_curator[q] += n
+    out.append("    EDGES BY CURATOR   (an edge with several curators "
+               "counts once for each)")
+    for k, v in per_curator.most_common():
         out.append(f"      {k:<34} {v:>12,}")
+    if multi:
+        out.extend(_wrap(f"{multi:,} edge(s) cite more than one curator, so "
+                         f"these counts sum to more than the edge total."))
+    else:
+        out.extend(_wrap("every edge cites exactly one curator."))
+    if repeated:
+        out.extend(_wrap(
+            f"!! {repeated:,} edge(s) carry a REPEATED curator in one "
+            f"value. merge_edges unioned source STRINGS rather than the "
+            f"curators inside them, so a fact with several witnesses "
+            f"accumulated duplicates. Fixed in the assembler; this "
+            f"release was assembled before the fix and reassembling "
+            f"rewrites the field."))
     man = release / "MANIFEST.json"
     if man.exists():
         m = json.loads(man.read_text())
