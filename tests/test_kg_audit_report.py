@@ -321,13 +321,40 @@ def test_the_tier_totals_add_up_to_the_register(flat):
 
 
 # ------------------------------------------------------------------ claims
-def test_the_report_does_not_restate_a_release_node_or_edge_total(text):
-    """The one rule it sets for itself. A total quoted here is pinned to
-    one release and goes stale silently; `make audit` is the live
-    figure. This is the defect that produced two reports describing a
-    graph that no longer existed."""
-    bad = re.findall(r"\b\d{1,3},\d{3}\s+(?:nodes|edges)\b", text)
-    assert not bad, f"the report restates a release total: {bad}"
+def test_a_release_total_appears_only_inside_the_generated_block(text):
+    """Sharpened, not dropped.
+
+    This forbade release totals ANYWHERE, which is why the report
+    carried none -- and that was the wrong rule. An audit report is a
+    stamped snapshot of one release; omitting its size makes it useless
+    to a reader and protects nothing. The defect it was aimed at is a
+    total that is TYPED: unstamped, unchecked, and stale the moment the
+    graph is rebuilt. That is two reports in this project describing a
+    graph that no longer existed.
+
+    So a total inside the generated census is the point of the census.
+    A total outside it is the defect, and still fails here.
+    """
+    import scripts.write_kg_report as W
+    outside = text.split(W.BEGIN, 1)[0] + text.split(W.END, 1)[1]
+    bad = re.findall(r"\b\d{1,3},\d{3}\s+(?:nodes|edges)\b", outside)
+    assert not bad, (
+        f"a release total is typed outside the generated census: {bad}. "
+        f"Totals belong in the census, where they carry the release hash "
+        f"they were computed from")
+
+
+def test_a_generated_census_carries_the_totals(text):
+    """The other direction. A census block that somehow holds no totals
+    is a section that looks generated and says nothing, which reads
+    worse than the omission it replaced."""
+    import scripts.write_kg_report as W
+    block = text.split(W.BEGIN, 1)[1].split(W.END, 1)[0]
+    if "not yet generated" in block:
+        return                       # covered by the placeholder test
+    assert re.search(r"\b[\d,]+\s+nodes\b", block), block[:300]
+    assert re.search(r"\b[\d,]+\s+edges\b", block), block[:300]
+    assert "NODES BY CLASS" in block and "EDGES BY PREDICATE" in block
 
 
 def test_the_report_points_at_the_live_audit(flat):
