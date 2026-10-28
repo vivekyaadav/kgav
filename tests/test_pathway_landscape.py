@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import subprocess
 import sys
 from importlib import import_module
 from pathlib import Path
@@ -485,14 +486,57 @@ def test_the_same_seed_gives_the_same_answer_across_processes():
     assert len(out) == 1, f"seed 0 gave {len(out)} different answers: {out}"
 
 
-def test_degree_bins_breaks_ties_on_the_node_id():
+def test_degree_bins_breaks_ties_on_the_node_id(tmp_path):
     """Thousands of proteins share a low degree. Without the id in the
-    key, which bin a tied protein lands in is set order."""
-    src = (ROOT / "scripts" / "pathway_landscape.py").read_text()
-    assert "key=lambda n: (g.degree.get(n, 0), n)" in src
-    assert "for node in sorted(universe)" in src
-    assert "wanted = sorted(want.items())" in src, \
-        "a Counter iterates in insertion order; it must be sorted too"
+    sort key, which bin a tied protein lands in is set order, and set
+    order varies per process through string hash randomisation -- three
+    runs of this script on one release and one seed returned SARS-CoV-2
+    expectations of 353.3, 352.6 and 352.4.
+
+    Asserted as BEHAVIOUR, not as source text. The previous version
+    matched the literal lambda and broke the moment degree became a
+    parameter, while the property it guards was untouched. A test that
+    fails on a rename and passes on a regression is backwards.
+    """
+    rel = _release(tmp_path)
+    # TWO PROCESSES, DIFFERENT HASH SEEDS. Set iteration order is what
+    # varies, and it varies per PROCESS -- so rebuilding a set in this
+    # one proves nothing. The first version of this test did exactly
+    # that: set(sorted(...)), which ruff flagged as a no-op, and it
+    # passed without exercising anything.
+    snippet = (
+        f"import sys, json;"
+        f"sys.path.insert(0, {str(ROOT / 'scripts')!r});"
+        f"sys.path.insert(0, {str(ROOT / 'src')!r});"
+        f"from importlib import import_module;"
+        f"L = import_module('pathway_landscape');"
+        f"from kgav.baselines import Graph;"
+        f"from kgav.schema import load_schema;"
+        f"g = Graph.load({str(rel)!r}, symmetry=load_schema().symmetry());"
+        f"print(json.dumps(sorted(L.degree_bins(g, L.human_proteins(g))"
+        f".items())))"
+    )
+    outs = []
+    for seed in ("0", "1", "2"):
+        env = {**os.environ, "PYTHONHASHSEED": seed}
+        r = subprocess.run([sys.executable, "-c", snippet], env=env,
+                           capture_output=True, text=True, timeout=120,
+                           check=True)
+        outs.append(r.stdout)
+    assert outs[0] == outs[1] == outs[2], "bins move with the hash seed"
+
+
+def test_the_matched_null_is_reproducible_from_its_seed(tmp_path):
+    """The other half of the same property: a figure in a paper has to
+    come back the same on a rerun."""
+    g = _graph(_release(tmp_path))
+    universe = L.human_proteins(g)
+    bins = L.degree_bins(g, universe)
+    targets = L.drug_targets(g)
+    deps = L.dependency_factors(g, "NCBITaxon:2697049")
+    runs = [L.matched_null(targets, universe, bins, deps, 50,
+                           random.Random(0)) for _ in range(3)]
+    assert runs[0] == runs[1] == runs[2]
 
 
 # ------------------------------- what a new source could actually reach
@@ -588,6 +632,13 @@ def _ppi_release(tmp_path: Path) -> Path:
     # a host-host edge carrying the SAME predicate, from the STRING layer
     edges.append(("UniProtKB:H5", "PHYSICALLY_INTERACTS_WITH",
                   "UniProtKB:H6", {"detection_method": "MI:1314"}))
+    # A VIRUS-HOST EDGE WRITTEN THE OTHER WAY ROUND, viral subject. The
+    # ingest writes host first, so every edge here did too -- which left
+    # study_degree's check on the SUBJECT side unexercised, and a mutant
+    # removing it survived. A source that ordered the pair differently
+    # would put a virus-host edge into the study basis.
+    edges.append(("UniProtKB:OTHER", "PHYSICALLY_INTERACTS_WITH",
+                  "UniProtKB:H7", {"detection_method": "MI:1314"}))
     # a viral-viral edge
     edges.append(("UniProtKB:POLY", "PHYSICALLY_INTERACTS_WITH",
                   "UniProtKB:OTHER", {"detection_method": "MI:1314"}))
@@ -700,3 +751,78 @@ def test_the_overlap_statistic_has_one_implementation(tmp_path):
         assert calls.count(fn) == (2 if fn == "empirical_p" else 1), (
             f"{fn} is called {calls.count(fn)} times; both channels "
             f"should reach it through overlap_row")
+
+
+# ------------------------------- what the degree-matched null matches ON
+def test_study_degree_excludes_the_edges_that_define_the_hit_set(tmp_path):
+    """A virus-host edge makes a protein a HIT. Counting it as degree
+    too means the high bins the null draws from are enriched for hits by
+    construction, and the expectation inflates."""
+    g = _graph(_ppi_release(tmp_path))
+    sd = L.study_degree(g)
+    # H0..H3 touch the viral polyprotein and nothing else.
+    for i in range(4):
+        assert sd.get(f"UniProtKB:H{i}", 0) == 0, \
+            "a virus-host edge must not contribute to the study basis"
+
+
+def test_study_degree_counts_host_host_edges(tmp_path):
+    """Those are the study-volume signal worth controlling for, and they
+    are in neither the observed set nor the hits."""
+    g = _graph(_ppi_release(tmp_path))
+    sd = L.study_degree(g)
+    assert sd["UniProtKB:H5"] == 1 and sd["UniProtKB:H6"] == 1
+
+
+def test_study_degree_excludes_targets_edges(tmp_path):
+    """TARGETS defines the OBSERVED set. Including it puts the drugged
+    proteome in high bins for a reason unrelated to touching a virus."""
+    g = _graph(_ppi_release(tmp_path))
+    sd = L.study_degree(g)
+    drugged = L.drug_targets(g)
+    assert drugged, "fixture must have drugged proteins"
+    # H0..H2 are drugged; their only other edges are viral or pathway.
+    assert all(sd.get(d, 0) == 0 for d in drugged)
+
+
+def test_the_two_bases_put_proteins_in_different_bins(tmp_path):
+    """If they agreed there would be nothing to test and no confound."""
+    g = _graph(_ppi_release(tmp_path))
+    universe = L.human_proteins(g)
+    assert L.degree_bins(g, universe) != \
+        L.degree_bins(g, universe, degree=L.study_degree(g))
+
+
+def test_the_basis_is_recorded_in_the_results_file(tmp_path):
+    """Two files measured on different yardsticks are not comparable,
+    and one that does not say which it used cannot be checked -- the
+    same failure as recording a release by name."""
+    out = tmp_path / "r.json"
+    L.main(["--release", str(_ppi_release(tmp_path)), "--out", str(out),
+            "--permutations", "50", "--degree-from", "study"])
+    assert json.loads(out.read_text())["degree_basis"] == "study"
+
+
+def test_the_default_basis_is_unchanged(tmp_path):
+    """Switching the default would silently move every published number."""
+    out = tmp_path / "r2.json"
+    L.main(["--release", str(_ppi_release(tmp_path)), "--out", str(out),
+            "--permutations", "50"])
+    assert json.loads(out.read_text())["degree_basis"] == "all"
+
+
+def test_a_viral_subject_edge_is_excluded_from_the_study_basis(tmp_path):
+    """Whichever way round the pair was written. The host side of a
+    virus-host edge must gain no study degree from it, or the basis
+    carries the hit set it exists to be independent of."""
+    g = _graph(_ppi_release(tmp_path))
+    assert L.study_degree(g).get("UniProtKB:H7", 0) == 0
+
+
+def test_a_viral_subject_edge_still_yields_its_partner(tmp_path):
+    """Excluding it from the DEGREE basis must not exclude it from the
+    interactome -- those are opposite jobs."""
+    g = _graph(_ppi_release(tmp_path))
+    partners, _ = L.interactome_partners(
+        g, L.viral_proteins(g)["NCBITaxon:64320"])
+    assert "UniProtKB:H7" in partners
