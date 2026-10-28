@@ -382,3 +382,51 @@ def test_family_flaviviridae_still_selects_only_those(tmp_path, monkeypatch,
     out = capsys.readouterr().out
     assert "9 virus(es)" in out
     assert "DENV-2" in out and "SARS-CoV-2" not in out
+
+
+# ------------------------------- the base URL, as the registry prints it
+@pytest.mark.parametrize("given", [
+    "http://www.ebi.ac.uk/Tools/webservices/psicquic/hpidb/webservices/current/search/",
+    "http://www.ebi.ac.uk/Tools/webservices/psicquic/hpidb/webservices/current/search",
+    "http://www.ebi.ac.uk/Tools/webservices/psicquic/hpidb",
+])
+def test_an_ebi_service_normalises_to_one_base(given):
+    """`webservices` appears TWICE in an EBI restUrl. The rule the
+    docstring gave -- everything before /webservices -- yields
+    http://www.ebi.ac.uk/Tools and every query 404s. Eleven of the
+    fourteen active services are EBI-hosted."""
+    assert F.normalise_base(given) == \
+        "http://www.ebi.ac.uk/Tools/webservices/psicquic/hpidb"
+
+
+def test_virhostnet_still_normalises_to_what_worked():
+    """The one service already in use must not move."""
+    VHN = "http://virhostnet.prabi.fr:9090/psicquic"
+    for given in (VHN, VHN + "/webservices/current/search/"):
+        assert F.normalise_base(given) == VHN
+
+
+def test_a_registry_url_builds_a_query_with_one_query_path():
+    """Doubling the segment is what a hand-trimmed base gets wrong."""
+    u = F.url_for("https://psicquic.all.innatedb.com/webservices/current/"
+                  "search/", ["11053"], "count")
+    # COUNTED WITHOUT THE LEADING SLASH. With it, str.count misses the
+    # doubling entirely: the repeated segment shares its leading slash
+    # with the end of the first match, counting is non-overlapping, and
+    # ".../search/webservices/current/search/" scores 1. The assertion
+    # read as a duplication check and detected nothing.
+    assert u.count("webservices/current/search") == 1, u
+    assert u.startswith("https://psicquic.all.innatedb.com/webservices/")
+
+
+def test_a_base_that_is_already_trimmed_is_untouched():
+    assert F.normalise_base("https://example.invalid/psicquic") == \
+        "https://example.invalid/psicquic"
+
+
+def test_the_docstring_does_not_give_the_before_webservices_rule():
+    """It is wrong for most of the registry, and a doc that hands the
+    reader a broken URL is the SOAP mistake again."""
+    doc = F.__doc__
+    assert "everything before /webservices" not in doc
+    assert "normalise_base" in doc
