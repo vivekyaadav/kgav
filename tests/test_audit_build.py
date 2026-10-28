@@ -262,8 +262,28 @@ def test_the_held_out_set_comes_from_the_schema(tmp_path, capsys):
     """Not a list in this script. The schema already marks which
     predicates are labels, and a second copy would drift from it."""
     _rc, out = _run(tmp_path, capsys)
-    assert "HAS_ANTIVIRAL_ACTIVITY_AGAINST" in out.split(
-        "LABELS vs FEATURES")[1].splitlines()[0]
+    head = out.split("LABELS vs FEATURES")[1].split("`labels` counts")[0]
+    for pred in ("HAS_ANTIVIRAL_ACTIVITY_AGAINST", "TREATS",
+                 "MEASURED_INACTIVE_AGAINST"):
+        assert pred in head, head
+
+
+def test_the_negative_label_is_not_presented_as_evidence():
+    """MEASURED_INACTIVE_AGAINST is held out too, so the `inact`
+    column is answer sheet rather than feature. The legend called it
+    "evidence, not absence", which is true and reads as a feature."""
+    src = (ROOT / "scripts" / "audit_build.py").read_text()
+    assert "negative label" in src
+
+
+def test_a_feature_route_is_shown_with_its_size(tmp_path, capsys):
+    """JEV reads `evaluable` on seven PPI edges, which is true and
+    reads identically to eight thousand. No threshold is invented:
+    the size is shown and the reader judges."""
+    _rc, out = _run(tmp_path, capsys)
+    block = out.split("LABELS vs FEATURES")[1]
+    row = next(ln for ln in block.splitlines() if "DENV-1" in ln)
+    assert "ppi(2)" in row, row
 
 
 def test_a_virus_with_labels_and_no_route_is_called_out(tmp_path, capsys):
@@ -277,3 +297,13 @@ def test_a_virus_with_labels_and_no_route_is_called_out(tmp_path, capsys):
     assert "LABELS, NO FEATURE ROUTE" in row, row
     assert "miss by" in block
     assert "measures the graph's reach, not the model" in block
+
+
+def test_the_legend_is_not_split_by_the_verdict_section(tmp_path, capsys):
+    """Every legend line belongs together. The verdict block was
+    inserted between `inact` and `dis`, so the last legend entry
+    printed below a whole section and read as part of it."""
+    _rc, out = _run(tmp_path, capsys)
+    legend_end = out.index("dis         CAUSES edges to a Disease node")
+    section = out.index("LABELS vs FEATURES")
+    assert legend_end < section, "the legend must finish before the section"
