@@ -183,6 +183,25 @@ def per_virus(a: dict, taxa: list[str]) -> dict[str, Counter]:
     return out
 
 
+#: (verdict, the paragraph that explains it). Paired here rather than
+#: printed in sequence further down, because a paragraph's meaning
+#: depends entirely on which list it sits under and nothing kept the two
+#: in step. Order is the print order.
+VERDICT_NOTES: tuple[tuple[str, str], ...] = (
+    ("LABELS, NO FEATURE ROUTE",
+     ("      No metapath terminates at these, so every prediction is a "
+      "miss by\n      construction. Scoring them measures the graph's "
+      "reach, not the model.")),
+    ("features, nothing to score", ""),
+    ("ROUTES REACH NO LABEL",
+     ("      A metapath does terminate at these and walks it, and reaches "
+      "none of\n      the held-out positives. A ranking for them is "
+      "complete, and nothing in\n      this graph can mark it right or "
+      "wrong. Edge counts cannot see this,\n      which is why the column "
+      "beside them read `evaluable`.")),
+)
+
+
 def measured_reach(results: Path, release: Path) -> dict[str, int] | None:
     """Held-out positives each virus's metapaths actually reach.
 
@@ -377,20 +396,20 @@ def main(argv=None) -> int:
         verdicts[verdict].append(label[t])
         print(f"    {label[t]:<14} {c['antiviral']:>7,} "
               f"{'+'.join(routes) or '-':<34} {verdict}")
-    for v in ("LABELS, NO FEATURE ROUTE", "features, nothing to score",
-              "ROUTES REACH NO LABEL"):
-        if verdicts[v]:
-            print(f"\n    {v}: {', '.join(sorted(verdicts[v]))}")
-    if verdicts["LABELS, NO FEATURE ROUTE"]:
-        print("      No metapath terminates at these, so every prediction "
-              "is a miss by\n      construction. Scoring them measures the "
-              "graph's reach, not the model.")
-    if verdicts["ROUTES REACH NO LABEL"]:
-        print("      A route exists and walks it, and reaches none of the "
-              "held-out\n      positives. A ranking for these is complete, "
-              "and nothing in this\n      graph can mark it right or wrong. "
-              "Edge counts cannot see this,\n      which is why the column "
-              "beside them read `evaluable`.")
+    # EACH EXPLANATION IMMEDIATELY AFTER ITS OWN LIST. They used to print
+    # after the loop, so they stacked under whichever list came last:
+    # "No metapath terminates at these" -- true of DENV-4 and Yellow
+    # fever -- appeared under "features, nothing to score" before this
+    # tier existed, and then under ROUTES REACH NO LABEL, where it is
+    # FALSE. A metapath does terminate at those five; it reaches no
+    # label. Both paragraphs were accurate and attached to the wrong
+    # viruses, which is the failure mode this whole section is about.
+    for verdict, why in VERDICT_NOTES:
+        if not verdicts[verdict]:
+            continue
+        print(f"\n    {verdict}: {', '.join(sorted(verdicts[verdict]))}")
+        if why:
+            print(why)
     if reach is None:
         print("\n      reach unmeasured: metapath_comparison.json is "
               "absent, stale or\n      unstamped for this release, so "
