@@ -287,7 +287,8 @@ def file_taxon(path, by_stem: dict[str, str],
 def ingest_mitab(em, paths: list[Path], index, taxon_map: dict[str, str],
                  source: str, default_date: str,
                  per_file: dict | None = None,
-                 accession_map: dict[str, str] | None = None) -> Counter:
+                 accession_map: dict[str, str] | None = None,
+                 seen: set | None = None) -> Counter:
     """Emit host<->viral PHYSICALLY_INTERACTS_WITH edges.
 
     taxon_map maps every viral taxid that may appear (species AND isolate) to
@@ -303,7 +304,19 @@ def ingest_mitab(em, paths: list[Path], index, taxon_map: dict[str, str],
     against the file holding the later copy.
     """
     stats: Counter = Counter()
-    seen: set[tuple] = set()
+    # SHARED ACROSS SOURCES WHEN THE CALLER SHARES IT. A per-call set
+    # deduplicates within one service and cannot see across them, which
+    # was right while every service was a distinct curator: the same
+    # fact from VirHostNet and from IntAct is two provenance records,
+    # and assemble_release merges them into one edge carrying both.
+    #
+    # An AGGREGATOR breaks that. IMEx serves IntAct's records, so an
+    # IntAct-curated row arrives twice and -- now that the label comes
+    # from the row -- both copies say infores:intact. That is one fact
+    # twice, not two sources, and the curator is in the key below so
+    # the pair collapses while a genuine second curator does not.
+    if seen is None:
+        seen = set()
 
     for path in paths:
         fstats: Counter = (per_file.setdefault(Path(path), Counter())
@@ -326,7 +339,8 @@ def ingest_mitab(em, paths: list[Path], index, taxon_map: dict[str, str],
                 continue
             r, host, viral = v.row, v.host, v.viral
 
-            key = (host, viral, r["detection_method"], r["pmid"])
+            curator = source_infores(r.get("source_db")) or source
+            key = (host, viral, r["detection_method"], r["pmid"], curator)
             if key in seen:
                 stats["duplicate"] += 1
                 fstats["duplicate"] += 1
@@ -359,7 +373,6 @@ def ingest_mitab(em, paths: list[Path], index, taxon_map: dict[str, str],
             # with no readable source column falls back to the file's
             # service and is counted, because a silent fallback is how
             # 1,171 MINT and DIP rows came to be filed as IntAct.
-            curator = source_infores(r.get("source_db")) or source
             stats[f"src:{curator}"] += 1
             fstats[f"src:{curator}"] += 1
             if not r.get("source_db"):
