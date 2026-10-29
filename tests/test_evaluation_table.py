@@ -216,10 +216,26 @@ def test_every_virus_with_no_reachable_positive_is_named():
             f"distinguish from reaching compounds with no label")
 
 
-def test_the_only_significant_readable_cell_is_the_one_claimed():
-    """The document names exactly one significant readable cell and
-    builds a section on it. If a second ever appears, or this one stops
-    being significant, the section is wrong before anyone reads it."""
+def test_every_significant_readable_cell_is_named():
+    """The document names each significant readable cell with its own
+    figures, and states how many there are.
+
+    IT USED TO HARD-CODE ONE. `assert len(sig) == 1` held from the day
+    it was written until 2026-10-30, when raising the path cap
+    completed M4's traversal and DENV-2's M4 came in at p=0.019 --
+    a second cell, and the assertion failed on the arrival of a
+    RESULT rather than on a defect. The document had to change; so did
+    the test, which is a rewrite that deriving would have avoided.
+
+    at_chance_runs() three functions above carries the same lesson in
+    its own docstring, learned there and not here: "Deriving it means
+    the next move is caught without a rewrite, which is the property
+    the document asks of its own figures."
+
+    So the count is derived too. A third cell now fails this by
+    pointing at a sentence that states the wrong number, not by
+    tripping a literal.
+    """
     per = json.loads(RESULTS.read_text())["per_virus"]
     readable = [(v, n, m) for v, ch in per.items() for n, m in ch.items()
                 if n not in ("degree", "COMBINED")
@@ -230,11 +246,18 @@ def test_the_only_significant_readable_cell_is_the_one_claimed():
     assert f"{WORD[len(readable)].lower()} cells are both" in flat, (
         f"{len(readable)} readable cells; the document states a different "
         f"number")
-    assert len(sig) == 1, (
-        f"the document says exactly one readable cell is significant; "
-        f"there are now {len(sig)}: {[(v, n) for v, n, _ in sig]}")
-    v, n, m = sig[0]
-    assert (f"{v} {n}, lift {m['lift']:.2f}, p={m['p_value']:.6f}") in flat
+    assert sig, (
+        "no readable cell is significant any more; the document builds a "
+        "section on at least one and must be corrected rather than this "
+        "test relaxed")
+    assert f"{WORD[len(sig)]} of them are nominally significant" in flat, (
+        f"{len(sig)} readable cells are significant; the document states "
+        f"a different number")
+    for v, n, m in sorted(sig, key=lambda x: x[2]["p_value"]):
+        assert (f"{v} {n}, lift {m['lift']:.2f}, "
+                f"p={m['p_value']:.6f}") in flat, (
+            f"{v} {n} is significant at p={m['p_value']:.6f} and the "
+            f"document does not name it with its figures")
 
 
 def test_the_correction_families_are_arithmetic():

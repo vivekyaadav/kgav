@@ -208,17 +208,27 @@ with an empty pool -- but it answers for DENV-1, DENV-3, JEV, TBEV and
 HCoV-NL63, which have a route and no reachable positive. Edge counts are
 what that guard reads, and edge counts cannot see this.
 
-### The one readable cell that is significant, and why it is the least interesting one
+### The two readable cells that are nominally significant, and why only one survives correction
 
 Across all fifteen viruses and eight metapaths, **thirteen cells are both
 `trustworthy` and `hits_determined`** -- readable, in the sense the rest of
-this document means. Exactly one of them is nominally significant:
+this document means. Two of them are nominally significant at p<0.05:
 
 **SARS-CoV-2 M7, lift 1.34, p=0.000379**, reaching 234 positives in a pool
 of 515, against a degree baseline at 0.63 (p=0.9077) that is itself
 indistinguishable from random. It is the only cell in this table that
 clears any threshold while being readable, and the only reason the
 cross-sectional verdict for SARS-CoV-2 is BASELINE AT CHANCE.
+
+**DENV-2 M4, lift 3.75, p=0.019033**, which did not exist as a result
+until 2026-10-30. Before that it read lift 1.88 at p=0.2892, computed from
+a walk that stopped at an undocumented 20,000-path cap -- and which of
+M4's paths it had seen by then depended on the order edges.jsonl happened
+to be written in. 114 of M4's 2,983 reaching drugs truncated that way. The
+cap was not only inflating figures: here it suppressed one, and the
+complete traversal nearly doubled the lift while dropping p by a factor of
+fifteen. It clears NONE of the correction families below -- the loosest is
+0.00385 -- so it is recorded as a lead to examine, not a result.
 
 It survives correction under most reasonable families and not the
 strictest. This document has never declared one for this table, which is
@@ -262,20 +272,29 @@ does. `confound_warning()` prints the verdict under every table, both ways:
 
     CONFOUNDED            degree is itself significant -- SARS-CoV,
                           MERS-CoV, HCoV-229E and HCoV-NL63
-                          cross-sectionally, and MERS-CoV and SARS-CoV
-                          temporally (both the computed_only and include
-                          policies)
+                          cross-sectionally, and MERS-CoV, SARS-CoV and
+                          Zika temporally (both the computed_only and
+                          include policies)
     BASELINE AT CHANCE    degree is indistinguishable from random AND a
                           TRUSTWORTHY, DETERMINED channel is significant --
-                          SARS-CoV-2 cross-sectionally, and there alone:
-                          degree lift 0.63 (p=0.9077) against M7's 1.34
-                          (p=0.0004)
+                          four (run, virus) pairs, where before the
+                          complete M4 traversal of 2026-10-30 it was one:
+                          SARS-CoV-2 cross-sectionally, degree lift 0.63
+                          (p=0.9077) against M7's 1.34 (p=0.0004);
+                          DENV-2 cross-sectionally, degree lift 1.21
+                          (p=0.3953) against M4's 3.75 (p=0.0190);
+                          Zika cross-sectionally, degree lift 0.99
+                          (p=0.5909) against COMBINED's 5.98 (p=0.0000);
+                          and SARS-CoV-2 under temporal computed_only,
+                          degree lift 1.08 (p=0.4693) against COMBINED's
+                          2.87 (p=0.0170)
     BASELINE NOT          the degree row's own Hits@k is an interval, so no
     DETERMINED            comparison against it can be read -- including
                           every ratio in the vs-deg column, which divides
-                          by it. SARS-CoV-2 under temporal computed_only
-                          ([7, 8] from a 7-row tie block) and under
-                          temporal include
+                          by it. SARS-CoV-2 under temporal include. It
+                          held under computed_only too until 2026-10-30;
+                          degree's hit count there is now determined and
+                          that pair moved to BASELINE AT CHANCE
     (nothing)             neither, so there is nothing to report
 
 **An earlier version of this block said BASELINE AT CHANCE "no longer holds
