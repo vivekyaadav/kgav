@@ -55,10 +55,10 @@
       "M4": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5074174441147803,
+        "auc": 0.5073807203068886,
         "evaluable": true,
-        "auc_ci_lo": 0.446793624885448,
-        "auc_ci_hi": 0.5680412633441125,
+        "auc_ci_lo": 0.44675825550103837,
+        "auc_ci_hi": 0.568003185112739,
         "imputed": true,
         "coverage_pos": 0.16853932584269662,
         "coverage_neg": 0.16137818330382678
@@ -110,10 +110,10 @@
       "COMBINED": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5413762553039124,
+        "auc": 0.541360953717291,
         "evaluable": true,
-        "auc_ci_lo": 0.4796875773728948,
-        "auc_ci_hi": 0.60306493323493,
+        "auc_ci_lo": 0.47967267040921163,
+        "auc_ci_hi": 0.6030492370253704,
         "imputed": true,
         "coverage_pos": 0.2808988764044944,
         "coverage_neg": 0.2005992101320986
@@ -427,10 +427,10 @@
       "edges_sha": "68cf33748e71a067"
     },
     "code": {
-      "commit": "2a6a097de2d41cee4939d50b58fd25214fa9ed1c",
-      "dirty": true
+      "commit": "2579fb5a03b47da869a7c86292041e3b9ea0a56e",
+      "dirty": false
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-10-29T17:45:23+00:00"
+    "generated_utc": "2026-10-29T20:36:27+00:00"
   }
 }
