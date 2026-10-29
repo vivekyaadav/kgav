@@ -324,3 +324,88 @@ def test_the_second_list_says_how_many_it_excluded(tmp_path):
     t._max_pathway_members = 200
     text = " ".join(t.virus_pathways(V).verbalised)
     assert "1 pathway(s) are excluded from this second list" in text
+
+
+# ------------- a pathway curated from this virus's own literature
+def _named_release(tmp_path, pathway_label):
+    """A release whose one pathway carries the given label."""
+    import json as _json
+    rel = _release(tmp_path, deps=[0, 1, 2], big=[0, 1, 2, 3, 4, 5],
+                   small=[])
+    nodes = [_json.loads(ln) for ln
+             in (rel / "nodes.jsonl").read_text().splitlines() if ln.strip()]
+    for n in nodes:
+        if n["id"] == "REACT:BIG":
+            n["properties"]["label"] = pathway_label
+    (rel / "nodes.jsonl").write_text(
+        "\n".join(_json.dumps(n) for n in nodes))
+    return rel
+
+
+def test_a_pathway_naming_the_virus_is_flagged(tmp_path):
+    """THE CONFOUND THIS SURFACES. Reactome carries virus-specific
+    pathways, and the live SARS-CoV-2 census put "SARS-CoV-2 modulates
+    autophagy" fourth by density. A screen for a virus's dependency
+    factors overlapping a pathway curated FROM that virus's literature
+    is partly definitional -- the shared-publication confound this
+    project chases elsewhere, in the pathway vocabulary this time."""
+    rel = _named_release(tmp_path, "Zika modulates autophagy")
+    r = _tools(rel).virus_pathways(V)
+    row = next(x for x in r.data if x["pathway"] == "REACT:BIG")
+    assert row["names_the_virus"] is True
+    # SCOPED TO THE ROW. The explanation paragraph also contains the
+    # literal "[NAMES THIS VIRUS]", so searching the whole answer passed
+    # with the per-row mark deleted -- the mark is what a reader sees
+    # against the pathway, and the paragraph only explains it.
+    row_line = next(ln for ln in r.verbalised
+                    if "Zika modulates autophagy" in ln
+                    and "ratio" in ln)
+    assert "[NAMES THIS VIRUS]" in row_line, row_line
+    text = " ".join(r.verbalised)
+    assert "partly definitional" in text
+    assert "shown rather than dropped" in text
+
+
+def test_an_ordinary_pathway_is_not_flagged(tmp_path):
+    """The other side, so the mark is not simply always printed."""
+    rel = _named_release(tmp_path, "clathrin-mediated endocytosis")
+    r = _tools(rel).virus_pathways(V)
+    row = next(x for x in r.data if x["pathway"] == "REACT:BIG")
+    assert row["names_the_virus"] is False
+    assert "[NAMES THIS VIRUS]" not in " ".join(r.verbalised)
+
+
+def test_the_flag_follows_the_register_not_one_spelling(tmp_path):
+    """The register gives each virus aliases, and a pathway label may
+    use any of them. Matching only the display label would miss
+    "SARS-CoV-2 infection" for a virus the graph labels differently."""
+    from kgav.agent.tools import GraphTools
+    # THE ALIAS MUST NOT BE A SUPERSTRING OF THE DISPLAY LABEL, or the
+    # test passes under a display-label-only implementation: "zika" is
+    # inside "zika virus infection". ZIKV is the real abbreviation and
+    # shares no substring with "Zika" long enough to match.
+    rel = _named_release(tmp_path, "zikv infection")
+    t = GraphTools(rel)
+    # Read from the graph, not asserted between two literals: the point
+    # is that the DISPLAY label does not occur in this pathway's label,
+    # so only the alias can produce the flag.
+    label = t._label(V).lower()
+    pathway = t.nodes["REACT:BIG"]["properties"]["label"].lower()
+    assert label not in pathway, (label, pathway)
+    t.names["zikv"] = V
+    r = t.virus_pathways(V)
+    row = next(x for x in r.data if x["pathway"] == "REACT:BIG")
+    assert row["names_the_virus"] is True
+
+
+def test_the_flag_is_marked_in_both_lists(tmp_path):
+    """It was only in the by-density list, so a reader of the one
+    printed first -- the one most likely to be read at all -- saw the
+    pathway without the thing that qualifies it."""
+    rel = _named_release(tmp_path, "Zika modulates autophagy")
+    r = _tools(rel).virus_pathways(V)
+    marked = [ln for ln in r.verbalised
+              if "Zika modulates autophagy" in ln and "ratio" in ln]
+    assert len(marked) == 2, f"expected the row in both lists: {marked}"
+    for ln in marked:
+        assert "[NAMES THIS VIRUS]" in ln, ln
