@@ -1135,6 +1135,173 @@ class GraphTools:
                           note=f"{len(oversized)} pathway(s) over the cap"
                                if oversized else "")
 
+    def virus_pathways(self, virus: str,
+                       limit: int = MAX_PATHWAYS) -> ToolResult:
+        """Which pathways this virus depends on, and which of them are
+        druggable.
+
+        THE QUESTION THE AGENT COULD NOT ANSWER. pathways() takes a
+        COMPOUND and asks whether the virus depends on anything in the
+        pathways that compound's targets sit in. "Which pathways does
+        this virus depend on" is the other direction and is probably
+        the first thing a reader asks of a graph built for pathway
+        analysis. The orchestrator's PATHWAY branch required a
+        compound, so the question fell through to a node profile.
+
+        WHY THERE IS NO P-VALUE HERE, and why that is not timidity.
+        pathways() reports an excess against a size-matched background
+        because its pathway set is chosen by the COMPOUND and the
+        outcome asked of it -- does it hold a dependency factor -- is a
+        different event. Here the set is chosen BY holding a dependency
+        factor, so selection and outcome are the same event and any
+        enrichment tail would be circular by construction: every row
+        would "contain a dependency factor" with probability one.
+
+        What is not circular is DENSITY. A pathway of 90 members holds
+        more of anything than a pathway of 4, so the count alone ranks
+        by size. Each row therefore carries the count expected from its
+        size and the virus's own dependency-factor density, and the
+        ratio between them -- and the ratio is offered as a lead, not a
+        finding, because the virus-level version of exactly this
+        question is measured in pathway_landscape.py and nothing in it
+        survived correction on this release.
+        """
+        verdict = guards.check(guards.QueryKind.PATHWAY, virus,
+                               calibration=self.calibration_for(virus),
+                               routes=self.routes_for(virus))
+        if not verdict.allowed:
+            return ToolResult(False, "virus_pathways",
+                              warnings=list(verdict.warnings),
+                              note=verdict.reason)
+        base_warnings = list(verdict.warnings) + [guards.caveat(
+            "pathway_route", guards.pathway_caveat(self.landscape, virus))]
+
+        deps = self._dependency_factors(virus)
+        if not deps:
+            # AN ABSENCE IN THE CRISPR LAYER, NOT A FINDING ABOUT THE
+            # VIRUS. Five of the sixteen viruses in this register have
+            # no dependency factor at all, and answering with an empty
+            # list would read as "this virus depends on no pathway".
+            restriction = {e["subject"] for e
+                           in self.inv.get(("HOST_FACTOR_FOR", virus), [])}
+            extra = (f" It has {len(restriction)} HOST_FACTOR_FOR edge(s), "
+                     f"none carrying direction=dependency, so what exists "
+                     f"is restriction or undirected rather than absent."
+                     if restriction else
+                     " It has no HOST_FACTOR_FOR edge at all.")
+            return ToolResult(
+                False, "virus_pathways", warnings=base_warnings,
+                note=(f"No CRISPR screen in this release reports a protein "
+                      f"{self._label(virus)} depends on, so there is no "
+                      f"pathway census to build for it.{extra} That is an "
+                      f"absence in the screen layer, not a statement that "
+                      f"this virus depends on nothing."))
+
+        cap = self._max_pathway_members
+        oversized: set[str] = set()
+        rows = []
+        edge_ids: list[str] = []
+        placed: set[str] = set()
+        for d in deps:
+            for pe in self.out.get(("PARTICIPATES_IN", d), []):
+                pw = pe["object"]
+                if pw in oversized:
+                    continue
+                members = self._pathway_members(pw)
+                # THE SAME CAP THE LANDSCAPE APPLIED, for the reason it
+                # applied it: quoting a measured null computed over
+                # capped pathways beside an uncapped census would be two
+                # questions under one answer.
+                if cap is not None and len(members) > cap:
+                    oversized.add(pw)
+                    continue
+                placed.add(d)
+                row = next((r for r in rows if r["pathway"] == pw), None)
+                if row is None:
+                    in_pw = sorted(members & deps)
+                    row = {"pathway": pw, "label": self._label(pw),
+                           "n_members": len(members),
+                           "dependency_members": in_pw,
+                           "n_dependency_members": len(in_pw),
+                           "druggable_members": sorted(
+                               m for m in in_pw
+                               if self.out.get(("TARGETS", m)) or
+                               self.inv.get(("TARGETS", m)))}
+                    row["n_druggable"] = len(row["druggable_members"])
+                    rows.append(row)
+                edge_ids.append(pe["_id"])
+
+        if not rows:
+            return ToolResult(
+                False, "virus_pathways", warnings=base_warnings,
+                note=(f"{self._label(virus)} has {len(deps):,} dependency "
+                      f"factor(s) and none of them carries a "
+                      f"PARTICIPATES_IN edge to a pathway at or under the "
+                      f"{cap}-member cap, so there is no census to report. "
+                      f"That is a gap in pathway annotation, not in the "
+                      f"screen."))
+
+        # Density, not count: a 90-member pathway holds more of anything
+        # than a 4-member one.
+        n_prot = sum(1 for n in self.nodes.values()
+                     if n.get("class") == "Protein"
+                     and not (n.get("properties") or {}).get("is_viral"))
+        rate = len(deps) / n_prot if n_prot else 0.0
+        for r in rows:
+            r["expected_members"] = r["n_members"] * rate
+            r["density_ratio"] = (r["n_dependency_members"]
+                                  / r["expected_members"]
+                                  if r["expected_members"] else float("inf"))
+        rows.sort(key=lambda r: (-r["n_dependency_members"],
+                                 -r["density_ratio"], r["pathway"]))
+        shown = rows[:limit]
+        unplaced = sorted(deps - placed)
+
+        lines = [
+            (f"{self._label(virus)} depends on {len(deps):,} host protein(s) "
+             f"by CRISPR screen."),
+            (f"{len(rows):,} pathway(s) at or under the {cap}-member cap "
+             f"contain at least one of them; "
+             f"{sum(1 for r in rows if r['n_druggable']):,} of those contain "
+             f"at least one that a compound in this graph targets."),
+            (f"Each row's EXPECTED count is its size times this virus's "
+             f"dependency-factor density ({len(deps):,} of {n_prot:,} host "
+             f"proteins = {rate:.1%}), so the ratio says whether a pathway "
+             f"holds more of them than its size alone predicts. No "
+             f"significance is claimed for a row: pathways overlap heavily, "
+             f"and the virus-level form of this question is measured in "
+             f"pathway_landscape.py, where nothing survived correction on "
+             f"this release. Read a high ratio as a lead to examine."),
+        ]
+        for r in shown:
+            names = [self._label(d) for d
+                     in r["dependency_members"][:MAX_DEPENDENCY_NAMES]]
+            extra = r["n_dependency_members"] - len(names)
+            dep = ", ".join(names) + (f", +{extra} more" if extra else "")
+            lines.append(
+                f"  {r['label']} ({r['n_members']} members) — "
+                f"{r['n_dependency_members']} dependency factor(s), "
+                f"{r['expected_members']:.1f} expected from size "
+                f"(ratio {r['density_ratio']:.2f}); "
+                f"{r['n_druggable']} druggable: {dep}")
+        if len(rows) > limit:
+            lines.append(f"  … {len(rows) - limit:,} further pathway(s) not "
+                         f"shown.")
+        if unplaced:
+            lines.append(
+                f"{len(unplaced):,} of the dependency factors sit in no "
+                f"pathway under the cap and are absent from every row "
+                f"above, so this census covers "
+                f"{len(placed) / len(deps):.0%} of what the screens found.")
+        if oversized:
+            lines.append(f"{len(oversized):,} pathway(s) were excluded for "
+                         f"exceeding the {cap}-member cap.")
+
+        return ToolResult(True, "virus_pathways", data=rows, verbalised=lines,
+                          warnings=base_warnings, edge_ids=edge_ids,
+                          note=f"{len(oversized)} pathway(s) over the cap"
+                               if oversized else "")
+
     def evidence(self, subject: str, object_: str | None = None,
                  predicate: str | None = None, limit: int = 25) -> ToolResult:
         """Every edge supporting a specific claim, with provenance."""
