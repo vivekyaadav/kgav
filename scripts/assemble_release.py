@@ -17,6 +17,7 @@ from kgav.assemble import (
     connectivity_report,
     orphan_detail,
 )
+from kgav.provenance import code_commit
 from kgav.schema import load_schema, print_capped, report_violations
 
 
@@ -247,6 +248,20 @@ def main() -> int:
         schema.version)
     manifest["release"] = args.version
     manifest["hub_cut_degree"] = cut
+    # WHAT BUILT IT. Every results file has carried code_commit since
+    # provenance.py was written, and the release -- the thing those
+    # results describe -- carried nothing. So a baseline could say
+    # which code computed it and the graph underneath could not say
+    # which code assembled it.
+    #
+    # That asymmetry is how v0.1 drifted. It was assembled 2026-10-28
+    # from commit 502d81e and nobody rebuilt it until 2026-10-29, when
+    # a reassembly produced a different edges_sha from the same raw
+    # inputs. Nothing in the pipeline could have reported that:
+    # check_results compares results against the release ON DISK and
+    # never against a rebuild, and the release named no commit to
+    # compare HEAD with.
+    manifest["code"] = code_commit(root)
     (args.out / "MANIFEST.json").write_text(json.dumps(manifest, indent=2))
     print(f"\nwrote {args.out} + MANIFEST.json")
     return 0

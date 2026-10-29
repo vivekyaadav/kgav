@@ -22,7 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from kgav.provenance import check_derived, check_dir
+from kgav.provenance import check_derived, check_dir, code_commit
 
 MARK = {"ok": "ok      ", "stale": "STALE   ",
         "unstamped": "unstamped", "refused": "REFUSED ",
@@ -113,7 +113,60 @@ def main() -> int:
               "would be certified current. Re-cut it with\ntemporal_split.py. "
               "(unstamped means it predates the stamp, not that it is known "
               "wrong;\neither way nothing can attribute it to a graph.)")
+    _report_release_drift(args.release)
     return 1 if (stale or stale_derived or (unstamped and args.strict)) else 0
+
+
+def _report_release_drift(release) -> None:
+    """Was this release assembled by the code that is checked out now?
+
+    NOT A FAILURE, and deliberately so: working ahead of the release
+    is ordinary, and most commits do not change what assembly
+    produces. What is not ordinary is not KNOWING, which is the state
+    this project was in until 2026-10-29.
+
+    v0.1 was assembled on 2026-10-28 from commit 502d81e. A rebuild
+    the next day, from the same raw inputs, produced a different
+    edges_sha -- so the shipped graph was not reproducible from the
+    code in the tree, every evaluation rested on it, and nothing could
+    report that. check_results compares results against the release ON
+    DISK and never against a rebuild, and before this the release
+    named no commit to compare HEAD against.
+
+    A line of output is not a guarantee of reproducibility. It is the
+    one cheap thing that would have made a year-old question visible
+    the day it appeared.
+    """
+    import json as _json
+
+    # ONE GUARD, NOT TWO. An explicit exists() check here was dead
+    # code: read_text() on a missing file raises FileNotFoundError,
+    # which is an OSError and is caught below. A mutant that deleted
+    # the exists() check passed, which is what a redundant branch
+    # always looks like -- and an untestable branch is worse than no
+    # branch, because it reads as protection.
+    try:
+        built = (_json.loads((release / "MANIFEST.json").read_text())
+                 .get("code") or {})
+    except (OSError, ValueError):
+        return
+    commit = built.get("commit")
+    if not commit:
+        print("\nThis release records no build commit, so whether the code "
+              "in the tree\nstill produces it cannot be checked. "
+              "Reassemble to stamp it.")
+        return
+    now = (code_commit() or {}).get("commit")
+    if not now or commit == now:
+        return
+    print(f"\nThis release was assembled at {commit[:12]} and HEAD is "
+          f"{now[:12]}.\nThat is normal and is not a failure. It does mean "
+          f"nothing here has shown\nthat the current code still produces "
+          f"this graph -- only a rebuild shows that,\nand the one time it "
+          f"was tried the graph had moved.")
+    if built.get("dirty"):
+        print("The tree was DIRTY when it was assembled, so the commit "
+              "above does not\nfully identify what built it.")
 
 
 if __name__ == "__main__":
