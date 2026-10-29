@@ -9,6 +9,7 @@ fewer than one expected hit can be recognised as noise rather than signal.
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import sys
 from pathlib import Path
 
@@ -73,7 +74,19 @@ def main() -> int:
           f"(!) marks a lift that is noise: expectation < 1, or a pool no "
           f"larger than k, where lift is exactly pool/k\n")
 
-    dwpc = dwpc_scores(g, s.metapaths, s.retrieval_limits)
+    # TRUNCATION COUNTS, because a capped walk's score is one draw
+    # from a spread that depends on the order edges.jsonl was written
+    # in, and until 2026-10-29 this file recorded no sign of it.
+    truncated: Counter = Counter()
+    dwpc = dwpc_scores(g, s.metapaths, s.retrieval_limits,
+                       truncated=truncated)
+    if truncated:
+        print("PATH CAP REACHED. These walks stopped at max_paths and "
+              "their scores\ndepend on edge order; the figures below for "
+              "them are one draw:")
+        for name, n in sorted(truncated.items()):
+            print(f"    {name:<10} {n:>6,} drug(s) truncated")
+        print()
     deg = degree_ranking(g)
     results: dict[str, dict] = {}
 
@@ -92,6 +105,10 @@ def main() -> int:
                 print(f"    {name:<10} {'no paths':>7}")
                 continue
             per[name] = row(name, sc, p, args.k)
+            # Recorded per channel as well as printed, so a reader of
+            # the results file sees it without the console output.
+            per[name]["truncated_walks"] = truncated.get(name, 0)
+            per[name]["order_dependent"] = truncated.get(name, 0) > 0
         per["COMBINED"] = row("COMBINED", combine(dwpc, virus), p, args.k)
         per["degree"] = row("degree", deg, p, args.k)
         degree_relative(per)
@@ -102,6 +119,8 @@ def main() -> int:
             # v0.1 M1 that range is 2-12 at both k=50 and k=100.
             if not m.get("hits_determined", True):
                 flag += " ~tied"
+            if m.get("order_dependent"):
+                flag += " ~capped"
             print(f"    {name:<10} {m['pool']:>7,} {m['pos']:>5,} "
                   f"{hits_cell(m, 5)} "
                   f"{m['expected']:>7.1f} {lift_cell(m)} {p_cell(m)} "
