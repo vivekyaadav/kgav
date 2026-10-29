@@ -7,7 +7,97 @@ release. The prose that interprets these figures is section 4 of
 docs/kg_audit_report.txt.
 ==============================================================================
 
-    NO ASSEMBLED RELEASE was on disk when this file was
-    written, so it describes nothing. Run `make kg-report`
-    against an assembled release to fill it in.
+    release          v0.1
+    nodes_sha        73638934bacd7827
+    edges_sha        a9a68fe6a41380c6
 
+    78,789 nodes
+    389,306 edges
+
+    NODES BY CLASS   (0 = declared in the schema, absent from this release)
+      SmallMolecule                  25,383
+      Protein                        20,888
+      Gene                           19,190
+      Pathway                        13,236
+      TargetClass                        66
+      OrganismTaxon                      16
+      Disease                            10
+      CellLine                            0
+      Publication                         0
+      Variant                             0
+      VirusStrain                         0
+      4 of 11 declared classes are empty: CellLine, Publication, Variant,
+        VirusStrain
+
+    EDGES BY PREDICATE   (L = held out of every metapath, 0 = declared, absent)
+      PARTICIPATES_IN                           157,211
+      PHYSICALLY_INTERACTS_WITH                 153,533
+      HAS_ANTIVIRAL_ACTIVITY_AGAINST     L       26,276
+      ENCODED_BY                                 19,498
+      TARGETS                                    14,381
+      HOST_FACTOR_FOR                             8,263
+      INHIBITS                                    3,943
+      CHEMICALLY_SIMILAR_TO                       3,384
+      MEASURED_INACTIVE_AGAINST          L        2,421
+      MEMBER_OF_CLASS                               158
+      SAME_AS                                       119
+      BELONGS_TO                                     79
+      FOLD_SIMILAR_TO                                24
+      CAUSES                                         16
+      COMBINED_WITH                                   0
+      CONFERS_RESISTANCE_TO                           0
+      HAS_STRAIN                                      0
+      HAS_VARIANT                                     0
+      IN_TRIAL_FOR                       L            0
+      OCCURS_IN                                       0
+      PREDICTED_INDICATION                            0
+      SUBCLASS_OF                                     0
+      SUBCLASS_OF_DISEASE                             0
+      TREATS                             L            0
+      10 of 24 declared predicates are empty:
+        COMBINED_WITH
+        CONFERS_RESISTANCE_TO
+        HAS_STRAIN
+        HAS_VARIANT
+        IN_TRIAL_FOR  <- EVALUATION LABEL
+        OCCURS_IN
+        PREDICTED_INDICATION
+        SUBCLASS_OF
+        SUBCLASS_OF_DISEASE
+        TREATS  <- EVALUATION LABEL
+      2 of 3 evaluation label predicate(s) carry no edges, so every evaluation
+        rests on HAS_ANTIVIRAL_ACTIVITY_AGAINST alone.
+
+    EDGES BY CURATOR   (an edge with several curators counts once for each)
+      infores:uniprot                         176,907
+      infores:string                          141,019
+      infores:chembl                           39,589
+      infores:virhostnet                       10,163
+      infores:biogrid-orcs                      8,263
+      infores:ncats-opendata                    7,432
+      infores:intact                            6,617
+      infores:kgav-computed                     3,384
+      infores:mint                                878
+      infores:interpro                            182
+      infores:mondo                                16
+      infores:dip                                  12
+      infores:hpidb                                 1
+      4,979 edge(s) cite more than one curator, so these counts sum to more
+        than the edge total.
+      !! 542 edge(s) carry a REPEATED curator in one value. merge_edges
+        unioned source STRINGS rather than the curators inside them, so a fact
+        with several witnesses accumulated duplicates. Fixed in the assembler;
+        this release was assembled before the fix and reassembling rewrites
+        the field.
+
+    10 layer(s) assembled, hub cut degree 460
+      chembl
+      folds
+      host
+      hosttargets
+      ncats
+      orcs
+      selectivity
+      similarity
+      spine
+      vhppi
