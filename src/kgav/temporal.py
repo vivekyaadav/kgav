@@ -41,11 +41,50 @@ from kgav.labels import (
     DEFAULT_ACTIVE_BELOW_NM,
     DEFAULT_INACTIVE_ABOVE_NM,
     classify,
+    edge_sources,
 )
 from kgav.provenance import write_derived
 
 PLACEHOLDER_DATE = "1970-01-01"
 COMPUTED_SOURCES = {"infores:kgav-computed"}
+
+
+def _is_computed(edge: dict) -> bool:
+    """Is this edge undated BY NATURE rather than by omission?
+
+    That is the whole distinction `undated_policy="computed_only"`
+    rests on. A computed edge -- chemical similarity, fold similarity
+    -- has no assertion date because there is no assertion to date. A
+    ChEMBL TARGETS edge with no year is a different animal: the date
+    exists and was not recorded, and keeping it is the leak the policy
+    exists to avoid.
+
+    TESTED PER COMPONENT, NOT ON THE JOINED STRING. This read
+
+        e.get("primary_knowledge_source") in COMPUTED_SOURCES
+
+    which tests the RAW value against the set, so a merged edge reading
+    "infores:kgav-computed|infores:chembl" matched nothing and, until
+    the assembler stopped unioning source strings, neither did
+    "infores:kgav-computed|infores:kgav-computed". labels.py carries a
+    docstring warning about exactly this -- "membership has to be
+    tested per component or a merged edge matches no source at all" --
+    and this module imported from that file without taking the lesson.
+
+    No edge in v0.1 is affected: a census on 2026-10-29 found ZERO
+    edges naming kgav-computed beside another curator, so the old form
+    never misfired on a real release. It fails silently when it does,
+    by dropping edges from a split with no error, which is why it is
+    fixed before a layer that co-witnesses a computed edge exists
+    rather than after.
+
+    ALL witnesses must be computed, not any. If a curator also asserts
+    the fact, its missing date is an omission and the edge belongs with
+    the omissions. An edge naming no source at all is not computed --
+    the old form said so too, and that behaviour is kept deliberately.
+    """
+    srcs = edge_sources(edge)
+    return bool(srcs) and srcs <= COMPUTED_SOURCES
 
 
 def edge_year(edge: dict) -> int | None:
@@ -174,7 +213,7 @@ def build_split(release: Path, cutoff: int, held_out: set[str],
             continue
 
         if year is None:
-            computed = e.get("primary_knowledge_source") in COMPUTED_SOURCES
+            computed = _is_computed(e)
             if undated_policy == "exclude":
                 s.stats["undated_dropped"] += 1
                 continue
