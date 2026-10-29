@@ -583,3 +583,92 @@ def test_the_auc_describes_the_same_scorer_the_lift_describes():
         first = c.args[0]
         assert isinstance(first, ast.Subscript), \
             "the AUC must be handed a kept scorer, not a rebuilt expression"
+
+
+# ------------------------------------- merged sources on an undated edge
+#
+# `computed_only` turned on
+#
+#     e.get("primary_knowledge_source") in COMPUTED_SOURCES
+#
+# which tests the RAW joined value against a set of single curators, so
+# any merged edge matched nothing. The release never exercised it -- a
+# census on 2026-10-29 found zero edges naming kgav-computed beside
+# another curator -- so the fixture above, with one single-source
+# similarity edge, could not reproduce it either. These build the
+# merged forms the graph does not yet contain.
+def _with_similarity_source(release, src: str):
+    """The same release with the CHEMICALLY_SIMILAR_TO edge's curator
+    field rewritten. Returns the directory, so build_split reads it the
+    way it reads any other release."""
+    out = release.parent / f"rel_{abs(hash(src))}"
+    out.mkdir()
+    (out / "nodes.jsonl").write_text((release / "nodes.jsonl").read_text())
+    rows = []
+    for line in (release / "edges.jsonl").read_text().splitlines():
+        if not line.strip():
+            continue
+        e = json.loads(line)
+        if e["predicate"] == "CHEMICALLY_SIMILAR_TO":
+            e["primary_knowledge_source"] = src
+        rows.append(json.dumps(e))
+    (out / "edges.jsonl").write_text("\n".join(rows))
+    return out
+
+
+def test_a_duplicated_computed_source_is_still_computed(release, held):
+    """The shape merge_edges produced before it deduplicated: one
+    curator, named twice. The raw-string test matched neither
+    "kgav-computed|kgav-computed" nor the set, so the edge was dropped
+    from the split as though a human had curated it."""
+    rel = _with_similarity_source(
+        release, "infores:kgav-computed|infores:kgav-computed")
+    s = build_split(rel, 2021, held, "computed_only")
+    assert s.stats["undated_kept_computed"] == 1, (
+        "a computed edge whose source was named twice was dropped")
+    assert s.stats["undated_dropped"] == 1
+
+
+def test_a_computed_edge_a_curator_also_witnesses_is_not_computed(release,
+                                                                  held):
+    """ALL witnesses must be computed, not any. If ChEMBL also asserts
+    the fact, the missing date is an omission rather than an absence,
+    and the edge belongs with the omissions this policy exists to
+    drop."""
+    rel = _with_similarity_source(
+        release, "infores:kgav-computed|infores:chembl")
+    s = build_split(rel, 2021, held, "computed_only")
+    assert s.stats["undated_kept_computed"] == 0
+    assert s.stats["undated_dropped"] == 2, (
+        "a co-witnessed undated edge was kept as though computed")
+    # and under `include` it is kept, but counted on the other side
+    s2 = build_split(rel, 2021, held, "include")
+    assert s2.stats["undated_kept"] == 2
+    assert s2.stats["undated_kept_computed"] == 0
+
+
+def test_an_edge_naming_no_curator_is_not_computed(release, held):
+    """Preserved from the raw-string form, which also said no. The set
+    rewrite could have flipped it by accident: the empty set is a
+    subset of every set, so `srcs <= COMPUTED_SOURCES` alone is True
+    for an edge with no source at all."""
+    rel = _with_similarity_source(release, "")
+    s = build_split(rel, 2021, held, "computed_only")
+    assert s.stats["undated_kept_computed"] == 0
+    assert s.stats["undated_dropped"] == 2
+
+
+def test_the_membership_test_is_not_done_on_the_joined_string():
+    """Pinned at the source. Both assertions below fail if anyone
+    restores `in COMPUTED_SOURCES` on the raw value, and they do not
+    depend on a release being present."""
+    from kgav.temporal import _is_computed
+    merged = {"primary_knowledge_source":
+              "infores:kgav-computed|infores:kgav-computed"}
+    assert _is_computed(merged), (
+        "the joined value is being tested against the set directly")
+    assert not _is_computed({"primary_knowledge_source":
+                             "infores:kgav-computed|infores:chembl"})
+    assert _is_computed({"primary_knowledge_source": "infores:kgav-computed"})
+    assert not _is_computed({"primary_knowledge_source": ""})
+    assert not _is_computed({})
