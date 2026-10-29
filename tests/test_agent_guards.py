@@ -44,6 +44,69 @@ def test_supported_questions_are_routed(q, kind):
     assert classify_intent(q) is kind
 
 
+# ------------------------------------------ candidate-seeking, off the list
+#
+# `prospective` held "which drug should" and not "which compounds
+# should", so
+#
+#     which compounds should be considered for Yellow fever
+#
+# classified UNKNOWN, fell through the orchestrator's catch-all `else`,
+# and came back as a PROFILE of the taxon node -- 1,030 antiviral
+# measurements listed, for a virus with no route to any compound, whose
+# refusal text exists and is correct and was never reached. The one
+# phrasing on the list refused and the obvious paraphrase did not.
+#
+# Found by running the agent against one virus per tier in section 9
+# rather than SARS-CoV-2 again; every earlier hand-check used the one
+# tier where everything is present.
+@pytest.mark.parametrize("q", [
+    "which compounds should be considered for Yellow fever",
+    "which drugs should be considered for DENV-4",
+    "what compounds could treat Yellow fever",
+    "what drugs would work for HCoV-HKU1",
+    "any antivirals worth trying for TBEV",
+    "list therapeutics for JEV",
+    "candidates for Yellow fever",
+    "shortlist for DENV-1",
+    "which molecules look promising for Zika",
+])
+def test_candidate_seeking_phrasings_off_the_list_are_still_refused(q):
+    """The backstop is structural -- a candidate noun plus a seeking
+    word -- because a keyword list leaks by construction and this one
+    leaked on the most natural phrasing of the question it exists to
+    catch."""
+    assert classify_intent(q) is QueryKind.PROSPECT, q
+
+
+@pytest.mark.parametrize("q,kind", [
+    # Each of these contains a candidate NOUN and would be swallowed by
+    # the backstop if it ran before the explicit branches instead of
+    # after them. That ordering is the whole correctness argument.
+    ("rank these compounds for SARS-CoV-2", QueryKind.TRIAGE),
+    ("which of these compounds should I prioritise", QueryKind.TRIAGE),
+    ("which paper shows this compound inhibits nsp5", QueryKind.EVIDENCE),
+    ("what evidence links this drug to ACE2", QueryKind.EVIDENCE),
+    ("tell me about this compound", QueryKind.PROFILE),
+    ("why might this drug work against MERS", QueryKind.EXPLAIN),
+    ("which pathways does this compound act through", QueryKind.PATHWAY),
+])
+def test_the_backstop_does_not_swallow_the_explicit_branches(q, kind):
+    assert classify_intent(q) is kind, q
+
+
+@pytest.mark.parametrize("q", [
+    "what is the capital of France",
+    "UniProtKB:P0DTD1",
+    "how many nodes does this graph have",
+])
+def test_the_backstop_does_not_fire_on_everything(q):
+    """A backstop that returned PROSPECT for any unrecognised text
+    would refuse the whole long tail and look identical, in the test
+    suite, to one that works."""
+    assert classify_intent(q) is QueryKind.UNKNOWN, q
+
+
 # ----------------------------------------------------------------- refusal
 # REAL Calibration objects, not the _Cal stub further down this file. A stub
 # whose author also writes the expectation cannot falsify the contract it

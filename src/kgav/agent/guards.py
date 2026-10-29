@@ -304,6 +304,56 @@ def caveat(key: str, text: str) -> Caveat:
     return Caveat(key, text)
 
 
+_CANDIDATE_NOUNS = (
+    "compound", "compounds", "drug", "drugs", "molecule", "molecules",
+    "candidate", "candidates", "treatment", "treatments", "therapy",
+    "therapies", "therapeutic", "therapeutics", "inhibitor", "inhibitors",
+    "antiviral", "antivirals",
+)
+_SEEKING = (
+    "which", "what", "any", "list", "suggest", "recommend", "consider",
+    "could", "should", "would", "worth", "promising", "look at", "try",
+)
+# Nouns that ARE the request, with no seeking word needed. "compound" is
+# not one of these -- "this compound" refers to one already in hand --
+# but "candidates for X" asks the graph to produce them.
+_SELF_SEEKING = ("candidate", "candidates", "shortlist", "shortlists")
+
+
+def _seeks_candidates(t: str) -> bool:
+    """Does this ask the graph to NAME compounds it was not given?
+
+    THE KEYWORD LIST LEAKS, AND A LIST ALWAYS WILL. `prospective` held
+    "which drug should" and not "which compounds should", so
+
+        which compounds should be considered for Yellow fever
+
+    classified UNKNOWN, fell through the orchestrator's catch-all, and
+    came back as a profile of the taxon node listing 1,030 antiviral
+    measurements -- for a virus with no route to any compound, where
+    the refusal text exists and is correct and was never reached. The
+    one phrasing on the list refused; the obvious paraphrase did not.
+    Found 2026-10-29 by running the agent against one virus per tier
+    in section 9 of the audit report instead of SARS-CoV-2 again.
+
+    So this is structural rather than lexical: a candidate-seeking NOUN
+    plus a SEEKING word, with no claim that the pairing is clever. It
+    runs last, after every explicit branch, so "rank these compounds"
+    is still TRIAGE and "which paper shows this" is still EVIDENCE.
+
+    IT FAILS CLOSED, which is the whole point. An unrecognised question
+    that is shaped like a request for candidates is refused rather than
+    answered with whatever the resolver happened to find, because the
+    cost of the two mistakes is not symmetric: a wrongly refused
+    question is a nuisance, and a wrongly answered one puts a shortlist
+    in front of someone for a virus this graph cannot rank.
+    """
+    if any(n in t for n in _SELF_SEEKING):
+        return True
+    return (any(n in t for n in _CANDIDATE_NOUNS)
+            and any(s in t for s in _SEEKING))
+
+
 def classify_intent(text: str) -> QueryKind:
     """Coarse intent classification.
 
@@ -344,6 +394,11 @@ def classify_intent(text: str) -> QueryKind:
     if any(p in t for p in ("what is known", "profile", "tell me about",
                             "what do we have")):
         return QueryKind.PROFILE
+
+    # LAST, so every explicit phrasing above is matched first. This is the
+    # backstop for the ones that are not on any list.
+    if _seeks_candidates(t):
+        return QueryKind.PROSPECT
     return QueryKind.UNKNOWN
 
 
