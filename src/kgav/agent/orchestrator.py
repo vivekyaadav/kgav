@@ -28,6 +28,7 @@ graph, a query language, or discretion about scope.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -36,6 +37,33 @@ from kgav.agent.verify import caveat_labels, dropped_warnings
 from kgav.agent.tools import GraphTools, ToolResult
 
 MAX_BRIEF_EDGES = 100
+
+
+#: A name must sit on a word boundary to count as a mention.
+#:
+#: THE BUG THIS CLOSES. Resolution was `if name not in text` -- a bare
+#: substring test over every node name of four characters or more. The
+#: index holds brand names, and "Depen" is a brand name for
+#: penicillamine, so the question "which pathways does SARS-CoV-2
+#: DEPENd on?" resolved penicillamine and the agent answered about a
+#: compound nobody had mentioned, with every caveat attached as though
+#: it were the question asked. A node profile for a misread question is
+#: confusing; a confident, fully-caveated answer about the wrong
+#: compound is the kind of thing that reaches a methods section.
+#:
+#: The boundary is "not alphanumeric" rather than \b, because \b is
+#: defined against \w and the names here end in digits and punctuation:
+#: \bsars-cov-2\b fails to match "sars-cov-2." on the trailing "2"
+#: against "." -- it is a boundary, so \b is satisfied -- but
+#: \bchloroquine\b inside "hydroxychloroquine" is NOT suppressed by \b
+#: at the front, since "y" and "c" are both word characters and there
+#: is no boundary to assert. Testing the neighbouring character
+#: directly handles both, and keeps hyphens and digits inside a name
+#: from being read as separators.
+def _mentions(text: str, name: str) -> bool:
+    """Whether `name` occurs in `text` other than inside a longer word."""
+    return re.search(rf"(?<![a-z0-9]){re.escape(name)}(?![a-z0-9])",
+                     text) is not None
 
 
 @dataclass
@@ -145,12 +173,12 @@ class Orchestrator:
             # "hydroxychloroquine", but a question naming both must resolve
             # both -- the earlier rule silently dropped one of four requested
             # compounds from a ranking.
-            if name not in text:
+            if not _mentions(text, name):
                 continue
             covered = text
             for seen in found:
                 covered = covered.replace(seen, " " * len(seen))
-            if name in covered:
+            if _mentions(covered, name):
                 found[name] = self.tools.names[name]
             if len(found) >= 6:
                 break

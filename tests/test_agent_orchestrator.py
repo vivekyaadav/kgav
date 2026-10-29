@@ -463,3 +463,94 @@ def test_only_the_host_viral_edge_of_a_mixed_release_is_counted(tmp_path):
         ("UniProtKB:SIGMAR1", "UniProtKB:TMEM41B"),   # host-host
     ]).routes_for(V)
     assert routes.ppi == 1
+
+
+# ------------- a name inside a longer word is not a mention of that name
+@pytest.mark.parametrize("text,name,want", [
+    # THE LIVE FAILURE. "Depen" is a brand name for penicillamine, the
+    # index holds brand names, and bare substring matching resolved it
+    # out of the word "depend" -- so "which pathways does SARS-CoV-2
+    # depend on?" was answered about penicillamine, fully caveated, as
+    # though that were the question.
+    ("which pathways does sars-cov-2 depend on?", "depen", False),
+    ("which pathways does sars-cov-2 depend on?", "sars-cov-2", True),
+    # The hazard the longest-first rule was written for, now enforced
+    # by the matcher rather than by ordering alone.
+    ("does hydroxychloroquine work", "chloroquine", False),
+    ("does hydroxychloroquine work", "hydroxychloroquine", True),
+    ("chloroquine and hydroxychloroquine", "chloroquine", True),
+    # Punctuation is a boundary; digits and hyphens inside a name are
+    # not, which is why \b is the wrong assertion for this index.
+    ("rank remdesivir.", "remdesivir", True),
+    ("about sars-cov-2, and", "sars-cov-2", True),
+    ("the sars-cov-23 strain", "sars-cov-2", False),
+    ("p53-dependent genes", "p53", True),
+    ("vero e6 cells", "vero e6", True),
+])
+def test_a_name_must_sit_on_a_word_boundary(text, name, want):
+    from kgav.agent.orchestrator import _mentions
+    assert _mentions(text, name) is want
+
+
+def test_a_brand_name_inside_an_english_word_is_not_resolved(tmp_path):
+    """End to end, through the resolver rather than the helper: a
+    question naming only a virus must resolve only the virus."""
+    import json
+
+    from kgav.agent.orchestrator import Orchestrator
+    from kgav.agent.tools import GraphTools
+
+    nodes = [
+        {"id": V, "class": "OrganismTaxon",
+         "properties": {"label": "SARS-CoV-2", "family": "Coronaviridae",
+                        "baltimore_class": "IV", "is_enveloped": True}},
+        {"id": "INCHIKEY:DEPEN", "class": "SmallMolecule",
+         "properties": {"smiles": "C", "inchikey_skel": "DEPEN",
+                        "label": "depen", "chembl_id": "CHEMBL7",
+                        "is_approved": True, "salt_collapsed": False,
+                        "stereo_collapsed": False}},
+    ]
+    (tmp_path / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text("")
+    orch = Orchestrator(GraphTools(tmp_path))
+    resolved, _problem = orch._resolve_mentions(
+        "which pathways does SARS-CoV-2 depend on?")
+    assert set(resolved.values()) == {V}, (
+        f"the question names one entity and resolved {resolved}")
+    # And the compound IS resolved when it is actually named.
+    named, _ = orch._resolve_mentions("what is depen")
+    assert "INCHIKEY:DEPEN" in named.values()
+
+
+def test_the_suppression_check_keeps_the_boundary_rule(tmp_path):
+    """Both tests in the resolver have to be boundary-aware, not just
+    the first.
+
+    Masking a longer match can delete the SHORTER name's only
+    boundary occurrence while leaving a non-boundary one elsewhere --
+    the index holds multi-word names, so a short name can sit
+    boundary-clean inside a long one. Here "ace2 receptor" is found and
+    masked, which removes the clean "ace2"; what remains is "ace2x",
+    and a bare `name in covered` resolves ACE2 out of it.
+    """
+    import json
+
+    from kgav.agent.orchestrator import Orchestrator
+    from kgav.agent.tools import GraphTools
+
+    def prot(pid, label):
+        return {"id": pid, "class": "Protein",
+                "properties": {"taxon_id": "NCBITaxon:9606",
+                               "is_viral": False, "sequence_hash": "h",
+                               "reviewed": True, "gene_symbol": label}}
+
+    nodes = [prot("UniProtKB:ACE2", "ace2"),
+             prot("UniProtKB:ACE2R", "ace2 receptor")]
+    (tmp_path / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text("")
+    orch = Orchestrator(GraphTools(tmp_path))
+    resolved, _ = orch._resolve_mentions("the ace2 receptor in ace2x cells")
+    assert set(resolved.values()) == {"UniProtKB:ACE2R"}, (
+        f"ace2 was resolved out of 'ace2x' after masking: {resolved}")
