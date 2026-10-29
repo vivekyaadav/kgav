@@ -217,6 +217,13 @@ class Orchestrator:
 
         if intent is guards.QueryKind.PATHWAY and compounds:
             results += [self.tools.pathways(c, virus) for c in compounds]
+        elif intent is guards.QueryKind.PATHWAY and virus:
+            # THE OTHER DIRECTION. Without this, "which pathways does
+            # Zika depend on" fell through every branch below to a node
+            # profile -- an answer about the taxon node, to a question
+            # about pathways, with nothing saying the question had not
+            # been understood.
+            results.append(self.tools.virus_pathways(virus))
         elif intent is guards.QueryKind.TRIAGE and compounds:
             results.append(self.tools.triage(compounds, virus))
         elif intent is guards.QueryKind.PROFILE:
