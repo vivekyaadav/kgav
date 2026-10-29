@@ -554,3 +554,55 @@ def test_section_9_does_not_claim_a_model_classifies_intent(flat):
         "classify_intent's basis changed; re-check what section 9 claims")
     body = section(flat, "PER-VIRUS STATE", until="KNOWN GAPS")
     assert "keyword-based on purpose" in body
+
+
+def test_section_6_reproducibility_claims_match_the_code(flat):
+    """Section 6 states the release is reproducible. That rests on
+    three mechanisms, each in a different file, and the claim must not
+    outlive any of them.
+
+    KEYED ON WHAT REMOVING THE BEHAVIOUR WOULD HAVE TO TOUCH -- the
+    sort in Assembly.write, the tie-break in similarity_edges, and the
+    manifest's code stamp. Not on a line a future change can leave
+    alone, which is how the virus-only pathway guard went blind.
+    """
+    asm = (ROOT / "src" / "kgav" / "assemble.py").read_text()
+    sim = (ROOT / "src" / "kgav" / "similarity.py").read_text()
+    rel = (ROOT / "scripts" / "assemble_release.py").read_text()
+
+    sorted_write = bool(
+        re.search(r"nodes = sorted\(self\.nodes\.values\(\)", asm)
+        and re.search(r"edges = sorted\(self\.edges\.values\(\)", asm)
+        and asm.count("json.dumps(n, sort_keys=True)")
+        and asm.count("json.dumps(e, sort_keys=True)"))
+    tiebreak = bool(
+        re.search(r"hits\.sort\(key=lambda kv: \(-kv\[1\], kv\[0\]\)\)", sim))
+    stamped = 'manifest["code"] = code_commit(' in rel
+
+    body = section(flat, "BUILD PIPELINE", until="METAPATHS")
+    claims = "the graph itself is reproducible" in body.lower()
+
+    if sorted_write and tiebreak and stamped:
+        assert claims, (
+            "all three mechanisms are in place and section 6 does not "
+            "say the release is reproducible")
+        # The mechanisms, named, so the claim can be checked by a reader
+        assert "no canonical form" in body
+        assert "tie-break" in body
+        assert "MANIFEST.json carries the commit" in body
+    else:
+        assert not claims, (
+            "section 6 claims reproducibility and at least one of the "
+            "three mechanisms behind it is gone: "
+            f"sorted_write={sorted_write} tiebreak={tiebreak} "
+            f"stamped={stamped}")
+
+
+def test_section_6_does_not_resolve_what_it_could_not_resolve(flat):
+    """The 542-vs-568 discrepancy concerns a release that no longer
+    exists. A later edit that quietly turns it into an explanation
+    would be claiming evidence nobody has."""
+    body = section(flat, "BUILD PIPELINE", until="METAPATHS")
+    assert "542" in body and "568" in body
+    assert "unexplained historical discrepancy" in body
+    assert "overwritten before anyone thought to keep" in body
