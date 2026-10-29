@@ -37,8 +37,9 @@ docs/evaluation.md failed to answer honestly: 92.2% of labelled compounds
 share a publication between the evidence edge and the label it was
 supposed to predict, so a scorer is partly reading its own answer sheet.
 The result on this release is that 11 of 15 scored viruses have no
-readable reasoning channel at all and exactly one readable cell in the
-whole table is significant.
+readable reasoning channel at all and 2 readable cells in the whole
+table are significant uncorrected -- of which 1 survives the loosest
+correction family.
 
 The SECOND question is "where does the drugged human proteome overlap
 what this virus depends on". It touches no label predicate, so the

@@ -606,3 +606,42 @@ def test_section_6_does_not_resolve_what_it_could_not_resolve(flat):
     assert "542" in body and "568" in body
     assert "unexplained historical discrepancy" in body
     assert "overwritten before anyone thought to keep" in body
+
+
+def test_section_1_counts_the_channels_against_the_results(flat):
+    """Section 1 states two numbers that are derivable, and nothing
+    derived them.
+
+    It said "exactly one readable cell in the whole table is
+    significant". On 2026-10-30 raising the path cap completed M4's
+    traversal and DENV-2's M4 arrived at p=0.019, making two -- and no
+    test anywhere noticed, because the figure was typed. The same
+    claim in docs/evaluation.md HAS been guarded since it was written;
+    this copy of it was not.
+
+    Both numbers are read off metapath_comparison.json, so the next
+    move is caught wherever it happens rather than wherever someone
+    remembered to look.
+    """
+    import json
+
+    res = ROOT / "data" / "results" / "metapath_comparison.json"
+    assert res.exists(), (
+        "metapath_comparison.json is missing, so section 1's counts "
+        "cannot be checked -- and an unchecked count is how this one "
+        "went stale")
+    per = json.loads(res.read_text())["per_virus"]
+    readable = [(v, n, m) for v, ch in per.items() for n, m in ch.items()
+                if n not in ("degree", "COMBINED")
+                and m.get("hits_determined") and m.get("trustworthy")]
+    sig = [m for _, _, m in readable
+           if m.get("p_value") is not None and m["p_value"] < 0.05]
+    with_channel = {v for v, _, _ in readable}
+    without = len(per) - len(with_channel)
+
+    assert f"{without} of {len(per)} scored viruses have no" in flat, (
+        f"{without} of {len(per)} viruses have no readable channel; "
+        f"section 1 states a different number")
+    assert f"{len(sig)} readable cells in the whole" in flat, (
+        f"{len(sig)} readable cells are significant uncorrected; "
+        f"section 1 states a different number")
