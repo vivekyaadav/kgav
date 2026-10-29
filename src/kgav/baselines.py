@@ -298,7 +298,32 @@ def walk_metapath(g: Graph, start: str, path: list, constraints: dict | None,
                   max_paths: int = 20000,
                   scoring: str = SCORING_LEGACY,
                   mdeg: Counter | None = None) -> dict[str, float]:
-    """DWPC from `start` along a metapath, returning {endpoint: score}.
+    """DWPC from `start` along a metapath: {endpoint: score}.
+
+    The scores only. `walk_metapath_detail` returns the same scores
+    with the flag saying whether the walk was TRUNCATED at max_paths,
+    which a caller reporting figures needs and a caller asking "is
+    this virus reachable" does not.
+    """
+    return walk_metapath_detail(g, start, path, constraints, blocked, w,
+                                max_paths, scoring, mdeg)[0]
+
+
+def walk_metapath_detail(g: Graph, start: str, path: list,
+                         constraints: dict | None,
+                         blocked: set[str], w: float = DEFAULT_W,
+                         max_paths: int = 20000,
+                         scoring: str = SCORING_LEGACY,
+                         mdeg: Counter | None = None
+                         ) -> tuple[dict[str, float], bool]:
+    """DWPC from `start` along a metapath: ({endpoint: score}, truncated).
+
+    TRUNCATED SAYS THE SCORE IS ONE DRAW. The walk stops expanding the
+    frontier once it exceeds max_paths (20,000), and what it has seen
+    by then depends on the order g.neighbours yields edges -- which is
+    the order edges.jsonl was written in. Before 2026-10-29 that
+    happened silently: a truncated score was indistinguishable from a
+    complete one, in the return value and in every results file.
 
     Each frontier entry carries the accumulated degree-product weight. Nodes
     already on the path are not revisited: a path that loops back through its
@@ -317,13 +342,14 @@ def walk_metapath(g: Graph, start: str, path: list, constraints: dict | None,
     if scoring == SCORING_PDP and mdeg is None:
         mdeg = metaedge_degree(g)
 
+    truncated = False
     frontier: list[tuple[str, float, frozenset]] = [(start, 1.0, frozenset({start}))]
     steps = [(parse_hop(path[i]), path[i + 1]) for i in range(1, len(path) - 1, 2)]
 
     for step_i, ((predicate, reverse), want_class) in enumerate(steps):
         nxt: list[tuple[str, float, frozenset]] = []
         last = step_i == len(steps) - 1
-        for node, weight, visited in frontier:
+        for seen_i, (node, weight, visited) in enumerate(frontier):
             candidates = g.neighbours(predicate, node, reverse)
             # The SOURCE side of this metaedge, which the legacy form omits.
             d_src = (mdeg.get((predicate, node), 1) or 1) \
@@ -344,21 +370,59 @@ def walk_metapath(g: Graph, start: str, path: list, constraints: dict | None,
                     step_w = (g.degree.get(nbr, 1) or 1) ** -w
                 nxt.append((nbr, weight * step_w, visited | {nbr}))
             if len(nxt) > max_paths:
+                # TRUNCATION, AND IT USED TO BE INVISIBLE. This stops
+                # expanding the REST of the frontier and returns what
+                # it has, so the score depends on which neighbours
+                # g.neighbours happened to yield first -- that is,
+                # on the order edges.jsonl was written in.
+                #
+                # Measured on v0.1, 2026-10-29: 114 of M4's 2,983
+                # reaching drugs truncate here, and no other metapath
+                # truncates at all. Shuffling edges.jsonl and
+                # recomputing moved M4's Hits@100 for SARS-CoV-2 from
+                # 2 to 1 and its lift from 0.99 to 0.50, while M5 and
+                # M7 did not move by a single bit.
+                #
+                # hits_determined cannot see this. It detects EXACT
+                # ties at the cut, and these compounds are not tied --
+                # they were computed from different sets of paths.
+                #
+                # ONLY WHEN SOMETHING WAS ACTUALLY DROPPED. The break
+                # leaves the loop over `frontier`, so if this fires
+                # while expanding its LAST entry nothing is lost and
+                # the score is complete. Flagging that as truncated
+                # would attach a warning to a figure that does not
+                # need one -- and a warning printed too often is the
+                # same as no warning.
+                if seen_i + 1 < len(frontier):
+                    truncated = True
                 break
         frontier = nxt
         if not frontier:
-            return {}
+            return {}, truncated
 
     out: dict[str, float] = defaultdict(float)
     for node, weight, _v in frontier:
         out[node] += weight
-    return dict(out)
+    return dict(out), truncated
 
 
 def dwpc_scores(g: Graph, metapaths: dict, limits: dict,
-                w: float = DEFAULT_W, scoring: str = SCORING_LEGACY
+                w: float = DEFAULT_W, scoring: str = SCORING_LEGACY,
+                truncated: Counter | None = None
                 ) -> dict[str, dict[str, dict[str, float]]]:
-    """{metapath: {drug: {virus: score}}} for every drug with any path."""
+    """{metapath: {drug: {virus: score}}} for every drug with any path.
+
+    `truncated`, if given, is filled with {metapath: how many drugs
+    hit the max_paths cap}. OPTIONAL rather than returned, because
+    nine callers read this function's result positionally and only
+    the ones that publish figures need the count -- but any of them
+    can ask.
+
+    A non-zero count means those drugs' scores depend on the order
+    edges.jsonl was written in. On v0.1 it is M4 and nothing else:
+    114 of 2,983 reaching drugs.
+    """
     blocked = _hub_set(g, limits) | _oversized_pathways(g, limits)
     # Once per call, not once per drug: on v0.1 this table is built from
     # 374,792 edges and every drug's walk reads it.
@@ -367,9 +431,12 @@ def dwpc_scores(g: Graph, metapaths: dict, limits: dict,
     for name, mp in metapaths.items():
         per_drug: dict[str, dict[str, float]] = {}
         for drug in g.drugs():
-            hits = walk_metapath(g, drug, mp["path"], mp.get("constraints"),
-                                 blocked if mp.get("exclude_hubs") else set(),
-                                 w, scoring=scoring, mdeg=mdeg)
+            hits, was_cut = walk_metapath_detail(
+                g, drug, mp["path"], mp.get("constraints"),
+                blocked if mp.get("exclude_hubs") else set(),
+                w, scoring=scoring, mdeg=mdeg)
+            if was_cut and truncated is not None:
+                truncated[name] += 1
             if hits:
                 per_drug[drug] = hits
         results[name] = per_drug
