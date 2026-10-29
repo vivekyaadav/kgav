@@ -151,6 +151,24 @@ pathway-landscape:
 	python scripts/pathway_landscape.py \
 	  --out data/results/pathway_landscape.json
 
+# WHAT THE AGENT SAYS, for one virus from EACH tier in section 9 of the
+# audit report -- not just the one with the most data. Prints for a
+# person to read; there is nothing to assert. The first run of it found
+# that the refusal written for Yellow fever was never reached, which
+# every unit test had missed because a unit test asks the question its
+# author thought to ask.
+tier-check:
+	bash scripts/tier_spotcheck.sh
+
+# DID A REBUILD MOVE ANY FIGURE, as opposed to just the release stamp.
+# BEFORE= is a copy of data/results taken before reassembling; make one
+# OUTSIDE the repo first, or an untracked tree of results sits where
+# `git add -A` will find it.
+#   make compare-results BEFORE=~/kgav-results.pre-dedup
+compare-results:
+	@test -n "$(BEFORE)" || { echo "set BEFORE=<dir>"; exit 2; }
+	python scripts/compare_results.py "$(BEFORE)" data/results --fields
+
 clean:
 	find . -name __pycache__ -type d -exec rm -rf {} + 2>/dev/null || true
 	rm -rf .pytest_cache .ruff_cache *.egg-info build dist
