@@ -31,6 +31,32 @@ from kgav.schema import parse_hop
 
 DEFAULT_W = 0.4
 
+# THE FRONTIER CAP, measured rather than chosen. walk_metapath stops
+# expanding once the frontier exceeds this, and what it has seen by
+# then depends on the order edges.jsonl was written in.
+#
+# It was 20,000, with no recorded reason. On v0.1 the largest frontier
+# any single drug produces is:
+#
+#     M1          3      M5     15,281
+#     M2        283      M6        283
+#     M3     16,726      M7         29
+#     M4    230,176      M8          4
+#
+# So M4 ran 11.5x over and truncated 114 of its 2,983 reaching drugs,
+# while M3 and M5 cleared the old cap by 16% and 24% -- not by design.
+# Adding a layer that touches those paths would have started
+# truncating them silently too.
+#
+# Measured 2026-10-30: a complete M4 traversal over all 25,383 drugs
+# takes 77 seconds, so the cap was not buying anything. This value
+# clears the measured peak four times over, for the layers not yet
+# built. It remains a cap rather than no cap because a pathological
+# graph should stop rather than exhaust memory -- and because
+# walk_metapath_detail now REPORTS truncation, a future release that
+# reaches it says so instead of quietly returning one draw.
+MAX_PATHS = 1_000_000
+
 
 def label_publication_index(release: Path, label_predicates: set[str]
                             ) -> dict[str, set[str]]:
@@ -295,7 +321,7 @@ def metaedge_degree(g: Graph) -> Counter:
 
 def walk_metapath(g: Graph, start: str, path: list, constraints: dict | None,
                   blocked: set[str], w: float = DEFAULT_W,
-                  max_paths: int = 20000,
+                  max_paths: int = MAX_PATHS,
                   scoring: str = SCORING_LEGACY,
                   mdeg: Counter | None = None) -> dict[str, float]:
     """DWPC from `start` along a metapath: {endpoint: score}.
@@ -312,7 +338,7 @@ def walk_metapath(g: Graph, start: str, path: list, constraints: dict | None,
 def walk_metapath_detail(g: Graph, start: str, path: list,
                          constraints: dict | None,
                          blocked: set[str], w: float = DEFAULT_W,
-                         max_paths: int = 20000,
+                         max_paths: int = MAX_PATHS,
                          scoring: str = SCORING_LEGACY,
                          mdeg: Counter | None = None
                          ) -> tuple[dict[str, float], bool]:
