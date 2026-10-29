@@ -306,21 +306,50 @@ def test_every_virus_in_the_register_is_placed_in_a_tier(flat):
         assert v["name"] in block, (
             f"{v['name']} is in the register and is in no tier in "
             f"section 7")
-def test_the_virus_only_pathway_gap_matches_the_orchestrator(flat):
+
+
+def _virus_pathways_body(tools_src: str) -> str:
+    """The method's own source, sliced out so a claim about it is not
+    satisfied by an identifier appearing somewhere else in the file."""
+    m = re.search(r"\n    def virus_pathways\(.*?(?=\n    def |\nclass |\Z)",
+                  tools_src, re.S)
+    return m.group(0) if m else ""
+
+
+def test_the_virus_only_pathway_claim_matches_the_orchestrator(flat):
     """The report said "for any virus, the graph can list the Reactome
     pathways its dependency factors sit in ... the agent exposes it as
-    a PATHWAY query". True of the graph, false of the agent: the
-    orchestrator's PATHWAY branch requires a compound and otherwise
-    falls through to a node profile.
+    a PATHWAY query". True of the graph, false of the agent at the
+    time, so the claim was rewritten as a gap and this test pinned it
+    to the branch.
 
-    So the claim is checked against the branch. If a virus-only form is
-    ever added, this fails until the report stops calling it a gap --
-    which is the direction a document is least likely to be corrected
-    in on its own.
+    IT PINNED THE WRONG BRANCH. The predicate was
+
+        re.search(r"if intent is guards.QueryKind.PATHWAY and compounds:")
+
+    -- the COMPOUND branch, which adding a virus-only form does not
+    touch. virus_pathways shipped, the elif beside it appeared, that
+    line stayed exactly as it was, and the test went on demanding that
+    the report call the capability a gap. Report and guard agreed with
+    each other and both described a version of the agent that no
+    longer existed; the suite passed green through all of it.
+
+    The lesson is not about this branch. A guard keyed on a line the
+    change does not have to touch is a guard that cannot see the
+    change. So the predicate now keys on the three things that must
+    ALL exist for the capability to be real -- the elif, the call, the
+    method -- and deleting any one of them flips this test back to
+    demanding the gap text.
     """
     src = (ROOT / "src" / "kgav" / "agent" / "orchestrator.py").read_text()
-    requires_compound = bool(re.search(
-        r"if intent is guards\.QueryKind\.PATHWAY and compounds:", src))
+    tools_src = (ROOT / "src" / "kgav" / "agent" / "tools.py").read_text()
+    # CONJUNCTION, deliberately. Three arms that must all hold, not a
+    # disjunction where one covers for another.
+    has_virus_only = bool(
+        re.search(r"elif intent is guards\.QueryKind\.PATHWAY and virus:",
+                  src)
+        and re.search(r"self\.tools\.virus_pathways\(", src)
+        and re.search(r"\n    def virus_pathways\(", tools_src))
     # TWO SCOPED ASSERTIONS, NOT ONE DISJUNCTION. Written as
     # `A in flat or B in flat`, deleting the statement from section 8
     # passed because the KNOWN GAPS entry satisfied the other arm --
@@ -329,18 +358,71 @@ def test_the_virus_only_pathway_gap_matches_the_orchestrator(flat):
     body = section(flat, "HOW THE GRAPH SUPPORTS PATHWAY ANALYSIS",
                    until="PER-VIRUS STATE")
     gaps = section(flat, "KNOWN GAPS")
-    if requires_compound:
+    if not has_virus_only:
         assert "no virus-only form of this query" in body.lower(), (
             "the PATHWAY branch requires a compound and section 8 does "
             "not say so where it describes the capability")
         assert "falls through to a node profile" in body
         assert "has no form of" in gaps, (
             "the gap is described in section 8 and missing from KNOWN GAPS")
+        return
+
+    assert "no virus-only form of this query" not in body.lower(), (
+        "a virus-only PATHWAY form now exists and section 8 still "
+        "calls it a gap")
+    assert "has no form of" not in gaps, (
+        "virus_pathways exists and KNOWN GAPS still lists its absence")
+    assert "virus_pathways" in body, (
+        "section 8 no longer calls it a gap and does not name the tool "
+        "that closed it either")
+
+
+def test_section_8_does_not_credit_virus_pathways_with_a_p_value(flat):
+    """The method reports a ratio against a size-matched expectation
+    and NO tail probability, because the pathways it ranks are chosen
+    by the same dependency set it then scores them on -- selection and
+    outcome are one event. That omission is the most load-bearing
+    thing about it and the easiest for a document to quietly upgrade
+    into "significant", so it is checked against the method's own
+    source rather than against the surrounding prose."""
+    tools_src = (ROOT / "src" / "kgav" / "agent" / "tools.py").read_text()
+    body_src = _virus_pathways_body(tools_src)
+    assert body_src, "virus_pathways not found; this test is vacuous"
+    emits_p = bool(re.search(r"p_value|pvalue|\bp_adj\b", body_src))
+    body = section(flat, "HOW THE GRAPH SUPPORTS PATHWAY ANALYSIS",
+                   until="PER-VIRUS STATE")
+    span = body[body.find("virus_pathways"):] if "virus_pathways" in body \
+        else ""
+    if not emits_p:
+        assert span, "section 8 does not describe virus_pathways"
+        assert "reports no p-value" in span.lower(), (
+            "virus_pathways emits no p-value and section 8 does not "
+            "say so where it describes it")
+        assert "selection and outcome are one event" in span.lower()
     else:
-        assert "no virus-only form of this query" not in body.lower(), (
-            "a virus-only PATHWAY form now exists and section 8 still "
-            "calls it a gap")
-        assert "has no form of" not in gaps
+        assert "reports no p-value" not in span.lower(), (
+            "virus_pathways now emits a p-value and section 8 still "
+            "says it does not")
+
+
+def test_section_8_carries_the_names_the_virus_warning(flat):
+    """Reactome curates virus-specific pathways from that virus's own
+    literature -- the literature the screens come from -- so such a
+    pathway scores high because of where its members were found. The
+    code marks them; a report that described the ranking without the
+    mark would be describing a cleaner instrument than exists."""
+    tools_src = (ROOT / "src" / "kgav" / "agent" / "tools.py").read_text()
+    body_src = _virus_pathways_body(tools_src)
+    assert body_src, "virus_pathways not found; this test is vacuous"
+    if "names_the_virus" not in body_src:
+        return  # covered by tests/test_virus_pathways.py
+    body = section(flat, "HOW THE GRAPH SUPPORTS PATHWAY ANALYSIS",
+                   until="PER-VIRUS STATE")
+    assert "NAMES THIS VIRUS" in body, (
+        "the tool flags virus-named pathways and section 8 does not "
+        "mention the flag")
+    assert "marked rather than dropped" in body.lower(), (
+        "section 8 mentions the flag without saying the row is kept")
 
 
 def test_the_report_does_not_claim_the_agent_walks_m4(flat):
