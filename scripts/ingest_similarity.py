@@ -92,8 +92,21 @@ def main() -> int:
               f"the query set so M7 cannot propose activity\n  against a "
               f"protein they were measured not to inhibit")
 
-    q_fps, q_stats = fingerprints({i: smiles.get(i, "") for i in query})
-    r_fps, r_stats = fingerprints({i: smiles.get(i, "") for i in annotated})
+    # SORTED, because `query` and `annotated` are SETS and these dicts
+    # carry their iteration order into similarity_edges as ref_ids.
+    # String hashing is randomised per process, so the reference order
+    # -- and therefore which of several tied neighbours survived the
+    # top-k cut -- changed between runs. Two builds of v0.1 from
+    # identical raw inputs differed by 8 CHEMICALLY_SIMILAR_TO edges.
+    #
+    # similarity_edges now breaks that tie on the id, so this sort is
+    # no longer what makes the OUTPUT correct. It is kept because the
+    # emission order should not depend on the hash seed either, and
+    # because a reader of this line should not have to know that the
+    # protection lives in another file.
+    q_fps, q_stats = fingerprints({i: smiles.get(i, "") for i in sorted(query)})
+    r_fps, r_stats = fingerprints({i: smiles.get(i, "")
+                                   for i in sorted(annotated)})
     print(f"\nfingerprints: {q_stats['fingerprinted']:,} query, "
           f"{r_stats['fingerprinted']:,} reference")
     bad = q_stats["unparseable"] + r_stats["unparseable"]
