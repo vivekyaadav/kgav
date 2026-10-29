@@ -542,6 +542,50 @@ any that no longer describe it, including the derived train/test split
 that the hard-negative protocol reads. A figure computed from a graph
 that no longer exists is reported as stale rather than quoted.
 
+AND THE GRAPH ITSELF IS REPRODUCIBLE, WHICH IT WAS NOT UNTIL
+2026-10-29. That sentence is the whole of this paragraph's content and
+it could not have been written the day before.
+
+  WHAT WAS WRONG. Assembly.write emitted dict values in insertion
+  order and release_fingerprint hashes those bytes, so a release had
+  no canonical form: the same graph could serialise two ways. And
+  similarity_edges chose its top-k neighbours with `sort(key=-sim)`
+  and no tie-break -- a stable sort, so tied neighbours kept the order
+  of a dict built from a SET, and string hashing is randomised per
+  process. When a tie straddled the cut, which neighbour survived
+  depended on the hash seed.
+
+  HOW IT LOOKED. Four builds of v0.1 from identical raw inputs, with
+  every raw checksum verified and no build-path code change between
+  them, produced four edges_sha values: a9a68fe6a41380c6 (2026-10-28),
+  then 2f51efb4f897538e, 3152d60b40c7a5d2 and 7587762b38eea391 on
+  2026-10-29. nodes_sha was identical across all four, which read as
+  evidence that nodes were safe; it was luck, since nothing ordered
+  them either. The real difference was 8 to 10 CHEMICALLY_SIMILAR_TO
+  edges out of 389,306, swapped one for one, totals unchanged.
+
+  WHY NOTHING CAUGHT IT. check_results compares results against the
+  release ON DISK and never against a rebuild, and the release
+  recorded no commit to compare HEAD against. Nothing in the pipeline
+  asked the question, and no one had rebuilt v0.1 since assembling it.
+
+  WHAT IS TRUE NOW. Records and keys are both sorted on write, so one
+  graph has one byte form. The top-k tie is broken on the neighbour's
+  id -- arbitrary, and chosen because it is a property of the content.
+  MANIFEST.json carries the commit that assembled the release, and
+  check_results says when that is not HEAD. Two consecutive full
+  builds have been compared edge by edge and are byte-identical:
+  130,449,080 bytes, 389,306 edges, nothing differing.
+
+  WHAT IS STILL UNEXPLAINED. The 2026-10-28 release carried 542 edges
+  whose primary_knowledge_source named one curator twice; a rebuild of
+  the same pre-dedup code the next day produced 568. Both are
+  PHYSICALLY_INTERACTS_WITH, a layer neither fix above touches, and
+  the two 2026-10-29 builds agree with each other on it. The release
+  that would settle it was overwritten before anyone thought to keep
+  it. Recorded as an unexplained historical discrepancy rather than
+  resolved, and it is not ongoing.
+
 
 ================================================================================
 7. METAPATHS
