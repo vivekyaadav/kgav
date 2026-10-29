@@ -187,3 +187,73 @@ def test_the_driver_counts_measured_inactive_as_annotating():
     assert '"MEASURED_INACTIVE_AGAINST"' in src, \
         "a new predicate was added to the schema and this list was not updated"
     assert "ANNOTATING" in src
+
+
+# ------------------------------------------- which neighbours survive top_k
+#
+# similarity_edges sorted on similarity alone. Python's sort is
+# stable, so tied neighbours kept the order of ref_ids = list(ref_fps)
+# -- a dict built by ingest_similarity.py from a SET. String hashing
+# is randomised per process, so when a tie straddled position top_k,
+# which neighbour survived depended on the hash seed.
+#
+# Two builds of v0.1 from identical raw inputs differed by exactly 8
+# CHEMICALLY_SIMILAR_TO edges out of 389,306, total unchanged: eight
+# swapped for eight. edges_sha was therefore unreproducible, and no
+# tool in the project could say whether a rebuilt release was a
+# different graph.
+#
+# test_top_k_caps_dense_scaffold_series above builds THIRTY IDENTICAL
+# references -- every pair tied -- and asserts only that five come
+# back. The scenario that breaks this was already in the suite; what
+# was missing was any assertion about which five.
+def _tied_refs(order):
+    """Twelve references, all the same structure, so every similarity
+    is tied and the top_k cut falls inside the tie group."""
+    return {f"r{i:02d}": ASPIRIN for i in order}
+
+
+def test_the_top_k_cut_does_not_depend_on_reference_order():
+    q_fps, _ = fingerprints({"q": ASPIRIN_ME})
+    fwd, _ = fingerprints(_tied_refs(range(12)))
+    rev, _ = fingerprints(_tied_refs(reversed(range(12))))
+    assert list(fwd) != list(rev), (
+        "both reference dicts are in the same order; this cannot "
+        "detect an order-dependent cut")
+
+    a = similarity_edges(q_fps, fwd, threshold=0.0, top_k=5)
+    b = similarity_edges(q_fps, rev, threshold=0.0, top_k=5)
+    assert {r for _, r, _ in a} == {r for _, r, _ in b}, (
+        "a different set of tied neighbours survived the cut")
+    assert a == b, "same neighbours, different emission order"
+
+
+def test_tied_neighbours_are_cut_by_id_not_by_arrival():
+    """The tie-break is on the id, so the survivors are a property of
+    the content. Asserting the ACTUAL ids, because equality between
+    two runs would also hold if both were wrong in the same way."""
+    q_fps, _ = fingerprints({"q": ASPIRIN_ME})
+    refs, _ = fingerprints(_tied_refs(reversed(range(12))))
+    got = [r for _, r, _ in similarity_edges(q_fps, refs, threshold=0.0,
+                                             top_k=5)]
+    assert got == ["r00", "r01", "r02", "r03", "r04"], got
+
+
+def test_a_higher_score_still_outranks_a_lower_id():
+    """The id breaks TIES and must not override similarity: a worse
+    neighbour with an earlier id cannot displace a better one."""
+    q_fps, _ = fingerprints({"q": ASPIRIN_ME})
+    refs, _ = fingerprints({"aaa": CYCLOHEXANE, "zzz": ASPIRIN})
+    got = similarity_edges(q_fps, refs, threshold=0.0, top_k=1)
+    assert [r for _, r, _ in got] == ["zzz"], got
+
+
+def test_the_ingest_script_does_not_iterate_a_set_into_the_fingerprints():
+    """Belt and braces, pinned at the source. The tie-break above
+    makes the OUTPUT correct whatever order arrives, but emission
+    order should not depend on the hash seed either -- and a reader
+    of ingest_similarity.py should not have to know the protection
+    lives in another file."""
+    src = (ROOT / "scripts" / "ingest_similarity.py").read_text()
+    assert "for i in sorted(query)" in src
+    assert "for i in sorted(annotated)" in src

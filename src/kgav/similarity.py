@@ -82,7 +82,32 @@ def similarity_edges(query_fps: dict[str, object], ref_fps: dict[str, object],
         sims = DataStructs.BulkTanimotoSimilarity(qfp, ref_list)
         hits = [(ref_ids[i], s) for i, s in enumerate(sims)
                 if s >= threshold and ref_ids[i] != qid]
-        hits.sort(key=lambda kv: -kv[1])
+        # TIE-BREAK ON THE ID, AND IT IS LOAD-BEARING. This sorted on
+        # similarity alone. Python's sort is stable, so tied
+        # neighbours kept the order of ref_ids -- which is
+        # list(ref_fps), the dict's insertion order, built by
+        # ingest_similarity.py from a SET. Set iteration order for
+        # strings varies per process, so when a tie straddled position
+        # top_k, which neighbour survived the cut depended on the
+        # hash seed.
+        #
+        # Measured: two builds of v0.1 from identical raw inputs
+        # differed by exactly 8 CHEMICALLY_SIMILAR_TO edges out of
+        # 389,306, with the total unchanged -- eight swapped for
+        # eight. That made edges_sha unreproducible, and nothing could
+        # say whether a rebuilt release was a different graph.
+        #
+        # baselines.py documents this same trap for rank() and
+        # deliberately does NOT break the tie there, reporting the
+        # range over tie orderings instead, because inventing an order
+        # would invent a ranking. Here it is the opposite: a top_k cut
+        # MUST choose, keeping every tie would change the edge count,
+        # and so the only question is whether the choice is declared
+        # or accidental. The id is arbitrary and says nothing about
+        # which neighbour is better -- it is chosen because it is a
+        # property of the content, so the same graph yields the same
+        # edges anywhere.
+        hits.sort(key=lambda kv: (-kv[1], kv[0]))
         if top_k:
             hits = hits[:top_k]
         edges.extend((qid, rid, float(s)) for rid, s in hits)
