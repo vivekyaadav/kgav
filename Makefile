@@ -160,6 +160,23 @@ pathway-landscape:
 tier-check:
 	bash scripts/tier_spotcheck.sh
 
+# REGENERATE EVERY RESULTS FILE, from the block in docs/evaluation.md
+# rather than from a copy of it. The order is load bearing and was
+# being transcribed by hand after each rebuild, where a dropped flag
+# changes a protocol without failing.
+reproduce:
+	python scripts/run_reproduce_block.py
+
+reproduce-print:
+	python scripts/run_reproduce_block.py --print
+
+# TWO RELEASES, EDGE BY EDGE. edges_sha says they differ; this says
+# whether the graph differs or only the byte order.
+#   make diff-releases A=~/kgav-build5 B=data/releases/v0.1
+diff-releases:
+	@test -n "$(A)" -a -n "$(B)" || { echo "set A=<dir> B=<dir>"; exit 2; }
+	python scripts/diff_releases.py "$(A)" "$(B)" $(ARGS)
+
 # DID A REBUILD MOVE ANY FIGURE, as opposed to just the release stamp.
 # BEFORE= is a copy of data/results taken before reassembling; make one
 # OUTSIDE the repo first, or an untracked tree of results sits where
