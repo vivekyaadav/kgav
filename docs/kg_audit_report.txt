@@ -634,17 +634,47 @@ Three distinct capabilities, in increasing order of what they claim.
     RANKING: M4 exists in the schema and in the evaluation and not in
     an answer.
 
-    AND THERE IS NO VIRUS-ONLY FORM OF THIS QUERY. The orchestrator's
-    PATHWAY branch requires a compound; asked which pathways a virus
-    depends on with no compound named, it falls through to a node
-    profile. The data and the helpers exist — _dependency_factors and
-    _pathway_background are both there — but nothing exposes the
-    question, which is likely the first one a biologist would ask of
-    this graph. Recorded as a gap rather than described as a
-    capability: an earlier version of this section said "for any virus,
-    the graph can list the Reactome pathways its dependency factors sit
-    in ... the agent exposes it as a PATHWAY query", which is true of
-    the graph and false of the agent.
+    AND THE VIRUS-ONLY FORM, tools.virus_pathways. Asked which
+    pathways a virus depends on with no compound named, the
+    orchestrator routes to it rather than falling through to a node
+    profile. It takes that virus's dependency factors — HOST_FACTOR_FOR
+    with direction=dependency, the restriction factors excluded — and
+    counts how many sit in each Reactome pathway. In layman's terms:
+    of the human proteins this virus needs in order to replicate,
+    which cellular processes are they clustered in.
+
+    IT REPORTS NO P-VALUE, AND THAT OMISSION IS THE DESIGN. The
+    pathways it ranks are selected BY the dependency set and then
+    scored ON the same dependency set: selection and outcome are one
+    event, so a tail probability computed there measures the procedure
+    rather than the biology. What it reports instead is the observed
+    member count beside a size-matched expectation and the ratio
+    between them, ordered twice — once by dependency count, which
+    favours large pathways, and once by density ratio over pathways
+    expected to hold at least one member, which does not. Both
+    orderings are printed because each is wrong in a way the other
+    corrects, and the first version of this tool printed only the
+    first, which is the bias the ratio exists to fix.
+
+    AND IT MARKS PATHWAYS NAMED AFTER THE VIRUS. Reactome curates
+    virus-specific pathways — "SARS-CoV-2 modulates autophagy" is one,
+    and it ranked near the top of the first run — from that virus's
+    own literature, which is the literature the host-factor screens
+    come from. Such a pathway
+    scores high because of where its members were found rather than
+    because of what they do. Each is tagged [NAMES THIS VIRUS] in both
+    lists, and marked rather than dropped: the membership is real, and
+    a reader who knows why the number is high can still use it.
+
+    WHAT IT IS NOT. A census, like its compound-centred sibling, not a
+    test. A high ratio says a cluster exists; it does not say the
+    cluster is druggable, nor which direction a drug would have to
+    push it. An earlier version of this section said "for any virus,
+    the graph can list the Reactome pathways its dependency factors
+    sit in ... the agent exposes it as a PATHWAY query" at a time when
+    the agent did not. The claim is true now. In between it was
+    carried as a gap in section 10, which is where a capability this
+    project does not yet have belongs.
 
 (b) CROSS-VIRUS PATHWAY COMPARISON — descriptive, and NOT EXPOSED.
     Because all 16 viruses hang off one host proteome with one pathway
@@ -760,13 +790,23 @@ clears chance, so every answerable virus carries VIRUS NOT VALIDATED.
                        blocked by comparator chains the spine does not
                        build.
 
-  virus-only pathway   the agent answers "does this compound hit
-  query                anything the virus depends on" and has no form
-                       of "which pathways does this virus depend on".
-                       The orchestrator's PATHWAY branch requires a
-                       compound and otherwise falls through to a node
-                       profile. The data and the helpers exist; the
-                       question is not exposed.
+  cross-virus pathway  one host proteome and one pathway vocabulary
+  comparison           make the census comparable across all 16
+                       viruses in principle -- "which pathways do
+                       flaviviruses depend on that coronaviruses do
+                       not" is a set operation over the graph. No tool
+                       performs it. Section 8(b) states what the DATA
+                       supports; nothing exposes it. This entry was
+                       masked until 2026-10-29 by the broader
+                       virus-only pathway gap that sat above it, which
+                       tools.virus_pathways has since closed.
+
+  virus-named          virus_pathways marks Reactome pathways named
+  pathways             after the virus they are scored for, because
+                       they are curated from the same literature the
+                       screens come from. The mark is a warning, not a
+                       correction: the ranking is still computed with
+                       those rows in it.
 
   M4 in the agent      the pathway metapath is declared in the schema
                        and evaluated in docs/evaluation.md, and the
