@@ -131,3 +131,107 @@ def test_the_exit_code_is_the_block_s(tmp_path, monkeypatch):
     doc.write_text(DOC)
     monkeypatch.setattr(RB.subprocess, "call", lambda *a, **k: 3)
     assert RB.main(["--doc", str(doc)]) == 3
+
+
+# --------------------------------------------------------------- the lock
+#
+# On 2026-10-30 a second `make reproduce` was started 42 minutes into
+# a first. Its step 1 rewrote data/releases/v0.1-train2021 with the
+# `exclude` split while the first run's hard_negatives.py was reading
+# the `include` one -- 40 seconds before it wrote its output.
+#
+# Nothing detected it. check-results stamps each file against the
+# graph and both runs used the same graph, so the mixture would have
+# been certified current. It was caught by reading file timestamps.
+def test_a_second_run_refuses_while_the_first_holds_the_lock(
+        tmp_path, monkeypatch, capsys):
+    """flock is held per open file description, so a second open() in
+    this process conflicts exactly as another process would."""
+    import fcntl
+
+    doc = tmp_path / "d.md"
+    doc.write_text(DOC)
+    lock = tmp_path / ".lock"
+    monkeypatch.setattr(RB, "LOCK", lock)
+    monkeypatch.setattr(RB, "SCRIPT", tmp_path / ".sh")
+
+    holder = open(lock, "w")
+    fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    holder.write("pid 4242 started 2026-10-30T01:13:00\n")
+    holder.flush()
+    try:
+        monkeypatch.setattr(RB.subprocess, "call",
+                            lambda *a, **k: pytest.fail("it ran anyway"))
+        assert RB.main(["--doc", str(doc)]) == 3
+    finally:
+        fcntl.flock(holder, fcntl.LOCK_UN)
+        holder.close()
+    err = capsys.readouterr().err
+    assert "ANOTHER REPRODUCE RUN HOLDS THE LOCK" in err
+    assert "pid 4242" in err, "the refusal does not say who holds it"
+
+
+def test_the_lock_is_free_once_the_holder_releases(tmp_path, monkeypatch):
+    """A lock that outlived its process would turn one bad run into a
+    permanently blocked target -- worse than the race."""
+    import fcntl
+
+    doc = tmp_path / "d.md"
+    doc.write_text(DOC)
+    lock = tmp_path / ".lock"
+    monkeypatch.setattr(RB, "LOCK", lock)
+    monkeypatch.setattr(RB, "SCRIPT", tmp_path / ".sh")
+
+    holder = open(lock, "w")
+    fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    fcntl.flock(holder, fcntl.LOCK_UN)
+    holder.close()
+
+    monkeypatch.setattr(RB.subprocess, "call", lambda *a, **k: 0)
+    assert RB.main(["--doc", str(doc)]) == 0
+
+
+def test_the_lock_records_who_holds_it(tmp_path, monkeypatch):
+    doc = tmp_path / "d.md"
+    doc.write_text(DOC)
+    lock = tmp_path / ".lock"
+    monkeypatch.setattr(RB, "LOCK", lock)
+    monkeypatch.setattr(RB, "SCRIPT", tmp_path / ".sh")
+    monkeypatch.setattr(RB.subprocess, "call", lambda *a, **k: 0)
+    assert RB.main(["--doc", str(doc)]) == 0
+    import os
+    assert f"pid {os.getpid()}" in lock.read_text()
+
+
+def test_print_does_not_take_the_lock(tmp_path, monkeypatch):
+    """--print runs nothing, so blocking it during a long run would
+    stop someone reading the block to see what is happening."""
+    import fcntl
+
+    doc = tmp_path / "d.md"
+    doc.write_text(DOC)
+    lock = tmp_path / ".lock"
+    monkeypatch.setattr(RB, "LOCK", lock)
+    monkeypatch.setattr(RB, "SCRIPT", tmp_path / ".sh")
+    holder = open(lock, "w")
+    fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        assert RB.main(["--doc", str(doc), "--print"]) == 0
+    finally:
+        fcntl.flock(holder, fcntl.LOCK_UN)
+        holder.close()
+
+
+def test_the_script_has_a_fixed_name_not_a_temp_file():
+    """A killed run never reaches a `finally`, so tempfile left
+    /tmp/tmp*.sh behind every time -- one was orphaned by the very
+    kill that prompted this lock."""
+    src = (ROOT / "scripts" / "run_reproduce_block.py").read_text()
+    assert "import tempfile" not in src
+    assert 'SCRIPT = ROOT / ".reproduce.sh"' in src
+
+
+def test_the_lock_and_script_are_gitignored():
+    ignore = (ROOT / ".gitignore").read_text()
+    assert ".reproduce.lock" in ignore
+    assert ".reproduce.sh" in ignore

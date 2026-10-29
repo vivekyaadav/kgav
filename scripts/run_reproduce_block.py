@@ -19,19 +19,43 @@ step after it, which is most of the block.
 
     make reproduce           run it
     make reproduce-print     print it and run nothing
+
+ONE AT A TIME. Two concurrent runs destroy each other: the three
+temporal_split.py protocols write to ONE directory and the six
+hard_negatives.py variants to ONE file, so the block is correct only
+as a sequence. On 2026-10-30 a second run was started 42 minutes into
+a first; its step 1 rewrote data/releases/v0.1-train2021 with the
+`exclude` split while the first run's hard_negatives.py was reading
+the `include` one, 40 seconds before it wrote its output.
+
+Nothing detected that. check-results stamps each file against the
+graph, and both runs used the same graph -- so the mixture would have
+been certified current. It was caught by reading timestamps.
+
+So this takes an exclusive lock and refuses to start while another
+run holds it. The lock lives on a file descriptor, so it is released
+when the process exits however it exits, including SIGKILL.
 """
 from __future__ import annotations
 
 import argparse
+import datetime as _dt
+import fcntl
+import os
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DOC = ROOT / "docs" / "evaluation.md"
 HEADING = "## Reproducing"
+
+LOCK = ROOT / ".reproduce.lock"
+# A FIXED NAME, not tempfile. A killed run never reached the cleanup
+# in `finally`, leaving /tmp/tmp*.sh behind every time. One path,
+# overwritten, gitignored, and inspectable while a run is going.
+SCRIPT = ROOT / ".reproduce.sh"
 
 PREAMBLE = (
     "#!/usr/bin/env bash\n"
@@ -82,14 +106,30 @@ def main(argv: list[str] | None = None) -> int:
         print(body)
         return 0
 
-    print(f"running {n} command(s) from {args.doc} '{HEADING}'\n", flush=True)
-    with tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False) as fh:
-        fh.write(PREAMBLE + body + "\n")
-        path = fh.name
+    fd = os.open(LOCK, os.O_RDWR | os.O_CREAT, 0o644)
+    lock = os.fdopen(fd, "r+")
     try:
-        return subprocess.call(["bash", path], cwd=ROOT)
-    finally:
-        Path(path).unlink(missing_ok=True)
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        lock.seek(0)
+        who = lock.read().strip() or "(unknown)"
+        print(f"ANOTHER REPRODUCE RUN HOLDS THE LOCK:\n    {who}\n\n"
+              f"Two runs destroy each other: three temporal_split.py "
+              f"protocols write to\none directory and six "
+              f"hard_negatives.py variants to one file, so the block "
+              f"is\ncorrect only as a sequence. Wait for it, or stop "
+              f"it, then start again.\n\nLock: {LOCK}",
+              file=sys.stderr)
+        return 3
+    lock.seek(0)
+    lock.truncate()
+    lock.write(f"pid {os.getpid()} started "
+               f"{_dt.datetime.now().isoformat(timespec='seconds')}\n")
+    lock.flush()
+
+    print(f"running {n} command(s) from {args.doc} '{HEADING}'\n", flush=True)
+    SCRIPT.write_text(PREAMBLE + body + "\n")
+    return subprocess.call(["bash", str(SCRIPT)], cwd=ROOT)
 
 
 if __name__ == "__main__":
