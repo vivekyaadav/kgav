@@ -767,6 +767,41 @@ THIN ROUTE caveat. Reliability is reported from the virus's own
 calibration, and on this release NO virus has a channel whose interval
 clears chance, so every answerable virus carries VIRUS NOT VALIDATED.
 
+AND THE ENFORCEMENT ONLY REACHES QUESTIONS IT RECOGNISES, which is a
+separate problem from whether the refusal is correct. classify_intent
+is keyword-based on purpose — a model asked to classify intent will
+occasionally route a prospective question into a permitted category,
+and this refusal must not be probabilistic. But a keyword list leaks:
+"which drug should" was on it and "which compounds should" was not, so
+
+    which compounds should be considered for Yellow fever
+
+classified UNKNOWN, fell through the orchestrator's catch-all, and
+returned a PROFILE of the taxon node listing 1,030 antiviral
+measurements — for the virus in the tier this refusal was written for.
+The refusal text existed, was correct, and was never reached. Fixed
+2026-10-29 with a structural backstop: a candidate-seeking noun plus a
+seeking word, evaluated LAST so every explicit branch matches first,
+and FAILING CLOSED. A wrongly refused question is a nuisance; a
+wrongly answered one puts a shortlist in front of someone for a virus
+this graph cannot rank.
+
+THE REFUSAL'S CLOSING OFFER IS ROUTE-AWARE for the same reason. The
+general prospective refusal ends by naming what the graph CAN do —
+explain a mechanism, rank a set you already have — and for a virus in
+the LABELS, NO FEATURE ROUTE tier it will decline both. So when the
+virus has no route the offer is narrowed to what actually works for it,
+and the categorical limit is still stated above it, because a reader
+told only that this virus is thin could reasonably conclude a richer
+one would be answered.
+
+HOW THIS WAS FOUND, which is the part worth keeping: by running the
+agent against one virus from EACH tier above instead of SARS-CoV-2
+again. Every earlier hand-check used an EVALUABLE-tier virus, so the
+only path ever read by eye was the one where labels, routes and
+reachable positives are all present. The refusal branch had unit tests
+and had never been read. It failed on the first query.
+
 
 ================================================================================
 10. KNOWN GAPS

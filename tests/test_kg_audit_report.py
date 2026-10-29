@@ -492,3 +492,65 @@ def test_every_curator_in_the_census_is_described_in_the_report():
     assert not missing, (
         f"these curators carry edges in the release and are not "
         f"described anywhere in the report: {missing}")
+
+
+def test_section_9_describes_the_backstop_that_exists(flat):
+    """Section 9 claims the agent refuses candidate-seeking questions
+    that are on no keyword list, and that the prospective refusal's
+    closing offer narrows for a routeless virus. Both are claims about
+    code, so both are checked against it.
+
+    KEYED ON WHAT THE CHANGE WOULD HAVE TO TOUCH. The lesson from the
+    virus-only pathway guard, one patch earlier, is that a predicate
+    reading a line the change does not have to modify cannot see the
+    change. Removing the backstop means removing _seeks_candidates or
+    its call; narrowing the offer means the routes branch inside the
+    PROSPECT arm. Those are the lines pinned here.
+    """
+    src = (ROOT / "src" / "kgav" / "agent" / "guards.py").read_text()
+    has_backstop = bool(
+        re.search(r"\ndef _seeks_candidates\(", src)
+        and re.search(r"if _seeks_candidates\(t\):", src))
+    has_route_aware_offer = bool(
+        re.search(r"if routes is not None and not routes\.routes:\s*\n\s+"
+                  r"offer = \(", src))
+    body = section(flat, "PER-VIRUS STATE", until="KNOWN GAPS")
+
+    if has_backstop:
+        assert "classify_intent" in body, (
+            "a structural backstop exists and section 9 does not say how "
+            "a question reaches the refusal at all")
+        assert "failing closed" in body.lower()
+        # THE CONTRAST, NOT THE PHRASE. `"which compounds should" in
+        # body` passed with the claim deleted, because the report
+        # quotes that query verbatim four lines above -- a membership
+        # check satisfied by an unrelated occurrence of the same
+        # string, which is the defect this suite has now found ten
+        # times and which I reintroduced while writing a comment about
+        # it. Caught by the mutant, not by reading.
+        assert ('"which drug should" was on it and "which compounds '
+                'should" was not') in body, (
+            "the pair of phrasings IS the evidence that a keyword list "
+            "leaks; without the contrast the claim is an assertion")
+    else:
+        assert "failing closed" not in body.lower(), (
+            "the backstop is gone and section 9 still describes it")
+
+    if has_route_aware_offer:
+        assert "route-aware" in body.lower(), (
+            "the prospective refusal narrows its offer and section 9 "
+            "does not say so")
+    else:
+        assert "route-aware" not in body.lower()
+
+
+def test_section_9_does_not_claim_a_model_classifies_intent(flat):
+    """classify_intent is keyword-plus-structure and deliberately not a
+    model. A report implying otherwise would describe a refusal that
+    can vary between runs, which is the property this layer exists to
+    not have."""
+    src = (ROOT / "src" / "kgav" / "agent" / "guards.py").read_text()
+    assert "Deliberately keyword-based rather than model-based" in src, (
+        "classify_intent's basis changed; re-check what section 9 claims")
+    body = section(flat, "PER-VIRUS STATE", until="KNOWN GAPS")
+    assert "keyword-based on purpose" in body
