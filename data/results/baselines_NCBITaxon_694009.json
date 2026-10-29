@@ -575,11 +575,11 @@
         "score": 21.0
       },
       {
-        "drug": "INCHIKEY:IGVYCVBUHQMNRZ-FMGIXGHUSA-N",
+        "drug": "INCHIKEY:IGVYCVBUHQMNRZ-QNIAMRLHSA-N",
         "score": 21.0
       },
       {
-        "drug": "INCHIKEY:IGVYCVBUHQMNRZ-QNIAMRLHSA-N",
+        "drug": "INCHIKEY:IGVYCVBUHQMNRZ-OPJGWUQDSA-N",
         "score": 21.0
       },
       {
@@ -639,11 +639,11 @@
         "score": 20.0
       },
       {
-        "drug": "INCHIKEY:XOTUFJPCITWJHW-QGZVFWFLSA-N",
+        "drug": "INCHIKEY:IGVYCVBUHQMNRZ-FMGIXGHUSA-N",
         "score": 20.0
       },
       {
-        "drug": "INCHIKEY:IGVYCVBUHQMNRZ-OPJGWUQDSA-N",
+        "drug": "INCHIKEY:XOTUFJPCITWJHW-QGZVFWFLSA-N",
         "score": 20.0
       },
       {
@@ -1146,11 +1146,7 @@
       },
       {
         "drug": "INCHIKEY:UQRCJCNVNUFYDX-UHFFFAOYSA-N",
-        "score": 0.9329738058551618
-      },
-      {
-        "drug": "INCHIKEY:DKNUPRMJNUQNHR-UHFFFAOYSA-N",
-        "score": 0.9329738058551618
+        "score": 0.9337442218798151
       },
       {
         "drug": "INCHIKEY:REFJWTPEDVJJIY-UHFFFAOYSA-N",
@@ -1179,6 +1175,10 @@
       {
         "drug": "INCHIKEY:HUDLJTDCXGYOKM-UHFFFAOYSA-N",
         "score": 0.9327731092436975
+      },
+      {
+        "drug": "INCHIKEY:DKNUPRMJNUQNHR-UHFFFAOYSA-N",
+        "score": 0.9322033898305084
       },
       {
         "drug": "INCHIKEY:HHZIURLSWUIHRB-UHFFFAOYSA-N",
@@ -1638,13 +1638,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "73638934bacd7827",
-      "edges_sha": "a9a68fe6a41380c6"
+      "edges_sha": "3152d60b40c7a5d2"
     },
     "code": {
-      "commit": "502d81e06ba251ef0f7538f3c117153c9eabf1c5",
-      "dirty": false
+      "commit": "408bb8743b4513acb1b928b3d64ab731fcd4ad93",
+      "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-10-28T16:05:09+00:00"
+    "generated_utc": "2026-10-29T09:27:05+00:00"
   }
 }

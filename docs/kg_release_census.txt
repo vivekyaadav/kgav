@@ -9,7 +9,7 @@ docs/kg_audit_report.txt.
 
     release          v0.1
     nodes_sha        73638934bacd7827
-    edges_sha        a9a68fe6a41380c6
+    edges_sha        3152d60b40c7a5d2
 
     78,789 nodes
     389,306 edges
@@ -84,11 +84,6 @@ docs/kg_audit_report.txt.
       infores:hpidb                                 1
       4,979 edge(s) cite more than one curator, so these counts sum to more
         than the edge total.
-      !! 542 edge(s) carry a REPEATED curator in one value. merge_edges
-        unioned source STRINGS rather than the curators inside them, so a fact
-        with several witnesses accumulated duplicates. Fixed in the assembler;
-        this release was assembled before the fix and reassembling rewrites
-        the field.
 
     10 layer(s) assembled, hub cut degree 460
       chembl

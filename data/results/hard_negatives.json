@@ -110,10 +110,10 @@
       "COMBINED": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5413548330826423,
+        "auc": 0.5413640140346152,
         "evaluable": true,
-        "auc_ci_lo": 0.47966670764546304,
-        "auc_ci_hi": 0.6030429585198216,
+        "auc_ci_lo": 0.4796756517957411,
+        "auc_ci_hi": 0.6030523762734893,
         "imputed": true,
         "coverage_pos": 0.2808988764044944,
         "coverage_neg": 0.2005992101320986
@@ -424,13 +424,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "73638934bacd7827",
-      "edges_sha": "a9a68fe6a41380c6"
+      "edges_sha": "3152d60b40c7a5d2"
     },
     "code": {
-      "commit": "502d81e06ba251ef0f7538f3c117153c9eabf1c5",
-      "dirty": false
+      "commit": "408bb8743b4513acb1b928b3d64ab731fcd4ad93",
+      "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-10-28T16:31:26+00:00"
+    "generated_utc": "2026-10-29T09:52:49+00:00"
   }
 }

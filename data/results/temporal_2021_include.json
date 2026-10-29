@@ -1074,9 +1074,9 @@
         "trustworthy": false,
         "lift_is_pool_artifact": false,
         "p_value": 0.9999999999907243,
-        "auc": 0.5817307692307693,
-        "auc_ci_lo": 0.4670643482934285,
-        "auc_ci_hi": 0.6963971901681101,
+        "auc": 0.5825320512820513,
+        "auc_ci_lo": 0.4679305561448054,
+        "auc_ci_hi": 0.6971335464192973,
         "auc_n_pos": 78,
         "auc_n_neg": 32,
         "auc_reached_pos": 26,
@@ -1369,21 +1369,21 @@
         "vs_degree_readable": true
       },
       "M7": {
-        "pool": 52,
+        "pool": 51,
         "pos": 8,
         "hits": 8,
-        "expected": 15.384615384615385,
-        "lift": 0.52,
+        "expected": 15.686274509803921,
+        "lift": 0.51,
         "mrr": 0.07692307692307693,
         "hits_lo": 8,
         "hits_hi": 8,
         "hits_expected": 8.0,
-        "lift_expected": 0.52,
+        "lift_expected": 0.51,
         "hits_determined": true,
         "tied_at_cut": 0,
         "tied_at_cut_positives": 0,
-        "lift_lo": 0.52,
-        "lift_hi": 0.52,
+        "lift_lo": 0.51,
+        "lift_hi": 0.51,
         "trustworthy": false,
         "lift_is_pool_artifact": true,
         "p_value": null,
@@ -1397,7 +1397,7 @@
         "auc_coverage_neg": 0.0,
         "auc_evaluable": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.10959216222374117,
+        "lift_vs_degree": 0.10748462064251538,
         "vs_degree_readable": true
       },
       "M8": {
@@ -1433,24 +1433,24 @@
         "vs_degree_readable": true
       },
       "COMBINED": {
-        "pool": 333,
+        "pool": 332,
         "pos": 10,
         "hits": 9,
-        "expected": 3.003003003003003,
-        "lift": 2.9970000000000003,
+        "expected": 3.0120481927710845,
+        "lift": 2.988,
         "mrr": 0.029411764705882353,
         "hits_lo": 7,
         "hits_hi": 9,
-        "hits_expected": 7.526315789473684,
-        "lift_expected": 2.506263157894737,
+        "hits_expected": 7.557894736842105,
+        "lift_expected": 2.509221052631579,
         "hits_determined": false,
         "tied_at_cut": 190,
         "tied_at_cut_positives": 2,
-        "lift_lo": 2.331,
-        "lift_hi": 2.9970000000000003,
+        "lift_lo": 2.324,
+        "lift_hi": 2.988,
         "trustworthy": true,
         "lift_is_pool_artifact": false,
-        "p_value": 0.0001142440380986944,
+        "p_value": 0.00011729450788580232,
         "auc": 0.6162790697674418,
         "auc_ci_lo": 0.34639000125947894,
         "auc_ci_hi": 0.8861681382754047,
@@ -1461,7 +1461,7 @@
         "auc_coverage_neg": 0.0,
         "auc_evaluable": true,
         "beats_degree": false,
-        "lift_vs_degree": 0.6316302118933699,
+        "lift_vs_degree": 0.6297334244702666,
         "vs_degree_readable": true
       },
       "degree": {
@@ -1483,9 +1483,9 @@
         "trustworthy": false,
         "lift_is_pool_artifact": false,
         "p_value": 0.024719133806267463,
-        "auc": 0.8284883720930233,
-        "auc_ci_lo": 0.6641646460065771,
-        "auc_ci_hi": 0.9928120981794695,
+        "auc": 0.8255813953488372,
+        "auc_ci_lo": 0.6593267649071769,
+        "auc_ci_hi": 0.9918360257904976,
         "auc_n_pos": 43,
         "auc_n_neg": 4,
         "auc_reached_pos": 37,
@@ -1530,13 +1530,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "73638934bacd7827",
-      "edges_sha": "a9a68fe6a41380c6"
+      "edges_sha": "3152d60b40c7a5d2"
     },
     "code": {
-      "commit": "502d81e06ba251ef0f7538f3c117153c9eabf1c5",
-      "dirty": false
+      "commit": "408bb8743b4513acb1b928b3d64ab731fcd4ad93",
+      "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-10-28T16:03:04+00:00"
+    "generated_utc": "2026-10-29T09:25:04+00:00"
   }
 }
