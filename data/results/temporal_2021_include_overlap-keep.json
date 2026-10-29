@@ -5,13 +5,13 @@
   "stats": {
     "edge_train": 195518,
     "edge_dropped_future": 159749,
-    "undated_kept": 1958,
-    "label_train_inactive": 13481,
     "label_train_active": 2477,
     "held_out_not_a_label": 2421,
+    "label_test_inactive": 6816,
+    "undated_kept": 1958,
+    "label_train_inactive": 13481,
     "label_undecidable": 342,
     "label_test_active": 3160,
-    "label_test_inactive": 6816,
     "undated_kept_computed": 3384,
     "train_ambiguous_dropped": 136
   },
@@ -41,14 +41,14 @@
   "provenance": {
     "release": {
       "id": "v0.1",
-      "nodes_sha": "73638934bacd7827",
-      "edges_sha": "3152d60b40c7a5d2"
+      "nodes_sha": "cb0496762795fb79",
+      "edges_sha": "68cf33748e71a067"
     },
     "code": {
-      "commit": "408bb8743b4513acb1b928b3d64ab731fcd4ad93",
+      "commit": "2a6a097de2d41cee4939d50b58fd25214fa9ed1c",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-10-29T09:25:06+00:00"
+    "generated_utc": "2026-10-29T17:14:24+00:00"
   }
 }

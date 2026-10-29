@@ -33,10 +33,10 @@
       "M2": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.4924517273196058,
+        "auc": 0.4924532574782679,
         "evaluable": true,
-        "auc_ci_lo": 0.43241572956771107,
-        "auc_ci_hi": 0.5524877250715006,
+        "auc_ci_lo": 0.4324171959613605,
+        "auc_ci_hi": 0.5524893189951753,
         "imputed": true,
         "coverage_pos": 0.056179775280898875,
         "coverage_neg": 0.07340324118207817
@@ -55,10 +55,10 @@
       "M4": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5074159139561181,
+        "auc": 0.5074174441147803,
         "evaluable": true,
-        "auc_ci_lo": 0.4467921511524232,
-        "auc_ci_hi": 0.5680396767598129,
+        "auc_ci_lo": 0.446793624885448,
+        "auc_ci_hi": 0.5680412633441125,
         "imputed": true,
         "coverage_pos": 0.16853932584269662,
         "coverage_neg": 0.16137818330382678
@@ -66,10 +66,10 @@
       "M5": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5159029389757424,
+        "auc": 0.5159021738964114,
         "evaluable": true,
-        "auc_ci_lo": 0.45497783558885563,
-        "auc_ci_hi": 0.5768280423626291,
+        "auc_ci_lo": 0.45497709662427804,
+        "auc_ci_hi": 0.5768272511685447,
         "imputed": true,
         "coverage_pos": 0.15730337078651685,
         "coverage_neg": 0.12651504834536292
@@ -110,10 +110,10 @@
       "COMBINED": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5413640140346152,
+        "auc": 0.5413762553039124,
         "evaluable": true,
-        "auc_ci_lo": 0.4796756517957411,
-        "auc_ci_hi": 0.6030523762734893,
+        "auc_ci_lo": 0.4796875773728948,
+        "auc_ci_hi": 0.60306493323493,
         "imputed": true,
         "coverage_pos": 0.2808988764044944,
         "coverage_neg": 0.2005992101320986
@@ -423,14 +423,14 @@
   "provenance": {
     "release": {
       "id": "v0.1",
-      "nodes_sha": "73638934bacd7827",
-      "edges_sha": "3152d60b40c7a5d2"
+      "nodes_sha": "cb0496762795fb79",
+      "edges_sha": "68cf33748e71a067"
     },
     "code": {
-      "commit": "408bb8743b4513acb1b928b3d64ab731fcd4ad93",
+      "commit": "2a6a097de2d41cee4939d50b58fd25214fa9ed1c",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-10-29T09:52:49+00:00"
+    "generated_utc": "2026-10-29T17:45:23+00:00"
   }
 }

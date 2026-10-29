@@ -8,8 +8,8 @@ docs/kg_audit_report.txt.
 ==============================================================================
 
     release          v0.1
-    nodes_sha        73638934bacd7827
-    edges_sha        3152d60b40c7a5d2
+    nodes_sha        cb0496762795fb79
+    edges_sha        68cf33748e71a067
 
     78,789 nodes
     389,306 edges
