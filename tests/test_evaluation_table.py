@@ -71,11 +71,46 @@ def derive() -> dict[str, list[str]]:
         else:
             m = channels[name]
             chan = [name, f"{m['lift']:.2f}", fmt_p(m.get("p_value"))]
+        # THE SIGNIFICANT CHANNEL THE LIFT RULE PASSED OVER. best_readable
+        # takes the highest LIFT among readable channels and the table
+        # then prints that channel's p -- so on 2026-10-30 SARS-CoV-2
+        # read "M4, p=0.3266" while M7 sat at p=0.000379, the only cell
+        # on this graph clearing any correction family. A reader of that
+        # row concluded nothing worked.
+        #
+        # Lift and significance answer different questions, and the
+        # table was conflating them by showing one and labelling it with
+        # the other's number. This column carries the lowest-p readable
+        # channel when one is significant, which is the same channel
+        # when they agree and a different one when they do not.
+        chan.append(significant_cell(channels))
         deg = channels["degree"]
         warning = confound_warning(channels)
         rows[virus] = chan + [f"{deg['lift']:.2f}", fmt_p(deg.get("p_value")),
                               warning.split(":")[0] if warning else DASH]
     return rows
+
+
+def significant_cell(channels: dict) -> str:
+    """The lowest-p readable channel of one virus, or an em-dash.
+
+    EXTRACTED SO THE ORDERING IS TESTABLE. Written inline, a mutant
+    taking the HIGHEST p instead of the lowest passed: no virus on
+    v0.1 has two significant readable channels, so sig[0] and sig[-1]
+    are the same element and the release cannot tell them apart. A
+    fixture too small to reproduce the condition is the defect this
+    suite finds most often, and the data itself was the fixture here.
+    """
+    sig = sorted((m["p_value"], n) for n, m in singles_of(channels)
+                 if m.get("p_value") is not None and m["p_value"] < 0.05)
+    return f"{sig[0][1]} {sig[0][0]:.4f}" if sig else DASH
+
+
+def singles_of(channels: dict):
+    """(name, metrics) for the readable single metapaths of one virus."""
+    return [(n, m) for n, m in channels.items()
+            if n not in ("degree", "COMBINED")
+            and m.get("hits_determined") and m.get("trustworthy")]
 
 
 def parse() -> dict[str, list[str]]:
@@ -85,12 +120,20 @@ def parse() -> dict[str, list[str]]:
     body = text.split(MARKER, 1)[1]
     lines = [l.strip() for l in body.splitlines()]
     start = next(i for i, l in enumerate(lines) if l.startswith("| virus |"))
+    # THE HEADER TOO. A mutant that deleted a column from the header
+    # while leaving the rows eight wide passed: this function reads
+    # rows and never looked at the names above them, so the table
+    # could label the wrong data and nothing would say so.
+    header = [c.strip() for c in lines[start].strip("|").split("|")]
+    assert header == ["virus", "best readable channel", "lift", "p",
+                      "significant", "degree", "p",
+                      "baseline verdict"], header
     rows = {}
     for line in lines[start + 2:]:
         if not line.startswith("|"):
             break
         cells = [c.strip() for c in line.strip("|").split("|")]
-        assert len(cells) == 7, f"expected 7 columns, got {len(cells)}: {line}"
+        assert len(cells) == 8, f"expected 8 columns, got {len(cells)}: {line}"
         rows[cells[0]] = cells[1:]
     return rows
 
@@ -114,12 +157,13 @@ def test_the_table_covers_exactly_the_viruses_in_the_results(tables):
         f"only in the results: {sorted(set(got) - set(doc))}")
 
 
-@pytest.mark.parametrize("column", range(6))
+@pytest.mark.parametrize("column", range(7))
 def test_every_cell_matches_the_results_file(tables, column):
     """Parametrised by column so a failure names which figure moved rather
     than dumping the whole table."""
     doc, got = tables
     labels = ["best readable channel", "lift", "p",
+              "significant readable channel",
               "degree lift", "degree p", "baseline verdict"]
     bad = {v: (doc[v][column], got[v][column])
            for v in sorted(set(doc) & set(got))
@@ -404,3 +448,43 @@ def test_the_results_file_is_the_one_the_rest_of_the_suite_reads():
     prov = json.loads(RESULTS.read_text())["provenance"]
     assert prov["release"]["id"]
     assert prov["schema_version"]
+
+
+
+def _chan(p, determined=True, trustworthy=True):
+    return {"p_value": p, "hits_determined": determined,
+            "trustworthy": trustworthy, "lift": 1.0}
+
+
+def test_the_significant_column_takes_the_lowest_p():
+    """Two significant readable channels on one virus -- a case v0.1
+    does not contain, which is why a mutant taking the highest p
+    survived the real data."""
+    assert significant_cell({
+        "M2": _chan(0.0400), "M7": _chan(0.0004), "M4": _chan(0.0190),
+        "degree": _chan(0.9), "COMBINED": _chan(0.0001),
+    }) == "M7 0.0004"
+
+
+def test_the_significant_column_ignores_degree_and_combined():
+    """COMBINED is the strongest cell on this graph for Zika at
+    p<0.0001 and is not a reasoning channel; degree is the baseline
+    being compared against. Naming either here would report the
+    comparison as its own result."""
+    assert significant_cell({
+        "degree": _chan(0.0001), "COMBINED": _chan(0.0002),
+        "M4": _chan(0.4),
+    }) == DASH
+
+
+@pytest.mark.parametrize("kw", [{"determined": False},
+                                {"trustworthy": False}])
+def test_the_significant_column_respects_readability(kw):
+    """An unreadable channel is not promoted by being significant --
+    that is the whole reason `readable` exists."""
+    assert significant_cell({"M1": _chan(0.0001, **kw),
+                             "degree": _chan(0.9)}) == DASH
+
+
+def test_no_significant_channel_is_an_em_dash():
+    assert significant_cell({"M4": _chan(0.4), "degree": _chan(0.9)}) == DASH

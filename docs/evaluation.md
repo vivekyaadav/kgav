@@ -143,25 +143,33 @@ So p-values make the *uncontrolled* protocol look full of discoveries.
      this document already requires of a reader: the single metapath with the
      highest lift among those that are BOTH `trustworthy` and
      `hits_determined`, and an em-dash when no channel qualifies. The verdict
-     column is the first token of `confound_warning()`. -->
+     column is the first token of `confound_warning()`.
 
-| virus | best readable channel | lift | p | degree | p | baseline verdict |
-|---|---|---|---|---|---|---|
-| SARS-CoV-2 | M4 | 1.49 | 0.3266 | 0.63 | 0.9077 | BASELINE AT CHANCE |
-| DENV-2 | M4 | 3.75 | 0.0190 | 1.21 | 0.3953 | BASELINE AT CHANCE |
-| Zika | — | — | — | 0.99 | 0.5909 | BASELINE AT CHANCE |
-| West Nile | — | — | — | 0.97 | 0.6464 | — |
-| DENV-3 | — | — | — | 2.38 | 0.2050 | — |
-| DENV-1 | — | — | — | 2.60 | 0.1793 | — |
-| HCoV-OC43 | — | — | — | 3.10 | 0.1367 | — |
-| DENV-4 | — | — | — | 3.32 | 0.1222 | — |
-| SARS-CoV | M3 | 2.17 | 0.0974 | 11.69 | <.0001 | CONFOUNDED |
-| Yellow fever | — | — | — | 1.88 | 0.4139 | — |
-| MERS-CoV | M2 | 1.13 | 0.5661 | 15.27 | <.0001 | CONFOUNDED |
-| HCoV-229E | — | — | — | 6.29 | 0.0122 | CONFOUNDED |
-| TBEV | — | — | — | 3.53 | 0.2477 | — |
-| JEV | — | — | — | 0.00 | 1.0000 | — |
-| HCoV-NL63 | — | — | — | 50.77 | 0.0195 | CONFOUNDED |
+     The `significant` column names the LOWEST-p readable channel where one
+     is significant at p<0.05, because the channel column selects on LIFT and
+     can pass over a significant one: on 2026-10-30 SARS-CoV-2 read M4 at
+     p=0.3266 while M7 sat at p=0.000379, the only cell on this graph that
+     clears any correction family. Lift and significance answer different
+     questions and this table was showing one while labelling it with the
+     other's number. -->
+
+| virus | best readable channel | lift | p | significant | degree | p | baseline verdict |
+|---|---|---|---|---|---|---|---|
+| SARS-CoV-2 | M4 | 1.49 | 0.3266 | M7 0.0004 | 0.63 | 0.9077 | BASELINE AT CHANCE |
+| DENV-2 | M4 | 3.75 | 0.0190 | M4 0.0190 | 1.21 | 0.3953 | BASELINE AT CHANCE |
+| Zika | — | — | — | — | 0.99 | 0.5909 | BASELINE AT CHANCE |
+| West Nile | — | — | — | — | 0.97 | 0.6464 | — |
+| DENV-3 | — | — | — | — | 2.38 | 0.2050 | — |
+| DENV-1 | — | — | — | — | 2.60 | 0.1793 | — |
+| HCoV-OC43 | — | — | — | — | 3.10 | 0.1367 | — |
+| DENV-4 | — | — | — | — | 3.32 | 0.1222 | — |
+| SARS-CoV | M3 | 2.17 | 0.0974 | — | 11.69 | <.0001 | CONFOUNDED |
+| Yellow fever | — | — | — | — | 1.88 | 0.4139 | — |
+| MERS-CoV | M2 | 1.13 | 0.5661 | — | 15.27 | <.0001 | CONFOUNDED |
+| HCoV-229E | — | — | — | — | 6.29 | 0.0122 | CONFOUNDED |
+| TBEV | — | — | — | — | 3.53 | 0.2477 | — |
+| JEV | — | — | — | — | 0.00 | 1.0000 | — |
+| HCoV-NL63 | — | — | — | — | 50.77 | 0.0195 | CONFOUNDED |
 
 **Eleven of fifteen viruses have no readable channel at all**, and that is
 the first thing this table should say. It was four of seven when this table
