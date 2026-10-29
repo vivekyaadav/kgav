@@ -1,5 +1,5 @@
 {
-  "measured_on": "2026-10-28",
+  "measured_on": "2026-10-29",
   "measured_by": "scripts/pathway_landscape.py",
   "release": "v0.1",
   "permutations": 2000,
@@ -159,7 +159,7 @@
       "p_matched": 0.9965017491254373,
       "p_matched_less": 0.004997501249375313,
       "n_hubs_excluded": 4,
-      "binary_edges": 24,
+      "binary_edges": 22,
       "total_edges": 412
     },
     "NCBITaxon:1335626": {
@@ -170,7 +170,7 @@
       "p_matched": 0.9820089955022488,
       "p_matched_less": 0.025487256371814093,
       "n_hubs_excluded": 6,
-      "binary_edges": 342,
+      "binary_edges": 337,
       "total_edges": 696
     },
     "NCBITaxon:2697049": {
@@ -181,7 +181,7 @@
       "p_matched": 0.11144427786106946,
       "p_matched_less": 0.9030484757621189,
       "n_hubs_excluded": 15,
-      "binary_edges": 871,
+      "binary_edges": 965,
       "total_edges": 8316
     },
     "NCBITaxon:277944": {
@@ -192,7 +192,7 @@
       "p_matched": 0.9455272363818091,
       "p_matched_less": 0.079960019990005,
       "n_hubs_excluded": 4,
-      "binary_edges": 24,
+      "binary_edges": 22,
       "total_edges": 324
     },
     "NCBITaxon:290028": {
@@ -236,7 +236,7 @@
       "p_matched": 0.047976011994003,
       "p_matched_less": 0.9645177411294353,
       "n_hubs_excluded": 6,
-      "binary_edges": 448,
+      "binary_edges": 450,
       "total_edges": 1422
     }
   },
@@ -296,25 +296,25 @@
     "NCBITaxon:11137": {
       "n_partners": 397,
       "n_hubs": 4,
-      "binary_edges": 24,
+      "binary_edges": 22,
       "total_edges": 412
     },
     "NCBITaxon:1335626": {
       "n_partners": 622,
       "n_hubs": 6,
-      "binary_edges": 342,
+      "binary_edges": 337,
       "total_edges": 696
     },
     "NCBITaxon:2697049": {
       "n_partners": 3494,
       "n_hubs": 15,
-      "binary_edges": 871,
+      "binary_edges": 965,
       "total_edges": 8316
     },
     "NCBITaxon:277944": {
       "n_partners": 311,
       "n_hubs": 4,
-      "binary_edges": 24,
+      "binary_edges": 22,
       "total_edges": 324
     },
     "NCBITaxon:290028": {
@@ -338,7 +338,7 @@
     "NCBITaxon:694009": {
       "n_partners": 1238,
       "n_hubs": 6,
-      "binary_edges": 448,
+      "binary_edges": 450,
       "total_edges": 1422
     }
   },
@@ -346,13 +346,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "73638934bacd7827",
-      "edges_sha": "a9a68fe6a41380c6"
+      "edges_sha": "3152d60b40c7a5d2"
     },
     "code": {
-      "commit": "502d81e06ba251ef0f7538f3c117153c9eabf1c5",
-      "dirty": false
+      "commit": "408bb8743b4513acb1b928b3d64ab731fcd4ad93",
+      "dirty": true
     },
     "schema_version": null,
-    "generated_utc": "2026-10-28T16:31:57+00:00"
+    "generated_utc": "2026-10-29T10:02:07+00:00"
   }
 }

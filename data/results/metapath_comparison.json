@@ -1271,7 +1271,7 @@
         "hits_expected": 9.0,
         "lift_expected": 0.745,
         "hits_determined": true,
-        "tied_at_cut": 3,
+        "tied_at_cut": 4,
         "tied_at_cut_positives": 0,
         "lift_lo": 0.745,
         "lift_hi": 0.745,
@@ -2283,13 +2283,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "73638934bacd7827",
-      "edges_sha": "a9a68fe6a41380c6"
+      "edges_sha": "3152d60b40c7a5d2"
     },
     "code": {
-      "commit": "502d81e06ba251ef0f7538f3c117153c9eabf1c5",
-      "dirty": false
+      "commit": "408bb8743b4513acb1b928b3d64ab731fcd4ad93",
+      "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-10-28T16:20:24+00:00"
+    "generated_utc": "2026-10-29T09:42:00+00:00"
   }
 }
