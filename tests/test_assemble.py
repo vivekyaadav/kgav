@@ -166,6 +166,92 @@ def test_layer_order_is_deterministic(layers):
     assert set(a.edges) == set(b.edges)
 
 
+def test_the_written_bytes_do_not_depend_on_layer_order(layers, tmp_path):
+    """The test above is named for determinism and compares the KEY
+    SET, so it cannot see the thing that actually varied.
+
+    release_fingerprint hashes nodes.jsonl and edges.jsonl. write()
+    emitted dict values in insertion order, so two assemblies holding
+    the identical graph could serialise to different bytes and
+    therefore to different shas. Four builds of v0.1 produced four
+    edges_sha values and nothing in the project could say whether the
+    graph had changed -- the sha answered a question nobody was
+    asking.
+
+    So this compares the BYTES, which is what the fingerprint reads.
+    """
+    a, b = tmp_path / "a", tmp_path / "b"
+    assemble(layers).write(a)
+    assemble({k: layers[k] for k in reversed(list(layers))}).write(b)
+    assert (a / "edges.jsonl").read_bytes() == (b / "edges.jsonl").read_bytes()
+    assert (a / "nodes.jsonl").read_bytes() == (b / "nodes.jsonl").read_bytes()
+
+
+def test_the_release_is_written_in_a_defined_order(tmp_path):
+    """Byte equality above would also hold if write() preserved SOME
+    arbitrary order that both runs happened to share. The order has to
+    be a property of the content, so a release built anywhere, in any
+    arrival order, is the same file.
+
+    IT BUILDS ITS OWN LAYER rather than using the `layers` fixture.
+    The fixture holds TWO edges and their insertion order is already
+    sorted, so the first version of this test passed with the sort
+    deleted -- a mutant survived it. A fixture too small to reproduce
+    the condition is the defect this suite keeps finding, and it found
+    it here in the test written to catch it.
+
+    The precondition is asserted, so this cannot go quiet again: if
+    insertion order ever coincides with sorted order, the test says so
+    instead of passing.
+    """
+    n = 40
+    d = tmp_path / "v0.1-many"
+    d.mkdir()
+    nodes = [_prot(f"UniProtKB:P{i:03d}", False) for i in range(n)]
+    # DESCENDING, so insertion order is the reverse of id order and
+    # the sort has something to do.
+    edges = [_edge(f"UniProtKB:P{i:03d}", "PHYSICALLY_INTERACTS_WITH",
+                   f"UniProtKB:P{(i + 1) % n:03d}", "infores:string",
+                   "2020-01-01", q={"detection_method": "string:x"})
+             for i in range(n - 1, -1, -1)]
+    (d / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(x) for x in reversed(nodes)))
+    (d / "edges.jsonl").write_text("\n".join(json.dumps(x) for x in edges))
+
+    a = assemble({"host": d})
+    mem_nodes = [x["id"] for x in a.nodes.values()]
+    mem_edges = [x.get("edge_id") for x in a.edges.values()]
+    assert mem_nodes != sorted(mem_nodes), (
+        "insertion order already matches sorted order; this fixture "
+        "cannot detect an unsorted write")
+    assert mem_edges != sorted(mem_edges), (
+        "insertion order already matches sorted order; this fixture "
+        "cannot detect an unsorted write")
+
+    out = tmp_path / "r"
+    a.write(out)
+    got_n = [json.loads(ln)["id"] for ln in
+             (out / "nodes.jsonl").read_text().splitlines() if ln.strip()]
+    got_e = [json.loads(ln)["edge_id"] for ln in
+             (out / "edges.jsonl").read_text().splitlines() if ln.strip()]
+    assert got_n == sorted(got_n)
+    assert got_e == sorted(got_e)
+
+
+def test_keys_within_a_record_are_ordered_too(layers, tmp_path):
+    """merge_edges does `out = dict(a)`, so which witness arrived
+    first decides key order in a merged edge: same fact, same values,
+    different bytes. Sorting the records alone would leave that."""
+    out = tmp_path / "r"
+    assemble(layers).write(out)
+    for name in ("nodes.jsonl", "edges.jsonl"):
+        for ln in (out / name).read_text().splitlines():
+            if not ln.strip():
+                continue
+            keys = list(json.loads(ln).keys())
+            assert keys == sorted(keys), f"{name}: {keys}"
+
+
 def test_precedence_covers_every_layer():
     assert set(LAYER_PRECEDENCE) == {"spine", "host", "vhppi", "orcs",
                                      "curated", "chembl", "selectivity",

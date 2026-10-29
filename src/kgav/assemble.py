@@ -344,12 +344,46 @@ class Assembly:
         return Counter(k[1] for k in self.edges)
 
     def write(self, out_dir: Path) -> None:
+        """A release with ONE byte representation for a given graph.
+
+        This wrote dict values in insertion order, so the bytes
+        depended on the order facts happened to arrive. Nothing
+        downstream could tell a rebuilt graph from a reordered one,
+        because release_fingerprint hashes these files: four builds of
+        v0.1 produced four edges_sha values and no tool in the project
+        could say whether the graph had changed.
+
+        nodes_sha was stable across all four, which read as evidence
+        that nodes were fine. It was luck. Node insertion order
+        happened not to vary; nothing here made it stable.
+
+        TWO SORTS, BOTH NEEDED. Records are ordered by a stable
+        content-derived id. Keys are ordered WITHIN each record
+        because merge_edges does `out = dict(a)`, so which witness
+        arrived first decides key order in a merged edge -- the same
+        fact, the same values, different bytes.
+
+        edge_id is set on every edge before insertion and is the same
+        for both sides of a merge, since it is derived from the fact
+        key they share. Sorting on it is sorting on content.
+
+        COST, PAID ONCE: every edges_sha and nodes_sha changes on the
+        next assembly, so every stamped result goes stale once and the
+        Reproducing block must be re-run. After that a rebuild that
+        produces the same graph produces the same bytes, which is what
+        check_results has always been assumed to mean.
+        """
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
+        nodes = sorted(self.nodes.values(), key=lambda n: n["id"])
+        edges = sorted(self.edges.values(),
+                       key=lambda e: (e.get("edge_id") or "",
+                                      e["subject"], e["predicate"],
+                                      e["object"]))
         (out_dir / "nodes.jsonl").write_text(
-            "\n".join(json.dumps(n) for n in self.nodes.values()))
+            "\n".join(json.dumps(n, sort_keys=True) for n in nodes))
         (out_dir / "edges.jsonl").write_text(
-            "\n".join(json.dumps(e) for e in self.edges.values()))
+            "\n".join(json.dumps(e, sort_keys=True) for e in edges))
 
     def manifest(self, layers: dict[str, Any], schema_version: str) -> dict:
         deg = self.degree()
