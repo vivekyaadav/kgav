@@ -41,6 +41,9 @@ MAX_SUBGRAPH_EDGES = 100
 # counted and the overflow is reported with how many of it carry a dependency
 # factor, so the cap bounds the output without hiding the census.
 MAX_PATHWAYS = 25
+#: Rows in the by-density list. Shorter than MAX_PATHWAYS because it
+#: is a second view of the same census and the brief is bounded.
+MAX_RATIO_ROWS = 10
 # Dependency-factor names printed per pathway. The count is always stated in
 # full; only the naming is bounded.
 MAX_DEPENDENCY_NAMES = 6
@@ -1255,6 +1258,26 @@ class GraphTools:
         rows.sort(key=lambda r: (-r["n_dependency_members"],
                                  -r["density_ratio"], r["pathway"]))
         shown = rows[:limit]
+        # TWO ORDERINGS, BECAUSE ONE COLUMN DID NOT SELECT THE OTHER.
+        # The list above is ordered by COUNT, which is ordered by size:
+        # a 200-member pathway holds more of everything. Printing a
+        # ratio beside it invites a reader to compare rows the ratio
+        # never chose, and the pathways that ratio WOULD choose -- a
+        # 9-member pathway with 6 dependency factors -- are not on the
+        # page at all.
+        #
+        # The floor is expectation >= 1, which is this project's
+        # existing rule for when a lift is readable (lift_row,
+        # calibration.evaluable), not a threshold invented here. Below
+        # it the denominator is a fraction of a hit and the ratio is
+        # arithmetic rather than evidence: a 2-member pathway holding
+        # both factors reads 5.9 and means nothing.
+        eligible = [r for r in rows if r["expected_members"] >= 1.0]
+        by_ratio = sorted(eligible,
+                          key=lambda r: (-r["density_ratio"],
+                                         -r["n_dependency_members"],
+                                         r["pathway"]))[:MAX_RATIO_ROWS]
+        thin_ratio = len(rows) - len(eligible)
         unplaced = sorted(deps - placed)
 
         lines = [
@@ -1286,7 +1309,27 @@ class GraphTools:
                 f"{r['n_druggable']} druggable: {dep}")
         if len(rows) > limit:
             lines.append(f"  … {len(rows) - limit:,} further pathway(s) not "
-                         f"shown.")
+                         f"shown in this ordering.")
+        if by_ratio:
+            lines.append(
+                f"BY DENSITY instead — the same pathways reordered by how "
+                f"much they exceed what their size predicts, among the "
+                f"{len(eligible):,} that expect at least one dependency "
+                f"factor. The list above is ordered by COUNT, which is "
+                f"ordered by SIZE, so these are mostly different pathways "
+                f"and are the ones the ratio column actually selects:")
+            for r in by_ratio:
+                lines.append(
+                    f"  {r['label']} ({r['n_members']} members) — "
+                    f"{r['n_dependency_members']} of them, "
+                    f"{r['expected_members']:.1f} expected "
+                    f"(ratio {r['density_ratio']:.2f}); "
+                    f"{r['n_druggable']} druggable")
+            if thin_ratio:
+                lines.append(
+                    f"  {thin_ratio:,} pathway(s) are excluded from this "
+                    f"second list for expecting under one dependency factor, "
+                    f"where the ratio is arithmetic rather than evidence.")
         if unplaced:
             lines.append(
                 f"{len(unplaced):,} of the dependency factors sit in no "

@@ -266,3 +266,61 @@ def test_the_intent_classifier_routes_the_phrasing():
               "what reactome pathways does zika rely on",
               "which process does Zika depend on"):
         assert guards.classify_intent(q) is guards.QueryKind.PATHWAY, q
+
+
+# ------------------------------- the ratio column must select its own list
+def test_a_dense_small_pathway_reaches_the_second_list(tmp_path):
+    """THE DEFECT THIS CLOSES. The census sorted by COUNT, which sorts
+    by SIZE -- a 200-member pathway holds more of everything. On the
+    live SARS-CoV-2 run every one of the 25 rows shown was large, and
+    the pathways the ratio column would have chosen were not on the
+    page. Here BIG holds more factors and SMALL is far denser."""
+    rel = _release(tmp_path, deps=[0, 1, 2, 3, 4, 5, 6],
+                   big=list(range(12)), small=[0, 1, 2, 3],
+                   n_members=12)
+    t = _tools(rel)
+    t._max_pathway_members = 200
+    text = " ".join(t.virus_pathways(V).verbalised)
+    assert "BY DENSITY instead" in text
+    head, tail = text.split("BY DENSITY instead", 1)
+    # SMALL: 4 of 4 members are factors, expects 4 * 7/12 = 2.33 -> 1.71
+    # BIG:   7 of 12,            expects 12 * 7/12 = 7.0  -> 1.00
+    #
+    # SCOPED TO EACH LIST. Both pathways appear in both, so a search
+    # over the whole text finds whichever is printed first and says
+    # nothing about either ordering.
+    assert "Small pathway" in tail and "Big pathway" in tail
+    assert tail.index("Small pathway") < tail.index("Big pathway"), (
+        "the second list is not ordered by density")
+    assert head.index("Big pathway") < head.index("Small pathway"), (
+        "the first list is not ordered by count")
+
+
+def test_a_pathway_expecting_under_one_factor_is_not_ranked_by_ratio(tmp_path):
+    """A 2-member pathway holding both factors reads as a huge ratio and
+    means nothing. The floor is expectation >= 1, which is this
+    project's existing rule for when a lift is readable rather than a
+    threshold invented for this tool."""
+    rel = _release(tmp_path, deps=[0, 1], big=[0, 1, 2, 3, 4, 5],
+                   small=[0, 1], n_members=12)
+    t = _tools(rel)
+    t._max_pathway_members = 200
+    r = t.virus_pathways(V)
+    rows = {x["pathway"]: x for x in r.data}
+    # SMALL expects 2 * 2/12 = 0.33 -- under one.
+    assert rows["REACT:SMALL"]["expected_members"] < 1.0
+    text = " ".join(r.verbalised)
+    tail = text[text.index("BY DENSITY instead"):] if "BY DENSITY" in text \
+        else ""
+    assert "Small pathway" not in tail, (
+        "a pathway expecting under one factor was ranked by its ratio")
+    assert "excluded from this second list" in text
+
+
+def test_the_second_list_says_how_many_it_excluded(tmp_path):
+    rel = _release(tmp_path, deps=[0, 1], big=[0, 1, 2, 3, 4, 5],
+                   small=[0, 1], n_members=12)
+    t = _tools(rel)
+    t._max_pathway_members = 200
+    text = " ".join(t.virus_pathways(V).verbalised)
+    assert "1 pathway(s) are excluded from this second list" in text
