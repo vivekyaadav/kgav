@@ -1201,6 +1201,11 @@ class GraphTools:
                       f"this virus depends on nothing."))
 
         cap = self._max_pathway_members
+        # Every name this graph knows for the virus, so a pathway whose
+        # own label names it can be recognised whatever the register
+        # calls it.
+        virus_names = {n for n, nid in self.names.items()
+                       if nid == virus and len(n) >= 4}
         oversized: set[str] = set()
         rows = []
         edge_ids: list[str] = []
@@ -1231,6 +1236,22 @@ class GraphTools:
                                if self.out.get(("TARGETS", m)) or
                                self.inv.get(("TARGETS", m)))}
                     row["n_druggable"] = len(row["druggable_members"])
+                    # CURATED FROM THE SAME LITERATURE AS THE SCREEN.
+                    # Reactome carries virus-specific pathways -- on the
+                    # live SARS-CoV-2 run "SARS-CoV-2 modulates
+                    # autophagy" came fourth by density. A CRISPR screen
+                    # for a virus's dependency factors overlapping a
+                    # pathway Reactome built FROM that virus's
+                    # literature is close to definitional, and it is the
+                    # shared-publication confound this project chases
+                    # elsewhere, reappearing in the pathway vocabulary
+                    # rather than in the labels. Flagged and not
+                    # dropped: the biology is real, and a reader has to
+                    # know which part of the overlap was decided in
+                    # advance.
+                    low = row["label"].lower()
+                    row["names_the_virus"] = any(
+                        a in low for a in virus_names)
                     rows.append(row)
                 edge_ids.append(pe["_id"])
 
@@ -1301,12 +1322,18 @@ class GraphTools:
                      in r["dependency_members"][:MAX_DEPENDENCY_NAMES]]
             extra = r["n_dependency_members"] - len(names)
             dep = ", ".join(names) + (f", +{extra} more" if extra else "")
+            # MARKED IN BOTH LISTS. It was only in the by-density one,
+            # so a reader of the list printed FIRST -- the one most
+            # likely to be read at all -- saw the pathway without the
+            # thing that qualifies it.
+            mark = ("  [NAMES THIS VIRUS]" if r.get("names_the_virus")
+                    else "")
             lines.append(
                 f"  {r['label']} ({r['n_members']} members) — "
                 f"{r['n_dependency_members']} dependency factor(s), "
                 f"{r['expected_members']:.1f} expected from size "
                 f"(ratio {r['density_ratio']:.2f}); "
-                f"{r['n_druggable']} druggable: {dep}")
+                f"{r['n_druggable']} druggable: {dep}{mark}")
         if len(rows) > limit:
             lines.append(f"  … {len(rows) - limit:,} further pathway(s) not "
                          f"shown in this ordering.")
@@ -1319,17 +1346,31 @@ class GraphTools:
                 f"ordered by SIZE, so these are mostly different pathways "
                 f"and are the ones the ratio column actually selects:")
             for r in by_ratio:
+                mark = ("  [NAMES THIS VIRUS]" if r.get("names_the_virus")
+                        else "")
                 lines.append(
                     f"  {r['label']} ({r['n_members']} members) — "
                     f"{r['n_dependency_members']} of them, "
                     f"{r['expected_members']:.1f} expected "
                     f"(ratio {r['density_ratio']:.2f}); "
-                    f"{r['n_druggable']} druggable")
+                    f"{r['n_druggable']} druggable{mark}")
             if thin_ratio:
                 lines.append(
                     f"  {thin_ratio:,} pathway(s) are excluded from this "
                     f"second list for expecting under one dependency factor, "
                     f"where the ratio is arithmetic rather than evidence.")
+        circular = [r for r in rows if r.get("names_the_virus")]
+        if circular:
+            lines.append(
+                f"[NAMES THIS VIRUS] marks {len(circular):,} pathway(s) "
+                f"whose own label names {self._label(virus)}. Reactome "
+                f"curates those from this virus's literature, which is the "
+                f"same literature the CRISPR screens come from, so their "
+                f"overlap with its dependency factors is partly "
+                f"definitional rather than a finding. They are shown "
+                f"rather than dropped -- the biology in them is real -- "
+                f"but the ratio on such a row is not evidence of the same "
+                f"kind as the ratio on a row beside it.")
         if unplaced:
             lines.append(
                 f"{len(unplaced):,} of the dependency factors sit in no "
