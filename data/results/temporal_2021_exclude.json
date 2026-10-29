@@ -110,7 +110,7 @@
         "hits": 2,
         "expected": 0.4674717569146864,
         "lift": 4.278333333333333,
-        "mrr": 0.025,
+        "mrr": 0.02,
         "hits_lo": 2,
         "hits_hi": 2,
         "hits_expected": 2.0,
@@ -142,7 +142,7 @@
         "hits": 2,
         "expected": 0.6697215368346845,
         "lift": 2.9863157894736845,
-        "mrr": 0.021739130434782608,
+        "mrr": 0.018518518518518517,
         "hits_lo": 2,
         "hits_hi": 2,
         "hits_expected": 2.0,
@@ -307,10 +307,10 @@
       "edges_sha": "68cf33748e71a067"
     },
     "code": {
-      "commit": "2a6a097de2d41cee4939d50b58fd25214fa9ed1c",
-      "dirty": true
+      "commit": "2579fb5a03b47da869a7c86292041e3b9ea0a56e",
+      "dirty": false
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-10-29T17:12:35+00:00"
+    "generated_utc": "2026-10-29T19:51:16+00:00"
   }
 }
