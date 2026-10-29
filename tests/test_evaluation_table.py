@@ -280,10 +280,44 @@ def test_the_prose_figures_beside_the_table_are_the_tables_own():
     assert f"{m4['lift_vs_degree']:.2f}x a degree" in text
     assert f"degree lift of **{deg['lift']:.2f}**" in text
     assert m4["vs_degree_readable"] is False
+    # SARS-CoV M1 IS NOT DETERMINED, SO NO POINT IS QUOTED FOR IT.
+    # This asserted f"lift {m1['lift']:.2f} at p<0.0001", which held
+    # until 2026-10-30: writing the release in a canonical order
+    # changed nothing about the graph and moved the figure from 2.08
+    # to 0.83, because rank() sorts on score with no tiebreak and
+    # Python's sort is stable, so which of 23 tied compounds fall
+    # inside Hits@100 follows the order edges.jsonl was written in.
+    #
+    # The test was demanding that the document publish one draw from
+    # [0.21, 2.39] and then say, two clauses later, that the interval
+    # contains 1.00. It now requires the RANGE and forbids the point.
     m1 = per["SARS-CoV"]["M1"]
-    assert f"lift {m1['lift']:.2f} at p<0.0001" in text
-    assert f"[{m1['hits_lo']}, {m1['hits_hi']}] of {m1['pos']}" in text
-    assert f"[{m1['lift_lo']:.2f}, {m1['lift_hi']:.2f}] contains 1.00" in text
+    assert m1["hits_determined"] is False, (
+        "SARS-CoV M1 is determined now; this paragraph is written for "
+        "an undetermined cell and needs rewriting, not relaxing")
+    para = text.split("Note SARS-CoV especially.", 1)[1].split("\n\n##", 1)[0]
+    assert "**NO POINT ESTIMATE" in para, (
+        "the correction paragraph is gone, so the scoping below is "
+        "silently checking the whole paragraph")
+    # EVERY ASSERTION SCOPED TO THE CLAIM, not the paragraph. The
+    # correction beneath it also names [0.21, 2.39], so a check
+    # against the paragraph passed with the interval deleted from the
+    # claim -- satisfied by an unrelated occurrence a few lines down,
+    # which is the defect this suite has found most often and which
+    # appeared here in the test written to fix it.
+    claim = para.split("**NO POINT ESTIMATE", 1)[0]
+    assert f"[{m1['hits_lo']}, {m1['hits_hi']}] of {m1['pos']}" in claim
+    assert f"[{m1['lift_lo']:.2f}, {m1['lift_hi']:.2f}]" in claim
+    assert "contains 1.00" in claim
+    # The correction QUOTES the retracted "lift 2.08" on purpose, so
+    # forbidding the point outright would forbid recording the
+    # mistake -- and if a later reorder lands the figure back on 2.08,
+    # an unscoped check would trip on the history rather than on the
+    # claim. Same reason at_chance_runs scopes its block.
+    assert f"lift {m1['lift']:.2f}" not in claim, (
+        f"the paragraph quotes lift {m1['lift']:.2f} as a point estimate "
+        f"for a cell whose hits are undetermined across "
+        f"[{m1['hits_lo']}, {m1['hits_hi']}]")
 
 
 def at_chance_runs() -> dict[str, dict]:

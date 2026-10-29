@@ -370,14 +370,24 @@ denominator is itself at chance. SARS-CoV-2 cross-sectional is why: M4 reads
 cell carries `vs_degree_readable: False` rather than the bare ratio. A ratio
 against a noisy denominator describes; it does not test.
 
-Note SARS-CoV especially. M1 there reads lift 2.08 at p<0.0001 and looks like
-the strongest result in the project -- and it is not readable at all:
+Note SARS-CoV especially. M1 there reads p<0.0001 and looks like the
+strongest result in the project -- and it is not readable at all:
 `hits_determined` is `False`, its Hits@100 is one draw from [2, 23] of 23
-positives, and the lift interval [0.21, 2.39] contains 1.00. An earlier
-version of this paragraph compared M1's 2.10 against a degree lift of 9.51
-as though both were measurements; they were two draws. Reported alone, that
-p-value would have been the fifth wrong M1 number in this document -- and
-reported as a comparison, it was the sixth.
+positives, so its lift is one draw from [0.21, 2.39], an interval that
+contains 1.00. An earlier version of this paragraph compared M1's 2.10
+against a degree lift of 9.51 as though both were measurements; they were
+two draws. Reported alone, that p-value would have been the fifth wrong M1
+number in this document -- and reported as a comparison, it was the sixth.
+
+**NO POINT ESTIMATE IS QUOTED FOR IT, AND THAT IS THE POINT.** This
+paragraph said "lift 2.08" until 2026-10-30, when writing the release in a
+canonical order changed nothing about the graph and moved the figure to
+0.83. `rank()` sorts on score with no tiebreak and Python's sort is
+stable, so which of 23 tied compounds fall inside Hits@100 is decided by
+the order edges.jsonl happens to be written in. Both numbers are draws
+from [0.21, 2.39]; quoting either one, and then saying in the next clause
+that the interval contains 1.00, is the document disagreeing with itself
+in two sentences.
 
 **On the 16-virus release the degree row beside it is no longer the
 problem.** It used to be undetermined as well ([7, 8] from a tie block), so
