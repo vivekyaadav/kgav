@@ -44,3 +44,7 @@ web/client/public/__manus__/
 # -- it silently drops the NEXT one `pnpm patch-commit` writes, and the
 # build then differs between machines with nothing in git status to say so.
 /*.patch
+
+# run_reproduce_block.py: lock and the script it runs
+.reproduce.lock
+.reproduce.sh
