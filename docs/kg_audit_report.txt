@@ -335,42 +335,27 @@ graph, and tests/test_kg_audit_report.py fails on it.
       2 of 3 evaluation label predicate(s) carry no edges, so every evaluation
         rests on HAS_ANTIVIRAL_ACTIVITY_AGAINST alone.
 
-    EDGES BY SOURCE
+    EDGES BY CURATOR   (an edge with several curators counts once for each)
       infores:uniprot                         176,907
       infores:string                          141,019
       infores:chembl                           39,589
+      infores:virhostnet                       10,163
       infores:biogrid-orcs                      8,263
       infores:ncats-opendata                    7,432
-      infores:virhostnet                        5,222
-      infores:intact|infores:virhostnet         4,219
+      infores:intact                            6,617
       infores:kgav-computed                     3,384
-      infores:intact                            1,745
-      infores:mint                                559
-      infores:intact|infores:virhostnet|infores:virhostnet          344
+      infores:mint                                878
       infores:interpro                            182
-      infores:intact|infores:mint|infores:virhostnet           99
-      infores:mint|infores:virhostnet              82
-      infores:intact|infores:virhostnet|infores:virhostnet|infores:virhostnet           77
-      infores:intact|infores:mint|infores:virhostnet|infores:virhostnet           46
-      infores:intact|infores:mint                  36
-      infores:mint|infores:virhostnet|infores:virhostnet           23
       infores:mondo                                16
-      infores:intact|infores:mint|infores:virhostnet|infores:virhostnet|infores:virhostnet           16
-      infores:intact|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet           16
-      infores:dip                                   9
-      infores:intact|infores:mint|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet            5
-      infores:intact|infores:mint|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet            3
-      infores:intact|infores:mint|infores:mint|infores:virhostnet            3
-      infores:hpidb|infores:virhostnet              1
-      infores:dip|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact            1
-      infores:dip|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:virhostnet|infores:virhostnet|infores:virhostnet            1
-      infores:dip|infores:dip|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact|infores:intact            1
-      infores:intact|infores:mint|infores:mint|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet            1
-      infores:intact|infores:intact|infores:intact|infores:mint|infores:virhostnet|infores:virhostnet|infores:virhostnet            1
-      infores:intact|infores:mint|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet            1
-      infores:intact|infores:mint|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet            1
-      infores:mint|infores:virhostnet|infores:virhostnet|infores:virhostnet|infores:virhostnet            1
-      infores:intact|infores:mint|infores:mint|infores:virhostnet|infores:virhostnet            1
+      infores:dip                                  12
+      infores:hpidb                                 1
+      4,979 edge(s) cite more than one curator, so these counts sum to more
+        than the edge total.
+      !! 542 edge(s) carry a REPEATED curator in one value. merge_edges
+        unioned source STRINGS rather than the curators inside them, so a fact
+        with several witnesses accumulated duplicates. Fixed in the assembler;
+        this release was assembled before the fix and reassembling rewrites
+        the field.
 
     10 layer(s) assembled, hub cut degree 460
       chembl
