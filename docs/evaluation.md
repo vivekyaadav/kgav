@@ -147,9 +147,9 @@ So p-values make the *uncontrolled* protocol look full of discoveries.
 
 | virus | best readable channel | lift | p | degree | p | baseline verdict |
 |---|---|---|---|---|---|---|
-| SARS-CoV-2 | M4 | 1.99 | 0.1401 | 0.63 | 0.9077 | BASELINE AT CHANCE |
-| DENV-2 | M4 | 1.88 | 0.2892 | 1.21 | 0.3953 | — |
-| Zika | — | — | — | 0.99 | 0.5909 | — |
+| SARS-CoV-2 | M4 | 1.49 | 0.3266 | 0.63 | 0.9077 | BASELINE AT CHANCE |
+| DENV-2 | M4 | 3.75 | 0.0190 | 1.21 | 0.3953 | BASELINE AT CHANCE |
+| Zika | — | — | — | 0.99 | 0.5909 | BASELINE AT CHANCE |
 | West Nile | — | — | — | 0.97 | 0.6464 | — |
 | DENV-3 | — | — | — | 2.38 | 0.2050 | — |
 | DENV-1 | — | — | — | 2.60 | 0.1793 | — |
@@ -347,7 +347,7 @@ rather than comparing two draws.
 
 Both tables also carry a `vs deg` column, with `(~)` marking a ratio whose
 denominator is itself at chance. SARS-CoV-2 cross-sectional is why: M4 reads
-3.16x a degree lift of **0.63**, which is M4 lift 1.99 at p=0.1401, and the
+2.37x a degree lift of **0.63**, which is M4 lift 1.49 at p=0.3266, and the
 cell carries `vs_degree_readable: False` rather than the bare ratio. A ratio
 against a noisy denominator describes; it does not test.
 
