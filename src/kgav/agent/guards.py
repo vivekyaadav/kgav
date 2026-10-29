@@ -497,6 +497,35 @@ def check(kind: QueryKind, virus: str | None = None,
     refusal it cannot justify.
     """
     if kind is QueryKind.PROSPECT:
+        # THE CLOSING OFFER HAS TO BE TRUE OF THIS VIRUS. The generic
+        # one promises "explain the mechanism of a compound with known
+        # activity, rank a set of compounds you already have" -- and
+        # for Yellow fever and DENV-4 the agent refuses both, because
+        # no metapath terminates at them. A refusal that declines the
+        # question and then offers two things it will also decline is
+        # worse than the silence it replaced: the reader goes and asks
+        # for one of them.
+        #
+        # Surfaced 2026-10-29, immediately after the candidate-seeking
+        # backstop started routing these questions here at all. The
+        # branch below has always produced the narrower offer; nothing
+        # prospective had ever reached this virus to need it.
+        if routes is not None and not routes.routes:
+            offer = (
+                f"And {routes.label} is narrower than that general limit: it "
+                f"holds {routes.n_labels:,} antiviral measurement(s) and no "
+                f"route to reach a compound at all, so this graph cannot "
+                f"explain a mechanism or rank a set you already have for it "
+                f"either. What still works for {routes.label}: asking what "
+                f"the graph stores about a specific compound or protein, and "
+                f"retrieving evidence for a named claim."
+            )
+        else:
+            offer = (
+                "What this graph can do: explain the mechanism of a compound "
+                "with known activity, rank a set of compounds you already "
+                "have, and retrieve provenanced evidence for a specific claim."
+            )
         return Verdict(
             allowed=False,
             reason=(
@@ -511,10 +540,7 @@ def check(kind: QueryKind, virus: str | None = None,
                 "Compounds enter screening because they are novel chemical "
                 "matter, which is exactly what a prior-evidence graph cannot "
                 "represent. temporal_split.py reports the per-virus ceiling "
-                "for the release in hand.\n\n"
-                "What this graph can do: explain the mechanism of a compound "
-                "with known activity, rank a set of compounds you already have, "
-                "and retrieve provenanced evidence for a specific claim."
+                "for the release in hand.\n\n" + offer
             ),
         )
 

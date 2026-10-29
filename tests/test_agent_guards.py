@@ -9,6 +9,7 @@ from kgav.agent import guards
 from kgav.agent.guards import (
     CELL_CONTEXT_SENSITIVE,
     QueryKind,
+    VirusRoutes,
     check,
     classify_intent,
     evidence_note,
@@ -654,3 +655,72 @@ def test_a_refused_calibration_is_not_validated():
     labels = [getattr(w, "label", "")
               for w in check(QueryKind.TRIAGE, SARS2, calibration=cal).warnings]
     assert "VIRUS NOT VALIDATED" in labels, labels
+
+
+# --------------------------- the prospective refusal's closing offer
+#
+# The generic offer promises "explain the mechanism of a compound with
+# known activity, rank a set of compounds you already have". For Yellow
+# fever and DENV-4 the agent refuses BOTH -- no metapath terminates at
+# them. A refusal that declines the question and then offers two things
+# it will also decline sends the reader straight into a second refusal.
+#
+# It became reachable on 2026-10-29: until the candidate-seeking
+# backstop landed, "which compounds should be considered for Yellow
+# fever" never classified PROSPECT, so nothing prospective had ever
+# arrived here carrying a routeless virus.
+def _routeless(label="Yellow fever", n_labels=1030):
+    return VirusRoutes(label=label, n_labels=n_labels)
+
+
+def _routed(label="SARS-CoV-2"):
+    return VirusRoutes(label=label, n_labels=14996, inhibits=400,
+                       crispr=4582, ppi=900)
+
+
+def test_a_routeless_virus_is_not_offered_what_it_will_also_be_refused():
+    v = check(QueryKind.PROSPECT, virus="NCBITaxon:11089",
+              routes=_routeless())
+    assert not v.allowed
+    assert "rank a set of compounds you already have, and retrieve" \
+        not in v.reason, "the generic offer was made for a routeless virus"
+    assert "Yellow fever" in v.reason
+    assert "1,030" in v.reason
+    assert "no route to reach a compound at all" in v.reason
+    assert "cannot explain a mechanism or rank a set" in v.reason
+    # and it still says what DOES work, rather than only what does not
+    assert "retrieving evidence for a named claim" in v.reason
+
+
+def test_a_virus_with_routes_still_gets_the_general_offer():
+    """The other direction. A narrower offer printed for every virus
+    would understate what the graph does for the eight EVALUABLE ones,
+    and would pass any test that only checked Yellow fever."""
+    v = check(QueryKind.PROSPECT, virus="NCBITaxon:2697049",
+              routes=_routed())
+    assert not v.allowed
+    assert "What this graph can do" in v.reason
+    assert "no route to reach a compound at all" not in v.reason
+    assert "Yellow fever" not in v.reason
+
+
+def test_the_prospective_refusal_still_works_with_no_routes_supplied():
+    """`routes` is optional throughout this module -- a caller that
+    cannot compute it gets the old behaviour rather than a message
+    built from a virus it knows nothing about. `None` must not be read
+    as "no routes"."""
+    v = check(QueryKind.PROSPECT, virus="NCBITaxon:11089", routes=None)
+    assert not v.allowed
+    assert "What this graph can do" in v.reason
+    assert "no route to reach a compound at all" not in v.reason
+
+
+def test_the_general_limit_is_still_stated_for_a_routeless_virus():
+    """The virus-specific part is ADDED to the categorical refusal, not
+    substituted for it. Prospective generation is unsupported for every
+    virus in this graph, and a reader told only "this virus is thin"
+    could reasonably conclude a richer virus would be answered."""
+    v = check(QueryKind.PROSPECT, virus="NCBITaxon:11089",
+              routes=_routeless())
+    assert "cannot support prospective candidate generation" in v.reason
+    assert "temporal split" in v.reason
