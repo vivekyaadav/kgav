@@ -1,24 +1,24 @@
 #!/usr/bin/env python3
-"""Regenerate the release census inside docs/kg_audit_report.txt.
+"""Generate docs/kg_release_census.txt from the assembled release.
 
-WHY GENERATED RATHER THAN WRITTEN. The first version of that report
-carried no node or edge totals at all, on the reasoning that a hardcoded
-count goes stale silently -- which is true, and the wrong conclusion.
-An audit report IS a stamped snapshot of one release; omitting its size
-makes it useless to a reader and protects nothing. The protection is to
-generate the numbers from the release and stamp them with the content
-hashes they were computed from, so a stale block is detectable rather
-than merely regrettable.
+WHY GENERATED RATHER THAN WRITTEN. The audit report first carried no
+node or edge totals at all, on the reasoning that a hardcoded count goes
+stale silently -- which is true, and the wrong conclusion. An audit
+report IS a stamped snapshot of one release; omitting its size makes it
+useless to a reader and protects nothing. The protection is to generate
+the numbers and stamp them with the content hashes they were computed
+from, so a stale figure is detectable rather than merely regrettable.
 
-So this script owns everything between the two markers and nothing else
-in the file. It reads the assembled release, counts, and writes the
-block with the release id and the nodes/edges hashes `check_results.py`
-audits against. tests/test_kg_audit_report.py re-derives the same counts
-and fails if the block disagrees, so a hand-edit or a rebuild without a
-regenerate is caught.
+WHY ITS OWN FILE. The census lived inside docs/kg_audit_report.txt
+between two markers, and the generated block and the hand-written prose
+around it have different lifecycles: one changes on every rebuild, the
+other on every correction. Sharing a file guaranteed they collided --
+twice, a regenerated census left uncommitted made the next prose patch
+fail to apply, which is friction with no upside. This file is generated
+in full, so it has no markers to lose and no prose to protect.
 
-    python scripts/write_kg_report.py           # rewrite the block
-    python scripts/write_kg_report.py --check   # fail if it is stale
+    make kg-report          # regenerate
+    make kg-report-check    # fail if it is stale, write nothing
 """
 from __future__ import annotations
 
@@ -35,9 +35,22 @@ import textwrap
 from kgav.provenance import release_fingerprint
 from kgav.schema import load_schema
 
-REPORT = ROOT / "docs" / "kg_audit_report.txt"
-BEGIN = "<<<BEGIN GENERATED: release census — python scripts/write_kg_report.py>>>"
-END = "<<<END GENERATED>>>"
+CENSUS = ROOT / "docs" / "kg_release_census.txt"
+
+#: Printed at the top of the generated file. A reader who opens it
+#: without context has to learn it is not hand-maintained before they
+#: think about editing it.
+HEADER = (
+    "=" * 78,
+    "kgav — RELEASE CENSUS",
+    "",
+    "GENERATED FILE. Do not edit: `make kg-report` overwrites it, and",
+    "`make kg-report-check` fails if it does not describe the assembled",
+    "release. The prose that interprets these figures is section 4 of",
+    "docs/kg_audit_report.txt.",
+    "=" * 78,
+    "",
+)
 
 
 def _wrap(text: str, indent: str = "      ") -> list[str]:
@@ -83,7 +96,7 @@ def block(release: Path) -> list[str]:
     n_nodes, n_edges, classes, preds, sources = _assembled(release)
     held = set(load_schema().held_out_predicates())
     fp = release_fingerprint(release)
-    out = [BEGIN, ""]
+    out: list[str] = []
     out.append(f"    release          {release.name}")
     out.append(f"    nodes_sha        {fp['nodes_sha']}")
     out.append(f"    edges_sha        {fp['edges_sha']}")
@@ -192,44 +205,58 @@ def block(release: Path) -> list[str]:
                       if "hub_cut_degree" in m else ""))
         for name in sorted(layers):
             out.append(f"      {name}")
-    out.append("")
-    out.append(END)
     return out
 
 
-def splice(text: str, lines: list[str]) -> str:
-    assert BEGIN in text and END in text, \
-        "the report lost its generated-block markers"
-    head = text.split(BEGIN, 1)[0]
-    tail = text.split(END, 1)[1]
-    return head + "\n".join(lines) + tail
+def render(release: Path) -> str:
+    """The whole file, header included."""
+    return "\n".join(list(HEADER) + block(release)) + "\n"
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--release", type=Path,
                     default=ROOT / "data/releases/v0.1")
-    ap.add_argument("--report", type=Path, default=REPORT)
+    ap.add_argument("--out", type=Path, default=CENSUS)
     ap.add_argument("--check", action="store_true",
-                    help="exit 1 if the block is stale, write nothing")
+                    help="exit 1 if the file is stale, write nothing")
+    ap.add_argument("--placeholder", action="store_true",
+                    help="with no assembled release, write a file that "
+                         "says so instead of failing")
     args = ap.parse_args(argv)
 
     if not (args.release / "nodes.jsonl").exists():
+        if args.placeholder:
+            # WRITTEN BY THE GENERATOR, not typed into the repository.
+            # A fresh clone has no assembled release, and the committed
+            # file has to say that rather than describe a graph nobody
+            # can check. --check still fails on it, correctly: a
+            # placeholder is stale until someone regenerates.
+            args.out.write_text("\n".join(list(HEADER) + [
+                "    NO ASSEMBLED RELEASE was on disk when this file was",
+                "    written, so it describes nothing. Run `make kg-report`",
+                "    against an assembled release to fill it in.",
+                "",
+            ]) + "\n")
+            print(f"wrote a placeholder into {args.out}")
+            return 0
         print(f"no assembled release at {args.release}", file=sys.stderr)
         return 2
-    text = args.report.read_text()
-    want = splice(text, block(args.release))
+    want = render(args.release)
     if args.check:
-        if want != text:
-            print("docs/kg_audit_report.txt census is STALE for "
-                  f"{args.release}. Run: python scripts/write_kg_report.py",
-                  file=sys.stderr)
+        # MISSING IS STALE, not absent-and-therefore-fine. A check that
+        # passed when the file did not exist would certify the one state
+        # it is least able to vouch for.
+        have = args.out.read_text() if args.out.exists() else None
+        if have != want:
+            why = "is missing" if have is None else "is STALE"
+            print(f"{args.out} {why} for {args.release}. "
+                  f"Run: make kg-report", file=sys.stderr)
             return 1
         print(f"census is current for {args.release}")
         return 0
-    args.report.write_text(want)
-    n = len(block(args.release))
-    print(f"wrote {n} line(s) of census into {args.report} "
+    args.out.write_text(want)
+    print(f"wrote {want.count(chr(10))} line(s) into {args.out} "
           f"from {args.release}")
     return 0
 

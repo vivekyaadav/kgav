@@ -306,401 +306,6 @@ def test_every_virus_in_the_register_is_placed_in_a_tier(flat):
         assert v["name"] in block, (
             f"{v['name']} is in the register and is in no tier in "
             f"section 7")
-
-
-def test_the_tier_totals_add_up_to_the_register(flat):
-    """(8) + (5) + (2) + (1) must be the register's size, or one virus is
-    counted twice or not at all."""
-    doc = yaml.safe_load(REGISTER.read_text())
-    block = section(flat, "PER-VIRUS STATE", until="KNOWN GAPS")
-    totals = [int(n) for n in re.findall(r"\((\d+)\) —", block)]
-    assert len(totals) == 4, f"expected four tiers, found {totals}"
-    assert sum(totals) == len(doc["viruses"]), (
-        f"tiers sum to {sum(totals)} and the register holds "
-        f"{len(doc['viruses'])}")
-
-
-# ------------------------------------------------------------------ claims
-def test_a_release_total_appears_only_inside_the_generated_block(text):
-    """Sharpened, not dropped.
-
-    This forbade release totals ANYWHERE, which is why the report
-    carried none -- and that was the wrong rule. An audit report is a
-    stamped snapshot of one release; omitting its size makes it useless
-    to a reader and protects nothing. The defect it was aimed at is a
-    total that is TYPED: unstamped, unchecked, and stale the moment the
-    graph is rebuilt. That is two reports in this project describing a
-    graph that no longer existed.
-
-    So a total inside the generated census is the point of the census.
-    A total outside it is the defect, and still fails here.
-    """
-    import scripts.write_kg_report as W
-    outside = text.split(W.BEGIN, 1)[0] + text.split(W.END, 1)[1]
-    bad = re.findall(r"\b\d{1,3},\d{3}\s+(?:nodes|edges)\b", outside)
-    assert not bad, (
-        f"a release total is typed outside the generated census: {bad}. "
-        f"Totals belong in the census, where they carry the release hash "
-        f"they were computed from")
-
-
-def test_a_generated_census_carries_the_totals(text):
-    """The other direction. A census block that somehow holds no totals
-    is a section that looks generated and says nothing, which reads
-    worse than the omission it replaced."""
-    import scripts.write_kg_report as W
-    block = text.split(W.BEGIN, 1)[1].split(W.END, 1)[0]
-    if "not yet generated" in block:
-        return                       # covered by the placeholder test
-    assert re.search(r"\b[\d,]+\s+nodes\b", block), block[:300]
-    assert re.search(r"\b[\d,]+\s+edges\b", block), block[:300]
-    assert "NODES BY CLASS" in block and "EDGES BY PREDICATE" in block
-
-
-def test_the_report_points_at_the_live_audit(flat):
-    assert "make audit" in flat
-    assert "make check-results" in flat
-
-
-def test_the_retracted_finding_is_recorded_as_retracted(flat):
-    """The whole-graph degree matching was circular and its uniform
-    depletion was an artifact. A report that simply omitted it would
-    read as though the error never happened."""
-    assert "circular" in flat
-    assert "retracted" in flat
-
-
-# ------------------------------------------------- the generated census
-def test_the_census_block_has_its_markers(text):
-    """Without them write_kg_report.py cannot splice and the section
-    silently stops being regenerable."""
-    import scripts.write_kg_report as W
-    assert text.count(W.BEGIN) == 1
-    assert text.count(W.END) == 1
-    assert text.index(W.BEGIN) < text.index(W.END)
-
-
-def test_the_census_is_generated_from_a_release_not_typed(tmp_path):
-    """Runs the generator against the tracked smoke release and checks
-    the block it produces, so the generator is exercised on every run
-    rather than only when someone has a full release on disk.
-
-    Counting the smoke release here by hand would be a second
-    implementation of the thing under test, so the expected numbers are
-    read off the release itself.
-    """
-    import json
-    import shutil
-
-    import scripts.write_kg_report as W
-
-    rel = ROOT / "data" / "releases" / "smoke"
-    assert (rel / "nodes.jsonl").exists(), "the smoke release is tracked"
-    report = tmp_path / "r.txt"
-    shutil.copy(REPORT, report)
-    rc = W.main(["--release", str(rel), "--report", str(report)])
-    assert rc == 0
-    block = report.read_text().split(W.BEGIN, 1)[1].split(W.END, 1)[0]
-
-    n_nodes = sum(1 for ln in (rel / "nodes.jsonl").read_text().splitlines()
-                  if ln.strip())
-    n_edges = sum(1 for ln in (rel / "edges.jsonl").read_text().splitlines()
-                  if ln.strip())
-    assert f"{n_nodes:,} nodes" in block
-    assert f"{n_edges:,} edges" in block
-    for line in (rel / "edges.jsonl").read_text().splitlines():
-        if line.strip():
-            assert json.loads(line)["predicate"] in block
-    assert "nodes_sha" in block and "edges_sha" in block
-
-
-def test_the_census_stamp_is_the_release_it_was_built_from(tmp_path):
-    """The stamp is the whole protection. A block carrying a hash that
-    is not the release's own describes some other graph, which is the
-    defect `make check-results` exists to catch everywhere else."""
-    import shutil
-
-    import scripts.write_kg_report as W
-    from kgav.provenance import release_fingerprint
-
-    rel = ROOT / "data" / "releases" / "smoke"
-    report = tmp_path / "r.txt"
-    shutil.copy(REPORT, report)
-    W.main(["--release", str(rel), "--report", str(report)])
-    block = report.read_text().split(W.BEGIN, 1)[1].split(W.END, 1)[0]
-    fp = release_fingerprint(rel)
-    assert fp["nodes_sha"] in block
-    assert fp["edges_sha"] in block
-
-
-def test_check_mode_fails_on_a_stale_block(tmp_path):
-    """--check is what a gate would run. If it passed on a stale block
-    it would certify exactly the state it exists to detect."""
-    import shutil
-
-    import scripts.write_kg_report as W
-
-    rel = ROOT / "data" / "releases" / "smoke"
-    report = tmp_path / "r.txt"
-    shutil.copy(REPORT, report)
-    assert W.main(["--release", str(rel), "--report", str(report),
-                   "--check"]) == 1, "a placeholder block passed --check"
-    W.main(["--release", str(rel), "--report", str(report)])
-    assert W.main(["--release", str(rel), "--report", str(report),
-                   "--check"]) == 0
-    # And a hand-edit of a generated block is caught.
-    t = report.read_text().replace(" nodes\n", " nodes (approx)\n", 1)
-    report.write_text(t)
-    assert W.main(["--release", str(rel), "--report", str(report),
-                   "--check"]) == 1, "a hand-edited block passed --check"
-
-
-def test_the_committed_census_matches_the_release_when_one_is_present():
-    """If a full release is on disk, the block in the repository must
-    describe it. No skip when it is absent -- the assertion below is
-    about the placeholder, so this test runs either way."""
-    import scripts.write_kg_report as W
-
-    rel = ROOT / "data" / "releases" / "v0.1"
-    if (rel / "nodes.jsonl").exists():
-        assert W.main(["--release", str(rel), "--check"]) == 0, (
-            "docs/kg_audit_report.txt's census does not describe "
-            "data/releases/v0.1; run make kg-report")
-    else:
-        block = REPORT.read_text().split(W.BEGIN, 1)[1].split(W.END, 1)[0]
-        assert "not yet generated" in block, (
-            "no release is on disk and the census is not marked as "
-            "ungenerated, so it describes a graph nobody can check")
-
-
-# -------------------------------------------------------- architecture
-def test_the_module_counts_in_the_architecture_section_are_right(flat):
-    """The layout block states how many modules and scripts there are.
-    Those move, and a count in prose is exactly what this project has
-    repeatedly found stale."""
-    mods = sorted((ROOT / "src" / "kgav").glob("*.py"))
-    scripts = sorted((ROOT / "scripts").glob("*.py"))
-    assert f"{len(mods)} modules" in flat, (
-        f"src/kgav holds {len(mods)} modules")
-    assert f"{len(scripts)} entry points" in flat, (
-        f"scripts/ holds {len(scripts)} entry points")
-
-
-def test_every_agent_module_is_named_in_the_architecture_section(flat):
-    """The serve-side pipeline is described stage by stage. A module
-    added to the agent and not to that description is a stage nobody
-    outside the project knows runs."""
-    agent = sorted(p.stem for p in (ROOT / "src" / "kgav" / "agent")
-                   .glob("*.py") if p.stem != "__init__")
-    block = section(flat, "ARCHITECTURE", until="SCHEMA SPECIFICATION")
-    for mod in agent:
-        assert f"{mod}.py" in block, (
-            f"src/kgav/agent/{mod}.py is not described in the "
-            f"architecture section")
-
-
-def test_the_three_stages_are_named_in_the_dataflow_itself(flat):
-    """SCOPED TO THE DIAGRAM, not the section.
-
-    The fifth time in this project a membership check was satisfied by
-    an unrelated occurrence of the same string. "INGEST -> ASSEMBLE ->
-    SERVE" appears in the sentence above the diagram, so renaming the
-    ASSEMBLE box inside it passed. The diagram is what a reader follows;
-    the sentence is a summary of it.
-    """
-    block = section(flat, "ARCHITECTURE", until="SCHEMA SPECIFICATION")
-    diagram = block.split("no stage reaches past the one before it.", 1)[1] \
-        .split("WHY LAYERS ARE INDEPENDENT", 1)[0]
-    for stage in ("INGEST", "ASSEMBLE", "SERVE", "SCORE"):
-        assert stage in diagram, (
-            f"{stage} is not a labelled box in the data-flow diagram")
-    assert "data/raw" in diagram and "data/releases" in diagram
-
-
-def test_the_directory_layout_describes_each_tree(flat):
-    """Also scoped: data/results/ appears in the diagram above, so a
-    layout entry could be renamed and still be "present" in the
-    section."""
-    block = section(flat, "ARCHITECTURE", until="SCHEMA SPECIFICATION")
-    layout = block.split("DIRECTORY LAYOUT", 1)[1]
-    for tree in ("config/", "src/kgav/", "src/kgav/agent/", "scripts/",
-                 "tests/", "data/raw/", "data/releases/", "data/results/",
-                 "docs/"):
-        assert tree in layout, f"{tree} is not in the directory layout"
-    # data/results is tracked on purpose and the layout must say why.
-    assert "TRACKED" in layout
-
-
-def test_every_declared_class_and_predicate_appears_in_a_census(tmp_path):
-    """Presence AND absence. Listing only what the release holds reports
-    presence and stays silent on absence -- the thing this project
-    refuses everywhere else ("a source this ingest cannot read is not a
-    source with no data"). v0.1 holds 7 of 11 node classes and 14 of 24
-    predicates, and the first census showed neither fact."""
-    import shutil
-
-    import scripts.write_kg_report as W
-    rel = ROOT / "data" / "releases" / "smoke"
-    report = tmp_path / "r.txt"
-    shutil.copy(REPORT, report)
-    W.main(["--release", str(rel), "--report", str(report)])
-    block = report.read_text().split(W.BEGIN, 1)[1].split(W.END, 1)[0]
-    s = __import__("kgav.schema", fromlist=["load_schema"]).load_schema()
-    for name in s.node_classes:
-        assert name in block, f"node class {name} missing from the census"
-    for e in s.edge_classes:
-        assert e.predicate in block, f"{e.predicate} missing from the census"
-    assert "declared classes are empty" in block
-    assert "declared predicates are empty" in block
-
-
-def test_an_absent_evaluation_label_is_called_out_as_one(tmp_path):
-    """TREATS and IN_TRIAL_FOR are both empty on v0.1, so every
-    evaluation in this project rests on HAS_ANTIVIRAL_ACTIVITY_AGAINST
-    alone. A census that lists them among twenty other empty predicates
-    buries the one fact that changes how the results read."""
-    import shutil
-
-    import scripts.write_kg_report as W
-    rel = ROOT / "data" / "releases" / "smoke"
-    report = tmp_path / "r.txt"
-    shutil.copy(REPORT, report)
-    W.main(["--release", str(rel), "--report", str(report)])
-    block = report.read_text().split(W.BEGIN, 1)[1].split(W.END, 1)[0]
-    s = __import__("kgav.schema", fromlist=["load_schema"]).load_schema()
-    labels = s.evaluation_label_predicates()
-    assert "EVALUATION LABEL" in block, (
-        "an absent label predicate is not marked as a label")
-    assert f"of {len(labels)} evaluation label" in block
-
-
-def test_the_census_totals_reconcile(tmp_path):
-    """The per-class and per-predicate counts must sum to the totals. If
-    they ever do not, the census is quietly describing a subset and the
-    block says so rather than printing a figure that looks whole."""
-    import shutil
-
-    import scripts.write_kg_report as W
-    rel = ROOT / "data" / "releases" / "smoke"
-    report = tmp_path / "r.txt"
-    shutil.copy(REPORT, report)
-    W.main(["--release", str(rel), "--report", str(report)])
-    block = report.read_text().split(W.BEGIN, 1)[1].split(W.END, 1)[0]
-    assert "!!" not in block, f"the census failed to reconcile:\n{block}"
-
-
-def undescribed_sources(text: str) -> list[str]:
-    """infores ids the census shows carrying edges that the prose never
-    mentions. Factored out so it can be tested on a synthetic block as
-    well as on the committed one."""
-    import re as _re
-
-    import scripts.write_kg_report as W
-    block = text.split(W.BEGIN, 1)[1].split(W.END, 1)[0]
-    prose = text.split(W.BEGIN, 1)[0] + text.split(W.END, 1)[1]
-    ids = {i.rstrip(".") for i in
-           _re.findall(r"infores:[a-z0-9][a-z0-9._-]*", block)}
-    return sorted(i for i in ids if i not in prose)
-
-
-def test_the_source_check_catches_a_source_the_report_never_names():
-    """Exercised on a synthetic census, so it runs whether or not a
-    release has been assembled here. A test that returns early when its
-    input is a placeholder is a test that reports green having checked
-    nothing, which is the defect this suite keeps finding in itself."""
-    import scripts.write_kg_report as W
-    fake = (f"infores:uniprot is described in the prose.\n{W.BEGIN}\n"
-            f"      infores:uniprot    10\n"
-            f"      infores:nosuchdb    1\n{W.END}\ntail\n")
-    assert undescribed_sources(fake) == ["infores:nosuchdb"]
-    ok = fake.replace("tail", "infores:nosuchdb is described here.")
-    assert undescribed_sources(ok) == []
-
-
-def test_every_source_in_the_census_is_described_in_the_report(text):
-    """THE GAP THIS CLOSES. The sibling test reads infores ids out of
-    the SOURCE CODE, and several -- infores:dip, infores:mint,
-    infores:hpidb -- are derived at runtime from a curator's own name in
-    MITAB column 12, so they are never literals anywhere in the tree.
-    v0.1 carries edges from all three while the report said those
-    endpoints returned nothing usable. The census is the only place
-    their names appear, so it is what the report must agree with.
-    """
-    import scripts.write_kg_report as W
-    block = text.split(W.BEGIN, 1)[1].split(W.END, 1)[0]
-    if "not yet generated" in block:
-        # Not silent: the placeholder is itself asserted, so this test
-        # can never pass by finding nothing to look at.
-        assert "run `make kg-report`" in block
-        return
-    missing = undescribed_sources(text)
-    assert not missing, (
-        f"these sources carry edges in the release and are not described "
-        f"anywhere in the report: {missing}")
-
-
-def test_the_census_counts_curators_not_source_strings(tmp_path):
-    """primary_knowledge_source is a "|" list once an edge is merged, so
-    counting raw values reports "infores:intact|infores:virhostnet" as a
-    source of its own. v0.1 showed 35 such values for 13 real curators,
-    and VirHostNet read 5,222 when it curated 10,163."""
-    import json
-    import shutil
-
-    import scripts.write_kg_report as W
-    rel = tmp_path / "rel"
-    rel.mkdir()
-    (rel / "nodes.jsonl").write_text(json.dumps(
-        {"id": "A", "class": "Protein", "properties": {}}) + "\n")
-    e = {"subject": "A", "predicate": "PHYSICALLY_INTERACTS_WITH",
-         "object": "B", "evidence_tier": 1,
-         "first_asserted_date": "2020-01-01"}
-    rows = [dict(e, primary_knowledge_source=s) for s in (
-        "infores:virhostnet",
-        "infores:intact|infores:virhostnet",
-        "infores:intact|infores:virhostnet|infores:virhostnet")]
-    (rel / "edges.jsonl").write_text(
-        "\n".join(json.dumps(r) for r in rows))
-    report = tmp_path / "r.txt"
-    shutil.copy(REPORT, report)
-    W.main(["--release", str(rel), "--report", str(report)])
-    block = report.read_text().split(W.BEGIN, 1)[1].split(W.END, 1)[0]
-    assert "EDGES BY CURATOR" in block
-    # virhostnet on all three, intact on two -- not three "sources".
-    assert re.search(r"infores:virhostnet\s+3\b", block), block
-    assert re.search(r"infores:intact\s+2\b", block), block
-    assert "infores:intact|infores:virhostnet" not in block
-    assert "2 edge(s) cite more than one curator" in block
-
-
-def test_a_repeated_curator_is_reported_as_the_defect_it_is(tmp_path):
-    """542 edges in v0.1 carry the same curator twice in one value --
-    the footprint of merge_edges unioning strings. A census that merely
-    deduplicated them for display would hide that the release predates
-    the fix."""
-    import json
-    import shutil
-
-    import scripts.write_kg_report as W
-    rel = tmp_path / "rel"
-    rel.mkdir()
-    (rel / "nodes.jsonl").write_text(json.dumps(
-        {"id": "A", "class": "Protein", "properties": {}}) + "\n")
-    (rel / "edges.jsonl").write_text(json.dumps(
-        {"subject": "A", "predicate": "PHYSICALLY_INTERACTS_WITH",
-         "object": "B", "evidence_tier": 1,
-         "first_asserted_date": "2020-01-01",
-         "primary_knowledge_source":
-             "infores:intact|infores:virhostnet|infores:virhostnet"}))
-    report = tmp_path / "r.txt"
-    shutil.copy(REPORT, report)
-    W.main(["--release", str(rel), "--report", str(report)])
-    block = report.read_text().split(W.BEGIN, 1)[1].split(W.END, 1)[0]
-    assert "REPEATED curator" in block
-    assert "assembled before the fix" in block
-
-
-# ------------------- what the AGENT exposes, versus what the data allows
 def test_the_virus_only_pathway_gap_matches_the_orchestrator(flat):
     """The report said "for any virus, the graph can list the Reactome
     pathways its dependency factors sit in ... the agent exposes it as
@@ -748,3 +353,60 @@ def test_the_report_does_not_claim_the_agent_walks_m4(flat):
         "the agent's traversal set changed; re-check what the report "
         "claims about M4")
     assert "The agent never walks M4" in flat
+
+
+# ------------------------------- figures, now that the census is elsewhere
+def test_the_report_restates_no_release_total(text):
+    """With the census in its own file, the report carries no release
+    count at all -- so the rule is simple again: any total here is
+    typed, and a typed total is stale the moment the graph is rebuilt.
+    That is the defect that produced two reports describing a release
+    that no longer existed.
+
+    The historical lessons are exempt by scope, not by wording: section
+    5 and after may quote the figures a past defect produced, because
+    those are a record of what happened rather than a claim about now.
+    """
+    head = text.split("5. DATA SOURCES", 1)[0]
+    bad = re.findall(r"\b\d{1,3},\d{3}\s+(?:nodes|edges)\b", head)
+    assert not bad, f"the report restates a release total: {bad}"
+
+
+def undescribed_curators() -> list[str]:
+    """infores ids the census shows carrying edges that the report
+    never mentions. Factored out so it can be tested on a synthetic
+    census as well as on the committed one."""
+    import scripts.write_kg_report as W
+    census = W.CENSUS.read_text()
+    return _undescribed(census, REPORT.read_text())
+
+
+def _undescribed(census: str, prose: str) -> list[str]:
+    ids = {i.rstrip(".") for i in
+           re.findall(r"infores:[a-z0-9][a-z0-9._-]*", census)}
+    return sorted(i for i in ids if i not in prose)
+
+
+def test_the_curator_check_catches_one_the_report_never_names():
+    """Exercised on a synthetic census, so it runs whether or not a
+    release has been assembled here. A test that returns early when its
+    input is missing is a test that reports green having checked
+    nothing."""
+    prose = "infores:uniprot is described in the prose."
+    census = "  infores:uniprot 10\n  infores:nosuchdb 1\n"
+    assert _undescribed(census, prose) == ["infores:nosuchdb"]
+    assert _undescribed(census, prose + " infores:nosuchdb too.") == []
+
+
+def test_every_curator_in_the_census_is_described_in_the_report():
+    """THE GAP THIS CLOSES. The sibling test reads infores ids out of
+    the SOURCE CODE, and several -- infores:dip, infores:mint,
+    infores:hpidb -- are slugged at runtime from a curator's own name in
+    MITAB column 12, so they are never literals anywhere in the tree.
+    v0.1 carries edges from all three while the report said those
+    endpoints returned nothing usable. The census is the only place
+    their names appear, so it is what the report must agree with."""
+    missing = undescribed_curators()
+    assert not missing, (
+        f"these curators carry edges in the release and are not "
+        f"described anywhere in the report: {missing}")

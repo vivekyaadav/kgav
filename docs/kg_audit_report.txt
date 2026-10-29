@@ -262,130 +262,64 @@ a confidently wrong recommendation rather than a missing one.
 4. RELEASE CENSUS
 ================================================================================
 
-GENERATED, NOT WRITTEN. The block below is produced by
+    docs/kg_release_census.txt
+
+GENERATED, NOT WRITTEN, AND IN ITS OWN FILE. It is produced by
 scripts/write_kg_report.py from the assembled release and stamped with
 the content hashes of nodes.jsonl and edges.jsonl -- the same hashes
 `make check-results` audits every results file against. A rebuild
-without a regenerate leaves a block whose stamp no longer matches the
-graph, and tests/test_kg_audit_report.py fails on it.
+without a regenerate leaves a census whose stamp no longer matches the
+graph, and `make kg-report-check` reports it; so does a missing file,
+because absent is not the same as fine.
 
     make kg-report          # regenerate
-    make kg-report-check    # fail if stale, write nothing
+    make kg-report-check    # fail if stale or missing, write nothing
 
-<<<BEGIN GENERATED: release census — python scripts/write_kg_report.py>>>
+It lived inside this report between two markers until 2026-10-29. The
+generated block and the prose around it have different lifecycles --
+one changes on every rebuild, the other on every correction -- and
+sharing a file guaranteed they collided: twice, a regenerated census
+left uncommitted stopped the next correction from applying at all.
 
-    release          v0.1
-    nodes_sha        73638934bacd7827
-    edges_sha        a9a68fe6a41380c6
+WHAT IT REPORTS, and why each part is there.
 
-    78,789 nodes
-    389,306 edges
+  THE STAMP        release name, nodes_sha, edges_sha. Without these a
+                   count is a number with no graph attached, which is
+                   how this project twice shipped a figure describing a
+                   release that no longer existed.
 
-    NODES BY CLASS   (0 = declared in the schema, absent from this release)
-      SmallMolecule                  25,383
-      Protein                        20,888
-      Gene                           19,190
-      Pathway                        13,236
-      TargetClass                        66
-      OrganismTaxon                      16
-      Disease                            10
-      CellLine                            0
-      Publication                         0
-      Variant                             0
-      VirusStrain                         0
-      4 of 11 declared classes are empty: CellLine, Publication, Variant,
-        VirusStrain
+  TOTALS           nodes and edges, with the per-class and
+                   per-predicate counts reconciled against them. If
+                   they ever fail to sum, the census says so rather
+                   than printing a figure that looks whole.
 
-    EDGES BY PREDICATE   (L = held out of every metapath, 0 = declared, absent)
-      PARTICIPATES_IN                           157,211
-      PHYSICALLY_INTERACTS_WITH                 153,533
-      HAS_ANTIVIRAL_ACTIVITY_AGAINST     L       26,276
-      ENCODED_BY                                 19,498
-      TARGETS                                    14,381
-      HOST_FACTOR_FOR                             8,263
-      INHIBITS                                    3,943
-      CHEMICALLY_SIMILAR_TO                       3,384
-      MEASURED_INACTIVE_AGAINST          L        2,421
-      MEMBER_OF_CLASS                               158
-      SAME_AS                                       119
-      BELONGS_TO                                     79
-      FOLD_SIMILAR_TO                                24
-      CAUSES                                         16
-      COMBINED_WITH                                   0
-      CONFERS_RESISTANCE_TO                           0
-      HAS_STRAIN                                      0
-      HAS_VARIANT                                     0
-      IN_TRIAL_FOR                       L            0
-      OCCURS_IN                                       0
-      PREDICTED_INDICATION                            0
-      SUBCLASS_OF                                     0
-      SUBCLASS_OF_DISEASE                             0
-      TREATS                             L            0
-      10 of 24 declared predicates are empty:
-        COMBINED_WITH
-        CONFERS_RESISTANCE_TO
-        HAS_STRAIN
-        HAS_VARIANT
-        IN_TRIAL_FOR  <- EVALUATION LABEL
-        OCCURS_IN
-        PREDICTED_INDICATION
-        SUBCLASS_OF
-        SUBCLASS_OF_DISEASE
-        TREATS  <- EVALUATION LABEL
-      2 of 3 evaluation label predicate(s) carry no edges, so every evaluation
-        rests on HAS_ANTIVIRAL_ACTIVITY_AGAINST alone.
+  NODES BY CLASS   every class the SCHEMA declares, including the ones
+                   holding zero, with the empty ones named. Listing
+                   only what is present reports presence and stays
+                   silent on absence, which is the thing this project
+                   refuses everywhere else.
 
-    EDGES BY CURATOR   (an edge with several curators counts once for each)
-      infores:uniprot                         176,907
-      infores:string                          141,019
-      infores:chembl                           39,589
-      infores:virhostnet                       10,163
-      infores:biogrid-orcs                      8,263
-      infores:ncats-opendata                    7,432
-      infores:intact                            6,617
-      infores:kgav-computed                     3,384
-      infores:mint                                878
-      infores:interpro                            182
-      infores:mondo                                16
-      infores:dip                                  12
-      infores:hpidb                                 1
-      4,979 edge(s) cite more than one curator, so these counts sum to more
-        than the edge total.
-      !! 542 edge(s) carry a REPEATED curator in one value. merge_edges
-        unioned source STRINGS rather than the curators inside them, so a fact
-        with several witnesses accumulated duplicates. Fixed in the assembler;
-        this release was assembled before the fix and reassembling rewrites
-        the field.
+  EDGES BY         likewise every declared predicate, with the held-out
+  PREDICATE        ones flagged -- and an absent EVALUATION LABEL
+                   called out as one, because a label predicate with no
+                   edges changes how every result in docs/evaluation.md
+                   should be read.
 
-    10 layer(s) assembled, hub cut degree 460
-      chembl
-      folds
-      host
-      hosttargets
-      ncats
-      orcs
-      selectivity
-      similarity
-      spine
-      vhppi
+  EDGES BY         curators, not source strings.
+  CURATOR          primary_knowledge_source is a "|" separated list
+                   once an edge has been merged, because one fact can
+                   have several witnesses; counting raw values reported
+                   35 "sources" for 13 real curators. An edge with
+                   several counts once for each, so the column sums to
+                   more than the edge total and says by how much. A
+                   REPEATED curator inside one value is flagged
+                   separately, because it is the footprint of an
+                   assembler defect rather than a property of the
+                   evidence, and collapsing it for display would hide
+                   that the release predates the fix.
 
-<<<END GENERATED>>>
-
-EDGES BY CURATOR COUNTS CURATORS, NOT SOURCE STRINGS.
-primary_knowledge_source is a "|" separated list once an edge has been
-merged, because one fact can have several witnesses. Counting the raw
-values reports "infores:intact|infores:virhostnet" as a source of its
-own: v0.1 held 35 such values for 13 real curators, and VirHostNet read
-5,222 where it had curated 10,163. An edge with several curators counts
-once for each, so the curator column sums to more than the edge total
-and says by how much.
-
-A REPEATED curator inside one value is a different thing and is flagged
-separately. merge_edges unioned source STRINGS rather than the curators
-inside them, so a fact with several witnesses accumulated duplicates --
-one v0.1 edge cites infores:intact thirty-five times. That is fixed in
-the assembler; a release assembled before the fix still carries the
-field as written, and reassembling rewrites it.
+  LAYERS           which of the twelve were assembled, and the hub cut
+                   degree the assembly used.
 
 The per-virus breakdown of these totals is `make audit`, which also
 reports what each layer contributed and what is missing.

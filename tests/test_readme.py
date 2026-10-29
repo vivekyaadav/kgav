@@ -149,14 +149,13 @@ def test_the_empty_label_predicates_are_named_if_they_are_empty():
     later ingest populates them, this fails until the claim is removed.
     """
     import scripts.write_kg_report as W
-    report = (ROOT / "docs" / "kg_audit_report.txt").read_text()
-    block = report.split(W.BEGIN, 1)[1].split(W.END, 1)[0]
+    block = W.CENSUS.read_text()
     flat_readme = " ".join(README.read_text().split())
-    if "not yet generated" in block:
+    if "NO ASSEMBLED RELEASE" in block:
         # NOT A SKIP. A test that reports green having found nothing to
         # look at is the defect this suite keeps finding in itself, so
         # the placeholder is asserted instead of waved through.
-        assert "run `make kg-report`" in block
+        assert "make kg-report" in block
         return
     m = re.search(r"(\d+) of (\d+) evaluation label", block)
     assert m, "the census no longer reports absent label predicates"

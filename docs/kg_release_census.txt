@@ -1,0 +1,13 @@
+==============================================================================
+kgav — RELEASE CENSUS
+
+GENERATED FILE. Do not edit: `make kg-report` overwrites it, and
+`make kg-report-check` fails if it does not describe the assembled
+release. The prose that interprets these figures is section 4 of
+docs/kg_audit_report.txt.
+==============================================================================
+
+    NO ASSEMBLED RELEASE was on disk when this file was
+    written, so it describes nothing. Run `make kg-report`
+    against an assembled release to fill it in.
+

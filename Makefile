@@ -142,7 +142,7 @@ data-audit:
 # hashes, so a rebuild without a regenerate is detectable rather than
 # merely wrong. kg-report-check is the read-only half, for the gate.
 kg-report:
-	python scripts/write_kg_report.py
+	python scripts/write_kg_report.py --placeholder
 
 kg-report-check:
 	python scripts/write_kg_report.py --check
