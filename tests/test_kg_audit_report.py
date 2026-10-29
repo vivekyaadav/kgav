@@ -698,3 +698,53 @@ def test_a_repeated_curator_is_reported_as_the_defect_it_is(tmp_path):
     block = report.read_text().split(W.BEGIN, 1)[1].split(W.END, 1)[0]
     assert "REPEATED curator" in block
     assert "assembled before the fix" in block
+
+
+# ------------------- what the AGENT exposes, versus what the data allows
+def test_the_virus_only_pathway_gap_matches_the_orchestrator(flat):
+    """The report said "for any virus, the graph can list the Reactome
+    pathways its dependency factors sit in ... the agent exposes it as
+    a PATHWAY query". True of the graph, false of the agent: the
+    orchestrator's PATHWAY branch requires a compound and otherwise
+    falls through to a node profile.
+
+    So the claim is checked against the branch. If a virus-only form is
+    ever added, this fails until the report stops calling it a gap --
+    which is the direction a document is least likely to be corrected
+    in on its own.
+    """
+    src = (ROOT / "src" / "kgav" / "agent" / "orchestrator.py").read_text()
+    requires_compound = bool(re.search(
+        r"if intent is guards\.QueryKind\.PATHWAY and compounds:", src))
+    # TWO SCOPED ASSERTIONS, NOT ONE DISJUNCTION. Written as
+    # `A in flat or B in flat`, deleting the statement from section 8
+    # passed because the KNOWN GAPS entry satisfied the other arm --
+    # each arm covering for the other is the same shape as a membership
+    # check satisfied by an unrelated mention.
+    body = section(flat, "HOW THE GRAPH SUPPORTS PATHWAY ANALYSIS",
+                   until="PER-VIRUS STATE")
+    gaps = section(flat, "KNOWN GAPS")
+    if requires_compound:
+        assert "no virus-only form of this query" in body.lower(), (
+            "the PATHWAY branch requires a compound and section 8 does "
+            "not say so where it describes the capability")
+        assert "falls through to a node profile" in body
+        assert "has no form of" in gaps, (
+            "the gap is described in section 8 and missing from KNOWN GAPS")
+    else:
+        assert "no virus-only form of this query" not in body.lower(), (
+            "a virus-only PATHWAY form now exists and section 8 still "
+            "calls it a gap")
+        assert "has no form of" not in gaps
+
+
+def test_the_report_does_not_claim_the_agent_walks_m4(flat):
+    """tools.pathways is a census, not a metapath traversal, and its own
+    docstring says _find_paths walks M1 and M2 only. A report implying a
+    pathway-mediated ranking would be describing a capability that does
+    not exist."""
+    src = (ROOT / "src" / "kgav" / "agent" / "tools.py").read_text()
+    assert "_find_paths walks M1 and M2 only" in src, (
+        "the agent's traversal set changed; re-check what the report "
+        "claims about M4")
+    assert "The agent never walks M4" in flat

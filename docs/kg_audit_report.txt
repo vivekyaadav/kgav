@@ -668,22 +668,59 @@ score measures connectivity rather than biology.
 
 Three distinct capabilities, in increasing order of what they claim.
 
-(a) PER-VIRUS DEPENDENCY PATHWAY CENSUS — descriptive, no model.
-    For any virus, the graph can list the Reactome pathways its
-    dependency factors sit in, how many factors each pathway holds, and
-    which of those factors have a drug that targets them. This is a join
-    over HOST_FACTOR_FOR (direction=dependency), PARTICIPATES_IN and
-    TARGETS. It needs no labels and no scorer, so none of the
-    label-confound problems apply. The agent exposes it as a PATHWAY
-    query and reports every pathway found, with the count capped for
-    output and the census stated in full.
+(a) COMPOUND-CENTRED PATHWAY CENSUS — descriptive, no model.
+    THIS IS THE ONE THE AGENT ANSWERS. Given a compound and a virus, it
+    reports how many human targets the compound has, how many pathways
+    under the member cap contain at least one of them, and how many of
+    those contain a protein the virus depends on — each with the
+    pathway's size, which of the compound's targets sit in it, and which
+    of its members are dependency factors. A join over TARGETS,
+    PARTICIPATES_IN and HOST_FACTOR_FOR (direction=dependency). It needs
+    no labels and no scorer, so none of the label-confound problems
+    apply.
 
-(b) CROSS-VIRUS PATHWAY COMPARISON — descriptive.
+    NEVER THE COUNT ALONE. A larger pathway contains a dependency factor
+    more often for no reason but its size, so the census is reported
+    against a SIZE-MATCHED background expectation and the ratio between
+    them, with a tail probability on the excess — and that probability
+    is stated to be anti-conservative, because pathways overlap and
+    share members, so the independence the tail assumes does not hold.
+
+    AND THREE THINGS IT REFUSES TO IMPLY. Membership is not benefit:
+    most TARGETS edges record potency with no direction, so a compound
+    may activate a protein the virus depends on as easily as inhibit it.
+    The measured null rides along, so a hit is context rather than
+    evidence. And a direct-acting antiviral with no human target is
+    reported as having none BECAUSE OF WHAT IT IS, not because the
+    source is thin — those are different statements and the graph knows
+    which applies.
+
+    WHAT IT DOES NOT DO. The agent never walks M4. tools.pathways is a
+    census, not a metapath traversal, so there is no pathway-mediated
+    RANKING: M4 exists in the schema and in the evaluation and not in
+    an answer.
+
+    AND THERE IS NO VIRUS-ONLY FORM OF THIS QUERY. The orchestrator's
+    PATHWAY branch requires a compound; asked which pathways a virus
+    depends on with no compound named, it falls through to a node
+    profile. The data and the helpers exist — _dependency_factors and
+    _pathway_background are both there — but nothing exposes the
+    question, which is likely the first one a biologist would ask of
+    this graph. Recorded as a gap rather than described as a
+    capability: an earlier version of this section said "for any virus,
+    the graph can list the Reactome pathways its dependency factors sit
+    in ... the agent exposes it as a PATHWAY query", which is true of
+    the graph and false of the agent.
+
+(b) CROSS-VIRUS PATHWAY COMPARISON — descriptive, and NOT EXPOSED.
     Because all 16 viruses hang off one host proteome with one pathway
-    vocabulary, the same census is directly comparable across viruses and
-    across families. "Which pathways do flaviviruses depend on that
-    coronaviruses do not" is a set operation on this graph, and the answer
-    carries each edge's screen, cell line and publication.
+    vocabulary, the same census is comparable across viruses and across
+    families in principle: "which pathways do flaviviruses depend on
+    that coronaviruses do not" is a set operation over the graph, and
+    the answer would carry each edge's screen, cell line and
+    publication. No tool and no query performs it today. It is written
+    here as what the DATA supports, not as something the agent can be
+    asked.
 
 (c) ENRICHMENT — inferential, and the part that must be done carefully.
     scripts/pathway_landscape.py asks whether a virus's dependency
@@ -788,6 +825,19 @@ clears chance, so every answerable virus carries VIRUS NOT VALIDATED.
   M8 transfers         34 of 36 allowed cross-family transfers are
                        blocked by comparator chains the spine does not
                        build.
+
+  virus-only pathway   the agent answers "does this compound hit
+  query                anything the virus depends on" and has no form
+                       of "which pathways does this virus depend on".
+                       The orchestrator's PATHWAY branch requires a
+                       compound and otherwise falls through to a node
+                       profile. The data and the helpers exist; the
+                       question is not exposed.
+
+  M4 in the agent      the pathway metapath is declared in the schema
+                       and evaluated in docs/evaluation.md, and the
+                       agent never walks it. There is no
+                       pathway-mediated ranking in an answer.
 
 ================================================================================
 end of report
