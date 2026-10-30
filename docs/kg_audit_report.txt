@@ -1,6 +1,6 @@
 ================================================================================
 kgav — KNOWLEDGE GRAPH AUDIT REPORT
-A Biolink-conformant knowledge graph for antiviral drug repurposing across
+A Biolink-ALIGNED knowledge graph for antiviral drug repurposing across
 Coronaviridae and Flaviviridae, and what it can and cannot be used to measure.
 ================================================================================
 
@@ -189,6 +189,47 @@ DIRECTORY LAYOUT
 ================================================================================
 3. SCHEMA SPECIFICATION
 ================================================================================
+
+BIOLINK-ALIGNED, NOT BIOLINK-CONFORMANT, and the difference is
+measured rather than asserted. This report said "conformant" until
+2026-10-30, when the schema was checked against the upstream model
+(336 classes, 554 slots) for the first time. The word `biolink`
+appeared nowhere else in the repository, there is no linkml or
+biolink-model dependency, and nothing validated the claim.
+
+  NODE CLASSES   8 of 11 map by name -- CellLine, Disease, Gene,
+                 OrganismTaxon, Pathway, Protein, Publication,
+                 SmallMolecule. TargetClass and VirusStrain have no
+                 Biolink counterpart; Variant is a naming gap, since
+                 Biolink has `sequence variant`.
+
+  PREDICATES     8 of 24 map by name: CAUSES, CHEMICALLY_SIMILAR_TO,
+                 OCCURS_IN, PARTICIPATES_IN, PHYSICALLY_INTERACTS_WITH,
+                 SAME_AS, SUBCLASS_OF, TREATS. Eight more map under a
+                 DIFFERENT Biolink name -- ENCODED_BY to `gene product
+                 of`, BELONGS_TO to `in taxon`, TARGETS to `has
+                 target`, MEMBER_OF_CLASS to `member of`,
+                 CONFERS_RESISTANCE_TO to `associated with resistance
+                 to`, INHIBITS to `decreases amount or activity of`,
+                 HOST_FACTOR_FOR to `contributes to`, and
+                 SUBCLASS_OF_DISEASE to `subclass of`.
+
+  THE REMAINING EIGHT HAVE NO BIOLINK HOME, and two of them should
+  not. MEASURED_INACTIVE_AGAINST records a measurement that found NO
+  activity; Biolink has no way to say that, and a negative result is
+  load-bearing in this evaluation -- dropping it to fit a standard
+  would lose the thing that makes the hard-negative protocol
+  possible. HOST_FACTOR_FOR maps to `contributes to` only by losing
+  its direction qualifier, and dependency versus restriction is the
+  sign that separates a therapy from a harm.
+
+WHAT WOULD MAKE THE CLAIM CHECKABLE is a `biolink_mapping:` field on
+each class and predicate, null with a reason for the eight that have
+none, validated against the upstream model the way every other claim
+in this report is validated against its source. That is also what a
+KGX export needs, which is the interoperability this project actually
+lacks -- not SPARQL, which cannot express a degree-weighted path
+count and would leave the computation in Python regardless.
 
 11 node classes:
 

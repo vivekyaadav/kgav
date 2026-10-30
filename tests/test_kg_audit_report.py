@@ -143,9 +143,19 @@ def test_every_symmetric_predicate_is_marked(flat, schema):
     for e in schema.edge_classes:
         if not e.symmetric or e.predicate == "SAME_AS":
             continue
-        after = flat.split(e.predicate, 1)[1][:120]
-        assert "symmetric" in after, (
-            f"{e.predicate} is symmetric and the report does not say so")
+        # ANY mention, not the FIRST. This read
+        # flat.split(e.predicate, 1)[1][:120] -- the text after the
+        # first occurrence -- so adding a paragraph that merely LISTS
+        # the predicate earlier in the document broke it, which is what
+        # happened on 2026-10-30 when the Biolink mapping note landed
+        # above the predicate table. The claim is that the report marks
+        # the predicate symmetric somewhere, not that the first time it
+        # appears is that place.
+        mentions = flat.split(e.predicate)[1:]
+        assert any("symmetric" in m[:120] for m in mentions), (
+            f"{e.predicate} is symmetric and the report does not say so "
+            f"within 120 characters of any of its {len(mentions)} "
+            f"mention(s)")
 
 
 # --------------------------------------------------------------- metapaths
@@ -645,3 +655,49 @@ def test_section_1_counts_the_channels_against_the_results(flat):
     assert f"{len(sig)} readable cells in the whole" in flat, (
         f"{len(sig)} readable cells are significant uncorrected; "
         f"section 1 states a different number")
+
+
+def test_biolink_conformance_is_claimed_only_if_something_checks_it(flat):
+    """"Biolink-conformant" sat in line 3 from the first version of
+    this report until 2026-10-30. The word `biolink` appeared NOWHERE
+    else in the repository -- no linkml, no biolink-model dependency,
+    no validation -- and measured against the upstream model it was
+    8 of 11 node classes and 8 of 24 predicates by name.
+
+    So the claim may be made only when a mapping exists to check it
+    against. Until then the report says ALIGNED and shows its working,
+    which is what every other claim in it does.
+    """
+    mapping_exists = bool(
+        list(ROOT.glob("schema/*biolink*"))
+        or "biolink_mapping" in (ROOT / "schema" / "kg_schema.yaml").read_text())
+    # THE TITLE, not the document. The section-3 note says "BIOLINK-
+    # ALIGNED, NOT BIOLINK-CONFORMANT" and explains why -- a check
+    # over the whole text fires on that negation, which is a
+    # membership check satisfied by an unrelated occurrence, written
+    # here by the same hand that keeps finding it elsewhere.
+    title = flat.split("Repository", 1)[0]
+    conformant = "biolink-conformant" in title.lower()
+    if not mapping_exists:
+        assert not conformant, (
+            "the report claims Biolink CONFORMANCE and nothing in the "
+            "repository maps a single class or predicate to the model; "
+            "say ALIGNED, or add schema mappings and a check")
+        assert "biolink-aligned" in title.lower(), (
+            "the report should say what its relationship to Biolink is, "
+            "not go silent on it")
+
+
+def test_the_biolink_note_keeps_the_two_divergences_that_are_deliberate(flat):
+    """MEASURED_INACTIVE_AGAINST and HOST_FACTOR_FOR.direction are not
+    gaps to close. Biolink cannot express a measurement that found no
+    activity, and `contributes to` drops the dependency/restriction
+    sign -- the one that separates a therapy from a harm. A later
+    mapping effort that quietly folded them in would lose the
+    hard-negative protocol and the direction, so the reasons are
+    recorded where someone doing that work would read them."""
+    block = section(flat, "SCHEMA SPECIFICATION", until="RELEASE CENSUS")
+    assert "MEASURED_INACTIVE_AGAINST" in block
+    assert "no way to say that" in block
+    assert "HOST_FACTOR_FOR" in block
+    assert "dependency versus restriction" in block
