@@ -48,29 +48,61 @@ The one-line version of every table here:
 > under that clean condition no channel separates either. That is a
 > different and better-supported statement than "everything is confounded".
 
-Five earlier figures for M1 -- 0.823, 0.726, 0.660, 0.499, 0.513 -- are
-reported below rather than withdrawn, because the sequence is the result. Each
-was produced by a protocol that failed a control the next one applied.
+Five figures for M1 -- 0.778, 0.672, 0.621, and then two protocols under which
+the channel reaches too few positives to be evaluated at all -- are reported
+below rather than withdrawn, because the sequence is the result. Each was
+produced by a protocol that failed a control the next one applied.
 
 ## The sequence
 
-Each row adds one control to the row above. CIs are Hanley-McNeil.
+SARS-CoV-2, cross-sectional. Each row adds one control to the row above. CIs
+are Hanley-McNeil. `reached` is how many of the positives M1 actually has a
+path to; below `MIN_REACHED_POSITIVES = 10` the AUC describes the imputed
+floor rather than the channel, and the cell reads *not evaluable*.
 
-| # | Protocol | pos | neg | cov_pos | cov_neg | **M1** |
-|---|---|---|---|---|---|---|
-| 1 | `selective-only`, positives only | 816 | 4,874 | 68.8% | 4.0% | 0.823 [0.805, 0.841] |
-| 2 | `all` — no selectivity filter | 1,730 | 4,874 | 49.4% | 4.0% | 0.726 [0.711, 0.741] |
-| 3 | `verified-only`, **both** sides | 1,028 | 165 | 56.6% | 25.5% | 0.660 [0.619, 0.701] |
-| 4 | + `--publication-disjoint` | 1,028 | 165 | 1.1% | 1.2% | 0.499 [0.452, 0.546] |
-| 5 | + `--label-source` (one screen) | 89 | 7,343 | 3.4% | 0.7% | **not evaluable** |
+<!-- TABLE: hard_negatives_sequence — asserted cell-by-cell by
+     tests/test_sequence_table.py against data/results/hard_negatives_row1..4.json
+     and data/results/hard_negatives.json (row 5, the canonical protocol).
+     Do not hand-edit; re-derive by running the Reproducing block.
+
+     Every cell is derived: pos and neg are n_pos and n_neg, cov_pos and
+     cov_neg are the coverages to one decimal, `reached` is
+     round(cov_pos * pos), and the M1 cell is the AUC with the interval
+     `kgav.labels.auc_interval` computes from it -- or `not evaluable`
+     when `reached` is below `kgav.calibration.MIN_REACHED_POSITIVES`.
+
+     This table went four rows stale without anything noticing, because
+     every protocol wrote one hard_negatives.json and only the last
+     survived. Each row now writes its own file. -->
+
+| # | Protocol | pos | neg | cov_pos | cov_neg | reached | **M1** |
+|---|---|---|---|---|---|---|---|
+| 1 | `selective-only`, positives only | 792 | 10,956 | 57.3% | 1.8% | 454 | 0.778 [0.758, 0.797] |
+| 2 | `all` — no selectivity filter | 2,020 | 10,956 | 36.2% | 1.8% | 732 | 0.672 [0.659, 0.686] |
+| 3 | `verified-only`, **both** sides | 974 | 168 | 48.0% | 24.4% | 468 | 0.621 [0.578, 0.664] |
+| 4 | + `--publication-disjoint` | 974 | 168 | 0.5% | 1.2% | 5 | **not evaluable** |
+| 5 | + `--label-source` (one screen) | 89 | 7,343 | 3.4% | 0.7% | 3 | **not evaluable** |
+
+**These figures replace an earlier set -- 0.823, 0.726, 0.660, 0.499 -- that
+the graph had stopped producing.** They were measured before the release was
+rebuilt, and the measured negative set for rows 1 and 2 has since more than
+doubled (4,874 to 10,956). Only row 5, whose labels come from one screen
+untouched by that rebuild, reproduced unchanged. The sequence survives the
+correction: the AUC still falls monotonically as each control is applied, and
+the collapse at 3 -> 4 is sharper than before. Nothing was checking these
+cells, which is why the drift was invisible: `check-results` compares a
+results *file* against the graph and the file was current, while four of
+these five rows had no file left at all, every protocol having written to one
+`hard_negatives.json`. Each row now writes its own, and
+`tests/test_sequence_table.py` re-derives every cell from it.
 
 **1 -> 2. The filter was asymmetric.** Row 1 filtered positives to compounds
 with a verified selectivity index and left negatives whole, so the positive
-class was 17x more reachable. Remove the filter and 0.823 becomes 0.726.
+class was 32x more reachable. Remove the filter and 0.778 becomes 0.672.
 
 **2 -> 3. Equalising the evidence basis.** Requiring the same paired
-cytotoxicity evidence of a negative drops the coverage ratio to 2.2x and M1 to
-0.660. The degree baseline falls 0.613 -> 0.528, which is the control working:
+cytotoxicity evidence of a negative drops the coverage ratio to 2.0x and M1 to
+0.621. The degree baseline falls 0.620 -> 0.473, which is the control working:
 degree *is* study volume.
 
 **3 -> 4. Evidence and answer from one paper.** Of 1,066 compounds carrying
@@ -88,8 +120,12 @@ At 4.7% that does not move row 4, which is why the figure is stated rather
 than qualified -- but the same measurement on DENV-2 reads 68%, and a virus
 can look clean under this control by having nothing to be disjoint from.
 Withholding that evidence took M1's reach over the evaluated positives from
-56.6% to 1.1% -- 582 compounds to 11. **That coverage collapse, not the AUC,
-is the finding.**
+48.0% to 0.5% -- 468 compounds to **5**, which is below
+`MIN_REACHED_POSITIVES`, so row 4 is no longer an AUC at all. **That coverage
+collapse, not the AUC, is the finding** -- and the collapse is now severe
+enough that the figure it used to produce has to be withdrawn rather than
+quoted. On the figures this table previously carried, row 4 reached 11
+compounds and scraped past the floor; it does not any more.
 
 **4 -> 5. One screen, so both classes are matched by construction.** Pooling
 ChEMBL and NCATS labels restores the confound by a new route: ChEMBL actives
@@ -138,7 +174,7 @@ posts a perfect AUC.
 
 But it means a low-coverage channel's AUC is dominated by the imputation, while
 its interval is computed from `n_pos` and implies far more evidence than the
-channel touched. M1's 0.513 rests on **three** compounds out of 89.
+channel touched. M1's 0.514 rests on **three** compounds out of 89.
 
 The assay-readout fix is what made this visible: it removed 540 `INHIBITS`
 edges, a seventh of the channel, and M1's AUC did not move by 0.001. Nothing
@@ -994,11 +1030,17 @@ python scripts/compare_metapaths.py
 # make. It runs in tests/test_hard_negatives.py instead, on every commit,
 # with a second arm proving the fixture could have shown the two settings
 # disagreeing.
+#
+# EACH ROW WRITES ITS OWN FILE. They all wrote hard_negatives.json, so only
+# row 5 survived and rows 1-4 left no record at all -- which is how the
+# table in "## The sequence" came to report four rows the graph had stopped
+# producing, with check-results certifying the one file it could see. Row 5
+# keeps the canonical name, because calibrate.py and the agent read it.
 python scripts/hard_negatives.py \
-    --protocol "--selectivity selective-only" \
-    --protocol "--selectivity all" \
-    --protocol "--selectivity verified-only --selectivity-applies both" \
-    --protocol "--selectivity verified-only --selectivity-applies both --publication-disjoint" \
+    --protocol "--selectivity selective-only --results-name hard_negatives_row1.json" \
+    --protocol "--selectivity all --results-name hard_negatives_row2.json" \
+    --protocol "--selectivity verified-only --selectivity-applies both --results-name hard_negatives_row3.json" \
+    --protocol "--selectivity verified-only --selectivity-applies both --publication-disjoint --results-name hard_negatives_row4.json" \
     --protocol "--selectivity all --publication-disjoint --label-source infores:ncats-opendata"
 python scripts/calibrate.py          # which channels were evaluable, and why not
 

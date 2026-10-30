@@ -190,6 +190,18 @@ def build_parser(root: Path) -> argparse.ArgumentParser:
     ap.add_argument("--release", type=Path, default=root / "data/releases/v0.1")
     ap.add_argument("--train", type=Path, default=root / "data/releases/v0.1-train2021")
     ap.add_argument("--results", type=Path, default=root / "data/results")
+    ap.add_argument("--results-name", default="hard_negatives.json",
+                    help="THE FILENAME THIS PROTOCOL WRITES. Every protocol "
+                         "wrote hard_negatives.json, so only the last one "
+                         "survived and the four before it left no record -- "
+                         "which is how the table in docs/evaluation.md came "
+                         "to report four rows the graph had stopped "
+                         "producing with nothing able to notice. Giving each "
+                         "row its own file puts all five under "
+                         "check-results and lets the table be checked cell "
+                         "by cell. The default is unchanged, so the "
+                         "canonical file calibrate.py and the agent read is "
+                         "still written by the protocol that runs last.")
     ap.add_argument("--cutoff", type=int, default=2021)
     ap.add_argument("--inactive-above-nm", type=float, default=10_000.0)
     ap.add_argument("--selectivity", default="all",
@@ -380,7 +392,7 @@ def run_protocol(args, cache: GraphCache, schema) -> int:
         print("  (the cross-sectional column above is unaffected and stands)")
 
     args.results.mkdir(parents=True, exist_ok=True)
-    write_results(args.results / "hard_negatives.json",
+    write_results(args.results / args.results_name,
                   {"inactive_above_nm": args.inactive_above_nm,
                    "selectivity_filter": args.selectivity,
                    "selectivity_applies": args.selectivity_applies,
@@ -407,7 +419,7 @@ def run_protocol(args, cache: GraphCache, schema) -> int:
                    "metapath_reach": {"cross_sectional": cross_reach,
                                       "temporal": temporal_reach}},
                   args.release, schema.version)
-    print(f"\nwrote {args.results / 'hard_negatives.json'}")
+    print(f"\nwrote {args.results / args.results_name}")
     print("\nAUC 0.5 is chance. Unlike Hits@k this is prevalence-independent, so "
           "it is comparable\nacross viruses whose base rates differ by two orders "
           "of magnitude.")

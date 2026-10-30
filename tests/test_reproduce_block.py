@@ -50,6 +50,15 @@ WRITERS: list[tuple[str, str]] = [
     (r"^baselines_NCBITaxon_\d+\.json$", "scripts/run_baselines.py"),
     (r"^metapath_comparison\.json$", "scripts/compare_metapaths.py"),
     (r"^hard_negatives\.json$", "scripts/hard_negatives.py"),
+    # One entry per row, not a shared `hard_negatives_row\d` pattern, for
+    # the same reason the four temporal files are listed separately: under
+    # a shared pattern, dropping row 3's protocol still matches the other
+    # three, and the file it writes could go unregenerated with the guard
+    # green.
+    (r"^hard_negatives_row1\.json$", "--results-name hard_negatives_row1.json"),
+    (r"^hard_negatives_row2\.json$", "--results-name hard_negatives_row2.json"),
+    (r"^hard_negatives_row3\.json$", "--results-name hard_negatives_row3.json"),
+    (r"^hard_negatives_row4\.json$", "--results-name hard_negatives_row4.json"),
     (r"^temporal_\d+_exclude\.json$", "--undated exclude"),
     (r"^temporal_\d+_computed_only\.json$", "--undated computed_only"),
     (r"^temporal_\d+_include\.json$", "--undated include"),
@@ -331,6 +340,25 @@ def test_every_row_the_table_reports_has_a_protocol_that_produces_it():
             assert re.search(rf"(?<![\w-]){re.escape(token)}(?![\w-])", spec), (
                 f"table row {n} is {desc!r} but protocol {n} is {spec!r}, "
                 f"which does not use {token!r}")
+
+
+def test_every_protocol_writes_a_file_of_its_own():
+    """TWO PROTOCOLS SHARING A --results-name IS THE OLD BUG RETURNING.
+
+    The earlier one's numbers are overwritten and its table row has nothing
+    left to be checked against -- which is exactly the state the sequence
+    table was in. Nothing else catches it: a file that is never written is
+    a file no audit visits, and the cell check for that row skips for want
+    of an artifact. Checked from the document alone, so it holds in a
+    checkout with no results on disk.
+    """
+    specs = protocols()
+    assert specs, "no protocols parsed; this test would check nothing"
+    written = [m.group(1) if (m := re.search(r"--results-name\s+(\S+)", s))
+               else "hard_negatives.json" for s in specs]
+    duplicated = sorted({n for n in written if written.count(n) > 1})
+    assert not duplicated, (
+        f"{duplicated} written by more than one protocol: {written}")
 
 
 def test_every_protocol_in_the_block_is_one_the_script_accepts():
