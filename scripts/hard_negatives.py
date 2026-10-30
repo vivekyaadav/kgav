@@ -8,6 +8,7 @@ compounds nobody tested?
 from __future__ import annotations
 
 import argparse
+import shlex
 import sys
 from pathlib import Path
 
@@ -29,21 +30,29 @@ MIN_CLASS_SIZE = 10
 
 
 def run(g: Graph, schema, labels, tag: str,
-        k_min: int = MIN_CLASS_SIZE) -> tuple[dict, dict]:
+        k_min: int = MIN_CLASS_SIZE,
+        dwpc: dict | None = None,
+        reach: dict | None = None) -> tuple[dict, dict]:
     """(per-virus results, per-metapath reach).
 
     Reach is returned alongside rather than mixed into the virus-keyed dict,
     because a consumer iterating the results should see viruses and nothing
     else.
+
+    dwpc and reach are accepted so --protocol can compute them ONCE per
+    distinct graph; both depend on the graph alone. Computed here when not
+    supplied, so every existing caller is unchanged.
     """
-    dwpc = dwpc_scores(g, schema.metapaths, schema.retrieval_limits)
+    if dwpc is None:
+        dwpc = dwpc_scores(g, schema.metapaths, schema.retrieval_limits)
     deg = degree_ranking(g)
     out: dict[str, dict] = {}
 
     # Reported before the per-virus tables, because a metapath absent from
     # every table below is otherwise indistinguishable from one that was never
     # declared. `if not sc: continue` hid M8 here with no stdout line at all.
-    reach = metapath_reach(g, schema.metapaths, dwpc)
+    if reach is None:
+        reach = metapath_reach(g, schema.metapaths, dwpc)
     dead = [n for n, r in reach.items() if not r["drugs_reached"]]
     if dead:
         print(f"\n[{tag}] metapaths reaching NO drug: {', '.join(dead)}")
@@ -124,8 +133,59 @@ def _report_drops(g: Graph, tag: str) -> None:
         print(f"    {k.replace('dropped_', ''):<34} {g.stats[k]:>7,}")
 
 
-def main() -> int:
-    root = Path(__file__).resolve().parents[1]
+class GraphCache:
+    """Load a graph and its DWPC once per distinct (release, publication
+    filter), across the protocols of one --protocol batch.
+
+    THE TRAVERSAL DEPENDS ON THE GRAPH ALONE. Every protocol in the
+    Reproducing block varies the LABELS -- which compounds count as active,
+    which as negative, which screen they come from -- and dwpc_scores reads
+    none of that. Five protocols over two graphs each is ten traversals of
+    which four are distinct: the full and training graphs, with and without
+    the publication-disjoint filter.
+
+    BOUNDED AT TWO, which is not a tuning knob. A single invocation already
+    holds the full graph and the training graph at once, so a cap of two
+    means a batch never holds more than one invocation does today. The block
+    runs its three unfiltered protocols before its two filtered ones, so two
+    entries is also enough to make every reuse land; an interleaved order
+    would reload, which is exactly what happens today anyway. The cap can
+    never make a run wrong, only slower, and `computing`/`reusing` on stdout
+    says which happened.
+    """
+
+    CAP = 2
+
+    def __init__(self, schema, held: set[str], cap: int | None = None):
+        self.schema, self.held = schema, held
+        self.cap = self.CAP if cap is None else cap
+        self._store: dict[tuple[str, str | None], tuple] = {}
+
+    def get(self, path: Path, pub_idx: dict | None, pub_source: Path | None,
+            tag: str) -> tuple[Graph, dict, dict]:
+        # Keyed on the publication SOURCE, not on a bool: the index is built
+        # from --release, so the same training graph filtered against two
+        # different releases is two different graphs.
+        key = (str(path), str(pub_source) if pub_source is not None else None)
+        hit = self._store.pop(key, None)
+        if hit is not None:
+            print(f"  reusing the graph and DWPC already computed for {tag}")
+            self._store[key] = hit
+            return hit
+
+        print(f"  computing the graph and DWPC for {tag}")
+        g = Graph.load(path, skip_predicates=self.held,
+                       symmetry=self.schema.symmetry(),
+                       drop_pubs_shared_with=pub_idx)
+        dwpc = dwpc_scores(g, self.schema.metapaths, self.schema.retrieval_limits)
+        reach = metapath_reach(g, self.schema.metapaths, dwpc)
+        self._store[key] = (g, dwpc, reach)
+        while len(self._store) > self.cap:
+            self._store.pop(next(iter(self._store)))
+        return g, dwpc, reach
+
+
+def build_parser(root: Path) -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser()
     ap.add_argument("--release", type=Path, default=root / "data/releases/v0.1")
     ap.add_argument("--train", type=Path, default=root / "data/releases/v0.1-train2021")
@@ -172,11 +232,23 @@ def main() -> int:
                          "'both' is the symmetric control -- requiring the "
                          "same paired cytotoxicity evidence of a compound "
                          "before it may be a negative.")
-    args = ap.parse_args()
+    ap.add_argument("--protocol", action="append", metavar="FLAGS",
+                    help="RUN SEVERAL PROTOCOLS IN ONE PROCESS, in the order "
+                         "given, each a quoted string of this script's own "
+                         "flags. The graph and its DWPC depend on the graph "
+                         "alone, so protocols that differ only in their "
+                         "labels share one traversal; the Reproducing block's "
+                         "five runs make ten traversals of which four are "
+                         "distinct. Each string is parsed by THIS parser, so "
+                         "nothing can be expressed in a batch that could not "
+                         "be run alone, and every protocol writes the results "
+                         "file in turn exactly as a separate invocation "
+                         "would -- the last one is still the one that stays "
+                         "on disk.")
+    return ap
 
-    schema = load_schema()
-    held = schema.held_out_predicates()
 
+def run_protocol(args, cache: GraphCache, schema) -> int:
     label_sources = ({s.strip() for s in args.label_source.split(",") if s.strip()}
                      if args.label_source else None)
     if label_sources:
@@ -226,16 +298,17 @@ def main() -> int:
     print("=" * 66)
     pub_idx: dict[str, set[str]] | None = None
     if args.publication_disjoint:
-        pub_idx = label_publication_index(args.release, held)
+        pub_idx = label_publication_index(args.release, cache.held)
         print(f"publication-disjoint: {len(pub_idx):,} compounds carry label "
               f"publications; evidence citing the same paper is withheld")
 
-    g_full = Graph.load(args.release, skip_predicates=held,
-                        symmetry=schema.symmetry(),
-                        drop_pubs_shared_with=pub_idx)
+    g_full, full_dwpc, full_reach = cache.get(
+        args.release, pub_idx,
+        args.release if args.publication_disjoint else None, "the full graph")
     if pub_idx:
         _report_drops(g_full, "cross-sectional")
-    cross, cross_reach = run(g_full, schema, all_labels, "cross-sectional")
+    cross, cross_reach = run(g_full, schema, all_labels, "cross-sectional",
+                             dwpc=full_dwpc, reach=full_reach)
 
     # Declared AFTER the cross-sectional run on purpose -- cross_reach is
     # already set above and must not be re-initialised here, which is what
@@ -281,13 +354,15 @@ def main() -> int:
         # it sits, and an edge in the pre-cutoff graph citing the paper that
         # reported the post-cutoff label is leakage across the split, not
         # evidence the split legitimately preserved.
-        g_train = Graph.load(args.train, skip_predicates=held,
-                             symmetry=schema.symmetry(),
-                             drop_pubs_shared_with=pub_idx)
+        g_train, train_dwpc, train_reach = cache.get(
+            args.train, pub_idx,
+            args.release if args.publication_disjoint else None,
+            f"the pre-{args.cutoff} training graph")
         if pub_idx:
             _report_drops(g_train, f"pre-{args.cutoff} train")
         temporal, temporal_reach = run(g_train, schema, test_labels,
-                                       f"post-{args.cutoff}")
+                                       f"post-{args.cutoff}",
+                                       dwpc=train_dwpc, reach=train_reach)
     else:
         temporal_skipped = {"status": train_status, "reason": train_msg,
                             "train": str(args.train)}
@@ -337,6 +412,61 @@ def main() -> int:
           "it is comparable\nacross viruses whose base rates differ by two orders "
           "of magnitude.")
     return 0
+
+
+def shared_argv(argv: list[str]) -> list[str]:
+    """argv with every --protocol and its value removed.
+
+    Each protocol string is parsed as `shared + the string`, so --release or
+    --results given once on the command line applies to all of them and a
+    protocol can still override it. Dropping the --protocol tokens is what
+    keeps that from recursing.
+    """
+    out: list[str] = []
+    skip = False
+    for tok in argv:
+        if skip:
+            skip = False
+        elif tok == "--protocol":
+            skip = True
+        elif not tok.startswith("--protocol="):
+            out.append(tok)
+    return out
+
+
+def main(argv: list[str] | None = None) -> int:
+    root = Path(__file__).resolve().parents[1]
+    ap = build_parser(root)
+    argv = list(sys.argv[1:] if argv is None else argv)
+    args = ap.parse_args(argv)
+
+    schema = load_schema()
+    cache = GraphCache(schema, schema.held_out_predicates())
+
+    if not args.protocol:
+        return run_protocol(args, cache, schema)
+
+    shared = shared_argv(argv)
+    for spec in args.protocol:
+        if "--protocol" in spec:
+            ap.error("--protocol cannot nest; list every protocol at the "
+                     "top level instead")
+
+    # NOT `return` ON THE FIRST FAILURE. Run separately, a protocol that
+    # exits 1 (no positives from the named screen) does not stop the block:
+    # it has no `set -e`, so the next command runs and the LAST protocol is
+    # still the one left on disk. A batch that aborted early would change
+    # which numbers survive, which is the one thing this must not do.
+    rc = 0
+    for i, spec in enumerate(args.protocol, 1):
+        print(f"\n{'#' * 70}\n# protocol {i} of {len(args.protocol)}: "
+              f"{spec}\n{'#' * 70}")
+        if run_protocol(ap.parse_args(shared + shlex.split(spec)),
+                        cache, schema):
+            rc = 1
+            print(f"  protocol {i} wrote nothing; the results file still "
+                  f"holds the last protocol that completed")
+    return rc
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ is actually compared against something.
 """
 import importlib.util
 import json
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -137,10 +138,17 @@ COMPOUNDS: list[tuple[str, float | None]] = (
 )
 
 
-def _edge(subject, predicate, obj, qualifiers):
+#: Structure is pre-cutoff and every label is post-cutoff, so a 2021 split
+#: leaves the traversal intact and puts the whole test set on the far side --
+#: which is what gives the temporal column something to evaluate.
+STRUCTURE_DATE = "2020-01-01"
+LABEL_DATE = "2022-06-01"
+
+
+def _edge(subject, predicate, obj, qualifiers, date=STRUCTURE_DATE):
     return {"subject": subject, "predicate": predicate, "object": obj,
             "qualifiers": qualifiers, "primary_knowledge_source": "infores:test",
-            "evidence_tier": 1, "first_asserted_date": "2020-06-01"}
+            "evidence_tier": 1, "first_asserted_date": date}
 
 
 def _build_release(out: Path) -> Path:
@@ -161,20 +169,60 @@ def _build_release(out: Path) -> Path:
         targets = [PROTEINS[k % 4]]
         if k % 3 == 0:                      # varied degree: the degree
             targets.append(PROTEINS[(k + 1) % 4])   # baseline is not constant
-        edges += [_edge(drug, "TARGETS", p, {}) for p in targets]
+        # Every third compound cites one paper on BOTH its evidence and its
+        # label, so --publication-disjoint has something to withhold and the
+        # filtered graph is really a different graph. Without this the two
+        # would be identical and a cache that ignored the filter would go
+        # unnoticed.
+        pub = [f"PMID:{k}"] if k % 3 == 0 else []
+        edges += [dict(_edge(drug, "TARGETS", p, {}), publications=pub)
+                  for p in targets]
         active = drug.startswith("INCHIKEY:A")
         q = {"assay_type": "cell_based_antiviral",
              "ec50_nm": 200.0 if active else 50_000.0,
              "relation": "=" if active else ">"}
         if si is not None:
             q["selectivity_index"] = si
-        edges.append(_edge(drug, "HAS_ANTIVIRAL_ACTIVITY_AGAINST", VIRUS, q))
+        edges.append(dict(_edge(drug, "HAS_ANTIVIRAL_ACTIVITY_AGAINST", VIRUS,
+                                q, date=LABEL_DATE), publications=pub))
 
+    _write(out, nodes, edges)
+    return out
+
+
+def _write(out: Path, nodes: list[dict], edges: list[dict]) -> Path:
     out.mkdir(parents=True, exist_ok=True)
     (out / "nodes.jsonl").write_text(
         "\n".join(json.dumps(n, sort_keys=True) for n in nodes))
     (out / "edges.jsonl").write_text(
         "\n".join(json.dumps(e, sort_keys=True) for e in edges))
+    return out
+
+
+def _build_train(release: Path, out: Path) -> Path:
+    """A stamped pre-cutoff split, so the temporal column actually runs.
+
+    DELIBERATELY NOT A COPY. Four compounds lose their TARGETS edges here, so
+    the training graph's DWPC differs from the full graph's -- which is what
+    makes it possible to notice a cache handing one graph's traversal to the
+    other. Against an identical copy that mistake would be invisible.
+    """
+    from kgav.provenance import write_derived
+    from kgav.schema import load_schema
+
+    nodes = [json.loads(ln) for ln
+             in (release / "nodes.jsonl").read_text().splitlines() if ln.strip()]
+    severed = {d for d, _ in COMPOUNDS[-4:]}
+    edges = [e for e in (json.loads(ln) for ln
+                         in (release / "edges.jsonl").read_text().splitlines()
+                         if ln.strip())
+             # A 2021 cut drops every label (all post-cutoff) and keeps the
+             # structure (all pre-cutoff).
+             if e["predicate"] != "HAS_ANTIVIRAL_ACTIVITY_AGAINST"
+             and not (e["predicate"] == "TARGETS" and e["subject"] in severed)]
+    _write(out, nodes, edges)
+    write_derived(out, release, load_schema().version,
+                  cutoff=2021, undated="include")
     return out
 
 
@@ -194,7 +242,7 @@ def _run(release: Path, results: Path, selectivity: str, applies: str) -> dict:
          "--results", str(results),
          "--selectivity", selectivity,
          "--selectivity-applies", applies],
-        cwd=ROOT, capture_output=True, text=True)
+        cwd=ROOT, capture_output=True, text=True, check=False)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     doc = json.loads((results / "hard_negatives.json").read_text())
     # The one field that moves between two runs of the SAME configuration.
@@ -255,3 +303,241 @@ def test_selectivity_applies_is_a_no_op_when_the_filter_is_all(arms):
     assert differing == {"selectivity_applies"}, sorted(differing)
     assert (a["selectivity_applies"], b["selectivity_applies"]) \
         == ("positives", "both")
+
+
+# --------------------------------------------------------- the protocol batch
+#
+# dwpc_scores depends on the GRAPH alone. Every protocol in the Reproducing
+# block varies only the labels -- which compounds count as active, which as
+# negative, which screen they come from -- so five protocols over two graphs
+# each is ten traversals of which four are distinct. --protocol runs them in
+# one process and computes each distinct one once.
+#
+# THE ONLY THING THAT MATTERS IS THAT IT CHANGES NOTHING. A batch must write
+# exactly what separate invocations write, after EVERY protocol and not only
+# the last: the block relies on last-write-wins, so an interrupted batch must
+# leave a document some protocol actually produced.
+
+#: The block's five rows, in the block's order, with the fixture's own screen
+#: standing in for infores:ncats-opendata.
+BLOCK_PROTOCOLS = [
+    "--selectivity selective-only",
+    "--selectivity all",
+    "--selectivity verified-only --selectivity-applies both",
+    # Parenthesised, not a bare implicit concatenation: a stray comma here
+    # would silently make this two protocols, and ruff's ISC004 flags the
+    # shape for exactly that reason.
+    ("--selectivity verified-only --selectivity-applies both "
+     "--publication-disjoint"),
+    "--selectivity all --publication-disjoint --label-source infores:test",
+]
+
+
+def _invoke(release, train, results, *flags):
+    return subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "hard_negatives.py"),
+         "--release", str(release), "--train", str(train),
+         "--results", str(results), *flags],
+        cwd=ROOT, capture_output=True, text=True, check=False)
+
+
+def _doc(results: Path) -> dict:
+    doc = json.loads((results / "hard_negatives.json").read_text())
+    doc["provenance"].pop("generated_utc", None)
+    return doc
+
+
+@pytest.fixture(scope="module")
+def world(tmp_path_factory):
+    """A release WITH a stamped training graph, so the temporal column runs.
+
+    The arms fixture above deliberately has none; here the training graph is
+    the point, because it is the second of the two graphs whose traversal the
+    batch is meant to share.
+    """
+    base = tmp_path_factory.mktemp("hn_world")
+    release = _build_release(base / "release")
+    return release, _build_train(release, base / "train")
+
+
+@pytest.fixture(scope="module")
+def separate(world, tmp_path_factory):
+    """Each protocol run on its own, snapshotting the file after every one."""
+    release, train = world
+    out = tmp_path_factory.mktemp("hn_separate") / "results"
+    snapshots = []
+    for spec in BLOCK_PROTOCOLS:
+        proc = _invoke(release, train, out, *shlex.split(spec))
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        snapshots.append(_doc(out))
+    return snapshots
+
+
+def test_the_training_graph_is_not_the_full_graph(separate):
+    """GUARDS THE CACHE KEY. The two graphs share a release and differ only
+    in their path, so a key that collided would hand the temporal column the
+    cross-sectional traversal. Against an identical copy that would be
+    invisible; here the training graph is four compounds short of its
+    TARGETS edges and the numbers must differ."""
+    doc = separate[1]
+    assert doc["temporal_skipped"] is None, doc["temporal_skipped"]
+    assert doc["temporal"], "the temporal column did not run"
+    assert (doc["metapath_reach"]["cross_sectional"]
+            != doc["metapath_reach"]["temporal"])
+    assert (doc["cross_sectional"][VIRUS_LABEL]["M2"]["auc"]
+            != doc["temporal"][VIRUS_LABEL]["M2"]["auc"])
+
+
+@pytest.mark.parametrize("n", range(1, len(BLOCK_PROTOCOLS) + 1))
+def test_a_batch_writes_what_separate_invocations_write(
+        n, world, separate, tmp_path_factory):
+    """Truncated at every length, so the intermediate documents are compared
+    and not only the last. Getting the final file right while clobbering the
+    ones before it would still break the block, which depends on each run
+    leaving a complete document behind."""
+    release, train = world
+    out = tmp_path_factory.mktemp(f"hn_batch{n}") / "results"
+    flags = [f for spec in BLOCK_PROTOCOLS[:n] for f in ("--protocol", spec)]
+    proc = _invoke(release, train, out, *flags)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert _doc(out) == separate[n - 1]
+
+
+def test_the_batch_shares_the_traversals_it_is_there_to_share(
+        world, tmp_path_factory):
+    """The whole point, asserted as a count rather than as a stopwatch.
+
+    Five protocols touch two graphs each: ten traversals, four distinct --
+    the full and training graphs, with and without the publication filter.
+    An assertion of 'fewer than ten' would pass on a cache that worked once,
+    so this pins the number."""
+    release, train = world
+    out = tmp_path_factory.mktemp("hn_count") / "results"
+    flags = [f for spec in BLOCK_PROTOCOLS for f in ("--protocol", spec)]
+    proc = _invoke(release, train, out, *flags)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    computed = proc.stdout.count("computing the graph and DWPC")
+    reused = proc.stdout.count("reusing the graph and DWPC")
+    # Four distinct: {full, training} x {filtered, not}. The total is derived
+    # rather than written down, so adding a protocol changes one number here
+    # and not two.
+    assert computed == 4, proc.stdout
+    assert computed + reused == 2 * len(BLOCK_PROTOCOLS), proc.stdout
+
+
+def test_a_shared_flag_reaches_every_protocol(world, tmp_path_factory):
+    """--release and --results are given once. If they did not reach each
+    protocol, every protocol would silently read data/releases/v0.1 -- the
+    real release, not the fixture -- and this suite would depend on one
+    being present."""
+    release, train = world
+    out = tmp_path_factory.mktemp("hn_shared") / "results"
+    proc = _invoke(release, train, out, "--protocol", "--selectivity all")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert _doc(out)["provenance"]["release"]["id"] == release.name
+
+
+def test_a_protocol_overrides_a_shared_flag(world, tmp_path_factory):
+    """Each spec is parsed AFTER the shared flags, so a protocol can set its
+    own. Without this the batch could express less than five invocations
+    can, which would make it a different protocol set rather than the same
+    one run faster."""
+    release, train = world
+    out = tmp_path_factory.mktemp("hn_override") / "results"
+    proc = _invoke(release, train, out, "--inactive-above-nm", "10000",
+                   "--protocol", "--selectivity all --inactive-above-nm 99999")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert _doc(out)["inactive_above_nm"] == 99999.0
+
+
+def test_a_protocol_cannot_nest(world, tmp_path_factory):
+    release, train = world
+    out = tmp_path_factory.mktemp("hn_nest") / "results"
+    proc = _invoke(release, train, out,
+                   "--protocol", "--selectivity all --protocol '--selectivity all'")
+    assert proc.returncode != 0
+    assert "cannot nest" in proc.stderr
+
+
+def test_a_failing_protocol_does_not_stop_the_ones_after_it(
+        world, tmp_path_factory):
+    """Run separately these are five commands in a block with no `set -e`, so
+    one exiting 1 does not stop the next and the LAST protocol is still the
+    one left on disk. A batch that aborted early would change which numbers
+    survive a rebuild, which is the one thing it must not do."""
+    release, train = world
+    out = tmp_path_factory.mktemp("hn_rc") / "results"
+    proc = _invoke(
+        release, train, out,
+        "--protocol", "--selectivity all --label-source infores:nonesuch",
+        "--protocol", "--selectivity verified-only --selectivity-applies both")
+    assert proc.returncode == 1, "a protocol that wrote nothing was not reported"
+    assert "NO POSITIVES" in proc.stdout
+    # The protocol AFTER the failure still ran, and its document is the one
+    # on disk.
+    doc = _doc(out)
+    assert doc["selectivity_filter"] == "verified-only"
+    assert doc["label_source"] is None
+
+
+def test_shared_argv_drops_only_the_protocol_tokens():
+    """The reconstruction that makes shared flags work. Getting it wrong by
+    one token would feed a protocol string into the shared list, where it
+    would be parsed as flags rather than as a protocol."""
+    m = _mod()
+    assert m.shared_argv(
+        ["--release", "r", "--protocol", "--selectivity all",
+         "--results", "o", "--protocol", "--selectivity none"]
+    ) == ["--release", "r", "--results", "o"]
+    assert m.shared_argv(["--protocol=--selectivity all", "--cutoff", "2021"]) \
+        == ["--cutoff", "2021"]
+    assert m.shared_argv(["--release", "r"]) == ["--release", "r"]
+
+
+def test_run_uses_the_dwpc_it_is_given_instead_of_recomputing(world):
+    """The saving itself, asserted directly.
+
+    Everything above would still pass if run() accepted a DWPC and then
+    quietly recomputed its own: the numbers would be identical and the
+    cache's own stdout lines would still say 'reusing'. This fails instead
+    of merely being slow."""
+    from kgav.baselines import Graph, dwpc_scores, metapath_reach
+    from kgav.labels import build_labels
+    from kgav.schema import load_schema
+
+    release, _ = world
+    schema = load_schema()
+    g = Graph.load(release, skip_predicates=schema.held_out_predicates(),
+                   symmetry=schema.symmetry())
+    dwpc = dwpc_scores(g, schema.metapaths, schema.retrieval_limits)
+    reach = metapath_reach(g, schema.metapaths, dwpc)
+
+    m = _mod()
+
+    def no_dwpc(*a, **k):
+        raise AssertionError("run() recomputed a DWPC it had been handed")
+
+    def no_reach(*a, **k):
+        raise AssertionError("run() recomputed a reach it had been handed")
+
+    m.dwpc_scores, m.metapath_reach = no_dwpc, no_reach
+    out, out_reach = m.run(g, schema, build_labels(release), "t",
+                           dwpc=dwpc, reach=reach)
+    assert out, "the fixture evaluated nothing, so nothing was proved"
+    assert out_reach == reach
+
+
+def test_run_still_computes_its_own_when_given_none(world):
+    """The other half: every existing caller passes neither, and must keep
+    working. A signature change that made them mandatory would be caught
+    here rather than by a script failing at the end of a rebuild."""
+    from kgav.baselines import Graph
+    from kgav.labels import build_labels
+    from kgav.schema import load_schema
+
+    release, _ = world
+    schema = load_schema()
+    g = Graph.load(release, skip_predicates=schema.held_out_predicates(),
+                   symmetry=schema.symmetry())
+    out, reach = _mod().run(g, schema, build_labels(release), "t")
+    assert out and reach
