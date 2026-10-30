@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 from pathlib import Path
 
 import pytest
@@ -227,9 +228,14 @@ def test_a_commented_out_step_does_not_count_as_a_step():
 #: include`. Checking the last command therefore passed while the real
 #: last split was something else entirely, which is the ordering bug this
 #: entry exists to catch, hiding inside the check for it.
+#:
+#: hard_negatives.py IS NOT HERE ANY MORE, and the entry was not dropped
+#: for convenience: its five protocols are now arguments to one command,
+#: so `len(writing) > 1` below failed with "this entry orders nothing".
+#: That guard was right -- there is no longer an ordering BETWEEN commands
+#: to check. The ordering moved inside the command, and so did the check:
+#: test_the_protocol_that_stays_on_disk_is_the_one_the_document_quotes.
 LAST_RUN_WINS: list[tuple[str, str, tuple[str, ...]]] = [
-    ("scripts/hard_negatives.py",
-     "--label-source infores:ncats-opendata", ()),
     ("scripts/temporal_split.py",
      "--undated include", ("--overlap-policy keep",)),
 ]
@@ -250,6 +256,107 @@ def test_the_run_that_stays_on_disk_is_the_one_the_document_quotes(
         f"the last writing {script} run is {writing[-1]!r}, so the file "
         f"left on disk is not the one carrying {flag!r} that the document "
         f"quotes")
+
+
+# ------------------------------------------------- protocols within one run
+#
+# hard_negatives.py's five protocols are arguments to a single invocation,
+# which shares one DWPC across them. Last-write-wins is unchanged -- the
+# file is rewritten after each protocol -- so the ordering still decides
+# which row the rest of the document is quoting, and it is still not
+# something a reader can verify by looking.
+
+def protocols() -> list[str]:
+    """The block's --protocol strings for hard_negatives.py, in order."""
+    runs = [c for c in commands() if "scripts/hard_negatives.py" in c]
+    assert len(runs) == 1, (
+        f"expected one hard_negatives.py command carrying every protocol, "
+        f"found {len(runs)}")
+    return re.findall(r'--protocol\s+"([^"]*)"', runs[0])
+
+
+def test_the_protocol_that_stays_on_disk_is_the_one_the_document_quotes():
+    specs = protocols()
+    assert len(specs) > 1, (
+        f"{len(specs)} protocol(s) parsed out of the block, so this orders "
+        f"nothing -- if the batch really has one protocol, drop this test "
+        f"rather than leave one that cannot fail")
+    assert "--label-source infores:ncats-opendata" in specs[-1], (
+        f"the last protocol is {specs[-1]!r}, so the row left on disk is "
+        f"not the one the document quotes")
+
+
+#: The heading above the table of protocols the document reports.
+SEQUENCE_HEADING = "## The sequence"
+
+
+def sequence_rows() -> list[tuple[str, str]]:
+    """(row number, Protocol cell) from the table under '## The sequence'."""
+    text = DOC.read_text()
+    assert SEQUENCE_HEADING in text, "the protocol table was renamed"
+    tail = text.split(SEQUENCE_HEADING, 1)[1].split("\n## ", 1)[0]
+    rows = []
+    for line in tail.splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) >= 2 and re.fullmatch(r"\d+", cells[0]):
+            rows.append((cells[0], cells[1]))
+    return rows
+
+
+def test_every_row_the_table_reports_has_a_protocol_that_produces_it():
+    """A DROPPED PROTOCOL IS OTHERWISE SILENT.
+
+    Only the last protocol's output survives on disk, so deleting row 4
+    from the block changes nothing check-results can see: the file is
+    still current, still stamped, still row 5. The document would go on
+    reporting a row no step produces -- which is the same defect as
+    pathway_landscape.json having no writer, in the one direction this
+    module did not cover. It was equally undetected when these were five
+    separate commands; one command makes it easier to do by accident.
+
+    The flags come from the table's own backticked cells rather than a
+    second hand-written list, so a row renamed in one place and not the
+    other fails here instead of drifting.
+    """
+    rows, specs = sequence_rows(), protocols()
+    assert len(rows) >= 2, f"parsed {len(rows)} rows out of the table"
+    assert len(rows) == len(specs), (
+        f"the table reports {len(rows)} protocols and the block runs "
+        f"{len(specs)}: " + "; ".join(f"row {n} ({d})" for n, d in rows))
+    for (n, desc), spec in zip(rows, specs):
+        for token in re.findall(r"`([^`]+)`", desc):
+            # Whole token, not a substring: `all` occurs inside plenty of
+            # longer flags, and a membership check satisfied by an
+            # unrelated occurrence is the defect this suite finds most.
+            assert re.search(rf"(?<![\w-]){re.escape(token)}(?![\w-])", spec), (
+                f"table row {n} is {desc!r} but protocol {n} is {spec!r}, "
+                f"which does not use {token!r}")
+
+
+def test_every_protocol_in_the_block_is_one_the_script_accepts():
+    """A MISSPELLED FLAG INSIDE A QUOTED STRING IS INVISIBLE TO THE SHELL.
+
+    When these were five commands, a typo was still a typo the shell could
+    not catch but argparse rejected within seconds. Now they are strings,
+    and a bad one is rejected the same way -- six minutes into the run,
+    after the traversal it shares with the others has already been paid
+    for. This rejects it here instead, against the script's own parser
+    rather than a second list of flag names.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "hard_negatives", ROOT / "scripts" / "hard_negatives.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    parser = mod.build_parser(ROOT)
+
+    specs = protocols()
+    assert specs, "no protocols parsed; this test would check nothing"
+    for s in specs:
+        # parse_args exits on a bad flag; let that surface as the failure,
+        # named, rather than being swallowed into a bare assert.
+        parser.parse_args(shlex.split(s))
 
 
 def test_check_results_is_the_last_command():

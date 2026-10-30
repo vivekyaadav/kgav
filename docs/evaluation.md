@@ -926,7 +926,7 @@ source as unverified.
 **Order matters, for two reasons.** `temporal_split.py` cuts the training
 graph that `hard_negatives.py` reads, so the split comes first — and the
 three `--undated` protocols write to *one* output directory, so the last one
-run is the split that stays on disk. Every `hard_negatives.py` variant
+run is the split that stays on disk. Every `hard_negatives.py` protocol
 likewise writes to one `hard_negatives.json`, so the last one run is the row
 that stays. Both lists below therefore end on the run whose numbers the rest
 of this document quotes.
@@ -967,26 +967,39 @@ python scripts/run_baselines.py --all-viruses
 # 3. metapath comparison, and the hard-negative protocols
 python scripts/compare_metapaths.py
 
-# rows 1-4, in order
-python scripts/hard_negatives.py --selectivity selective-only
-python scripts/hard_negatives.py --selectivity all
-python scripts/hard_negatives.py --selectivity verified-only --selectivity-applies both
-python scripts/hard_negatives.py --selectivity verified-only \
-    --selectivity-applies both --publication-disjoint
-
-# the no-op control is NOT here. It used to be, and it verified nothing:
-# every variant writes to one hard_negatives.json, so row 2's file had been
-# overwritten two steps before the control ran and the control's own output
-# was overwritten one step after. It cost ~2.5 minutes a rebuild and no one
-# could read the comparison it was supposed to make. It runs in
-# tests/test_hard_negatives.py instead, on every commit, with a second arm
-# proving the fixture could have shown the two settings disagreeing.
-
-# row 5 -- the current protocol, run LAST so its numbers are the ones left
-# on disk. Running it first, as this block used to, meant the no-op control
-# overwrote it and hard_negatives.json held row 2 while being read as row 5.
-python scripts/hard_negatives.py --selectivity all --publication-disjoint \
-    --label-source infores:ncats-opendata
+# rows 1-5, IN ORDER, in ONE process.
+#
+# Each --protocol string is parsed by hard_negatives.py's own parser, so
+# nothing here could not be run on its own: copy any one of them onto the
+# command line and it behaves exactly as it did when these were five
+# commands. The results file is rewritten after each protocol, so the LAST
+# one is still the row that stays on disk -- row 5, the protocol the rest
+# of this document quotes. It used to run first, which meant the no-op
+# control overwrote it and hard_negatives.json held row 2 while being read
+# as row 5.
+#
+# ONE PROCESS because dwpc_scores depends on the GRAPH alone. These five
+# differ only in their LABELS -- which compounds count as active, which as
+# negative, which screen they came from -- so run separately they recompute
+# the same traversal: five protocols over the full graph and the training
+# graph is ten DWPC computations of which four are distinct. One invocation
+# measured 2m41s on v0.1, so the five were about thirteen and a half
+# minutes of which roughly six were duplicated work.
+#
+# The no-op control is NOT in this list. It used to be a sixth run, and it
+# verified nothing: every protocol writes to one hard_negatives.json, so
+# row 2's file had been overwritten two steps before the control ran and
+# the control's own output was overwritten one step after. It cost ~2.5
+# minutes a rebuild and nobody could read the comparison it was supposed to
+# make. It runs in tests/test_hard_negatives.py instead, on every commit,
+# with a second arm proving the fixture could have shown the two settings
+# disagreeing.
+python scripts/hard_negatives.py \
+    --protocol "--selectivity selective-only" \
+    --protocol "--selectivity all" \
+    --protocol "--selectivity verified-only --selectivity-applies both" \
+    --protocol "--selectivity verified-only --selectivity-applies both --publication-disjoint" \
+    --protocol "--selectivity all --publication-disjoint --label-source infores:ncats-opendata"
 python scripts/calibrate.py          # which channels were evaluable, and why not
 
 # 4. the pathway landscape. It depends on nothing above -- it reads the
