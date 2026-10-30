@@ -103,8 +103,31 @@ plates under one protocol: matched structurally rather than by a filter.
 ### Control
 
 `--selectivity all --selectivity-applies both` must be a no-op, because `all`
-short-circuits the filter block entirely. It reproduces the row-2 figure, so
-the flag does nothing it should not.
+short-circuits the filter block entirely, leaving the flag recorded in the
+output and otherwise unread.
+
+This was asserted here for weeks on the strength of a step in the Reproducing
+block that **could not have checked it**. Every `hard_negatives.py` variant
+writes to one `hard_negatives.json`, so when the control ran, row 2's file had
+been overwritten two steps earlier, and the control's own output was
+overwritten one step later by row 5. Nothing compared anything; the run cost
+about two and a half minutes per rebuild and was reported here in the past
+tense as a check that had passed.
+
+The comparison now runs in `tests/test_hard_negatives.py`, on every commit
+rather than once per rebuild, against a fixture built for it: both classes
+clear `MIN_CLASS_SIZE` under every arm and M2 reaches some compounds and not
+others. The two configurations differ in exactly one field, the recorded
+`selectivity_applies` — and requiring that field to differ is what shows the
+two runs were really configured differently rather than compared with
+themselves.
+
+**The second arm is the one that makes the first mean anything.** Under
+`--selectivity selective-only`, where the filter does run, the same pair of
+settings must *diverge*: the negatives fall from 18 to 12 and the AUC moves.
+Without it, the agreement would be satisfied by any fixture too small to
+disagree — the smoke release yields `cross_sectional: []` and would pass by
+comparing two empty documents.
 
 ## Why the coverage floor exists
 
@@ -951,8 +974,13 @@ python scripts/hard_negatives.py --selectivity verified-only --selectivity-appli
 python scripts/hard_negatives.py --selectivity verified-only \
     --selectivity-applies both --publication-disjoint
 
-# no-op control: must reproduce row 2 exactly
-python scripts/hard_negatives.py --selectivity all --selectivity-applies both
+# the no-op control is NOT here. It used to be, and it verified nothing:
+# every variant writes to one hard_negatives.json, so row 2's file had been
+# overwritten two steps before the control ran and the control's own output
+# was overwritten one step after. It cost ~2.5 minutes a rebuild and no one
+# could read the comparison it was supposed to make. It runs in
+# tests/test_hard_negatives.py instead, on every commit, with a second arm
+# proving the fixture could have shown the two settings disagreeing.
 
 # row 5 -- the current protocol, run LAST so its numbers are the ones left
 # on disk. Running it first, as this block used to, meant the no-op control
