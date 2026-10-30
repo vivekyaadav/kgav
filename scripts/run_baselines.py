@@ -151,13 +151,34 @@ def dwpc_mode(cal) -> str:
     return "calibrated" if cal.can_rank() else "refused"
 
 
+DEFAULT_VIRUS = "NCBITaxon:2697049"
+
+
+def register_viruses(root: Path) -> list[str]:
+    """Every taxon in config/viruses.yaml, in register order.
+
+    The Reproducing block used to hand-list all sixteen taxon ids. That
+    list was eight until 2026-10-23, when the remaining flaviviruses
+    were promoted, and a register that grows again leaves the block
+    quietly short. Reading it here means a promoted virus is evaluated
+    without anyone editing a document.
+    """
+    import yaml
+    doc = yaml.safe_load((root / "config" / "viruses.yaml").read_text())
+    return [f"NCBITaxon:{v['taxon']}" for v in doc["viruses"]]
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
     ap.add_argument("--release", type=Path, default=root / "data/releases/v0.1")
     ap.add_argument("--db", type=Path,
                     default=root / "data/raw/chembl/chembl_37/chembl_37_sqlite/chembl_37.db")
-    ap.add_argument("--virus", default="NCBITaxon:2697049")
+    ap.add_argument("--virus", action="append", metavar="CURIE",
+                    help="may be repeated; defaults to SARS-CoV-2")
+    ap.add_argument("--all-viruses", action="store_true",
+                    help="every taxon in config/viruses.yaml, in register "
+                         "order -- one DWPC computation for all of them")
     ap.add_argument("--out", type=Path, default=root / "data/results")
     ap.add_argument("--top", type=int, default=25)
     # calibrate.py has been printing "run_baselines.py  # with --calibrated
@@ -172,6 +193,11 @@ def main() -> int:
                     choices=["cross_sectional", "temporal",
                              "cross-sectional", "post-2021"])
     args = ap.parse_args()
+    if args.all_viruses and args.virus:
+        ap.error("--all-viruses and --virus are mutually exclusive; "
+                 "--all-viruses already covers the register")
+    viruses = (register_viruses(root) if args.all_viruses
+               else (args.virus or [DEFAULT_VIRUS]))
 
     schema = load_schema()
     held = schema.held_out_predicates()
@@ -187,20 +213,37 @@ def main() -> int:
     # positives -- they are measurements of INACTIVITY -- and a positive set
     # containing measured inactives makes Hits@k and MRR uninterpretable.
     labels = build_labels(args.release)
-    positives = labels.positives.get(args.virus, set())
-    negatives = labels.negatives.get(args.virus, set())
-    print(f"{len(positives):,} compounds measured ACTIVE against {args.virus} "
+
+    # ONE DWPC FOR EVERY VIRUS. dwpc_scores returns
+    # {metapath: {drug: {virus: score}}} -- every virus at once -- and
+    # this script then used ONE virus's slice. The Reproducing block
+    # invoked it sixteen times, so the same full traversal over 25,383
+    # drugs ran sixteen times and fifteen-sixteenths of each was
+    # discarded. At ~91s a virus that is most of an hour.
+    print("\ncomputing DWPC over M1-M6  (once, for every virus below)")
+    dwpc = dwpc_scores(g, schema.metapaths, schema.retrieval_limits)
+    names = name_index(g, args.db)
+
+    for virus in viruses:
+        print(f"\n{'=' * 70}\n{virus}\n{'=' * 70}")
+        run_one(args, schema, g, held, labels, dwpc, names, virus)
+    return 0
+
+
+def run_one(args, schema, g, held, labels, dwpc, names, virus) -> None:
+    """Everything that depends on WHICH virus, for one of them."""
+    positives = labels.positives.get(virus, set())
+    negatives = labels.negatives.get(virus, set())
+    print(f"{len(positives):,} compounds measured ACTIVE against {virus} "
           f"(ground truth), {len(negatives):,} measured inactive")
 
-    print("\ncomputing DWPC over M1-M6")
-    dwpc = dwpc_scores(g, schema.metapaths, schema.retrieval_limits)
     for name in sorted(dwpc):
-        reach = sum(1 for by_virus in dwpc[name].values() if args.virus in by_virus)
+        reach = sum(1 for by_virus in dwpc[name].values() if virus in by_virus)
         print(f"  {name}: {reach:,} drugs reach this virus")
 
     # WHETHER THE DWPC COLUMN IS A VALIDATED RANKING, SAID OUT LOUD.
     #
-    # This script used to call combine(dwpc, args.virus) and print the result
+    # This script used to call combine(dwpc, virus) and print the result
     # in a column headed "dwpc", with nothing to distinguish it from a
     # measured ranking. combine's own comment explains why that is not a
     # neutral default: max-over-channels is biased upward by the channel
@@ -217,19 +260,19 @@ def main() -> int:
     # would have said.
     try:
         cal = load_calibration(args.calibrated, args.calibration,
-                               args.virus, args.section, virus_labels(g))
+                               virus, args.section, virus_labels(g))
     except (FileNotFoundError, LookupError) as exc:
         sys.exit(str(exc))
     mode = dwpc_mode(cal)
 
     scorers = {"degree": degree_ranking(g)}
     if mode == "uncalibrated":
-        scorers["dwpc"] = combine(dwpc, args.virus)
+        scorers["dwpc"] = combine(dwpc, virus)
         print("\n  dwpc column is UNCALIBRATED: the max runs over every "
               "channel that\n  reaches this virus, whether or not it was "
               "measured above chance.")
         if args.calibration.exists():
-            peek = C.load(args.calibration, args.virus, section=args.section,
+            peek = C.load(args.calibration, virus, section=args.section,
                           node_labels=virus_labels(g))
             if not peek.channels:
                 print(f"  calibration on {args.calibration.name} records "
@@ -242,7 +285,7 @@ def main() -> int:
                 print(f"  calibration would keep: "
                       f"{', '.join(sorted(peek.weights()))}  (--calibrated)")
     elif mode == "calibrated":
-        scorers["dwpc"] = combine(dwpc, args.virus, calibration=cal)
+        scorers["dwpc"] = combine(dwpc, virus, calibration=cal)
         print(f"\n  dwpc column is CALIBRATED on {args.section}, over "
               f"{', '.join(sorted(cal.weights()))}")
     else:
@@ -252,7 +295,7 @@ def main() -> int:
               "controls below still stand:\n  evidence for a named compound "
               "does not require a ranking.")
     print("\ncomputing network proximity")
-    prox = network_proximity(g, args.virus, schema.retrieval_limits)
+    prox = network_proximity(g, virus, schema.retrieval_limits)
     if prox:
         scorers["proximity"] = prox
     print(f"  {len(prox):,} drugs scored")
@@ -267,7 +310,6 @@ def main() -> int:
               f"{hits_at_k(r, positives, 50):>8} {hits_at_k(r, positives, 100):>9} "
               f"{mrr(r, positives):>7.4f}")
 
-    names = name_index(g, args.db)
     if names:
         print("\nbiology controls (rank out of n; lower is higher-ranked):")
         print(f"{'compound':<22} {'expect':<10} " +
@@ -294,8 +336,8 @@ def main() -> int:
         print(f"\ntop {args.top} by DWPC:")
 
     for i, (drug, score) in enumerate(ranked_all.get("dwpc", [])[:args.top], 1):
-        contrib = sorted(((n, dwpc[n][drug][args.virus]) for n in dwpc
-                          if drug in dwpc[n] and args.virus in dwpc[n][drug]),
+        contrib = sorted(((n, dwpc[n][drug][virus]) for n in dwpc
+                          if drug in dwpc[n] and virus in dwpc[n][drug]),
                          key=lambda kv: -kv[1])
         routes = ",".join(f"{n}:{v:.3f}" for n, v in contrib[:3])
         label = next((k for k, v in names.items() if v == drug), None)
@@ -314,7 +356,7 @@ def main() -> int:
     # check_results tracks staleness against the release and the schema, not
     # against the flags a script was invoked with, so the flags go in here.
     payload = {
-        "virus": args.virus,
+        "virus": virus,
         "dwpc_ranking": mode,
         "dwpc_channels": (sorted(cal.weights()) if mode == "calibrated"
                           else None),
@@ -332,10 +374,9 @@ def main() -> int:
         "top": {n: [{"drug": d, "score": s} for d, s in r[:200]]
                 for n, r in ranked_all.items()},
     }
-    write_results(args.out / f"baselines_{args.virus.replace(':', '_')}.json",
+    write_results(args.out / f"baselines_{virus.replace(':', '_')}.json",
                   payload, args.release, schema.version)
     print(f"\nwrote {args.out}")
-    return 0
 
 
 if __name__ == "__main__":
