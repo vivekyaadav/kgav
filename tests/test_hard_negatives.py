@@ -541,3 +541,170 @@ def test_run_still_computes_its_own_when_given_none(world):
                    symmetry=schema.symmetry())
     out, reach = _mod().run(g, schema, build_labels(release), "t")
     assert out and reach
+
+
+# ------------------------------------------------ why a column scored nothing
+#
+# TWO SILENCES, FOUND ON 2026-11-02 and neither distinguishable from a
+# healthy run by reading the results file.
+#
+#   A VIRUS BELOW MIN_CLASS_SIZE printed to stdout and was recorded nowhere.
+#   Rows 1-4 each drop viruses this way: row 2 scored 10 of 15, and JEV,
+#   TBEV, MERS-CoV, HCoV-NL63 and SARS-CoV left no trace at all. A reader
+#   counting entries sees ten viruses and no reason to think there were
+#   fifteen.
+#
+#   AN EMPTY LABEL SET printed NOTHING -- the per-virus loop never ran. Row
+#   5's temporal column is this: NCATS-only labels carry no post-cutoff
+#   dates, so `temporal: {}` beside `temporal_skipped: null` read as a
+#   column that computed fine, while docs/evaluation.md quoted temporal
+#   AUCs for that protocol.
+def test_a_virus_below_the_class_floor_is_recorded_with_its_reason(world):
+    """The reason names WHICH class was short and by how much. "needs 10
+    of each" sends a reader to look for both when one is the problem --
+    and on the real release four of the five skips are inactives only."""
+    from kgav.baselines import Graph
+    from kgav.labels import build_labels
+    from kgav.schema import load_schema
+
+    release, _ = world
+    schema = load_schema()
+    g = Graph.load(release, skip_predicates=schema.held_out_predicates(),
+                   symmetry=schema.symmetry())
+    notes: dict = {}
+    # A floor above the fixture's class sizes, so every virus is skipped.
+    out, _ = _mod().run(g, schema, build_labels(release), "t",
+                        k_min=10_000, notes=notes)
+    assert not out, "nothing should score under an impossible floor"
+    assert notes["unscored"], "every virus was skipped and none was recorded"
+    assert notes["empty_label_set"] is False, (
+        "the label set is not empty -- the viruses were unscorable, which "
+        "is a different statement and needs a different fix")
+    # THE REASON IS DERIVED, NOT PATTERN-MATCHED. `"active" in why or
+    # "inactive" in why` survived a mutant that replaced the ACTIVE branch
+    # with "short by N": every virus here is short on BOTH classes, so the
+    # surviving inactive branch satisfied the `or` and the broken half went
+    # unexamined. Each class is now checked on its own, against the counts.
+    labels = build_labels(release)
+    for virus, why in notes["unscored"].items():
+        pos = next(len(p) for v, p in labels.positives.items()
+                   if (g.nodes.get(v, {}).get("properties", {})
+                       or {}).get("label", v) == virus)
+        neg = next((len(n) for v, n in labels.negatives.items()
+                    if (g.nodes.get(v, {}).get("properties", {})
+                        or {}).get("label", v) == virus), 0)
+        assert f"active {pos} < 10000" in why, f"{virus}: {why!r}"
+        assert f"inactive {neg} < 10000" in why, f"{virus}: {why!r}"
+    assert notes["labelled_viruses"] == len(notes["unscored"])
+
+
+def test_an_empty_label_set_is_recorded_as_such_not_as_an_empty_result(world):
+    """ROW 5'S TEMPORAL COLUMN. `empty_label_set` is what separates "no
+    virus could be scored" from "no virus was labelled at all": the first
+    is a floor to maybe lower, the second is a fact about the label
+    source that no rerun will change."""
+    from kgav.baselines import Graph
+    from kgav.labels import build_labels
+    from kgav.schema import load_schema
+
+    release, _ = world
+    schema = load_schema()
+    g = Graph.load(release, skip_predicates=schema.held_out_predicates(),
+                   symmetry=schema.symmetry())
+    empty = build_labels(release, sources={"infores:not-a-real-source"})
+    assert not empty.positives, "the fixture's labels survived the filter"
+    notes: dict = {}
+    out, _ = _mod().run(g, schema, empty, "t", notes=notes)
+    assert not out
+    assert notes["empty_label_set"] is True
+    assert notes["labelled_viruses"] == 0
+    assert notes["unscored"] == {}, (
+        "an empty label set has no virus to report unscored; filling this "
+        "would make the two silences indistinguishable again")
+    # AGAINST THE LABEL OBJECT, not just "> 0". A mutant hard-coding
+    # active to 0 survived a bare positivity check on one other field.
+    assert notes["labels"] == {
+        "active": empty.stats.get("active", 0),
+        "inactive": empty.stats.get("inactive", 0),
+        "other_source": empty.stats.get("other_source", 0)}, (
+        "the counts that explain the emptiness are not the label set's own, "
+        "so the file says it is empty and not why")
+    assert notes["labels"]["other_source"] > 0, (
+        "nothing was dropped as another source, so this fixture is not "
+        "exercising the case row 5's temporal column is in")
+
+
+def test_the_notes_say_nothing_is_wrong_when_nothing_is(world):
+    """A field that is always populated is a field nobody reads."""
+    from kgav.baselines import Graph
+    from kgav.labels import build_labels
+    from kgav.schema import load_schema
+
+    release, _ = world
+    schema = load_schema()
+    g = Graph.load(release, skip_predicates=schema.held_out_predicates(),
+                   symmetry=schema.symmetry())
+    labels = build_labels(release)
+    notes: dict = {}
+    out, _ = _mod().run(g, schema, labels, "t", notes=notes)
+    assert out, "the fixture scored nothing, so nothing is proved"
+    assert notes["empty_label_set"] is False
+    assert notes["unscored"] == {}
+    # ON A NON-EMPTY SET. The equality check in the empty-set test above
+    # cannot see a mutant that hard-codes `active` to 0, because the
+    # correct answer there IS 0. This fixture has actives, so it can.
+    assert labels.stats.get("active", 0) > 0, "fixture has no actives"
+    assert notes["labels"] == {
+        "active": labels.stats.get("active", 0),
+        "inactive": labels.stats.get("inactive", 0),
+        "other_source": labels.stats.get("other_source", 0)}
+    assert notes["labelled_viruses"] == len(labels.positives)
+
+
+def test_the_notes_default_is_none_and_not_a_shared_dict():
+    """A MUTABLE DEFAULT WOULD BE SHARED BY EVERY CALL. `notes: dict = {}`
+    passed every test here -- nothing observes the default object -- while
+    being a real defect: one dict would accumulate across both columns of
+    every protocol in a --protocol run, so row 5's notes would carry row
+    1's unscored viruses. The signature is checked directly, because the
+    bug is invisible from the outside until it has already corrupted a
+    results file."""
+    import inspect
+
+    sig = inspect.signature(_mod().run)
+    default = sig.parameters["notes"].default
+    assert default is None, (
+        f"run()'s `notes` defaults to {default!r}; a mutable default is "
+        f"shared by every call that omits it")
+
+
+def test_run_without_notes_is_unchanged(world):
+    """Every existing caller passes none, exactly as with dwpc and reach.
+    The idiom is Assembly.stats: fill in place, never change the arity."""
+    from kgav.baselines import Graph
+    from kgav.labels import build_labels
+    from kgav.schema import load_schema
+
+    release, _ = world
+    schema = load_schema()
+    g = Graph.load(release, skip_predicates=schema.held_out_predicates(),
+                   symmetry=schema.symmetry())
+    out, reach = _mod().run(g, schema, build_labels(release), "t")
+    assert out and reach
+
+
+def test_both_columns_notes_reach_the_results_file():
+    """THE POINT OF ALL OF IT. A note computed and not written is the
+    silence it was meant to end, one layer in -- which is how
+    `temporal_skipped` came to be the only one of the three states the
+    file could express."""
+    src = Path(_mod().__file__).read_text()
+    for key in ('"cross_sectional_notes": cross_notes',
+                '"temporal_notes": temporal_notes'):
+        assert key in src, f"{key} is not written into the results file"
+    # And distinct from the pre-existing third thing.
+    assert '"temporal_skipped": temporal_skipped' in src, (
+        "temporal_skipped means the column had NO TRAINING GRAPH to vouch "
+        "for, which is neither of the two states above")
+    assert src.index("temporal_notes: dict = {}") < src.index(
+        "notes=temporal_notes"), "temporal_notes is used before it exists"

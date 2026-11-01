@@ -32,7 +32,8 @@ MIN_CLASS_SIZE = 10
 def run(g: Graph, schema, labels, tag: str,
         k_min: int = MIN_CLASS_SIZE,
         dwpc: dict | None = None,
-        reach: dict | None = None) -> tuple[dict, dict]:
+        reach: dict | None = None,
+        notes: dict | None = None) -> tuple[dict, dict]:
     """(per-virus results, per-metapath reach).
 
     Reach is returned alongside rather than mixed into the virus-keyed dict,
@@ -42,6 +43,29 @@ def run(g: Graph, schema, labels, tag: str,
     dwpc and reach are accepted so --protocol can compute them ONCE per
     distinct graph; both depend on the graph alone. Computed here when not
     supplied, so every existing caller is unchanged.
+
+    `notes` RECORDS WHY A VIRUS IS NOT IN THE RESULT, filled in place the
+    way Assembly.stats is, so existing callers are untouched. Two silences
+    were found on 2026-11-02, and the file could distinguish neither from
+    a healthy run:
+
+      A VIRUS BELOW k_min was printed to stdout and recorded nowhere.
+      Rows 1-4 each drop viruses this way -- row 2 scored 10 of 15, and
+      JEV, TBEV, MERS-CoV, HCoV-NL63 and SARS-CoV left no trace in the
+      file at all. A reader counting entries sees ten viruses and no
+      reason to think there were fifteen.
+
+      AN EMPTY LABEL SET printed NOTHING -- not even a line -- because
+      the per-virus loop never ran. Row 5's temporal column is this: the
+      NCATS-only labels carry no post-cutoff dates whatsoever, so the
+      set is empty before the floor is reached, and `temporal: {}` beside
+      `temporal_skipped: null` read as a column that computed fine. The
+      document quotes temporal AUCs for that protocol.
+
+    The two are different: one virus is unscorable, the other says the
+    whole column was never scorable, and `temporal_skipped` already
+    means a third thing (no training graph to vouch for). Conflating any
+    of them loses the instruction a reader needs.
     """
     if dwpc is None:
         dwpc = dwpc_scores(g, schema.metapaths, schema.retrieval_limits)
@@ -63,13 +87,42 @@ def run(g: Graph, schema, labels, tag: str,
 
 
     viruses = sorted(labels.positives, key=lambda v: -len(labels.positives[v]))
+    if notes is not None:
+        notes["labelled_viruses"] = len(viruses)
+        notes["labels"] = {"active": labels.stats.get("active", 0),
+                           "inactive": labels.stats.get("inactive", 0),
+                           "other_source": labels.stats.get("other_source", 0)}
+        notes["unscored"] = {}
+    if not viruses:
+        # SAY IT. With no virus the loop below prints nothing, so the
+        # section header was followed by silence and the results file by
+        # an empty dict -- indistinguishable from a column that ran.
+        print(f"\n[{tag}] NO VIRUS HAS A LABEL under this restriction: "
+              f"{labels.stats.get('active', 0):,} active, "
+              f"{labels.stats.get('inactive', 0):,} inactive"
+              + (f", {labels.stats['other_source']:,} dropped as another "
+                 f"source" if labels.stats.get("other_source") else ""))
+        print(f"    nothing in this column was scored, and that is a fact "
+              f"about the labels, not a failure.")
+        if notes is not None:
+            notes["empty_label_set"] = True
+    elif notes is not None:
+        notes["empty_label_set"] = False
     for virus in viruses:
         pos, neg = labels.positives.get(virus, set()), labels.negatives.get(virus, set())
         label = (g.nodes.get(virus, {}).get("properties", {}) or {}).get("label", virus)
         print(f"\n=== {label} [{tag}]")
         print(f"    {len(pos):,} measured active | {len(neg):,} measured INACTIVE")
         if len(pos) < k_min or len(neg) < k_min:
-            print(f"    skipped: need at least {k_min} of each class")
+            why = ", ".join(
+                p for p in (f"active {len(pos)} < {k_min}" if len(pos) < k_min
+                            else "",
+                            f"inactive {len(neg)} < {k_min}" if len(neg) < k_min
+                            else "") if p)
+            print(f"    skipped: need at least {k_min} of each class "
+                  f"({why})")
+            if notes is not None:
+                notes["unscored"][label] = why
             continue
 
         scorers = {name: {d: by[virus] for d, by in dwpc[name].items() if virus in by}
@@ -319,8 +372,10 @@ def run_protocol(args, cache: GraphCache, schema) -> int:
         args.release if args.publication_disjoint else None, "the full graph")
     if pub_idx:
         _report_drops(g_full, "cross-sectional")
+    cross_notes: dict = {}
     cross, cross_reach = run(g_full, schema, all_labels, "cross-sectional",
-                             dwpc=full_dwpc, reach=full_reach)
+                             dwpc=full_dwpc, reach=full_reach,
+                             notes=cross_notes)
 
     # Declared AFTER the cross-sectional run on purpose -- cross_reach is
     # already set above and must not be re-initialised here, which is what
@@ -343,6 +398,7 @@ def run_protocol(args, cache: GraphCache, schema) -> int:
     # a graph nobody can name.
     train_status, train_msg = check_derived(args.train, args.release)
     temporal_skipped = None
+    temporal_notes: dict = {}
     if train_status == "ok":
         print("\n" + "=" * 66)
         print(f"TEMPORAL: pre-{args.cutoff} graph, post-{args.cutoff} measurements")
@@ -374,7 +430,8 @@ def run_protocol(args, cache: GraphCache, schema) -> int:
             _report_drops(g_train, f"pre-{args.cutoff} train")
         temporal, temporal_reach = run(g_train, schema, test_labels,
                                        f"post-{args.cutoff}",
-                                       dwpc=train_dwpc, reach=train_reach)
+                                       dwpc=train_dwpc, reach=train_reach,
+                                       notes=temporal_notes)
     else:
         temporal_skipped = {"status": train_status, "reason": train_msg,
                             "train": str(args.train)}
@@ -415,6 +472,13 @@ def run_protocol(args, cache: GraphCache, schema) -> int:
                    # protocols cut it.
                    "train_split": derived_policy(args.train) or None,
                    "temporal_skipped": temporal_skipped,
+                   # WHY A COLUMN OR A VIRUS IS NOT BELOW. `temporal_skipped`
+                   # says the column had no training graph to vouch for; these
+                   # say the column ran and what it could not score. An empty
+                   # results dict with all three absent used to be the only
+                   # record of either.
+                   "cross_sectional_notes": cross_notes,
+                   "temporal_notes": temporal_notes,
                    "cross_sectional": cross, "temporal": temporal,
                    "metapath_reach": {"cross_sectional": cross_reach,
                                       "temporal": temporal_reach}},
