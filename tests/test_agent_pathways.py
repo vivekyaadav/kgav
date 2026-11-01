@@ -284,10 +284,36 @@ def test_an_absent_compound_still_carries_the_caveats(tools):
     assert "PATHWAY ROUTE" in labels
 
 
-def test_no_pathway_hits_is_stated_as_an_absence_in_the_crispr_layer(release):
-    """A virus nothing was screened against must not read as a compound
-    with no pathway relevance."""
-    t = GraphTools(release)
+def test_no_pathway_hits_is_stated_as_an_absence_in_the_crispr_layer(
+        release, tmp_path):
+    """A virus nothing was SCREENED against must not read as a compound
+    with no pathway relevance.
+
+    The virus needs a route for this case to exist at all: with none it
+    is the Yellow fever tier and the tool refuses outright, which is a
+    different and correct answer. The shape here is DENV-1's -- a
+    virus-host interaction and no CRISPR screen -- so the fixture is
+    extended with one interaction rather than the test relaxed.
+    """
+    import shutil
+
+    shutil.copytree(release, tmp_path / "r")
+    rel = tmp_path / "r"
+    nodes = rel / "nodes.jsonl"
+    edges = rel / "edges.jsonl"
+    nodes.write_text(nodes.read_text().rstrip("\n") + "\n" + "\n".join([
+        json.dumps(_node("NCBITaxon:11082", "OrganismTaxon", name="West Nile")),
+        json.dumps(_node("UniProtKB:WNV_NS3", "Protein", gene_symbol="NS3",
+                         is_viral=True, taxon_id="NCBITaxon:11082",
+                         sequence_hash="h", reviewed=True)),
+    ]))
+    edges.write_text(edges.read_text().rstrip("\n") + "\n" + json.dumps(
+        _edge("UniProtKB:WNV_NS3", "PHYSICALLY_INTERACTS_WITH",
+              "UniProtKB:P1")))
+    t = GraphTools(rel)
+    assert t.routes_for("NCBITaxon:11082").routes == ("ppi",), (
+        "the fixture must give this virus a route, or the tool refuses "
+        "and this test checks the wrong message")
     r = t.pathways(DRUG, "NCBITaxon:11082")
     assert r.ok
     assert any("absence in the CRISPR layer" in line for line in r.verbalised)
@@ -940,9 +966,16 @@ def test_no_background_is_not_an_infinite_ratio(tmp_path):
              _node("UniProtKB:X1", "Protein", gene_symbol="X1",
                    is_viral=False, taxon_id="NCBITaxon:9606",
                    sequence_hash="h", reviewed=True),
-             _node("REACT:ONLY", "Pathway", label="only pathway")]
+             _node("REACT:ONLY", "Pathway", label="only pathway"),
+             # A ROUTE, or the tool refuses before it computes anything
+             # and this test checks the refusal instead of the ratio.
+             _node("UniProtKB:V1", "Protein", gene_symbol="V1",
+                   is_viral=True, taxon_id=V2, sequence_hash="h",
+                   reviewed=True)]
     edges = [_edge(DRUG, "TARGETS", "UniProtKB:X1"),
-             _edge("UniProtKB:X1", "PARTICIPATES_IN", "REACT:ONLY")]
+             _edge("UniProtKB:X1", "PARTICIPATES_IN", "REACT:ONLY"),
+             _edge("UniProtKB:V1", "PHYSICALLY_INTERACTS_WITH",
+                   "UniProtKB:X1")]
     (tmp_path / "nodes.jsonl").write_text(
         "\n".join(json.dumps(n) for n in nodes))
     (tmp_path / "edges.jsonl").write_text(

@@ -470,6 +470,18 @@ def two_virus_graph(tmp_path):
                         "sequence_hash": "h", "protein_family": "NS3"}},
         {"id": "KGAV:GZ", "class": "Gene",
          "properties": {"symbol": "POLY", "taxon_id": ZIKA, "is_viral": True}},
+        # SARS-CoV-2 NEEDS A ROUTE. The fixture gave it a calibration and
+        # no inhibitor, host factor or virus-host interaction, so once the
+        # tools began acting on the no-route verdict (2026-11-02, audit
+        # A6) triage refused it and the test read as a regression. A virus
+        # the agent will answer about has at least one route; a virus with
+        # none is the Yellow fever tier and is refused by design.
+        {"id": "UniProtKB:NSP5", "class": "Protein",
+         "properties": {"taxon_id": V, "is_viral": True, "reviewed": True,
+                        "sequence_hash": "h", "protein_family": "NSP5"}},
+        {"id": "UniProtKB:SIGMAR1", "class": "Protein",
+         "properties": {"taxon_id": "NCBITaxon:9606", "is_viral": False,
+                        "reviewed": True, "sequence_hash": "h"}},
         drug(DRUG, "nirmatrelvir"),
     ]
 
@@ -494,6 +506,8 @@ def two_virus_graph(tmp_path):
         e("KGAV:GZ", "BELONGS_TO", ZIKA),
         e(DRUG, "HAS_ANTIVIRAL_ACTIVITY_AGAINST", ZIKA,
           {"assay_type": "cell_based_antiviral", "ec50_nm": 100.0}),
+        e("UniProtKB:NSP5", "PHYSICALLY_INTERACTS_WITH",
+          "UniProtKB:SIGMAR1"),
     ]
     (tmp_path / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
     (tmp_path / "edges.jsonl").write_text("\n".join(json.dumps(x) for x in edges))

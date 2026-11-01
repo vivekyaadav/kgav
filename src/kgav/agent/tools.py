@@ -311,11 +311,26 @@ class GraphTools:
             elif pred == "INHIBITS":
                 inhibits += self._taxon_of(obj) == virus
             elif pred == "PHYSICALLY_INTERACTS_WITH":
-                # Exactly one endpoint viral AND this virus: a host-host
-                # STRING edge and a viral-viral pair are both excluded,
-                # by the same check, because the predicate is shared.
+                # EXACTLY ONE ENDPOINT NON-VIRAL, and the viral one is
+                # this virus. The predicate is shared with STRING, so a
+                # host-host edge has to be excluded too.
+                #
+                # The previous test was `(a == virus) != (b == virus)`
+                # over `_taxon_of`, which returns None for a host
+                # protein. That excludes host-host (None, None) and
+                # same-virus viral pairs (virus, virus) -- and COUNTS a
+                # cross-virus viral pair, because (virus, otherVirus)
+                # gives True != False. The comment above it claimed
+                # viral-viral was excluded "by the same check"; it was
+                # excluded only when both proteins belonged to the virus
+                # being asked about. Found by external audit,
+                # 2026-11-02. The register records SARS-CoV's 73
+                # VirHostNet interactions as viral-viral, so this
+                # inflated a route count that decides whether the agent
+                # refuses to rank at all.
                 a, b = self._taxon_of(subj), self._taxon_of(obj)
-                ppi += (a == virus) != (b == virus)
+                one_viral = (a is None) != (b is None)
+                ppi += one_viral and virus in (a, b)
         return guards.VirusRoutes(label=self._label(virus), n_labels=labels,
                                   inhibits=inhibits, crispr=crispr, ppi=ppi)
 
@@ -472,8 +487,29 @@ class GraphTools:
         activity, this returns why it might act, as chains of individually
         sourced facts.
         """
+        # ROUTES ARE PASSED BY THE TOOL, not by whoever called it.
+        # check() refuses a routed query only when `routes is not None`,
+        # and three of the four tools omitted it -- so the no-route
+        # refusal was a property of the orchestrator, which happens to
+        # pass routes itself, rather than of the tool. Any second entry
+        # point lost it silently, and tools.pathways on Yellow fever
+        # (0 routes, the tier the refusal was written for) returned
+        # ok=True. Found by external audit, 2026-11-02.
         verdict = guards.check(guards.QueryKind.EXPLAIN, virus,
-                               calibration=self.calibration_for(virus))
+                               calibration=self.calibration_for(virus),
+                               routes=self.routes_for(virus))
+        # THE VERDICT IS ACTED ON BEFORE ANY RETRIEVAL. This computed it
+        # and then read only verdict.WARNINGS, so a zero-route virus
+        # fell through to the no-paths branch below and was told "that
+        # is an absence of evidence, not evidence of absence: most
+        # compounds have an activity measurement and no target
+        # annotation" -- a sentence about the COMPOUND, for a virus
+        # nothing can reach. ok was False either way, which is why
+        # a test asserting only `ok is False` could not tell them apart.
+        if not verdict.allowed:
+            return ToolResult(False, "explain",
+                              warnings=list(verdict.warnings),
+                              note=verdict.reason)
         paths = self._find_paths(compound, virus, max_paths)
         if not paths:
             return ToolResult(
@@ -636,7 +672,12 @@ class GraphTools:
         are in the graph by construction.
         """
         verdict = guards.check(guards.QueryKind.TRIAGE, virus,
-                               calibration=self.calibration_for(virus))
+                               calibration=self.calibration_for(virus),
+                               routes=self.routes_for(virus))
+        if not verdict.allowed:
+            return ToolResult(False, "triage",
+                              warnings=list(verdict.warnings),
+                              note=verdict.reason)
         # Report anything that could not be scored. Silently returning three
         # of four requested compounds is a failure a user cannot detect.
         missing = [c for c in compounds if c not in self.nodes]
@@ -977,9 +1018,20 @@ class GraphTools:
         pathway hit is context, not evidence.
         """
         verdict = guards.check(guards.QueryKind.EXPLAIN, virus,
-                               calibration=self.calibration_for(virus))
+                               calibration=self.calibration_for(virus),
+                               routes=self.routes_for(virus))
         base_warnings = list(verdict.warnings) + [guards.caveat(
             "pathway_route", guards.pathway_caveat(self.landscape, virus))]
+        # AND THE VERDICT HAS TO BE ACTED ON. Passing `routes` is
+        # necessary and not sufficient: this took verdict.WARNINGS and
+        # never read verdict.ALLOWED, so a refusal arrived as a caveat
+        # attached to the answer it was supposed to prevent. Only
+        # virus_pathways checked it. Found while fixing A6 of the
+        # 2026-11-02 audit, which had identified the missing argument
+        # and not this.
+        if not verdict.allowed:
+            return ToolResult(False, "pathways", warnings=base_warnings,
+                              note=verdict.reason)
 
         if compound not in self.nodes:
             return ToolResult(False, "pathways", warnings=base_warnings,

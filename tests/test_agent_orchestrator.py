@@ -391,6 +391,10 @@ def test_the_assumption_caveat_is_enforced_like_every_other(orch):
 
 
 # ------------- routes are counted from the graph being served, not recalled
+#: A second virus taxon, so a cross-virus viral pair can be built.
+V_OTHER = "NCBITaxon:694009"
+
+
 def _ppi_tools(tmp_path, pairs):
     """A release holding only PHYSICALLY_INTERACTS_WITH, from `pairs`.
 
@@ -409,6 +413,16 @@ def _ppi_tools(tmp_path, pairs):
                         "baltimore_class": "IV", "is_enveloped": True}},
         prot("UniProtKB:NSP5", True), prot("UniProtKB:NSP12", True),
         prot("UniProtKB:SIGMAR1", False), prot("UniProtKB:TMEM41B", False),
+        # A SECOND VIRUS, because one virus cannot produce a CROSS-virus
+        # viral pair and that is the shape the old check counted as a
+        # host route. Every fixture here held one taxon, so the bug was
+        # unreachable from this file.
+        {"id": V_OTHER, "class": "OrganismTaxon",
+         "properties": {"label": "SARS-CoV", "family": "Coronaviridae",
+                        "baltimore_class": "IV", "is_enveloped": True}},
+        {"id": "UniProtKB:SARS1_NSP5", "class": "Protein",
+         "properties": {"taxon_id": V_OTHER, "is_viral": True,
+                        "sequence_hash": "h", "reviewed": True}},
     ]
     edges = [{"subject": s, "predicate": "PHYSICALLY_INTERACTS_WITH",
               "object": o, "qualifiers": {},
@@ -455,12 +469,58 @@ def test_a_viral_viral_edge_is_not_a_virus_route(tmp_path):
     assert routes.routes == ()
 
 
+def test_a_cross_virus_viral_pair_is_not_a_virus_route(tmp_path):
+    """THE SHAPE THE OLD CHECK COUNTED. `(a == virus) != (b == virus)`
+    over a function returning None for host proteins excludes host-host
+    (None, None) and SAME-virus viral pairs (virus, virus) -- and
+    counts (virus, otherVirus), because True != False.
+
+    The comment above it claimed viral-viral was excluded "by the same
+    check". It was excluded only when both proteins belonged to the
+    virus being asked about, and every fixture in this file held one
+    taxon. The register records SARS-CoV's 73 VirHostNet interactions as
+    viral-viral, so this is live data, and the count decides whether the
+    agent refuses to rank at all. Found by external audit, 2026-11-02.
+    """
+    routes = _ppi_tools(
+        tmp_path, [("UniProtKB:NSP5", "UniProtKB:SARS1_NSP5")]).routes_for(V)
+    assert routes.ppi == 0, (
+        "a viral protein of another virus was counted as a host partner")
+    assert routes.routes == ()
+    # And symmetrically for the other virus, which must not inherit it.
+    other = _ppi_tools(
+        tmp_path,
+        [("UniProtKB:NSP5", "UniProtKB:SARS1_NSP5")]).routes_for(V_OTHER)
+    assert other.ppi == 0
+
+
+def test_another_viruss_protein_meeting_a_host_protein_is_not_our_route(
+        tmp_path):
+    """The other half of the cross-virus case, and a surviving mutant
+    until it was written. Dropping `virus in (a, b)` leaves
+    "exactly one endpoint is viral", which is true of SARS-CoV's NSP5
+    bound to a human protein -- a real virus-host interaction, and
+    nothing at all to do with SARS-CoV-2."""
+    routes = _ppi_tools(
+        tmp_path,
+        [("UniProtKB:SARS1_NSP5", "UniProtKB:SIGMAR1")]).routes_for(V)
+    assert routes.ppi == 0, (
+        "another virus's interaction was counted as a route for this one")
+    assert routes.routes == ()
+    # It IS a route for the virus it belongs to.
+    assert _ppi_tools(
+        tmp_path,
+        [("UniProtKB:SARS1_NSP5", "UniProtKB:SIGMAR1")]
+    ).routes_for(V_OTHER).ppi == 1
+
+
 def test_only_the_host_viral_edge_of_a_mixed_release_is_counted(tmp_path):
-    """All three shapes in one release: the count is 1, not 3."""
+    """All four shapes in one release: the count is 1, not 4."""
     routes = _ppi_tools(tmp_path, [
-        ("UniProtKB:NSP5", "UniProtKB:SIGMAR1"),      # host-viral
-        ("UniProtKB:NSP5", "UniProtKB:NSP12"),        # viral-viral
-        ("UniProtKB:SIGMAR1", "UniProtKB:TMEM41B"),   # host-host
+        ("UniProtKB:NSP5", "UniProtKB:SIGMAR1"),        # host-viral
+        ("UniProtKB:NSP5", "UniProtKB:NSP12"),          # viral-viral, same
+        ("UniProtKB:NSP5", "UniProtKB:SARS1_NSP5"),     # viral-viral, cross
+        ("UniProtKB:SIGMAR1", "UniProtKB:TMEM41B"),     # host-host
     ]).routes_for(V)
     assert routes.ppi == 1
 
@@ -554,3 +614,105 @@ def test_the_suppression_check_keeps_the_boundary_rule(tmp_path):
     resolved, _ = orch._resolve_mentions("the ace2 receptor in ace2x cells")
     assert set(resolved.values()) == {"UniProtKB:ACE2R"}, (
         f"ace2 was resolved out of 'ace2x' after masking: {resolved}")
+
+
+# ------------- the no-route refusal belongs to the TOOL, not to its caller
+#
+# guards.check() refuses a routed query only when `routes is not None`,
+# and three of the four tools omitted the argument: pathways(), explain()
+# and triage() passed only the calibration. So the refusal written for
+# Yellow fever and DENV-4 -- labels present, no metapath terminating at
+# them, nothing rankable -- was a property of the ORCHESTRATOR, which
+# happens to compute routes itself, rather than of the tool. Reproduced
+# by the external audit of 2026-11-02: tools.pathways on a zero-route
+# virus returned ok=True.
+#
+# Every test of the refusal went through the orchestrator, so the gap was
+# invisible from this file.
+def _labelled_no_route(tmp_path) -> GraphTools:
+    """A virus in the Yellow fever tier: antiviral labels, zero routes.
+
+    No INHIBITS, no HOST_FACTOR_FOR and no virus-host PPI, so no metapath
+    terminates at it. The compound has a human target and that target
+    sits in a pathway, so pathways() has material to answer with and the
+    refusal is the only thing stopping it.
+    """
+    nodes = [
+        {"id": V, "class": "OrganismTaxon",
+         "properties": {"label": "Yellow fever", "family": "Flaviviridae",
+                        "baltimore_class": "IV", "is_enveloped": True}},
+        {"id": "INCHIKEY:DRUGA", "class": "SmallMolecule",
+         "properties": {"smiles": "C", "inchikey_skel": "DRUGA",
+                        "chembl_id": "CHEMBL1"}},
+        {"id": "UniProtKB:H1", "class": "Protein",
+         "properties": {"taxon_id": "NCBITaxon:9606", "is_viral": False,
+                        "sequence_hash": "h", "reviewed": True}},
+        {"id": "REACT:P1", "class": "Pathway", "properties": {"label": "p1"}},
+    ]
+    edges = [
+        {"subject": "INCHIKEY:DRUGA", "predicate": "TARGETS",
+         "object": "UniProtKB:H1", "qualifiers": {},
+         "primary_knowledge_source": "infores:chembl", "evidence_tier": 1,
+         "first_asserted_date": "2020-01-01"},
+        {"subject": "UniProtKB:H1", "predicate": "PARTICIPATES_IN",
+         "object": "REACT:P1", "qualifiers": {},
+         "primary_knowledge_source": "infores:uniprot", "evidence_tier": 1,
+         "first_asserted_date": "2020-01-01"},
+        # The labels the refusal discloses, and the reason the tier exists.
+        {"subject": "INCHIKEY:DRUGA",
+         "predicate": "HAS_ANTIVIRAL_ACTIVITY_AGAINST", "object": V,
+         "qualifiers": {}, "primary_knowledge_source": "infores:chembl",
+         "evidence_tier": 1, "first_asserted_date": "2020-01-01"},
+    ]
+    (tmp_path / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in edges))
+    return GraphTools(tmp_path)
+
+
+def test_the_fixture_really_has_no_route(tmp_path):
+    """GUARDS EVERY TEST BELOW. If the fixture acquires a route, the
+    three refusals stop being refusals and all of them pass vacuously."""
+    routes = _labelled_no_route(tmp_path).routes_for(V)
+    assert routes.routes == (), routes
+    assert routes.n_labels == 1, "the fixture must hold a label to disclose"
+
+
+@pytest.mark.parametrize("call", [
+    lambda t: t.pathways("INCHIKEY:DRUGA", V),
+    lambda t: t.explain("INCHIKEY:DRUGA", V),
+    lambda t: t.triage(["INCHIKEY:DRUGA"], V),
+])
+def test_each_tool_refuses_a_no_route_virus_on_its_own(tmp_path, call):
+    """CALLED DIRECTLY, with no orchestrator in the way. A guard that
+    only fires when one particular caller supplies an optional argument
+    is a guard any second entry point loses silently."""
+    result = call(_labelled_no_route(tmp_path))
+    assert result.ok is False, (
+        "the tool answered a virus no metapath terminates at; the "
+        "refusal is coming from the caller, not from the tool")
+    # THE REASON, NOT JUST THE FLAG. explain() returns ok=False for a
+    # compound with no path too, so `ok is False` alone passed while the
+    # verdict was computed and discarded -- and the user was told "most
+    # compounds have an activity measurement and no target annotation",
+    # a sentence about the COMPOUND, for a virus nothing can reach.
+    assert "none can be reached" in (result.note or ""), (
+        f"refused for the wrong reason:\n{result.note}")
+
+
+def test_the_refusal_says_it_cannot_look_rather_than_that_it_found_nothing(
+        tmp_path):
+    """The distinction the whole module exists to keep. An empty result
+    reads as 'no compound looks promising', which is the opposite of
+    what is true."""
+    result = _labelled_no_route(tmp_path).pathways("INCHIKEY:DRUGA", V)
+    # The reason travels in `note`; verbalised is empty on a refusal,
+    # which is itself the refusal-before-retrieval property.
+    assert result.verbalised == [], (
+        "a refusal carried an answer alongside it")
+    assert "none can be reached" in result.note, result.note
+    assert "not because no compound looks promising" in result.note
+    # AND IT DISCLOSES THE LABELS IT IS SITTING ON. A refusal that hides
+    # how much evidence exists reads as an empty graph.
+    assert "antiviral measurement" in result.note, result.note
