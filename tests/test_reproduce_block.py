@@ -64,6 +64,7 @@ WRITERS: list[tuple[str, str]] = [
     (r"^temporal_\d+_include\.json$", "--undated include"),
     (r"^temporal_\d+_include_overlap-keep\.json$", "--overlap-policy keep"),
     (r"^pathway_landscape\.json$", "make pathway-landscape"),
+    (r"^label_overlap\.json$", "make label-overlap"),
 ]
 
 

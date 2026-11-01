@@ -10,22 +10,46 @@
    label come from the SAME publication, M1 is partly reading the label it
    is being scored against. This measures that overlap.
 
-Read-only. Run from the repo root:
+Read-only by default. Run from the repo root:
     python diagnose_label_overlap.py [RELEASE_DIR]
+    python diagnose_label_overlap.py --out data/results/label_overlap.json
+
+WHY IT NOW WRITES A FILE. The 92.2% shared-PMID figure is the single most
+load-bearing number in docs/evaluation.md -- it is why that document calls
+its own M1 result partly self-scoring -- and until 2026-11-02 it existed
+nowhere but this script's console output. It had been copied into six
+places in evaluation.md and one in kg_audit_report.txt, and nothing could
+check any of them, for exactly the reason the provenance module was written:
+a number with no artifact behind it cannot be compared against the graph it
+came from. With --out it is a stamped results file like every other, so
+`make check-results` reports it stale when the release moves and
+tests/test_label_overlap_figures.py holds the documents to it.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from kgav.provenance import write_results
+from kgav.schema import load_schema
+
 POS = "HAS_ANTIVIRAL_ACTIVITY_AGAINST"
 NEG = "MEASURED_INACTIVE_AGAINST"
 
 
-def main() -> int:
-    rel = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("data/releases/v0.1")
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("release", nargs="?", type=Path,
+                    default=Path("data/releases/v0.1"))
+    ap.add_argument("--out", type=Path, default=None,
+                    help="also write the counts as a stamped results file")
+    args = ap.parse_args(argv)
+    rel = args.release
     if not (rel / "edges.jsonl").exists():
         sys.exit(f"no edges.jsonl in {rel}")
     print(f"release: {rel}\n")
@@ -168,6 +192,25 @@ def main() -> int:
               f"never withhold their evidence.\n    Whatever M1 retains under "
               f"that control, this is the part the control was\n    structurally "
               f"unable to remove -- not the part it judged safe.")
+
+    # WRITTEN AS COUNTS, NEVER AS THE PERCENTAGES. Both percentages in the
+    # document are quotients of two integers in here, and recording the
+    # quotient would put a second rounding rule in a second place -- which
+    # is how the correction-family alphas came to be typed beside a correct
+    # division. The test derives them.
+    if args.out:
+        write_results(args.out, {
+            "both": len(both),
+            "both_sides_have_pubs": shared,
+            "share_a_pub": same,
+            "evidence_has_no_pmid": no_evidence_pub,
+            "neither_has_a_pmid": neither,
+            "label_has_no_pmid": no_label_pub,
+            "unwithholdable": unwithholdable,
+            "evidence_predicate": "INHIBITS",
+            "label_predicate": POS,
+        }, rel, load_schema().version)
+        print(f"\nwrote {args.out}")
     return 0
 
 

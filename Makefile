@@ -1,4 +1,4 @@
-.PHONY: kg-report kg-report-check install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape clean
+.PHONY: kg-report kg-report-check install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
 
 install:
 	pip install -e ".[dev]"
@@ -160,6 +160,15 @@ kg-report-check:
 pathway-landscape:
 	python scripts/pathway_landscape.py \
 	  --out data/results/pathway_landscape.json
+
+# THE SHARED-PMID CONFOUND, AS AN ARTIFACT RATHER THAN CONSOLE OUTPUT. The
+# 92.2% figure is why docs/evaluation.md calls its own M1 result partly
+# self-scoring, and it lived only in this script's stdout while being
+# quoted in seven places across two documents. Written here, it is stamped
+# against the release and audited by check-results like everything else.
+label-overlap:
+	python scripts/diagnose_label_overlap.py \
+	  --out data/results/label_overlap.json
 
 # WHAT THE AGENT SAYS, for one virus from EACH tier in section 9 of the
 # audit report -- not just the one with the most data. Prints for a

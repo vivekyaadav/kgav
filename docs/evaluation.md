@@ -1117,6 +1117,15 @@ python scripts/calibrate.py          # which channels were evaluable, and why no
 #    no step here regenerates.
 make pathway-landscape
 
+#    the shared-PMID confound, for the same reason. The 92.2% figure is why
+#    this document calls its own M1 result partly self-scoring, and until
+#    2026-11-02 it existed nowhere but that script's console output while
+#    being quoted in six places here and one in kg_audit_report.txt.
+#    Nothing could check any of them. It is a stamped results file now, so
+#    it is audited below and tests/test_label_overlap_figures.py holds both
+#    documents to it.
+make label-overlap
+
 # 5. every results file, AND the derived release they depend on, must
 #    describe the graph on disk
 make check-results
