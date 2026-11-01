@@ -82,8 +82,18 @@ def test_candidate_seeking_phrasings_off_the_list_are_still_refused(q):
 
 @pytest.mark.parametrize("q,kind", [
     # Each of these contains a candidate NOUN and would be swallowed by
-    # the backstop if it ran before the explicit branches instead of
-    # after them. That ordering is the whole correctness argument.
+    # the backstop, which since 2026-11-02 runs BEFORE the explicit
+    # branches rather than after them.
+    #
+    # THE ORDERING ARGUMENT WAS THE WRONG WAY ROUND, and this comment
+    # used to state it: "that ordering is the whole correctness
+    # argument", meaning the backstop had to run last. Running last is
+    # what let any permitted keyword appended to a prospective question
+    # defeat it -- "which drugs could work against Zika and what is the
+    # mechanism?" classified EXPLAIN. The backstop now runs first and
+    # these cases are held by explicit carve-outs in
+    # _NOT_SEEKING_CANDIDATES, which is why that list is load-bearing
+    # rather than decoration.
     ("rank these compounds for SARS-CoV-2", QueryKind.TRIAGE),
     ("which of these compounds should I prioritise", QueryKind.TRIAGE),
     ("which paper shows this compound inhibits nsp5", QueryKind.EVIDENCE),
@@ -724,3 +734,133 @@ def test_the_general_limit_is_still_stated_for_a_routeless_virus():
               routes=_routeless())
     assert "cannot support prospective candidate generation" in v.reason
     assert "temporal split" in v.reason
+
+
+# ------------------------------------------- the intent gate, audit A4 and A5
+#
+# Reproduced before any change, all eight exactly as the audit reported.
+@pytest.mark.parametrize("q", [
+    # A4, FIRST DIRECTION: the backstop ran LAST, so appending any
+    # permitted keyword to a prospective question defeated it. One extra
+    # word, and the answer came back under full caveats that make it
+    # read as vetted.
+    "which drugs could work against Zika and what is the mechanism?",
+    "which compounds should we test against Yellow fever? explain why",
+    "suggest compounds for JEV and rank them",
+    "which inhibitors could be repurposed for yellow fever, which process",
+    # A4, SECOND DIRECTION: no candidate noun at all, so the
+    # noun-plus-seeking-word pair could not see them. All four fell to
+    # UNKNOWN, and the orchestrator's catch-all routes UNKNOWN to
+    # explain() -- a routed operation. That is the live path by which a
+    # refused-tier virus got a mechanism walk attempted.
+    "what might be repurposed for West Nile?",
+    "which approved medicines could be repurposed for dengue?",
+    "what should be screened against MERS-CoV?",
+    "top 10 molecules for Yellow fever",
+])
+def test_a_permitted_keyword_no_longer_defeats_the_backstop(q):
+    assert classify_intent(q) is QueryKind.PROSPECT, q
+
+
+@pytest.mark.parametrize("q", [
+    # A5: bare substring matching. "any" inside *company*, "try" inside
+    # *country*, "list" inside *listing*. On launch day a refusal here
+    # reads as the tool being broken.
+    "what is the company behind this compound",
+    "which country reported this drug first",
+    "show the listing for this compound",
+    # And questions about what the graph HOLDS, which are a census and
+    # not a prediction. These are the ones the reordering would have
+    # broken without carve-outs.
+    "which compounds are in this graph",
+    "how many drugs does the graph hold for Zika",
+    "what antivirals are stored for DENV-2",
+])
+def test_legitimate_questions_are_not_read_as_requests_for_a_shortlist(q):
+    assert classify_intent(q) is not QueryKind.PROSPECT, q
+
+
+def test_screen_is_matched_as_a_phrase_not_as_a_bare_verb():
+    """"screened against X" is a request for candidates. "screen" alone
+    is not: this project asks about CRISPR screens constantly, and a
+    bare verb on the list would refuse its own vocabulary."""
+    assert classify_intent(
+        "what should be screened against MERS-CoV") is QueryKind.PROSPECT
+    assert classify_intent(
+        "which CRISPR screens exist for Zika") is not QueryKind.PROSPECT
+    assert classify_intent(
+        "how many screens does BioGRID ORCS have for SARS-CoV-2"
+    ) is not QueryKind.PROSPECT
+
+
+def test_a_compound_in_hand_is_not_a_request_for_compounds():
+    """"this compound" pairs the seeking word "what" with the candidate
+    noun "compound" and asks about one the user already has. The comment
+    on _SELF_SEEKING always said so and nothing acted on it."""
+    assert classify_intent(
+        "what is the company behind this compound") is not QueryKind.PROSPECT
+    assert classify_intent(
+        "what is the structure of that drug") is not QueryKind.PROSPECT
+
+
+def test_a_plural_noun_overrides_the_in_hand_carve_out():
+    """FAILING OPEN IS THE DIRECTION THAT MATTERS. Without this, "which
+    other compounds are like this compound" is carved out by the
+    determiner and answered."""
+    assert classify_intent(
+        "which other compounds are like this compound") is QueryKind.PROSPECT
+    assert classify_intent(
+        "what drugs resemble this drug") is QueryKind.PROSPECT
+
+
+def test_a_prospective_verb_beats_the_in_hand_carve_out():
+    """Ordering inside _seeks_candidates: "repurposed for" is the
+    request whatever noun it points at."""
+    assert classify_intent(
+        "could this compound be repurposed for dengue") is QueryKind.PROSPECT
+
+
+def test_the_word_matcher_is_the_one_the_orchestrator_already_had():
+    """_mentions handled this correctly for virus and compound names and
+    was simply not used here. Both must agree, or a name is a mention in
+    one layer and not in the other."""
+    from kgav.agent.guards import _word
+    from kgav.agent.orchestrator import _mentions
+
+    for text, name in [("the company filed", "any"), ("in this country", "try"),
+                       ("a listing of", "list"), ("what is known", "what"),
+                       ("hydroxychloroquine", "chloroquine"),
+                       ("sars-cov-2.", "sars-cov-2")]:
+        assert _word(text, name) == _mentions(text, name), (text, name)
+
+
+def test_the_plural_noun_list_is_derived_from_the_noun_list():
+    """A second hand-written list of the same nouns is the drift this
+    project pays for repeatedly."""
+    from kgav.agent.guards import _CANDIDATE_NOUNS, _PLURAL_CANDIDATE_NOUNS
+
+    assert set(_PLURAL_CANDIDATE_NOUNS) <= set(_CANDIDATE_NOUNS)
+    assert all(n.endswith("s") for n in _PLURAL_CANDIDATE_NOUNS)
+    assert "compounds" in _PLURAL_CANDIDATE_NOUNS
+    assert "compound" not in _PLURAL_CANDIDATE_NOUNS
+
+
+@pytest.mark.parametrize("q", [
+    # THE SUBSTRINGS, WITH NO OTHER CARVE-OUT IN REACH. The cases above
+    # all contain "this compound" or "this drug" and are held by the
+    # in-hand rule, so they passed with substring matching restored and
+    # two mutants survived. These carry a candidate noun, no determiner,
+    # and no real seeking word -- only one hiding inside another word.
+    "the company sells antivirals",          # "any" inside company
+    "a listing of drugs follows",            # "list" inside listing
+    "this country produces generic drugs",   # "try" inside country
+    # "shortlist" inside "shortlisted", which is the one self-seeking
+    # noun that occurs inside a longer English word -- and it means the
+    # opposite: a shortlisted compound is one already in hand.
+    "the shortlisted compounds we already have",
+])
+def test_a_seeking_word_inside_a_longer_word_is_not_a_seeking_word(q):
+    from kgav.agent.guards import _seeks_candidates
+
+    assert _seeks_candidates(q) is False, q
+    assert classify_intent(q) is not QueryKind.PROSPECT, q

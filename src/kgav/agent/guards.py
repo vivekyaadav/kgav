@@ -38,6 +38,8 @@ THE THREE RULES THAT FOLLOW
 """
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Self
@@ -313,11 +315,86 @@ _CANDIDATE_NOUNS = (
 _SEEKING = (
     "which", "what", "any", "list", "suggest", "recommend", "consider",
     "could", "should", "would", "worth", "promising", "look at", "try",
+    # Added 2026-11-02 (audit A4). Each is matched on WORD BOUNDARIES, so
+    # "treat" does not fire inside "treatment" and "top" does not fire
+    # inside "topology".
+    "top", "identify", "name", "approved", "existing", "option", "options",
 )
+# DELIBERATELY NOT ADDED: "hit", "hits", "lead", "leads". The audit lists
+# them, and they are the losing half of its own argument -- "Hits@10" is
+# this project's own metric and "lead" is a verb and a metal. A list that
+# grows until it is wrong in the other direction is the failure mode
+# being fixed, not the fix.
+#
 # Nouns that ARE the request, with no seeking word needed. "compound" is
 # not one of these -- "this compound" refers to one already in hand --
 # but "candidates for X" asks the graph to produce them.
 _SELF_SEEKING = ("candidate", "candidates", "shortlist", "shortlists")
+
+#: Phrases that ARE the request whatever nouns surround them. These carry
+#: no candidate noun at all -- "what might be repurposed for West Nile"
+#: names nothing -- so the noun-plus-seeking-word pair cannot see them,
+#: and all four of the audit's examples fell through to UNKNOWN and were
+#: routed to explain() by the orchestrator's catch-all.
+#:
+#: Written as PHRASES, not as the bare verbs. "screen" alone would refuse
+#: "which CRISPR screens exist for Zika", which is a question about the
+#: graph's contents and one this project asks constantly.
+_SELF_SEEKING_PHRASES = (
+    "repurposed for", "repurposed against", "repurpose for",
+    "repurpose against", "repurposing for", "repurposing against",
+    "screened against", "screen against", "screening against",
+)
+
+#: A single compound the user already has, named with a determiner.
+_IN_HAND = (
+    "this compound", "that compound", "this drug", "that drug",
+    "this molecule", "that molecule", "this inhibitor", "that inhibitor",
+    "this antiviral", "that antiviral", "this therapy", "that therapy",
+)
+
+#: Questions that match the candidate-seeking test and are NOT requests
+#: for a shortlist. Required because that test now runs FIRST: without
+#: them, moving it ahead of the explicit branches turns "rank these
+#: compounds" into a refusal.
+#:
+#: Two kinds. The compounds are already in hand and the user supplied
+#: them; or the question is about what the graph HOLDS, which is a
+#: census and not a prediction.
+_NOT_SEEKING_CANDIDATES = (
+    "rank these", "rank the following", "rank this", "order these",
+    "which of these", "prioritise these", "prioritize these",
+    "triage these", "score these", "of these compounds",
+    "which paper", "what paper", "evidence for", "citation for",
+    "source for", "how do we know", "provenance",
+    "in this graph", "in the graph", "does the graph", "the graph hold",
+    "the graph holds", "how many", "what is known", "tell me about",
+    "do we have", "are there in", "stored for",
+)
+
+
+#: Derived, not listed again: a second hand-written list of the same
+#: nouns is the drift this project pays for repeatedly.
+_PLURAL_CANDIDATE_NOUNS = tuple(n for n in _CANDIDATE_NOUNS if n.endswith("s"))
+
+
+def _word(text: str, name: str) -> bool:
+    """Whether `name` occurs in `text` other than inside a longer word.
+
+    BARE SUBSTRING MATCHING REFUSED REAL QUESTIONS. "any" matched inside
+    *company*, "try" inside *country*, "list" inside *listing*, so
+    "what is the company behind this compound" was classified as a
+    request for a shortlist and refused. On launch day that reads as the
+    tool being broken.
+
+    orchestrator._mentions already did this correctly for virus and
+    compound names and was simply not used here. The same expression is
+    used, including its reason for testing the neighbouring character
+    rather than \\b: there is no boundary to assert between "y" and "c",
+    so \\bchloroquine\\b matches inside "hydroxychloroquine".
+    """
+    return re.search(rf"(?<![a-z0-9]){re.escape(name)}(?![a-z0-9])",
+                     text) is not None
 
 
 def _seeks_candidates(t: str) -> bool:
@@ -348,10 +425,30 @@ def _seeks_candidates(t: str) -> bool:
     question is a nuisance, and a wrongly answered one puts a shortlist
     in front of someone for a virus this graph cannot rank.
     """
-    if any(n in t for n in _SELF_SEEKING):
+    if any(c in t for c in _NOT_SEEKING_CANDIDATES):
+        return False
+    # Before the in-hand test below, so a prospective verb wins over a
+    # determiner: "could this compound be repurposed for dengue" is a
+    # prospective question whatever it points at.
+    if any(ph in t for ph in _SELF_SEEKING_PHRASES):
         return True
-    return (any(n in t for n in _CANDIDATE_NOUNS)
-            and any(s in t for s in _SEEKING))
+    # ONE COMPOUND, ALREADY IN HAND. "what is the company behind this
+    # compound" pairs the seeking word "what" with the candidate noun
+    # "compound" and is not a request for a shortlist. The comment on
+    # _SELF_SEEKING has always said so -- "this compound refers to one
+    # already in hand" -- and nothing acted on it.
+    #
+    # A PLURAL CANDIDATE NOUN OVERRIDES IT, so "which other compounds
+    # are like this compound" is still a request for compounds. Without
+    # that the carve-out would fail OPEN, which is the direction that
+    # matters.
+    if (any(ph in t for ph in _IN_HAND)
+            and not any(_word(t, n) for n in _PLURAL_CANDIDATE_NOUNS)):
+        return False
+    if any(_word(t, n) for n in _SELF_SEEKING):
+        return True
+    return (any(_word(t, n) for n in _CANDIDATE_NOUNS)
+            and any(_word(t, s) for s in _SEEKING))
 
 
 def classify_intent(text: str) -> QueryKind:
@@ -372,6 +469,30 @@ def classify_intent(text: str) -> QueryKind:
         "predict which", "best drug for",
     )
     if any(p in t for p in prospective):
+        return QueryKind.PROSPECT
+
+    # THE BACKSTOP RUNS BEFORE THE PERMITTED BRANCHES, not after.
+    # It used to run last, so appending any permitted keyword to a
+    # prospective question defeated it entirely:
+    #
+    #   which drugs could work against Zika and what is the mechanism?
+    #                                                   -> EXPLAIN
+    #   which compounds should we test against Yellow fever? explain why
+    #                                                   -> EXPLAIN
+    #   suggest compounds for JEV and rank them         -> TRIAGE
+    #   which inhibitors could be repurposed for yellow fever,
+    #       which process                               -> PATHWAY
+    #
+    # That is the exact failure the backstop exists to prevent, reached
+    # by one extra word, and the answer came back under full caveats
+    # that make it read as vetted. Found by external audit, 2026-11-02.
+    #
+    # Running it first means "rank these compounds" would be refused
+    # too, so the carve-outs in _NOT_SEEKING_CANDIDATES are load-bearing
+    # rather than decoration: a question whose compounds the USER
+    # supplied, or one about what the graph holds, is not a request for
+    # a shortlist.
+    if _seeks_candidates(t):
         return QueryKind.PROSPECT
 
     # BEFORE explain. "which pathway does X act through" contains "pathway"
@@ -395,10 +516,6 @@ def classify_intent(text: str) -> QueryKind:
                             "what do we have")):
         return QueryKind.PROFILE
 
-    # LAST, so every explicit phrasing above is matched first. This is the
-    # backstop for the ones that are not on any list.
-    if _seeks_candidates(t):
-        return QueryKind.PROSPECT
     return QueryKind.UNKNOWN
 
 
