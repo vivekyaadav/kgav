@@ -38,6 +38,8 @@ from __future__ import annotations
 
 import csv
 from collections import Counter
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 
 GTOP_SOURCE = "infores:guidetopharmacology"
@@ -64,6 +66,7 @@ C_TYPE = "Type"
 C_ACTION = "Action"
 C_PMID = "PubMed ID"
 C_AFFINITY = "Original Affinity Median nm"
+C_CHEMBL_ID = "ChEMBL ID"
 
 INTERACTION_COLUMNS = (C_LIGAND_ID, C_UNIPROT, C_SPECIES, C_TYPE,
                        C_ACTION, C_PMID)
@@ -139,6 +142,85 @@ ACTION_TO_DIRECTION = {
 #: The first line of a GtoP export, which is a comment and is QUOTED.
 COMMENT_PREFIXES = ("#", '"#')
 
+#: The InChIKey's first block: the connectivity skeleton, without the
+#: stereo/salt/protonation blocks that follow it.
+SKELETON_LEN = 14
+
+
+@dataclass(frozen=True)
+class CompoundIndex:
+    """How a GtoP ligand finds its node in the graph, and by which route.
+
+    THE EXACT KEY IS NOT THE ONLY HONEST JOIN. The chemistry layer salt-
+    and stereo-collapses InChIKeys, so a GtoP ligand can BE a compound the
+    graph already holds, under a different form of the same key. Measured
+    on 2026.3.1 against v0.1: of 9,827 human interactions whose exact key
+    is absent, 661 resolve by the 14-character skeleton and 24 more by
+    ChEMBL id.
+
+    AND THE ALTERNATIVE IS NOT MINTING. A new node keyed on a raw GtoP
+    InChIKey would sit beside its own collapsed duplicate, splitting one
+    chemical's degree, its DWPC and its labels across two ids. The
+    remaining 9,142 are genuinely absent compounds, and adding them is a
+    different decision with a different cost -- 9,142 unlabelled molecules
+    enlarge every `pool` in `lift = hits * pool / (k * positives)` while
+    adding nothing to any numerator.
+
+    RESOLUTION IS ORDERED, most exact first, and the route is returned so
+    the driver can report how many edges each one earned. A join nobody
+    can see the provenance of is a join nobody can audit.
+    """
+
+    exact: frozenset[str]
+    by_skeleton: Mapping[str, str] = field(default_factory=dict)
+    by_chembl: Mapping[str, str] = field(default_factory=dict)
+
+    def resolve(self, inchikey: str,
+                chembl_id: str = "") -> tuple[str | None, str]:
+        """(compound id, route) for one ligand, or (None, "absent")."""
+        key = (inchikey or "").strip()
+        if not key:
+            return None, "absent"
+        cid = f"INCHIKEY:{key}"
+        if cid in self.exact:
+            return cid, "exact"
+        alt = self.by_skeleton.get(key[:SKELETON_LEN])
+        if alt:
+            return alt, "skeleton"
+        alt = self.by_chembl.get((chembl_id or "").strip()) if chembl_id else None
+        if alt:
+            return alt, "chembl_id"
+        return None, "absent"
+
+    @classmethod
+    def from_nodes(cls, nodes: Iterable[dict]) -> CompoundIndex:
+        """Built from a release's SmallMolecule nodes.
+
+        A skeleton shared by two nodes is NOT indexed. The graph holds
+        24,051 skeletons over 25,383 compounds, so some are shared -- and
+        a skeleton that names two compounds names neither. Resolving it to
+        whichever node was read first would attach an interaction to an
+        arbitrary one of two molecules.
+        """
+        exact: set[str] = set()
+        skel: dict[str, str | None] = {}
+        chembl: dict[str, str | None] = {}
+        for n in nodes:
+            if n.get("class") != "SmallMolecule":
+                continue
+            exact.add(n["id"])
+            props = n.get("properties") or {}
+            k = props.get("inchikey_skel")
+            if k:
+                skel[k] = None if k in skel else n["id"]
+            c = props.get("chembl_id")
+            if c:
+                c = str(c)
+                chembl[c] = None if c in chembl else n["id"]
+        return cls(frozenset(exact),
+                   {k: v for k, v in skel.items() if v},
+                   {k: v for k, v in chembl.items() if v})
+
 
 class GtopFormatError(ValueError):
     """A file whose columns are not what the documentation describes."""
@@ -212,6 +294,23 @@ def ligand_inchikeys(path: Path) -> dict[str, str]:
     return out
 
 
+def ligand_chembl_ids(path: Path) -> dict[str, str]:
+    """{GtP ligand_id: ChEMBL id}, for ligands the InChIKey join misses.
+
+    A second route, not a replacement: 2,298 GtoP ligands carry no
+    InChIKey at all -- peptides, antibodies, biologics -- and 44 of those
+    do carry a ChEMBL id. The graph holds one on 20,149 of its 25,383
+    compounds, so the two spaces overlap enough to be worth asking.
+    """
+    out = {}
+    for r in _rows(path, LIGAND_COLUMNS):
+        lid = str(r.get(C_LIGAND_ID) or "").strip()
+        cid = str(r.get(C_CHEMBL_ID) or "").strip()
+        if lid and cid:
+            out[lid] = cid
+    return out
+
+
 def direction_of(type_value: str, action_value: str = "") -> str:
     """The schema direction a row asserts, or "unknown".
 
@@ -236,15 +335,17 @@ def direction_of(type_value: str, action_value: str = "") -> str:
 
 def ingest_interactions(em, rows: list[dict], inchikeys: dict[str, str],
                         known_proteins: set[str] | None = None,
-                        known_compounds: set[str] | None = None,
+                        compounds: CompoundIndex | None = None,
+                        ligand_chembl: Mapping[str, str] | None = None,
                         default_date: str = "1970-01-01") -> Counter:
     """Emit TARGETS edges for human interactions whose ligand has a key.
 
-    `known_compounds`, when given, restricts to molecules already in the
-    graph. Minting new ones here is possible and deliberately not done by
-    default: this layer exists to add DIRECTION and reach to compounds the
-    graph has, and a new node keyed on an InChIKey the chemistry layer
-    never normalised would sit beside its own duplicate.
+    `compounds`, when given, restricts to molecules already in the graph
+    and records which join route found each one. Minting new ones is
+    possible and deliberately not the default: this layer exists to add
+    DIRECTION and reach to compounds the graph HAS, and a new node keyed
+    on an InChIKey the chemistry layer never normalised would sit beside
+    its own duplicate. Passing None mints.
     """
     stats: Counter = Counter()
     seen = set()
@@ -269,10 +370,20 @@ def ingest_interactions(em, rows: list[dict], inchikeys: dict[str, str],
         if not key:
             stats["ligand_without_inchikey"] += 1
             continue
-        cid = f"INCHIKEY:{key}"
-        if known_compounds is not None and cid not in known_compounds:
-            stats["compound_not_in_graph"] += 1
-            continue
+        if compounds is None:
+            cid = f"INCHIKEY:{key}"
+        else:
+            cid, route = compounds.resolve(
+                key, (ligand_chembl or {}).get(lid, ""))
+            if cid is None:
+                stats["compound_not_in_graph"] += 1
+                continue
+            # Counted per route, because a join that recovers edges by a
+            # looser key has to be auditable: 661 by skeleton and 24 by
+            # ChEMBL id on 2026.3.1, and if either number ever dwarfs the
+            # exact matches the looser key is matching things it should not.
+            if route != "exact":
+                stats[f"compound_by_{route}"] += 1
         direction = direction_of(r.get(C_TYPE), r.get(C_ACTION))
         if direction == "unknown" and TYPE_TO_DIRECTION.get(
                 (r.get(C_TYPE) or "").strip().upper()) is not None:

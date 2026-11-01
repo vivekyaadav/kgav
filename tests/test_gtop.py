@@ -32,12 +32,15 @@ from kgav.gtop import (
     C_TYPE,
     GTOP_SOURCE,
     INTERACTION_COLUMNS,
+    SKELETON_LEN,
     TYPE_TO_DIRECTION,
+    CompoundIndex,
     GtopFormatError,
     _rows,
     direction_of,
     file_version,
     ingest_interactions,
+    ligand_chembl_ids,
     ligand_inchikeys,
 )
 
@@ -116,6 +119,7 @@ def _inter(**kw):
 KEYS = {"1": "AAAAAAAAAAAAAA-BBBBBBBBBB-C"}
 PROTS = {"UniProtKB:P04637"}
 CMPDS = {"INCHIKEY:AAAAAAAAAAAAAA-BBBBBBBBBB-C"}
+IDX = CompoundIndex(frozenset(CMPDS))
 
 
 # ------------------------------------------------------------- the columns
@@ -182,7 +186,7 @@ def test_the_interaction_type_is_read_and_not_the_ligand_type():
     assert "Ligand Type" in IHEAD and '"Type"' in IHEAD
     em = Emit()
     ingest_interactions(em, [_inter(**{"Ligand Type": "Antibody"})],
-                        KEYS, PROTS, CMPDS)
+                        KEYS, PROTS, IDX)
     assert em.edges[0]["qualifiers"]["direction"] == "inhibitor"
 
 
@@ -277,7 +281,7 @@ def test_the_direction_vocabulary_is_the_schemas():
 # ------------------------------------------------------------- the emission
 def test_a_human_interaction_becomes_a_targets_edge():
     em = Emit()
-    s = ingest_interactions(em, [_inter()], KEYS, PROTS, CMPDS)
+    s = ingest_interactions(em, [_inter()], KEYS, PROTS, IDX)
     assert s["edges"] == 1
     e = em.edges[0]
     assert e["subject"] == "INCHIKEY:AAAAAAAAAAAAAA-BBBBBBBBBB-C"
@@ -294,7 +298,7 @@ def test_non_human_rows_are_dropped():
     not a human one and the host layer holds only human proteins."""
     em = Emit()
     s = ingest_interactions(em, [_inter(**{"Target Species": "Rat"})], KEYS,
-                            PROTS, CMPDS)
+                            PROTS, IDX)
     assert em.edges == [] and s["not_human"] == 1
 
 
@@ -304,7 +308,7 @@ def test_a_complex_accession_list_is_dropped_not_split():
     does not say."""
     em = Emit()
     s = ingest_interactions(em, [_inter(**{"Target UniProt ID": "P04637|Q00987"})],
-                            KEYS, PROTS, CMPDS)
+                            KEYS, PROTS, IDX)
     assert em.edges == [] and s["multi_accession"] == 1
 
 
@@ -312,42 +316,42 @@ def test_a_ligand_without_an_inchikey_is_skipped_and_counted():
     """Without one it cannot be matched to a compound already in the
     graph, and minting on a name would duplicate a drug already there."""
     em = Emit()
-    s = ingest_interactions(em, [_inter(**{"Ligand ID": "99"})], KEYS, PROTS, CMPDS)
+    s = ingest_interactions(em, [_inter(**{"Ligand ID": "99"})], KEYS, PROTS, IDX)
     assert em.edges == [] and s["ligand_without_inchikey"] == 1
 
 
 def test_a_compound_not_in_the_graph_is_skipped_by_default():
     em = Emit()
-    s = ingest_interactions(em, [_inter()], KEYS, PROTS, known_compounds=set())
+    s = ingest_interactions(em, [_inter()], KEYS, PROTS, compounds=CompoundIndex(frozenset()))
     assert em.edges == [] and s["compound_not_in_graph"] == 1
 
 
 def test_minting_is_possible_but_off_by_default():
-    """Passing known_compounds=None adds ligands the graph lacks. It is
+    """Passing compounds=None adds ligands the graph lacks. It is
     opt-in because a node keyed on an InChIKey the chemistry layer never
     normalised sits beside its own duplicate."""
     em = Emit()
-    s = ingest_interactions(em, [_inter()], KEYS, PROTS, known_compounds=None)
+    s = ingest_interactions(em, [_inter()], KEYS, PROTS, compounds=None)
     assert s["edges"] == 1
 
 
 def test_a_protein_not_in_the_graph_is_skipped():
     em = Emit()
-    s = ingest_interactions(em, [_inter()], KEYS, set(), CMPDS)
+    s = ingest_interactions(em, [_inter()], KEYS, set(), IDX)
     assert em.edges == [] and s["protein_not_in_graph"] == 1
 
 
 def test_the_same_pair_twice_is_one_edge():
     em = Emit()
     s = ingest_interactions(em, [_inter(), _inter(Type="Antagonist")],
-                            KEYS, PROTS, CMPDS)
+                            KEYS, PROTS, IDX)
     assert s["edges"] == 1 and s["duplicate"] == 1
 
 
 def test_an_unparseable_affinity_is_counted_not_crashed():
     em = Emit()
     s = ingest_interactions(em, [_inter(**{"Original Affinity Median nm": "n/a"})],
-                            KEYS, PROTS, CMPDS)
+                            KEYS, PROTS, IDX)
     assert s["edges"] == 1
     assert s["unparseable_affinity"] == 1
     assert "affinity_nm" not in em.edges[0]["qualifiers"]
@@ -467,3 +471,136 @@ def test_an_edge_with_no_usable_pmid_carries_none_rather_than_junk():
     em = Emit()
     ingest_interactions(em, [_inter(**{"PubMed ID": "n/a"})], {"1": "KEYAAA"})
     assert not (em.edges[0].get("publications") or [])
+
+
+# ------------------------------------------------- the compound join routes
+#
+# 9,827 human interactions in 2026.3.1 have an InChIKey the graph does not
+# hold exactly. 661 of them ARE compounds the graph holds, under a
+# different form of the same key, because the chemistry layer salt- and
+# stereo-collapses; 24 more match by ChEMBL id. The remaining 9,142 are
+# genuinely absent, and minting those is a different decision with a
+# different cost -- unlabelled molecules enlarge every `pool` in
+# lift = hits * pool / (k * positives) and add to no numerator.
+SKEL = "AAAAAAAAAAAAAA"
+NODE = "INCHIKEY:AAAAAAAAAAAAAA-BBBBBBBBBB-C"
+
+
+def _node(nid, skel=None, chembl=None, cls="SmallMolecule"):
+    props = {}
+    if skel:
+        props["inchikey_skel"] = skel
+    if chembl:
+        props["chembl_id"] = chembl
+    return {"id": nid, "class": cls, "properties": props}
+
+
+def test_an_exact_key_resolves_as_exact():
+    idx = CompoundIndex.from_nodes([_node(NODE, SKEL, "CHEMBL1")])
+    assert idx.resolve("AAAAAAAAAAAAAA-BBBBBBBBBB-C") == (NODE, "exact")
+
+
+def test_a_different_salt_or_stereo_form_resolves_by_skeleton():
+    """The 661. Same molecule, different key -- the chemistry layer already
+    collapsed it, so the graph holds it under the collapsed form."""
+    idx = CompoundIndex.from_nodes([_node(NODE, SKEL)])
+    assert idx.resolve("AAAAAAAAAAAAAA-ZZZZZZZZZZ-N") == (NODE, "skeleton")
+
+
+def test_a_ligand_with_no_key_in_the_graph_resolves_by_chembl_id():
+    idx = CompoundIndex.from_nodes([_node(NODE, SKEL, "CHEMBL1")])
+    got = idx.resolve("QQQQQQQQQQQQQQ-WWWWWWWWWW-N", "CHEMBL1")
+    assert got == (NODE, "chembl_id")
+
+
+def test_the_exact_key_is_preferred_over_the_looser_ones():
+    """Order matters: a compound present exactly must never be resolved to
+    a different node that merely shares its skeleton."""
+    idx = CompoundIndex.from_nodes([_node(NODE, SKEL),
+                                    _node("INCHIKEY:OTHER", "OTHERSKELETON")])
+    assert idx.resolve("AAAAAAAAAAAAAA-BBBBBBBBBB-C")[1] == "exact"
+
+
+def test_a_skeleton_shared_by_two_compounds_resolves_to_neither():
+    """A SKELETON THAT NAMES TWO COMPOUNDS NAMES NEITHER. The graph holds
+    24,051 skeletons over 25,383 compounds, so some are shared, and
+    resolving to whichever node was read first would attach an interaction
+    to an arbitrary one of two molecules."""
+    idx = CompoundIndex.from_nodes([_node("INCHIKEY:ONE", SKEL),
+                                    _node("INCHIKEY:TWO", SKEL)])
+    assert idx.by_skeleton == {}
+    assert idx.resolve("AAAAAAAAAAAAAA-ZZZZZZZZZZ-N") == (None, "absent")
+
+
+def test_a_chembl_id_shared_by_two_compounds_resolves_to_neither():
+    idx = CompoundIndex.from_nodes([_node("INCHIKEY:ONE", None, "CHEMBL1"),
+                                    _node("INCHIKEY:TWO", None, "CHEMBL1")])
+    assert idx.by_chembl == {}
+
+
+def test_a_genuinely_absent_compound_stays_absent():
+    idx = CompoundIndex.from_nodes([_node(NODE, SKEL, "CHEMBL1")])
+    assert idx.resolve("ZZZZZZZZZZZZZZ-YYYYYYYYYY-N", "CHEMBL999") == (
+        None, "absent")
+
+
+def test_an_empty_inchikey_resolves_to_nothing():
+    """A blank key's first 14 characters are a blank skeleton, which would
+    match any node whose skeleton was also blank."""
+    idx = CompoundIndex.from_nodes([_node(NODE, SKEL)])
+    assert idx.resolve("") == (None, "absent")
+    assert idx.resolve("  ") == (None, "absent")
+
+
+def test_only_small_molecules_enter_the_index():
+    idx = CompoundIndex.from_nodes(
+        [_node("UniProtKB:P1", None, None, cls="Protein"), _node(NODE, SKEL)])
+    assert idx.exact == frozenset({NODE})
+
+
+def test_the_skeleton_length_is_the_inchikeys_first_block():
+    assert SKELETON_LEN == 14
+    first_block = "AAAAAAAAAAAAAA-BBBBBBBBBB-C".partition("-")[0]
+    assert len(first_block) == SKELETON_LEN
+
+
+@pytest.mark.parametrize("key,route", [
+    ("AAAAAAAAAAAAAA-ZZZZZZZZZZ-N", "compound_by_skeleton"),
+    ("QQQQQQQQQQQQQQ-WWWWWWWWWW-N", "compound_by_chembl_id"),
+])
+def test_each_looser_route_is_counted_separately(key, route):
+    """A join on a looser key has to be auditable. If either count ever
+    dwarfs the exact matches, the looser key is matching things it should
+    not."""
+    idx = CompoundIndex.from_nodes([_node(NODE, SKEL, "CHEMBL1")])
+    em = Emit()
+    s = ingest_interactions(em, [_inter()], {"1": key}, PROTS, idx,
+                            ligand_chembl={"1": "CHEMBL1"})
+    assert s["edges"] == 1 and s[route] == 1
+    assert em.edges[0]["subject"] == NODE
+
+
+def test_an_exact_match_is_not_counted_as_a_looser_route():
+    idx = CompoundIndex.from_nodes([_node(NODE, SKEL, "CHEMBL1")])
+    em = Emit()
+    s = ingest_interactions(em, [_inter()], KEYS, PROTS, idx)
+    assert s["edges"] == 1
+    assert not s["compound_by_skeleton"] and not s["compound_by_chembl_id"]
+
+
+def test_the_chembl_route_needs_the_ligand_map_to_be_passed():
+    """ligand_chembl is optional, so a driver that forgets it must lose the
+    route rather than crash -- and the edge count then says so."""
+    idx = CompoundIndex.from_nodes([_node(NODE, SKEL, "CHEMBL1")])
+    em = Emit()
+    s = ingest_interactions(em, [_inter()], {"1": "QQQQQQQQQQQQQQ-WW-N"},
+                            PROTS, idx)
+    assert s["edges"] == 0 and s["compound_not_in_graph"] == 1
+
+
+def test_the_chembl_id_column_is_read_from_the_real_ligand_header(tmp_path):
+    p = tmp_path / "ligands.csv"
+    p.write_text(GTOP_VERSION_LINE + "\n" + LHEAD + "\n"
+                 + _row_text(LHEAD, **{"Ligand ID": "1",
+                                       "ChEMBL ID": "CHEMBL25"}) + "\n")
+    assert ligand_chembl_ids(p) == {"1": "CHEMBL25"}

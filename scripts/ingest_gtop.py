@@ -32,19 +32,23 @@ from kgav.emit import Emit  # noqa: E402
 from kgav.gtop import (  # noqa: E402
     GTOP_SOURCE,
     INTERACTION_COLUMNS,
+    CompoundIndex,
     GtopFormatError,
     _rows,
+    file_version,
     ingest_interactions,
+    ligand_chembl_ids,
     ligand_inchikeys,
 )
 
 
-def graph_ids(release: Path) -> tuple[set[str], set[str]]:
-    """(human protein ids, small molecule ids) already in the graph."""
-    proteins, compounds = set(), set()
+def graph_ids(release: Path) -> tuple[set[str], CompoundIndex]:
+    """(human protein ids, the compound index) for a built release."""
+    proteins: set[str] = set()
+    nodes: list[dict] = []
     p = release / "nodes.jsonl"
     if not p.exists():
-        return proteins, compounds
+        return proteins, CompoundIndex(frozenset())
     for line in p.read_text().splitlines():
         if not line.strip():
             continue
@@ -53,8 +57,8 @@ def graph_ids(release: Path) -> tuple[set[str], set[str]]:
                 n.get("properties") or {}).get("is_viral"):
             proteins.add(n["id"])
         elif n.get("class") == "SmallMolecule":
-            compounds.add(n["id"])
-    return proteins, compounds
+            nodes.append(n)
+    return proteins, CompoundIndex.from_nodes(nodes)
 
 
 def main(argv=None) -> int:
@@ -84,23 +88,29 @@ def main(argv=None) -> int:
     try:
         rows = _rows(inter, INTERACTION_COLUMNS)
         keys = ligand_inchikeys(ligands)
+        chembl = ligand_chembl_ids(ligands)
     except GtopFormatError as e:
         print(f"REFUSED: {e}")
         return 2
 
+    version = file_version(inter) or "unrecorded"
+    print(f"{version}")
     print(f"{len(rows):,} interactions, {len(keys):,} ligands with an "
-          f"InChIKey\n")
+          f"InChIKey, {len(chembl):,} with a ChEMBL id\n")
     proteins, compounds = graph_ids(args.release)
     if not proteins:
         print(f"no nodes under {args.release}; build the release first")
         return 2
     print(f"graph: {len(proteins):,} human proteins, "
-          f"{len(compounds):,} small molecules")
+          f"{len(compounds.exact):,} small molecules "
+          f"({len(compounds.by_skeleton):,} unambiguous skeletons, "
+          f"{len(compounds.by_chembl):,} ChEMBL ids)")
 
     em = Emit()
     s = ingest_interactions(
         em, rows, keys, known_proteins=proteins,
-        known_compounds=None if args.mint else compounds)
+        compounds=None if args.mint else compounds,
+        ligand_chembl=chembl)
 
     print(f"\n{s['edges']:,} TARGETS edges")
     for k in ("direction_inhibitor", "direction_agonist",
@@ -112,6 +122,10 @@ def main(argv=None) -> int:
         print(f"\n  {known:,} of {s['edges']:,} state a direction "
               f"({known / s['edges']:.1%}). v0.1's existing TARGETS layer "
               f"states one on 2,226 of 14,381 (15.5%).")
+    for k in ("compound_by_skeleton", "compound_by_chembl_id"):
+        if s[k]:
+            print(f"  {k.removeprefix('compound_by_'):<12} {s[k]:7,} edges "
+                  f"joined by a looser key than the exact InChIKey")
     print("\n  dropped:")
     for k in ("not_human", "no_uniprot", "multi_accession",
               "protein_not_in_graph", "ligand_without_inchikey",
