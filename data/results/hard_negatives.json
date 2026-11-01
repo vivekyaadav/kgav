@@ -17,6 +17,26 @@
     "overlap_policy": "drop-from-test"
   },
   "temporal_skipped": null,
+  "cross_sectional_notes": {
+    "labelled_viruses": 1,
+    "labels": {
+      "active": 89,
+      "inactive": 7343,
+      "other_source": 18844
+    },
+    "unscored": {},
+    "empty_label_set": false
+  },
+  "temporal_notes": {
+    "labelled_viruses": 0,
+    "labels": {
+      "active": 0,
+      "inactive": 0,
+      "other_source": 18844
+    },
+    "unscored": {},
+    "empty_label_set": true
+  },
   "cross_sectional": {
     "SARS-CoV-2": {
       "M1": {
@@ -28,7 +48,9 @@
         "auc_ci_hi": 0.5743831393258916,
         "imputed": true,
         "coverage_pos": 0.033707865168539325,
-        "coverage_neg": 0.00667302192564347
+        "coverage_neg": 0.00667302192564347,
+        "auc_ceiling": 0.5136298882831161,
+        "auc_headroom": 0.013629888283116065
       },
       "M2": {
         "n_pos": 89,
@@ -39,7 +61,9 @@
         "auc_ci_hi": 0.5680023918116319,
         "imputed": true,
         "coverage_pos": 0.12359550561797752,
-        "coverage_neg": 0.1124880838894185
+        "coverage_neg": 0.1124880838894185,
+        "auc_ceiling": 0.5125052216664346,
+        "auc_headroom": 0.01250522166643464
       },
       "M3": {
         "n_pos": 89,
@@ -50,7 +74,9 @@
         "auc_ci_hi": 0.6021889661463826,
         "imputed": true,
         "coverage_pos": 0.1797752808988764,
-        "coverage_neg": 0.10104861773117255
+        "coverage_neg": 0.10104861773117255,
+        "auc_ceiling": 0.5484463534023843,
+        "auc_headroom": 0.048446353402384346
       },
       "M4": {
         "n_pos": 89,
@@ -61,7 +87,9 @@
         "auc_ci_hi": 0.6130249148078845,
         "imputed": true,
         "coverage_pos": 0.3595505617977528,
-        "coverage_neg": 0.27672613373280674
+        "coverage_neg": 0.27672613373280674,
+        "auc_ceiling": 0.5911607324563484,
+        "auc_headroom": 0.09116073245634837
       },
       "M5": {
         "n_pos": 89,
@@ -72,7 +100,9 @@
         "auc_ci_hi": 0.6120828462058459,
         "imputed": true,
         "coverage_pos": 0.30337078651685395,
-        "coverage_neg": 0.20985973035544056
+        "coverage_neg": 0.20985973035544056,
+        "auc_ceiling": 0.5785881838087791,
+        "auc_headroom": 0.07858818380877908
       },
       "M6": {
         "n_pos": 89,
@@ -83,7 +113,9 @@
         "auc_ci_hi": 0.5824115056220214,
         "imputed": true,
         "coverage_pos": 0.07865168539325842,
-        "coverage_neg": 0.03554405556312134
+        "coverage_neg": 0.03554405556312134,
+        "auc_ceiling": 0.5229516148529441,
+        "auc_headroom": 0.022951614852944058
       },
       "M7": {
         "n_pos": 89,
@@ -94,7 +126,9 @@
         "auc_ci_hi": 0.5575804753383699,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.005311180716328476
+        "coverage_neg": 0.005311180716328476,
+        "auc_ceiling": 0.49734440964183574,
+        "auc_headroom": -0.0026555903581642615
       },
       "M8": {
         "n_pos": 89,
@@ -105,7 +139,9 @@
         "auc_ci_hi": 0.5661749192855093,
         "imputed": true,
         "coverage_pos": 0.011235955056179775,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5056179775280899,
+        "auc_headroom": 0.005617977528089901
       },
       "COMBINED": {
         "n_pos": 89,
@@ -116,7 +152,9 @@
         "auc_ci_hi": 0.6431443458959634,
         "imputed": true,
         "coverage_pos": 0.4606741573033708,
-        "coverage_neg": 0.3136320305052431
+        "coverage_neg": 0.3136320305052431,
+        "auc_ceiling": 0.6457621490772378,
+        "auc_headroom": 0.14576214907723783
       },
       "degree": {
         "n_pos": 89,
@@ -127,7 +165,9 @@
         "auc_ci_hi": 0.6863831623609228,
         "imputed": true,
         "coverage_pos": 1.0,
-        "coverage_neg": 1.0
+        "coverage_neg": 1.0,
+        "auc_ceiling": 1.0,
+        "auc_headroom": 0.5
       }
     }
   },
@@ -427,10 +467,10 @@
       "edges_sha": "3863a5452838dc40"
     },
     "code": {
-      "commit": "2589e1d0fc659e7014acecd065eb85f2695cfa56",
-      "dirty": true
+      "commit": "e87809eaf12f07bb8ee823c912488e80288911b0",
+      "dirty": false
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-01T19:27:21+00:00"
+    "generated_utc": "2026-11-01T22:04:43+00:00"
   }
 }

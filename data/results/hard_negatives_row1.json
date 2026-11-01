@@ -16,6 +16,37 @@
     "overlap_policy": "drop-from-test"
   },
   "temporal_skipped": null,
+  "cross_sectional_notes": {
+    "labelled_viruses": 15,
+    "labels": {
+      "active": 5637,
+      "inactive": 20297,
+      "other_source": 0
+    },
+    "unscored": {
+      "JEV": "active 5 < 10",
+      "HCoV-NL63": "active 5 < 10, inactive 7 < 10"
+    },
+    "empty_label_set": false
+  },
+  "temporal_notes": {
+    "labelled_viruses": 15,
+    "labels": {
+      "active": 3160,
+      "inactive": 6816,
+      "other_source": 0
+    },
+    "unscored": {
+      "MERS-CoV": "inactive 6 < 10",
+      "SARS-CoV": "inactive 4 < 10",
+      "DENV-4": "active 9 < 10",
+      "HCoV-NL63": "active 5 < 10, inactive 1 < 10",
+      "Yellow fever": "active 2 < 10",
+      "JEV": "active 0 < 10, inactive 4 < 10",
+      "TBEV": "active 0 < 10, inactive 9 < 10"
+    },
+    "empty_label_set": false
+  },
   "cross_sectional": {
     "SARS-CoV-2": {
       "M1": {
@@ -27,7 +58,9 @@
         "auc_ci_hi": 0.7972400577364092,
         "imputed": true,
         "coverage_pos": 0.5732323232323232,
-        "coverage_neg": 0.017798466593647318
+        "coverage_neg": 0.017798466593647318,
+        "auc_ceiling": 0.7828182564970626,
+        "auc_headroom": 0.2828182564970626
       },
       "M2": {
         "n_pos": 792,
@@ -38,7 +71,9 @@
         "auc_ci_hi": 0.4803341058706085,
         "imputed": true,
         "coverage_pos": 0.012626262626262626,
-        "coverage_neg": 0.09236947791164658
+        "coverage_neg": 0.09236947791164658,
+        "auc_ceiling": 0.4607115330006896,
+        "auc_headroom": -0.03928846699931038
       },
       "M3": {
         "n_pos": 792,
@@ -49,7 +84,9 @@
         "auc_ci_hi": 0.4866773227024449,
         "imputed": true,
         "coverage_pos": 0.010101010101010102,
-        "coverage_neg": 0.07749178532311063
+        "coverage_neg": 0.07749178532311063,
+        "auc_ceiling": 0.46669598504209675,
+        "auc_headroom": -0.03330401495790325
       },
       "M4": {
         "n_pos": 792,
@@ -60,7 +97,9 @@
         "auc_ci_hi": 0.4114648771977057,
         "imputed": true,
         "coverage_pos": 0.01893939393939394,
-        "coverage_neg": 0.23430083972252647
+        "coverage_neg": 0.23430083972252647,
+        "auc_ceiling": 0.3945380350603516,
+        "auc_headroom": -0.10546196493964838
       },
       "M5": {
         "n_pos": 792,
@@ -71,7 +110,9 @@
         "auc_ci_hi": 0.441966932269105,
         "imputed": true,
         "coverage_pos": 0.017676767676767676,
-        "coverage_neg": 0.17342095655348666
+        "coverage_neg": 0.17342095655348666,
+        "auc_ceiling": 0.42366066654127993,
+        "auc_headroom": -0.07633933345872007
       },
       "M6": {
         "n_pos": 792,
@@ -82,7 +123,9 @@
         "auc_ci_hi": 0.5055011101006985,
         "imputed": true,
         "coverage_pos": 0.008838383838383838,
-        "coverage_neg": 0.03897407813070464
+        "coverage_neg": 0.03897407813070464,
+        "auc_ceiling": 0.48510438678497275,
+        "auc_headroom": -0.014895613215027248
       },
       "M7": {
         "n_pos": 792,
@@ -93,7 +136,9 @@
         "auc_ci_hi": 0.5581971816605512,
         "imputed": true,
         "coverage_pos": 0.08964646464646464,
-        "coverage_neg": 0.01624680540343191
+        "coverage_neg": 0.01624680540343191,
+        "auc_ceiling": 0.5374280639546247,
+        "auc_headroom": 0.037428063954624724
       },
       "M8": {
         "n_pos": 792,
@@ -104,7 +149,9 @@
         "auc_ci_hi": 0.5214587075948124,
         "imputed": true,
         "coverage_pos": 0.0012626262626262627,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5006313131313131,
+        "auc_headroom": 0.0006313131313131493
       },
       "COMBINED": {
         "n_pos": 792,
@@ -115,7 +162,9 @@
         "auc_ci_hi": 0.6900341097740555,
         "imputed": true,
         "coverage_pos": 0.6767676767676768,
-        "coverage_neg": 0.29791894852135814
+        "coverage_neg": 0.29791894852135814,
+        "auc_ceiling": 0.7902353214510937,
+        "auc_headroom": 0.29023532145109365
       },
       "degree": {
         "n_pos": 792,
@@ -126,7 +175,9 @@
         "auc_ci_hi": 0.6806194463807522,
         "imputed": true,
         "coverage_pos": 1.0,
-        "coverage_neg": 1.0
+        "coverage_neg": 1.0,
+        "auc_ceiling": 1.0,
+        "auc_headroom": 0.5
       }
     },
     "DENV-2": {
@@ -139,7 +190,9 @@
         "auc_ci_hi": 0.5538240123035406,
         "imputed": true,
         "coverage_pos": 0.054945054945054944,
-        "coverage_neg": 0.004898758981058132
+        "coverage_neg": 0.004898758981058132,
+        "auc_ceiling": 0.5251577292726868,
+        "auc_headroom": 0.02515772927268678
       },
       "M2": {
         "n_pos": 455,
@@ -150,7 +203,9 @@
         "auc_ci_hi": 0.5284318470641923,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "M3": {
         "n_pos": 455,
@@ -161,7 +216,9 @@
         "auc_ci_hi": 0.5295460954310129,
         "imputed": true,
         "coverage_pos": 0.002197802197802198,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5010989010989011,
+        "auc_headroom": 0.001098901098901095
       },
       "M4": {
         "n_pos": 455,
@@ -172,7 +229,9 @@
         "auc_ci_hi": 0.5344485828254705,
         "imputed": true,
         "coverage_pos": 0.013186813186813187,
-        "coverage_neg": 0.0013063357282821686
+        "coverage_neg": 0.0013063357282821686,
+        "auc_ceiling": 0.5059488519318696,
+        "auc_headroom": 0.005948851931869559
       },
       "M5": {
         "n_pos": 455,
@@ -183,7 +242,9 @@
         "auc_ci_hi": 0.529215696599831,
         "imputed": true,
         "coverage_pos": 0.002197802197802198,
-        "coverage_neg": 0.0006531678641410843
+        "coverage_neg": 0.0006531678641410843,
+        "auc_ceiling": 0.5007730349337143,
+        "auc_headroom": 0.0007730349337142783
       },
       "M6": {
         "n_pos": 455,
@@ -194,7 +255,9 @@
         "auc_ci_hi": 0.5284318470641923,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "M7": {
         "n_pos": 455,
@@ -205,7 +268,9 @@
         "auc_ci_hi": 0.5583890837435617,
         "imputed": true,
         "coverage_pos": 0.06593406593406594,
-        "coverage_neg": 0.006858262573481384
+        "coverage_neg": 0.006858262573481384,
+        "auc_ceiling": 0.5297639982486488,
+        "auc_headroom": 0.029763998248648837
       },
       "M8": {
         "n_pos": 455,
@@ -216,7 +281,9 @@
         "auc_ci_hi": 0.5284318470641923,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "COMBINED": {
         "n_pos": 455,
@@ -227,7 +294,9 @@
         "auc_ci_hi": 0.588863309308434,
         "imputed": true,
         "coverage_pos": 0.13186813186813187,
-        "coverage_neg": 0.012736773350751143
+        "coverage_neg": 0.012736773350751143,
+        "auc_ceiling": 0.560405466512586,
+        "auc_headroom": 0.06040546651258605
       },
       "degree": {
         "n_pos": 455,
@@ -238,7 +307,9 @@
         "auc_ci_hi": 0.47702999211593883,
         "imputed": true,
         "coverage_pos": 1.0,
-        "coverage_neg": 1.0
+        "coverage_neg": 1.0,
+        "auc_ceiling": 1.0,
+        "auc_headroom": 0.5
       }
     },
     "Zika": {
@@ -251,7 +322,9 @@
         "auc_ci_hi": 0.602892558415633,
         "imputed": true,
         "coverage_pos": 0.10714285714285714,
-        "coverage_neg": 0.0019179133103183737
+        "coverage_neg": 0.0019179133103183737,
+        "auc_ceiling": 0.5527152172721793,
+        "auc_headroom": 0.052715217272179316
       },
       "M2": {
         "n_pos": 140,
@@ -262,7 +335,9 @@
         "auc_ci_hi": 0.555653016340159,
         "imputed": true,
         "coverage_pos": 0.014285714285714285,
-        "coverage_neg": 0.0015343306482546988
+        "coverage_neg": 0.0015343306482546988,
+        "auc_ceiling": 0.5063866513233601,
+        "auc_headroom": 0.006386651323360137
       },
       "M3": {
         "n_pos": 140,
@@ -273,7 +348,9 @@
         "auc_ci_hi": 0.5523782516013599,
         "imputed": true,
         "coverage_pos": 0.007142857142857143,
-        "coverage_neg": 0.0007671653241273494
+        "coverage_neg": 0.0007671653241273494,
+        "auc_ceiling": 0.5031905857855224,
+        "auc_headroom": 0.0031905857855224484
       },
       "M4": {
         "n_pos": 140,
@@ -284,7 +361,9 @@
         "auc_ci_hi": 0.557381596945856,
         "imputed": true,
         "coverage_pos": 0.02142857142857143,
-        "coverage_neg": 0.005370157268891446
+        "coverage_neg": 0.005370157268891446,
+        "auc_ceiling": 0.5080867444791496,
+        "auc_headroom": 0.008086744479149588
       },
       "M5": {
         "n_pos": 140,
@@ -295,7 +374,9 @@
         "auc_ci_hi": 0.5587422680849017,
         "imputed": true,
         "coverage_pos": 0.02142857142857143,
-        "coverage_neg": 0.002685078634445723
+        "coverage_neg": 0.002685078634445723,
+        "auc_ceiling": 0.5094005150967176,
+        "auc_headroom": 0.009400515096717577
       },
       "M6": {
         "n_pos": 140,
@@ -306,7 +387,9 @@
         "auc_ci_hi": 0.5523782516013599,
         "imputed": true,
         "coverage_pos": 0.007142857142857143,
-        "coverage_neg": 0.0007671653241273494
+        "coverage_neg": 0.0007671653241273494,
+        "auc_ceiling": 0.5031905857855224,
+        "auc_headroom": 0.0031905857855224484
       },
       "M7": {
         "n_pos": 140,
@@ -317,7 +400,9 @@
         "auc_ci_hi": 0.5664403892294705,
         "imputed": true,
         "coverage_pos": 0.03571428571428571,
-        "coverage_neg": 0.0019179133103183737
+        "coverage_neg": 0.0019179133103183737,
+        "auc_ceiling": 0.5169324346539537,
+        "auc_headroom": 0.016932434653953665
       },
       "M8": {
         "n_pos": 140,
@@ -328,7 +413,9 @@
         "auc_ci_hi": 0.5527699527975327,
         "imputed": true,
         "coverage_pos": 0.007142857142857143,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5035714285714286,
+        "auc_headroom": 0.0035714285714285587
       },
       "COMBINED": {
         "n_pos": 140,
@@ -339,7 +426,9 @@
         "auc_ci_hi": 0.6320350440691902,
         "imputed": true,
         "coverage_pos": 0.17142857142857143,
-        "coverage_neg": 0.008438818565400843
+        "coverage_neg": 0.008438818565400843,
+        "auc_ceiling": 0.5822182037371911,
+        "auc_headroom": 0.08221820373719113
       },
       "degree": {
         "n_pos": 140,
@@ -350,7 +439,9 @@
         "auc_ci_hi": 0.41209494539399205,
         "imputed": true,
         "coverage_pos": 1.0,
-        "coverage_neg": 1.0
+        "coverage_neg": 1.0,
+        "auc_ceiling": 1.0,
+        "auc_headroom": 0.5
       }
     },
     "DENV-3": {
@@ -363,7 +454,9 @@
         "auc_ci_hi": 0.5786313900399745,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "COMBINED": {
         "n_pos": 115,
@@ -374,7 +467,9 @@
         "auc_ci_hi": 0.5786313900399745,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "degree": {
         "n_pos": 115,
@@ -385,7 +480,9 @@
         "auc_ci_hi": 0.13540210298049837,
         "imputed": true,
         "coverage_pos": 1.0,
-        "coverage_neg": 1.0
+        "coverage_neg": 1.0,
+        "auc_ceiling": 1.0,
+        "auc_headroom": 0.5
       }
     },
     "SARS-CoV": {
@@ -398,7 +495,9 @@
         "auc_ci_hi": 0.6637095236292573,
         "imputed": true,
         "coverage_pos": 0.2153846153846154,
-        "coverage_neg": 0.06315789473684211
+        "coverage_neg": 0.06315789473684211,
+        "auc_ceiling": 0.5829149797570851,
+        "auc_headroom": 0.08291497975708506
       },
       "M3": {
         "n_pos": 65,
@@ -409,7 +508,9 @@
         "auc_ci_hi": 0.5757487770857134,
         "imputed": true,
         "coverage_pos": 0.03076923076923077,
-        "coverage_neg": 0.06315789473684211
+        "coverage_neg": 0.06315789473684211,
+        "auc_ceiling": 0.48477732793522266,
+        "auc_headroom": -0.015222672064777343
       },
       "M7": {
         "n_pos": 65,
@@ -420,7 +521,9 @@
         "auc_ci_hi": 0.556376340276034,
         "imputed": true,
         "coverage_pos": 0.046153846153846156,
-        "coverage_neg": 0.11578947368421053
+        "coverage_neg": 0.11578947368421053,
+        "auc_ceiling": 0.4678542510121457,
+        "auc_headroom": -0.03214574898785427
       },
       "M8": {
         "n_pos": 65,
@@ -431,7 +534,9 @@
         "auc_ci_hi": 0.5991271936996132,
         "imputed": true,
         "coverage_pos": 0.015384615384615385,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5076923076923077,
+        "auc_headroom": 0.007692307692307665
       },
       "COMBINED": {
         "n_pos": 65,
@@ -442,7 +547,9 @@
         "auc_ci_hi": 0.6281559922564756,
         "imputed": true,
         "coverage_pos": 0.3076923076923077,
-        "coverage_neg": 0.23157894736842105
+        "coverage_neg": 0.23157894736842105,
+        "auc_ceiling": 0.5736842105263158,
+        "auc_headroom": 0.0736842105263158
       },
       "degree": {
         "n_pos": 65,
@@ -453,7 +560,9 @@
         "auc_ci_hi": 0.754958033849769,
         "imputed": true,
         "coverage_pos": 1.0,
-        "coverage_neg": 1.0
+        "coverage_neg": 1.0,
+        "auc_ceiling": 1.0,
+        "auc_headroom": 0.5
       }
     },
     "DENV-1": {
@@ -466,7 +575,9 @@
         "auc_ci_hi": 0.5914650406359533,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "COMBINED": {
         "n_pos": 56,
@@ -477,7 +588,9 @@
         "auc_ci_hi": 0.5914650406359533,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "degree": {
         "n_pos": 56,
@@ -488,7 +601,9 @@
         "auc_ci_hi": 0.35115914199195486,
         "imputed": true,
         "coverage_pos": 1.0,
-        "coverage_neg": 1.0
+        "coverage_neg": 1.0,
+        "auc_ceiling": 1.0,
+        "auc_headroom": 0.5
       }
     },
     "TBEV": {
@@ -501,7 +616,9 @@
         "auc_ci_hi": 0.6035844756213188,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "COMBINED": {
         "n_pos": 56,
@@ -512,7 +629,9 @@
         "auc_ci_hi": 0.6035844756213188,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "degree": {
         "n_pos": 56,
@@ -523,7 +642,9 @@
         "auc_ci_hi": 0.42677123754557994,
         "imputed": true,
         "coverage_pos": 1.0,
-        "coverage_neg": 1.0
+        "coverage_neg": 1.0,
+        "auc_ceiling": 1.0,
+        "auc_headroom": 0.5
       }
     },
     "MERS-CoV": {
@@ -536,7 +657,9 @@
         "auc_ci_hi": 0.6344474865402033,
         "imputed": true,
         "coverage_pos": 0.03571428571428571,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5178571428571429,
+        "auc_headroom": 0.017857142857142905
       },
       "M2": {
         "n_pos": 56,
@@ -547,7 +670,9 @@
         "auc_ci_hi": 0.6256934666126148,
         "imputed": true,
         "coverage_pos": 0.017857142857142856,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5089285714285714,
+        "auc_headroom": 0.008928571428571397
       },
       "M3": {
         "n_pos": 56,
@@ -558,7 +683,9 @@
         "auc_ci_hi": 0.616894087285356,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "M4": {
         "n_pos": 56,
@@ -569,7 +696,9 @@
         "auc_ci_hi": 0.5843137103946512,
         "imputed": true,
         "coverage_pos": 0.05357142857142857,
-        "coverage_neg": 0.12195121951219512
+        "coverage_neg": 0.12195121951219512,
+        "auc_ceiling": 0.4690766550522648,
+        "auc_headroom": -0.030923344947735187
       },
       "M5": {
         "n_pos": 56,
@@ -580,7 +709,9 @@
         "auc_ci_hi": 0.6138790253058577,
         "imputed": true,
         "coverage_pos": 0.017857142857142856,
-        "coverage_neg": 0.024390243902439025
+        "coverage_neg": 0.024390243902439025,
+        "auc_ceiling": 0.4969512195121951,
+        "auc_headroom": -0.0030487804878048808
       },
       "M6": {
         "n_pos": 56,
@@ -591,7 +722,9 @@
         "auc_ci_hi": 0.6431561662281835,
         "imputed": true,
         "coverage_pos": 0.05357142857142857,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5267857142857143,
+        "auc_headroom": 0.0267857142857143
       },
       "M7": {
         "n_pos": 56,
@@ -602,7 +735,9 @@
         "auc_ci_hi": 0.616894087285356,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "COMBINED": {
         "n_pos": 56,
@@ -613,7 +748,9 @@
         "auc_ci_hi": 0.6259075188370331,
         "imputed": true,
         "coverage_pos": 0.14285714285714285,
-        "coverage_neg": 0.12195121951219512
+        "coverage_neg": 0.12195121951219512,
+        "auc_ceiling": 0.519163763066202,
+        "auc_headroom": 0.019163763066202044
       },
       "degree": {
         "n_pos": 56,
@@ -624,7 +761,9 @@
         "auc_ci_hi": 0.786848446426983,
         "imputed": true,
         "coverage_pos": 1.0,
-        "coverage_neg": 1.0
+        "coverage_neg": 1.0,
+        "auc_ceiling": 1.0,
+        "auc_headroom": 0.5
       }
     },
     "HCoV-OC43": {
@@ -637,7 +776,9 @@
         "auc_ci_hi": 0.6028903287636229,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "M3": {
         "n_pos": 54,
@@ -648,7 +789,9 @@
         "auc_ci_hi": 0.6028903287636229,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "M4": {
         "n_pos": 54,
@@ -659,7 +802,9 @@
         "auc_ci_hi": 0.6143333980194268,
         "imputed": true,
         "coverage_pos": 0.037037037037037035,
-        "coverage_neg": 0.014285714285714285
+        "coverage_neg": 0.014285714285714285,
+        "auc_ceiling": 0.5116402116402117,
+        "auc_headroom": 0.011640211640211673
       },
       "M5": {
         "n_pos": 54,
@@ -670,7 +815,9 @@
         "auc_ci_hi": 0.612209374289442,
         "imputed": true,
         "coverage_pos": 0.018518518518518517,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5092592592592593,
+        "auc_headroom": 0.0092592592592593
       },
       "M6": {
         "n_pos": 54,
@@ -681,7 +828,9 @@
         "auc_ci_hi": 0.6028903287636229,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "COMBINED": {
         "n_pos": 54,
@@ -692,7 +841,9 @@
         "auc_ci_hi": 0.6143333980194268,
         "imputed": true,
         "coverage_pos": 0.037037037037037035,
-        "coverage_neg": 0.014285714285714285
+        "coverage_neg": 0.014285714285714285,
+        "auc_ceiling": 0.5116402116402117,
+        "auc_headroom": 0.011640211640211673
       },
       "degree": {
         "n_pos": 54,
@@ -703,7 +854,9 @@
         "auc_ci_hi": 0.8304931054894639,
         "imputed": true,
         "coverage_pos": 1.0,
-        "coverage_neg": 1.0
+        "coverage_neg": 1.0,
+        "auc_ceiling": 1.0,
+        "auc_headroom": 0.5
       }
     },
     "HCoV-229E": {
@@ -716,7 +869,9 @@
         "auc_ci_hi": 0.6005608965504455,
         "imputed": true,
         "coverage_pos": 0.03773584905660377,
-        "coverage_neg": 0.033707865168539325
+        "coverage_neg": 0.033707865168539325,
+        "auc_ceiling": 0.5026499894000424,
+        "auc_headroom": 0.002649989400042352
       },
       "M2": {
         "n_pos": 53,
@@ -727,7 +882,9 @@
         "auc_ci_hi": 0.6270906402001142,
         "imputed": true,
         "coverage_pos": 0.05660377358490566,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5283018867924528,
+        "auc_headroom": 0.028301886792452824
       },
       "M3": {
         "n_pos": 53,
@@ -738,7 +895,9 @@
         "auc_ci_hi": 0.6080830363572508,
         "imputed": true,
         "coverage_pos": 0.018867924528301886,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5094339622641509,
+        "auc_headroom": 0.009433962264150941
       },
       "M4": {
         "n_pos": 53,
@@ -749,7 +908,9 @@
         "auc_ci_hi": 0.640863101229079,
         "imputed": true,
         "coverage_pos": 0.09433962264150944,
-        "coverage_neg": 0.011235955056179775
+        "coverage_neg": 0.011235955056179775,
+        "auc_ceiling": 0.5420818316726733,
+        "auc_headroom": 0.04208183167267332
       },
       "M5": {
         "n_pos": 53,
@@ -760,7 +921,9 @@
         "auc_ci_hi": 0.6365294987694633,
         "imputed": true,
         "coverage_pos": 0.07547169811320754,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5377358490566038,
+        "auc_headroom": 0.037735849056603765
       },
       "M6": {
         "n_pos": 53,
@@ -771,7 +934,9 @@
         "auc_ci_hi": 0.5985145842646665,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "M7": {
         "n_pos": 53,
@@ -782,7 +947,9 @@
         "auc_ci_hi": 0.5985145842646665,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "COMBINED": {
         "n_pos": 53,
@@ -793,7 +960,9 @@
         "auc_ci_hi": 0.6348358294336438,
         "imputed": true,
         "coverage_pos": 0.11320754716981132,
-        "coverage_neg": 0.0449438202247191
+        "coverage_neg": 0.0449438202247191,
+        "auc_ceiling": 0.5366758532965868,
+        "auc_headroom": 0.03667585329658685
       },
       "degree": {
         "n_pos": 53,
@@ -804,7 +973,9 @@
         "auc_ci_hi": 0.8315976345978227,
         "imputed": true,
         "coverage_pos": 1.0,
-        "coverage_neg": 1.0
+        "coverage_neg": 1.0,
+        "auc_ceiling": 1.0,
+        "auc_headroom": 0.5
       }
     },
     "DENV-4": {
@@ -817,7 +988,9 @@
         "auc_ci_hi": 0.24031929923106696,
         "imputed": true,
         "coverage_pos": 1.0,
-        "coverage_neg": 1.0
+        "coverage_neg": 1.0,
+        "auc_ceiling": 1.0,
+        "auc_headroom": 0.5
       }
     },
     "West Nile": {
@@ -830,7 +1003,9 @@
         "auc_ci_hi": 0.6098973332981025,
         "imputed": true,
         "coverage_pos": 0.045454545454545456,
-        "coverage_neg": 0.00949367088607595
+        "coverage_neg": 0.00949367088607595,
+        "auc_ceiling": 0.5181962025316456,
+        "auc_headroom": 0.018196202531645556
       },
       "M3": {
         "n_pos": 44,
@@ -841,7 +1016,9 @@
         "auc_ci_hi": 0.5911694153421219,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "M4": {
         "n_pos": 44,
@@ -852,7 +1029,9 @@
         "auc_ci_hi": 0.614816039119897,
         "imputed": true,
         "coverage_pos": 0.045454545454545456,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5227272727272727,
+        "auc_headroom": 0.022727272727272707
       },
       "M5": {
         "n_pos": 44,
@@ -863,7 +1042,9 @@
         "auc_ci_hi": 0.603023162606535,
         "imputed": true,
         "coverage_pos": 0.022727272727272728,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5113636363636364,
+        "auc_headroom": 0.011363636363636354
       },
       "M7": {
         "n_pos": 44,
@@ -874,7 +1055,9 @@
         "auc_ci_hi": 0.5911694153421219,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "COMBINED": {
         "n_pos": 44,
@@ -885,7 +1068,9 @@
         "auc_ci_hi": 0.6335715655572176,
         "imputed": true,
         "coverage_pos": 0.09090909090909091,
-        "coverage_neg": 0.00949367088607595
+        "coverage_neg": 0.00949367088607595,
+        "auc_ceiling": 0.5411392405063291,
+        "auc_headroom": 0.04113924050632911
       },
       "degree": {
         "n_pos": 44,
@@ -896,7 +1081,9 @@
         "auc_ci_hi": 0.5368921723294039,
         "imputed": true,
         "coverage_pos": 1.0,
-        "coverage_neg": 1.0
+        "coverage_neg": 1.0,
+        "auc_ceiling": 1.0,
+        "auc_headroom": 0.5
       }
     },
     "Yellow fever": {
@@ -909,7 +1096,9 @@
         "auc_ci_hi": 0.8845139457389902,
         "imputed": true,
         "coverage_pos": 1.0,
-        "coverage_neg": 1.0
+        "coverage_neg": 1.0,
+        "auc_ceiling": 1.0,
+        "auc_headroom": 0.5
       }
     }
   },
@@ -924,7 +1113,9 @@
         "auc_ci_hi": 0.5298623650623084,
         "imputed": true,
         "coverage_pos": 0.004838709677419355,
-        "coverage_neg": 0.003006012024048096
+        "coverage_neg": 0.003006012024048096,
+        "auc_ceiling": 0.5009236214364212,
+        "auc_headroom": 0.0009236214364212181
       },
       "M2": {
         "n_pos": 620,
@@ -935,7 +1126,9 @@
         "auc_ci_hi": 0.5295571958790544,
         "imputed": true,
         "coverage_pos": 0.0032258064516129032,
-        "coverage_neg": 0.002004008016032064
+        "coverage_neg": 0.002004008016032064,
+        "auc_ceiling": 0.500614131488784,
+        "auc_headroom": 0.0006141314887839755
       },
       "M4": {
         "n_pos": 620,
@@ -946,7 +1139,9 @@
         "auc_ci_hi": 0.5294719734171502,
         "imputed": true,
         "coverage_pos": 0.008064516129032258,
-        "coverage_neg": 0.0070140280561122245
+        "coverage_neg": 0.0070140280561122245,
+        "auc_ceiling": 0.500553526407654,
+        "auc_headroom": 0.000553526407654048
       },
       "M6": {
         "n_pos": 620,
@@ -957,7 +1152,9 @@
         "auc_ci_hi": 0.5308662465881909,
         "imputed": true,
         "coverage_pos": 0.004838709677419355,
-        "coverage_neg": 0.001002004008016032
+        "coverage_neg": 0.001002004008016032,
+        "auc_ceiling": 0.5019207770379469,
+        "auc_headroom": 0.001920777037946908
       },
       "M7": {
         "n_pos": 620,
@@ -968,7 +1165,9 @@
         "auc_ci_hi": 0.5412999678514977,
         "imputed": true,
         "coverage_pos": 0.03064516129032258,
-        "coverage_neg": 0.006012024048096192
+        "coverage_neg": 0.006012024048096192,
+        "auc_ceiling": 0.5124086883444308,
+        "auc_headroom": 0.012408688344430763
       },
       "M8": {
         "n_pos": 620,
@@ -979,7 +1178,9 @@
         "auc_ci_hi": 0.5289419478951356,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "COMBINED": {
         "n_pos": 620,
@@ -990,7 +1191,9 @@
         "auc_ci_hi": 0.5419595143203235,
         "imputed": true,
         "coverage_pos": 0.041935483870967745,
-        "coverage_neg": 0.01603206412825651
+        "coverage_neg": 0.01603206412825651,
+        "auc_ceiling": 0.51328786605469,
+        "auc_headroom": 0.013287866054690012
       },
       "degree": {
         "n_pos": 620,
@@ -1001,7 +1204,9 @@
         "auc_ci_hi": 0.5541799063878979,
         "imputed": true,
         "coverage_pos": 0.24838709677419354,
-        "coverage_neg": 0.20440881763527055
+        "coverage_neg": 0.20440881763527055,
+        "auc_ceiling": 0.5473753959531967,
+        "auc_headroom": 0.04737539595319673
       }
     },
     "DENV-2": {
@@ -1014,7 +1219,9 @@
         "auc_ci_hi": 0.5703148523263537,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.00037257824143070045
+        "coverage_neg": 0.00037257824143070045,
+        "auc_ceiling": 0.49981371087928467,
+        "auc_headroom": -0.00018628912071533277
       },
       "M2": {
         "n_pos": 66,
@@ -1025,7 +1232,9 @@
         "auc_ci_hi": 0.5705094813305522,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "M4": {
         "n_pos": 66,
@@ -1036,7 +1245,9 @@
         "auc_ci_hi": 0.5703148523263537,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.00037257824143070045
+        "coverage_neg": 0.00037257824143070045,
+        "auc_ceiling": 0.49981371087928467,
+        "auc_headroom": -0.00018628912071533277
       },
       "M6": {
         "n_pos": 66,
@@ -1047,7 +1258,9 @@
         "auc_ci_hi": 0.5705094813305522,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "M7": {
         "n_pos": 66,
@@ -1058,7 +1271,9 @@
         "auc_ci_hi": 0.5703148523263537,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.00037257824143070045
+        "coverage_neg": 0.00037257824143070045,
+        "auc_ceiling": 0.49981371087928467,
+        "auc_headroom": -0.00018628912071533277
       },
       "COMBINED": {
         "n_pos": 66,
@@ -1069,7 +1284,9 @@
         "auc_ci_hi": 0.5699255554882541,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0011177347242921013
+        "coverage_neg": 0.0011177347242921013,
+        "auc_ceiling": 0.49944113263785395,
+        "auc_headroom": -0.0005588673621460538
       },
       "degree": {
         "n_pos": 66,
@@ -1080,7 +1297,9 @@
         "auc_ci_hi": 0.6310800334296016,
         "imputed": true,
         "coverage_pos": 0.12121212121212122,
-        "coverage_neg": 0.004098360655737705
+        "coverage_neg": 0.004098360655737705,
+        "auc_ceiling": 0.5588052657724789,
+        "auc_headroom": 0.05880526577247891
       }
     },
     "Zika": {
@@ -1093,7 +1312,9 @@
         "auc_ci_hi": 0.5782651348928478,
         "imputed": true,
         "coverage_pos": 0.015151515151515152,
-        "coverage_neg": 0.0003969829297340214
+        "coverage_neg": 0.0003969829297340214,
+        "auc_ceiling": 0.507380273557328,
+        "auc_headroom": 0.007380273557327954
       },
       "M2": {
         "n_pos": 66,
@@ -1104,7 +1325,9 @@
         "auc_ci_hi": 0.5861441357098078,
         "imputed": true,
         "coverage_pos": 0.030303030303030304,
-        "coverage_neg": 0.0003969829297340214
+        "coverage_neg": 0.0003969829297340214,
+        "auc_ceiling": 0.5149590385795229,
+        "auc_headroom": 0.014959038579522854
       },
       "M4": {
         "n_pos": 66,
@@ -1115,7 +1338,9 @@
         "auc_ci_hi": 0.5855503649963898,
         "imputed": true,
         "coverage_pos": 0.030303030303030304,
-        "coverage_neg": 0.0015879317189360857
+        "coverage_neg": 0.0015879317189360857,
+        "auc_ceiling": 0.5143816088635461,
+        "auc_headroom": 0.014381608863546114
       },
       "M6": {
         "n_pos": 66,
@@ -1126,7 +1351,9 @@
         "auc_ci_hi": 0.5782651348928478,
         "imputed": true,
         "coverage_pos": 0.015151515151515152,
-        "coverage_neg": 0.0003969829297340214
+        "coverage_neg": 0.0003969829297340214,
+        "auc_ceiling": 0.507380273557328,
+        "auc_headroom": 0.007380273557327954
       },
       "M7": {
         "n_pos": 66,
@@ -1137,7 +1364,9 @@
         "auc_ci_hi": 0.5703583441401178,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0003969829297340214
+        "coverage_neg": 0.0003969829297340214,
+        "auc_ceiling": 0.499801508535133,
+        "auc_headroom": -0.0001984914648670011
       },
       "COMBINED": {
         "n_pos": 66,
@@ -1148,7 +1377,9 @@
         "auc_ci_hi": 0.6008922915242412,
         "imputed": true,
         "coverage_pos": 0.06060606060606061,
-        "coverage_neg": 0.0023818975784041284
+        "coverage_neg": 0.0023818975784041284,
+        "auc_ceiling": 0.5291842602283253,
+        "auc_headroom": 0.02918426022832532
       },
       "degree": {
         "n_pos": 66,
@@ -1159,7 +1390,9 @@
         "auc_ci_hi": 0.6444702035082143,
         "imputed": true,
         "coverage_pos": 0.15151515151515152,
-        "coverage_neg": 0.00833664152441445
+        "coverage_neg": 0.00833664152441445,
+        "auc_ceiling": 0.5722208187472181,
+        "auc_headroom": 0.07222081874721809
       }
     },
     "HCoV-OC43": {
@@ -1172,7 +1405,9 @@
         "auc_ci_hi": 0.6093299149502565,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "M4": {
         "n_pos": 44,
@@ -1183,7 +1418,9 @@
         "auc_ci_hi": 0.6134508316790451,
         "imputed": true,
         "coverage_pos": 0.022727272727272728,
-        "coverage_neg": 0.014285714285714285
+        "coverage_neg": 0.014285714285714285,
+        "auc_ceiling": 0.5043831168831169,
+        "auc_headroom": 0.004383116883116878
       },
       "M6": {
         "n_pos": 44,
@@ -1194,7 +1431,9 @@
         "auc_ci_hi": 0.6093299149502565,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "COMBINED": {
         "n_pos": 44,
@@ -1205,7 +1444,9 @@
         "auc_ci_hi": 0.6134508316790451,
         "imputed": true,
         "coverage_pos": 0.022727272727272728,
-        "coverage_neg": 0.014285714285714285
+        "coverage_neg": 0.014285714285714285,
+        "auc_ceiling": 0.5043831168831169,
+        "auc_headroom": 0.004383116883116878
       },
       "degree": {
         "n_pos": 44,
@@ -1216,7 +1457,9 @@
         "auc_ci_hi": 0.7907761260126644,
         "imputed": true,
         "coverage_pos": 0.5,
-        "coverage_neg": 0.14285714285714285
+        "coverage_neg": 0.14285714285714285,
+        "auc_ceiling": 0.7142857142857143,
+        "auc_headroom": 0.2142857142857143
       }
     },
     "HCoV-229E": {
@@ -1229,7 +1472,9 @@
         "auc_ci_hi": 0.6522223418468287,
         "imputed": true,
         "coverage_pos": 0.027777777777777776,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5138888888888888,
+        "auc_headroom": 0.01388888888888884
       },
       "M4": {
         "n_pos": 36,
@@ -1240,7 +1485,9 @@
         "auc_ci_hi": 0.6658425100903171,
         "imputed": true,
         "coverage_pos": 0.05555555555555555,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5277777777777778,
+        "auc_headroom": 0.02777777777777779
       },
       "M6": {
         "n_pos": 36,
@@ -1251,7 +1498,9 @@
         "auc_ci_hi": 0.6384725704888076,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "COMBINED": {
         "n_pos": 36,
@@ -1262,7 +1511,9 @@
         "auc_ci_hi": 0.6658425100903171,
         "imputed": true,
         "coverage_pos": 0.05555555555555555,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5277777777777778,
+        "auc_headroom": 0.02777777777777779
       },
       "degree": {
         "n_pos": 36,
@@ -1273,7 +1524,9 @@
         "auc_ci_hi": 0.7712493596887928,
         "imputed": true,
         "coverage_pos": 0.4444444444444444,
-        "coverage_neg": 0.1875
+        "coverage_neg": 0.1875,
+        "auc_ceiling": 0.6701388888888888,
+        "auc_headroom": 0.17013888888888884
       }
     },
     "West Nile": {
@@ -1286,7 +1539,9 @@
         "auc_ci_hi": 0.6513251500565452,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.010471204188481676
+        "coverage_neg": 0.010471204188481676,
+        "auc_ceiling": 0.49476439790575916,
+        "auc_headroom": -0.005235602094240843
       },
       "M4": {
         "n_pos": 14,
@@ -1297,7 +1552,9 @@
         "auc_ci_hi": 0.6954444194225132,
         "imputed": true,
         "coverage_pos": 0.07142857142857142,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5357142857142857,
+        "auc_headroom": 0.0357142857142857
       },
       "M7": {
         "n_pos": 14,
@@ -1308,7 +1565,9 @@
         "auc_ci_hi": 0.6570429182898461,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0
       },
       "COMBINED": {
         "n_pos": 14,
@@ -1319,7 +1578,9 @@
         "auc_ci_hi": 0.6902792629170673,
         "imputed": true,
         "coverage_pos": 0.07142857142857142,
-        "coverage_neg": 0.010471204188481676
+        "coverage_neg": 0.010471204188481676,
+        "auc_ceiling": 0.5308526551982049,
+        "auc_headroom": 0.030852655198204904
       },
       "degree": {
         "n_pos": 14,
@@ -1330,7 +1591,9 @@
         "auc_ci_hi": 0.7116041398155716,
         "imputed": true,
         "coverage_pos": 0.14285714285714285,
-        "coverage_neg": 0.041884816753926704
+        "coverage_neg": 0.041884816753926704,
+        "auc_ceiling": 0.5534779356768885,
+        "auc_headroom": 0.05347793567688852
       }
     },
     "DENV-3": {
@@ -1343,7 +1606,9 @@
         "auc_ci_hi": 0.7195955398209729,
         "imputed": true,
         "coverage_pos": 0.09090909090909091,
-        "coverage_neg": 0.02531645569620253
+        "coverage_neg": 0.02531645569620253,
+        "auc_ceiling": 0.5339470655926352,
+        "auc_headroom": 0.03394706559263516
       }
     },
     "DENV-1": {
@@ -1356,7 +1621,9 @@
         "auc_ci_hi": 0.7442282567060847,
         "imputed": true,
         "coverage_pos": 0.1,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.55,
+        "auc_headroom": 0.050000000000000044
       }
     }
   },
@@ -1655,10 +1922,10 @@
       "edges_sha": "3863a5452838dc40"
     },
     "code": {
-      "commit": "2589e1d0fc659e7014acecd065eb85f2695cfa56",
-      "dirty": true
+      "commit": "e87809eaf12f07bb8ee823c912488e80288911b0",
+      "dirty": false
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-01T19:22:47+00:00"
+    "generated_utc": "2026-11-01T22:00:12+00:00"
   }
 }
