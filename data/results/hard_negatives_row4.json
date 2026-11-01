@@ -1,0 +1,1353 @@
+{
+  "inactive_above_nm": 10000.0,
+  "selectivity_filter": "verified-only",
+  "selectivity_applies": "both",
+  "publication_disjoint": true,
+  "label_source": null,
+  "label_stats": {
+    "active": 5637,
+    "inactive": 20297,
+    "undecidable": 342,
+    "ambiguous_dropped": 150
+  },
+  "train_split": {
+    "cutoff": 2021,
+    "undated": "include",
+    "overlap_policy": "drop-from-test"
+  },
+  "temporal_skipped": null,
+  "cross_sectional": {
+    "SARS-CoV-2": {
+      "M1": {
+        "n_pos": 974,
+        "n_neg": 168,
+        "auc": 0.49663268798279064,
+        "evaluable": true,
+        "auc_ci_lo": 0.4492708197860624,
+        "auc_ci_hi": 0.5439945561795189,
+        "imputed": true,
+        "coverage_pos": 0.00513347022587269,
+        "coverage_neg": 0.011904761904761904
+      },
+      "M2": {
+        "n_pos": 974,
+        "n_neg": 168,
+        "auc": 0.4764807617092011,
+        "evaluable": true,
+        "auc_ci_lo": 0.42873664562793223,
+        "auc_ci_hi": 0.52422487779047,
+        "imputed": true,
+        "coverage_pos": 0.018480492813141684,
+        "coverage_neg": 0.06547619047619048
+      },
+      "M3": {
+        "n_pos": 974,
+        "n_neg": 168,
+        "auc": 0.4849632101300479,
+        "evaluable": true,
+        "auc_ci_lo": 0.4373679364405201,
+        "auc_ci_hi": 0.5325584838195757,
+        "imputed": true,
+        "coverage_pos": 0.017453798767967144,
+        "coverage_neg": 0.047619047619047616
+      },
+      "M4": {
+        "n_pos": 974,
+        "n_neg": 168,
+        "auc": 0.45960753397868387,
+        "evaluable": true,
+        "auc_ci_lo": 0.4116198942470745,
+        "auc_ci_hi": 0.5075951737102933,
+        "imputed": true,
+        "coverage_pos": 0.03285420944558522,
+        "coverage_neg": 0.1130952380952381
+      },
+      "M5": {
+        "n_pos": 974,
+        "n_neg": 168,
+        "auc": 0.45695524102864965,
+        "evaluable": true,
+        "auc_ci_lo": 0.4089357287310662,
+        "auc_ci_hi": 0.5049747533262331,
+        "imputed": true,
+        "coverage_pos": 0.026694045174537988,
+        "coverage_neg": 0.1130952380952381
+      },
+      "M6": {
+        "n_pos": 974,
+        "n_neg": 168,
+        "auc": 0.4952087611225188,
+        "evaluable": true,
+        "auc_ci_lo": 0.447816642682725,
+        "auc_ci_hi": 0.5426008795623127,
+        "imputed": true,
+        "coverage_pos": 0.008213552361396304,
+        "coverage_neg": 0.017857142857142856
+      },
+      "M7": {
+        "n_pos": 974,
+        "n_neg": 168,
+        "auc": 0.5177165835533392,
+        "evaluable": true,
+        "auc_ci_lo": 0.47085984168163864,
+        "auc_ci_hi": 0.5645733254250397,
+        "imputed": true,
+        "coverage_pos": 0.04722792607802875,
+        "coverage_neg": 0.011904761904761904
+      },
+      "M8": {
+        "n_pos": 974,
+        "n_neg": 168,
+        "auc": 0.5005133470225873,
+        "evaluable": true,
+        "auc_ci_lo": 0.4532364100098704,
+        "auc_ci_hi": 0.5477902840353043,
+        "imputed": true,
+        "coverage_pos": 0.001026694045174538,
+        "coverage_neg": 0.0
+      },
+      "COMBINED": {
+        "n_pos": 974,
+        "n_neg": 168,
+        "auc": 0.47029615234184025,
+        "evaluable": true,
+        "auc_ci_lo": 0.42245462724873367,
+        "auc_ci_hi": 0.5181376774349468,
+        "imputed": true,
+        "coverage_pos": 0.09137577002053388,
+        "coverage_neg": 0.1488095238095238
+      },
+      "degree": {
+        "n_pos": 974,
+        "n_neg": 168,
+        "auc": 0.4733670675662462,
+        "evaluable": true,
+        "auc_ci_lo": 0.4255727354158989,
+        "auc_ci_hi": 0.5211613997165935,
+        "imputed": true,
+        "coverage_pos": 1.0,
+        "coverage_neg": 1.0
+      }
+    },
+    "DENV-2": {
+      "M1": {
+        "n_pos": 568,
+        "n_neg": 116,
+        "auc": 0.5008802816901409,
+        "evaluable": true,
+        "auc_ci_lo": 0.44321180112844527,
+        "auc_ci_hi": 0.5585487622518365,
+        "imputed": true,
+        "coverage_pos": 0.0017605633802816902,
+        "coverage_neg": 0.0
+      },
+      "M2": {
+        "n_pos": 568,
+        "n_neg": 116,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.4423090658021638,
+        "auc_ci_hi": 0.5576909341978362,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "M3": {
+        "n_pos": 568,
+        "n_neg": 116,
+        "auc": 0.5008802816901409,
+        "evaluable": true,
+        "auc_ci_lo": 0.44321180112844527,
+        "auc_ci_hi": 0.5585487622518365,
+        "imputed": true,
+        "coverage_pos": 0.0017605633802816902,
+        "coverage_neg": 0.0
+      },
+      "M4": {
+        "n_pos": 568,
+        "n_neg": 116,
+        "auc": 0.4991956046624575,
+        "evaluable": true,
+        "auc_ci_lo": 0.4414843510022987,
+        "auc_ci_hi": 0.5569068583226163,
+        "imputed": true,
+        "coverage_pos": 0.007042253521126761,
+        "coverage_neg": 0.008620689655172414
+      },
+      "M5": {
+        "n_pos": 568,
+        "n_neg": 116,
+        "auc": 0.5008802816901409,
+        "evaluable": true,
+        "auc_ci_lo": 0.44321180112844527,
+        "auc_ci_hi": 0.5585487622518365,
+        "imputed": true,
+        "coverage_pos": 0.0017605633802816902,
+        "coverage_neg": 0.0
+      },
+      "M6": {
+        "n_pos": 568,
+        "n_neg": 116,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.4423090658021638,
+        "auc_ci_hi": 0.5576909341978362,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "M7": {
+        "n_pos": 568,
+        "n_neg": 116,
+        "auc": 0.5070422535211268,
+        "evaluable": true,
+        "auc_ci_lo": 0.4495372966485552,
+        "auc_ci_hi": 0.5645472103936984,
+        "imputed": true,
+        "coverage_pos": 0.014084507042253521,
+        "coverage_neg": 0.0
+      },
+      "M8": {
+        "n_pos": 568,
+        "n_neg": 116,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.4423090658021638,
+        "auc_ci_hi": 0.5576909341978362,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "COMBINED": {
+        "n_pos": 568,
+        "n_neg": 116,
+        "auc": 0.5070498421563866,
+        "evaluable": true,
+        "auc_ci_lo": 0.4495450935087628,
+        "auc_ci_hi": 0.5645545908040104,
+        "imputed": true,
+        "coverage_pos": 0.022887323943661973,
+        "coverage_neg": 0.008620689655172414
+      },
+      "degree": {
+        "n_pos": 568,
+        "n_neg": 116,
+        "auc": 0.5425646551724138,
+        "evaluable": true,
+        "auc_ci_lo": 0.4862176281035906,
+        "auc_ci_hi": 0.598911682241237,
+        "imputed": true,
+        "coverage_pos": 1.0,
+        "coverage_neg": 1.0
+      }
+    },
+    "Zika": {
+      "M1": {
+        "n_pos": 210,
+        "n_neg": 52,
+        "auc": 0.5023809523809524,
+        "evaluable": true,
+        "auc_ci_lo": 0.4146583592741745,
+        "auc_ci_hi": 0.5901035454877303,
+        "imputed": true,
+        "coverage_pos": 0.004761904761904762,
+        "coverage_neg": 0.0
+      },
+      "M2": {
+        "n_pos": 210,
+        "n_neg": 52,
+        "auc": 0.497481684981685,
+        "evaluable": true,
+        "auc_ci_lo": 0.409586946618494,
+        "auc_ci_hi": 0.5853764233448759,
+        "imputed": true,
+        "coverage_pos": 0.014285714285714285,
+        "coverage_neg": 0.019230769230769232
+      },
+      "M3": {
+        "n_pos": 210,
+        "n_neg": 52,
+        "auc": 0.49281135531135534,
+        "evaluable": true,
+        "auc_ci_lo": 0.40476241595517304,
+        "auc_ci_hi": 0.5808602946675376,
+        "imputed": true,
+        "coverage_pos": 0.004761904761904762,
+        "coverage_neg": 0.019230769230769232
+      },
+      "M4": {
+        "n_pos": 210,
+        "n_neg": 52,
+        "auc": 0.46945970695970696,
+        "evaluable": true,
+        "auc_ci_lo": 0.38078560248052984,
+        "auc_ci_hi": 0.5581338114388841,
+        "imputed": true,
+        "coverage_pos": 0.03333333333333333,
+        "coverage_neg": 0.09615384615384616
+      },
+      "M5": {
+        "n_pos": 210,
+        "n_neg": 52,
+        "auc": 0.49029304029304027,
+        "evaluable": true,
+        "auc_ci_lo": 0.4021649718926638,
+        "auc_ci_hi": 0.5784211086934167,
+        "imputed": true,
+        "coverage_pos": 0.01904761904761905,
+        "coverage_neg": 0.038461538461538464
+      },
+      "M6": {
+        "n_pos": 210,
+        "n_neg": 52,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.4121924209411799,
+        "auc_ci_hi": 0.5878075790588201,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "M7": {
+        "n_pos": 210,
+        "n_neg": 52,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.4121924209411799,
+        "auc_ci_hi": 0.5878075790588201,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "M8": {
+        "n_pos": 210,
+        "n_neg": 52,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.4121924209411799,
+        "auc_ci_hi": 0.5878075790588201,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "COMBINED": {
+        "n_pos": 210,
+        "n_neg": 52,
+        "auc": 0.47197802197802197,
+        "evaluable": true,
+        "auc_ci_lo": 0.3833595833915091,
+        "auc_ci_hi": 0.5605964605645348,
+        "imputed": true,
+        "coverage_pos": 0.0380952380952381,
+        "coverage_neg": 0.09615384615384616
+      },
+      "degree": {
+        "n_pos": 210,
+        "n_neg": 52,
+        "auc": 0.4706959706959707,
+        "evaluable": true,
+        "auc_ci_lo": 0.382048836305246,
+        "auc_ci_hi": 0.5593431050866954,
+        "imputed": true,
+        "coverage_pos": 1.0,
+        "coverage_neg": 1.0
+      }
+    },
+    "Yellow fever": {
+      "degree": {
+        "n_pos": 101,
+        "n_neg": 70,
+        "auc": 0.6931400282885432,
+        "evaluable": true,
+        "auc_ci_lo": 0.6150765814349999,
+        "auc_ci_hi": 0.7712034751420864,
+        "imputed": true,
+        "coverage_pos": 1.0,
+        "coverage_neg": 1.0
+      }
+    },
+    "SARS-CoV": {
+      "M1": {
+        "n_pos": 81,
+        "n_neg": 16,
+        "auc": 0.5061728395061729,
+        "evaluable": true,
+        "auc_ci_lo": 0.3510245297595176,
+        "auc_ci_hi": 0.6613211492528281,
+        "imputed": true,
+        "coverage_pos": 0.012345679012345678,
+        "coverage_neg": 0.0
+      },
+      "M3": {
+        "n_pos": 81,
+        "n_neg": 16,
+        "auc": 0.4699074074074074,
+        "evaluable": true,
+        "auc_ci_lo": 0.31260753950239994,
+        "auc_ci_hi": 0.6272072753124148,
+        "imputed": true,
+        "coverage_pos": 0.06172839506172839,
+        "coverage_neg": 0.125
+      },
+      "M7": {
+        "n_pos": 81,
+        "n_neg": 16,
+        "auc": 0.4976851851851852,
+        "evaluable": true,
+        "auc_ci_lo": 0.3419400813329557,
+        "auc_ci_hi": 0.6534302890374146,
+        "imputed": true,
+        "coverage_pos": 0.06172839506172839,
+        "coverage_neg": 0.0625
+      },
+      "M8": {
+        "n_pos": 81,
+        "n_neg": 16,
+        "auc": 0.5061728395061729,
+        "evaluable": true,
+        "auc_ci_lo": 0.3510245297595176,
+        "auc_ci_hi": 0.6613211492528281,
+        "imputed": true,
+        "coverage_pos": 0.012345679012345678,
+        "coverage_neg": 0.0
+      },
+      "COMBINED": {
+        "n_pos": 81,
+        "n_neg": 16,
+        "auc": 0.47646604938271603,
+        "evaluable": true,
+        "auc_ci_lo": 0.31947790163390577,
+        "auc_ci_hi": 0.6334541971315263,
+        "imputed": true,
+        "coverage_pos": 0.14814814814814814,
+        "coverage_neg": 0.1875
+      },
+      "degree": {
+        "n_pos": 81,
+        "n_neg": 16,
+        "auc": 0.5266203703703703,
+        "evaluable": true,
+        "auc_ci_lo": 0.3731413966978696,
+        "auc_ci_hi": 0.6800993440428711,
+        "imputed": true,
+        "coverage_pos": 1.0,
+        "coverage_neg": 1.0
+      }
+    },
+    "HCoV-OC43": {
+      "M2": {
+        "n_pos": 79,
+        "n_neg": 18,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.35146503850377375,
+        "auc_ci_hi": 0.6485349614962262,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "M3": {
+        "n_pos": 79,
+        "n_neg": 18,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.35146503850377375,
+        "auc_ci_hi": 0.6485349614962262,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "M4": {
+        "n_pos": 79,
+        "n_neg": 18,
+        "auc": 0.5189873417721519,
+        "evaluable": true,
+        "auc_ci_lo": 0.3717570729848332,
+        "auc_ci_hi": 0.6662176105594706,
+        "imputed": true,
+        "coverage_pos": 0.0379746835443038,
+        "coverage_neg": 0.0
+      },
+      "M5": {
+        "n_pos": 79,
+        "n_neg": 18,
+        "auc": 0.5063291139240507,
+        "evaluable": true,
+        "auc_ci_lo": 0.35819921955757517,
+        "auc_ci_hi": 0.6544590082905262,
+        "imputed": true,
+        "coverage_pos": 0.012658227848101266,
+        "coverage_neg": 0.0
+      },
+      "M6": {
+        "n_pos": 79,
+        "n_neg": 18,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.35146503850377375,
+        "auc_ci_hi": 0.6485349614962262,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "COMBINED": {
+        "n_pos": 79,
+        "n_neg": 18,
+        "auc": 0.5189873417721519,
+        "evaluable": true,
+        "auc_ci_lo": 0.3717570729848332,
+        "auc_ci_hi": 0.6662176105594706,
+        "imputed": true,
+        "coverage_pos": 0.0379746835443038,
+        "coverage_neg": 0.0
+      },
+      "degree": {
+        "n_pos": 79,
+        "n_neg": 18,
+        "auc": 0.679324894514768,
+        "evaluable": true,
+        "auc_ci_lo": 0.5536998785713392,
+        "auc_ci_hi": 0.8049499104581967,
+        "imputed": true,
+        "coverage_pos": 1.0,
+        "coverage_neg": 1.0
+      }
+    },
+    "DENV-1": {
+      "M3": {
+        "n_pos": 71,
+        "n_neg": 10,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.3077159768989995,
+        "auc_ci_hi": 0.6922840231010006,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "COMBINED": {
+        "n_pos": 71,
+        "n_neg": 10,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.3077159768989995,
+        "auc_ci_hi": 0.6922840231010006,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "degree": {
+        "n_pos": 71,
+        "n_neg": 10,
+        "auc": 0.7211267605633803,
+        "evaluable": true,
+        "auc_ci_lo": 0.5734769826162216,
+        "auc_ci_hi": 0.868776538510539,
+        "imputed": true,
+        "coverage_pos": 1.0,
+        "coverage_neg": 1.0
+      }
+    },
+    "HCoV-229E": {
+      "M1": {
+        "n_pos": 68,
+        "n_neg": 12,
+        "auc": 0.5073529411764706,
+        "evaluable": true,
+        "auc_ci_lo": 0.329717786091278,
+        "auc_ci_hi": 0.6849880962616631,
+        "imputed": true,
+        "coverage_pos": 0.014705882352941176,
+        "coverage_neg": 0.0
+      },
+      "M2": {
+        "n_pos": 68,
+        "n_neg": 12,
+        "auc": 0.5220588235294118,
+        "evaluable": true,
+        "auc_ci_lo": 0.34582653228873383,
+        "auc_ci_hi": 0.6982911147700898,
+        "imputed": true,
+        "coverage_pos": 0.04411764705882353,
+        "coverage_neg": 0.0
+      },
+      "M3": {
+        "n_pos": 68,
+        "n_neg": 12,
+        "auc": 0.5073529411764706,
+        "evaluable": true,
+        "auc_ci_lo": 0.329717786091278,
+        "auc_ci_hi": 0.6849880962616631,
+        "imputed": true,
+        "coverage_pos": 0.014705882352941176,
+        "coverage_neg": 0.0
+      },
+      "M4": {
+        "n_pos": 68,
+        "n_neg": 12,
+        "auc": 0.5294117647058824,
+        "evaluable": true,
+        "auc_ci_lo": 0.3539534789352696,
+        "auc_ci_hi": 0.7048700504764951,
+        "imputed": true,
+        "coverage_pos": 0.058823529411764705,
+        "coverage_neg": 0.0
+      },
+      "M5": {
+        "n_pos": 68,
+        "n_neg": 12,
+        "auc": 0.5294117647058824,
+        "evaluable": true,
+        "auc_ci_lo": 0.3539534789352696,
+        "auc_ci_hi": 0.7048700504764951,
+        "imputed": true,
+        "coverage_pos": 0.058823529411764705,
+        "coverage_neg": 0.0
+      },
+      "M6": {
+        "n_pos": 68,
+        "n_neg": 12,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.3217363155982953,
+        "auc_ci_hi": 0.6782636844017047,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "M7": {
+        "n_pos": 68,
+        "n_neg": 12,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.3217363155982953,
+        "auc_ci_hi": 0.6782636844017047,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "COMBINED": {
+        "n_pos": 68,
+        "n_neg": 12,
+        "auc": 0.5367647058823529,
+        "evaluable": true,
+        "auc_ci_lo": 0.36212861709315414,
+        "auc_ci_hi": 0.7114007946715517,
+        "imputed": true,
+        "coverage_pos": 0.07352941176470588,
+        "coverage_neg": 0.0
+      },
+      "degree": {
+        "n_pos": 68,
+        "n_neg": 12,
+        "auc": 0.6574754901960784,
+        "evaluable": true,
+        "auc_ci_lo": 0.5031717143513375,
+        "auc_ci_hi": 0.8117792660408194,
+        "imputed": true,
+        "coverage_pos": 1.0,
+        "coverage_neg": 1.0
+      }
+    },
+    "West Nile": {
+      "M1": {
+        "n_pos": 65,
+        "n_neg": 46,
+        "auc": 0.5076923076923077,
+        "evaluable": true,
+        "auc_ci_lo": 0.39829713228077857,
+        "auc_ci_hi": 0.6170874831038368,
+        "imputed": true,
+        "coverage_pos": 0.015384615384615385,
+        "coverage_neg": 0.0
+      },
+      "M3": {
+        "n_pos": 65,
+        "n_neg": 46,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.39049376045428924,
+        "auc_ci_hi": 0.6095062395457107,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "M4": {
+        "n_pos": 65,
+        "n_neg": 46,
+        "auc": 0.5076923076923077,
+        "evaluable": true,
+        "auc_ci_lo": 0.39829713228077857,
+        "auc_ci_hi": 0.6170874831038368,
+        "imputed": true,
+        "coverage_pos": 0.015384615384615385,
+        "coverage_neg": 0.0
+      },
+      "M5": {
+        "n_pos": 65,
+        "n_neg": 46,
+        "auc": 0.5076923076923077,
+        "evaluable": true,
+        "auc_ci_lo": 0.39829713228077857,
+        "auc_ci_hi": 0.6170874831038368,
+        "imputed": true,
+        "coverage_pos": 0.015384615384615385,
+        "coverage_neg": 0.0
+      },
+      "M7": {
+        "n_pos": 65,
+        "n_neg": 46,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.39049376045428924,
+        "auc_ci_hi": 0.6095062395457107,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "COMBINED": {
+        "n_pos": 65,
+        "n_neg": 46,
+        "auc": 0.5153846153846153,
+        "evaluable": true,
+        "auc_ci_lo": 0.4061320808827672,
+        "auc_ci_hi": 0.6246371498864635,
+        "imputed": true,
+        "coverage_pos": 0.03076923076923077,
+        "coverage_neg": 0.0
+      },
+      "degree": {
+        "n_pos": 65,
+        "n_neg": 46,
+        "auc": 0.7205685618729097,
+        "evaluable": true,
+        "auc_ci_lo": 0.6270267219970299,
+        "auc_ci_hi": 0.8141104017487896,
+        "imputed": true,
+        "coverage_pos": 1.0,
+        "coverage_neg": 1.0
+      }
+    }
+  },
+  "temporal": {
+    "SARS-CoV-2": {
+      "M1": {
+        "n_pos": 702,
+        "n_neg": 101,
+        "auc": 0.49504950495049505,
+        "evaluable": true,
+        "auc_ci_lo": 0.43465366159526153,
+        "auc_ci_hi": 0.5554453483057286,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.009900990099009901
+      },
+      "M2": {
+        "n_pos": 702,
+        "n_neg": 101,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.43974900411254575,
+        "auc_ci_hi": 0.5602509958874543,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "M4": {
+        "n_pos": 702,
+        "n_neg": 101,
+        "auc": 0.5021367521367521,
+        "evaluable": true,
+        "auc_ci_lo": 0.44195061932293994,
+        "auc_ci_hi": 0.5623228849505644,
+        "imputed": true,
+        "coverage_pos": 0.004273504273504274,
+        "coverage_neg": 0.0
+      },
+      "M6": {
+        "n_pos": 702,
+        "n_neg": 101,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.43974900411254575,
+        "auc_ci_hi": 0.5602509958874543,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "M7": {
+        "n_pos": 702,
+        "n_neg": 101,
+        "auc": 0.5028772107980028,
+        "evaluable": true,
+        "auc_ci_lo": 0.4427138844735338,
+        "auc_ci_hi": 0.5630405371224719,
+        "imputed": true,
+        "coverage_pos": 0.01566951566951567,
+        "coverage_neg": 0.009900990099009901
+      },
+      "M8": {
+        "n_pos": 702,
+        "n_neg": 101,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.43974900411254575,
+        "auc_ci_hi": 0.5602509958874543,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "COMBINED": {
+        "n_pos": 702,
+        "n_neg": 101,
+        "auc": 0.5000705198725001,
+        "evaluable": true,
+        "auc_ci_lo": 0.4398216421541943,
+        "auc_ci_hi": 0.5603193975908058,
+        "imputed": true,
+        "coverage_pos": 0.019943019943019943,
+        "coverage_neg": 0.019801980198019802
+      },
+      "degree": {
+        "n_pos": 702,
+        "n_neg": 101,
+        "auc": 0.4741756226904742,
+        "evaluable": true,
+        "auc_ci_lo": 0.41325293031676397,
+        "auc_ci_hi": 0.5350983150641844,
+        "imputed": true,
+        "coverage_pos": 0.2492877492877493,
+        "coverage_neg": 0.3069306930693069
+      }
+    },
+    "Zika": {
+      "M1": {
+        "n_pos": 103,
+        "n_neg": 20,
+        "auc": 0.5048543689320388,
+        "evaluable": true,
+        "auc_ci_lo": 0.36634634521024373,
+        "auc_ci_hi": 0.6433623926538339,
+        "imputed": true,
+        "coverage_pos": 0.009708737864077669,
+        "coverage_neg": 0.0
+      },
+      "M2": {
+        "n_pos": 103,
+        "n_neg": 20,
+        "auc": 0.5097087378640777,
+        "evaluable": true,
+        "auc_ci_lo": 0.3715262305027891,
+        "auc_ci_hi": 0.6478912452253662,
+        "imputed": true,
+        "coverage_pos": 0.019417475728155338,
+        "coverage_neg": 0.0
+      },
+      "M4": {
+        "n_pos": 103,
+        "n_neg": 20,
+        "auc": 0.5097087378640777,
+        "evaluable": true,
+        "auc_ci_lo": 0.3715262305027891,
+        "auc_ci_hi": 0.6478912452253662,
+        "imputed": true,
+        "coverage_pos": 0.019417475728155338,
+        "coverage_neg": 0.0
+      },
+      "M6": {
+        "n_pos": 103,
+        "n_neg": 20,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.361182991631797,
+        "auc_ci_hi": 0.638817008368203,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "M7": {
+        "n_pos": 103,
+        "n_neg": 20,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.361182991631797,
+        "auc_ci_hi": 0.638817008368203,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "COMBINED": {
+        "n_pos": 103,
+        "n_neg": 20,
+        "auc": 0.5145631067961165,
+        "evaluable": true,
+        "auc_ci_lo": 0.3767226080397549,
+        "auc_ci_hi": 0.6524036055524781,
+        "imputed": true,
+        "coverage_pos": 0.02912621359223301,
+        "coverage_neg": 0.0
+      },
+      "degree": {
+        "n_pos": 103,
+        "n_neg": 20,
+        "auc": 0.5533980582524272,
+        "evaluable": true,
+        "auc_ci_lo": 0.41888345262685234,
+        "auc_ci_hi": 0.687912663878002,
+        "imputed": true,
+        "coverage_pos": 0.10679611650485436,
+        "coverage_neg": 0.0
+      }
+    },
+    "DENV-2": {
+      "M1": {
+        "n_pos": 82,
+        "n_neg": 23,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.36586332500524066,
+        "auc_ci_hi": 0.6341366749947593,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "M2": {
+        "n_pos": 82,
+        "n_neg": 23,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.36586332500524066,
+        "auc_ci_hi": 0.6341366749947593,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "M4": {
+        "n_pos": 82,
+        "n_neg": 23,
+        "auc": 0.4782608695652174,
+        "evaluable": true,
+        "auc_ci_lo": 0.34320125901806553,
+        "auc_ci_hi": 0.6133204801123693,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.043478260869565216
+      },
+      "M6": {
+        "n_pos": 82,
+        "n_neg": 23,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.36586332500524066,
+        "auc_ci_hi": 0.6341366749947593,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "M7": {
+        "n_pos": 82,
+        "n_neg": 23,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.36586332500524066,
+        "auc_ci_hi": 0.6341366749947593,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "COMBINED": {
+        "n_pos": 82,
+        "n_neg": 23,
+        "auc": 0.4782608695652174,
+        "evaluable": true,
+        "auc_ci_lo": 0.34320125901806553,
+        "auc_ci_hi": 0.6133204801123693,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.043478260869565216
+      },
+      "degree": {
+        "n_pos": 82,
+        "n_neg": 23,
+        "auc": 0.46394485683987274,
+        "evaluable": true,
+        "auc_ci_lo": 0.3284524309375234,
+        "auc_ci_hi": 0.5994372827422221,
+        "imputed": true,
+        "coverage_pos": 0.10975609756097561,
+        "coverage_neg": 0.17391304347826086
+      }
+    },
+    "HCoV-OC43": {
+      "M2": {
+        "n_pos": 66,
+        "n_neg": 18,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.3486554832889673,
+        "auc_ci_hi": 0.6513445167110328,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "M4": {
+        "n_pos": 66,
+        "n_neg": 18,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.3486554832889673,
+        "auc_ci_hi": 0.6513445167110328,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "M6": {
+        "n_pos": 66,
+        "n_neg": 18,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.3486554832889673,
+        "auc_ci_hi": 0.6513445167110328,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "COMBINED": {
+        "n_pos": 66,
+        "n_neg": 18,
+        "auc": 0.5,
+        "evaluable": true,
+        "auc_ci_lo": 0.3486554832889673,
+        "auc_ci_hi": 0.6513445167110328,
+        "imputed": true,
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0
+      },
+      "degree": {
+        "n_pos": 66,
+        "n_neg": 18,
+        "auc": 0.6990740740740741,
+        "evaluable": true,
+        "auc_ci_lo": 0.5739077441484116,
+        "auc_ci_hi": 0.8242404039997365,
+        "imputed": true,
+        "coverage_pos": 0.45454545454545453,
+        "coverage_neg": 0.05555555555555555
+      }
+    },
+    "Yellow fever": {
+      "degree": {
+        "n_pos": 21,
+        "n_neg": 11,
+        "auc": 0.4805194805194805,
+        "evaluable": true,
+        "auc_ci_lo": 0.2660214998344571,
+        "auc_ci_hi": 0.6950174612045039,
+        "imputed": true,
+        "coverage_pos": 0.047619047619047616,
+        "coverage_neg": 0.09090909090909091
+      }
+    }
+  },
+  "metapath_reach": {
+    "cross_sectional": {
+      "M1": {
+        "drugs_reached": 2618,
+        "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:11082",
+          "NCBITaxon:11137",
+          "NCBITaxon:1335626",
+          "NCBITaxon:2697049",
+          "NCBITaxon:64320",
+          "NCBITaxon:694009"
+        ],
+        "predicates": [
+          "INHIBITS",
+          "ENCODED_BY",
+          "BELONGS_TO"
+        ],
+        "missing_predicates": []
+      },
+      "M2": {
+        "drugs_reached": 1605,
+        "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:11137",
+          "NCBITaxon:1335626",
+          "NCBITaxon:2697049",
+          "NCBITaxon:277944",
+          "NCBITaxon:31631",
+          "NCBITaxon:64320"
+        ],
+        "predicates": [
+          "TARGETS",
+          "HOST_FACTOR_FOR"
+        ],
+        "missing_predicates": []
+      },
+      "M3": {
+        "drugs_reached": 1131,
+        "viruses_reached": [
+          "NCBITaxon:11053",
+          "NCBITaxon:11060",
+          "NCBITaxon:11069",
+          "NCBITaxon:11072",
+          "NCBITaxon:11082",
+          "NCBITaxon:11084",
+          "NCBITaxon:11137",
+          "NCBITaxon:1335626",
+          "NCBITaxon:2697049",
+          "NCBITaxon:277944",
+          "NCBITaxon:290028",
+          "NCBITaxon:31631",
+          "NCBITaxon:64320",
+          "NCBITaxon:694009"
+        ],
+        "predicates": [
+          "TARGETS",
+          "PHYSICALLY_INTERACTS_WITH",
+          "ENCODED_BY",
+          "BELONGS_TO"
+        ],
+        "missing_predicates": []
+      },
+      "M4": {
+        "drugs_reached": 2983,
+        "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:11082",
+          "NCBITaxon:11137",
+          "NCBITaxon:1335626",
+          "NCBITaxon:2697049",
+          "NCBITaxon:277944",
+          "NCBITaxon:31631",
+          "NCBITaxon:64320"
+        ],
+        "predicates": [
+          "TARGETS",
+          "PARTICIPATES_IN",
+          "PARTICIPATES_IN",
+          "HOST_FACTOR_FOR"
+        ],
+        "missing_predicates": []
+      },
+      "M5": {
+        "drugs_reached": 2505,
+        "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:11082",
+          "NCBITaxon:11137",
+          "NCBITaxon:1335626",
+          "NCBITaxon:2697049",
+          "NCBITaxon:277944",
+          "NCBITaxon:31631",
+          "NCBITaxon:64320"
+        ],
+        "predicates": [
+          "TARGETS",
+          "PHYSICALLY_INTERACTS_WITH",
+          "HOST_FACTOR_FOR"
+        ],
+        "missing_predicates": []
+      },
+      "M6": {
+        "drugs_reached": 576,
+        "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:11137",
+          "NCBITaxon:1335626",
+          "NCBITaxon:2697049",
+          "NCBITaxon:277944",
+          "NCBITaxon:31631",
+          "NCBITaxon:64320"
+        ],
+        "predicates": [
+          "CHEMICALLY_SIMILAR_TO",
+          "TARGETS",
+          "HOST_FACTOR_FOR"
+        ],
+        "missing_predicates": []
+      },
+      "M7": {
+        "drugs_reached": 431,
+        "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:11082",
+          "NCBITaxon:11137",
+          "NCBITaxon:1335626",
+          "NCBITaxon:2697049",
+          "NCBITaxon:64320",
+          "NCBITaxon:694009"
+        ],
+        "predicates": [
+          "CHEMICALLY_SIMILAR_TO",
+          "INHIBITS",
+          "ENCODED_BY",
+          "BELONGS_TO"
+        ],
+        "missing_predicates": []
+      },
+      "M8": {
+        "drugs_reached": 82,
+        "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:2697049",
+          "NCBITaxon:64320",
+          "NCBITaxon:694009"
+        ],
+        "predicates": [
+          "INHIBITS",
+          "FOLD_SIMILAR_TO",
+          "ENCODED_BY",
+          "BELONGS_TO"
+        ],
+        "missing_predicates": []
+      }
+    },
+    "temporal": {
+      "M1": {
+        "drugs_reached": 690,
+        "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:11082",
+          "NCBITaxon:1335626",
+          "NCBITaxon:2697049",
+          "NCBITaxon:64320",
+          "NCBITaxon:694009"
+        ],
+        "predicates": [
+          "INHIBITS",
+          "ENCODED_BY",
+          "BELONGS_TO"
+        ],
+        "missing_predicates": []
+      },
+      "M2": {
+        "drugs_reached": 1364,
+        "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:11137",
+          "NCBITaxon:1335626",
+          "NCBITaxon:2697049",
+          "NCBITaxon:277944",
+          "NCBITaxon:31631",
+          "NCBITaxon:64320"
+        ],
+        "predicates": [
+          "TARGETS",
+          "HOST_FACTOR_FOR"
+        ],
+        "missing_predicates": []
+      },
+      "M3": {
+        "drugs_reached": 0,
+        "viruses_reached": [],
+        "predicates": [
+          "TARGETS",
+          "PHYSICALLY_INTERACTS_WITH",
+          "ENCODED_BY",
+          "BELONGS_TO"
+        ],
+        "missing_predicates": [
+          "PHYSICALLY_INTERACTS_WITH"
+        ]
+      },
+      "M4": {
+        "drugs_reached": 2703,
+        "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:11082",
+          "NCBITaxon:11137",
+          "NCBITaxon:1335626",
+          "NCBITaxon:2697049",
+          "NCBITaxon:277944",
+          "NCBITaxon:31631",
+          "NCBITaxon:64320"
+        ],
+        "predicates": [
+          "TARGETS",
+          "PARTICIPATES_IN",
+          "PARTICIPATES_IN",
+          "HOST_FACTOR_FOR"
+        ],
+        "missing_predicates": []
+      },
+      "M5": {
+        "drugs_reached": 0,
+        "viruses_reached": [],
+        "predicates": [
+          "TARGETS",
+          "PHYSICALLY_INTERACTS_WITH",
+          "HOST_FACTOR_FOR"
+        ],
+        "missing_predicates": [
+          "PHYSICALLY_INTERACTS_WITH"
+        ]
+      },
+      "M6": {
+        "drugs_reached": 502,
+        "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:11137",
+          "NCBITaxon:1335626",
+          "NCBITaxon:2697049",
+          "NCBITaxon:277944",
+          "NCBITaxon:31631",
+          "NCBITaxon:64320"
+        ],
+        "predicates": [
+          "CHEMICALLY_SIMILAR_TO",
+          "TARGETS",
+          "HOST_FACTOR_FOR"
+        ],
+        "missing_predicates": []
+      },
+      "M7": {
+        "drugs_reached": 134,
+        "viruses_reached": [
+          "NCBITaxon:11060",
+          "NCBITaxon:11082",
+          "NCBITaxon:1335626",
+          "NCBITaxon:2697049",
+          "NCBITaxon:64320",
+          "NCBITaxon:694009"
+        ],
+        "predicates": [
+          "CHEMICALLY_SIMILAR_TO",
+          "INHIBITS",
+          "ENCODED_BY",
+          "BELONGS_TO"
+        ],
+        "missing_predicates": []
+      },
+      "M8": {
+        "drugs_reached": 60,
+        "viruses_reached": [
+          "NCBITaxon:2697049",
+          "NCBITaxon:694009"
+        ],
+        "predicates": [
+          "INHIBITS",
+          "FOLD_SIMILAR_TO",
+          "ENCODED_BY",
+          "BELONGS_TO"
+        ],
+        "missing_predicates": []
+      }
+    }
+  },
+  "provenance": {
+    "release": {
+      "id": "v0.1",
+      "nodes_sha": "cb0496762795fb79",
+      "edges_sha": "68cf33748e71a067"
+    },
+    "code": {
+      "commit": "6b771c13a29dc7ca739b50b533d38acb9c91f90c",
+      "dirty": false
+    },
+    "schema_version": "0.13.0",
+    "generated_utc": "2026-10-30T14:19:12+00:00"
+  }
+}
