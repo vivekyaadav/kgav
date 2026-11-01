@@ -160,7 +160,66 @@ def _earliest(a: str | None, b: str | None) -> str | None:
     return min(real) if real else min(dates)
 
 
-def merge_edges(a: dict, b: dict, derive: DeriveFn | None = None) -> dict:
+#: Qualifiers whose two witnesses can be RECONCILED rather than overwritten,
+#: as a ladder from "no claim" upward. A value absent from a ladder is a
+#: specific claim; two different specific claims fall back to the bottom.
+#:
+#: `direction` is here because precedence could not express what the layer
+#: order was trying to say. host_targets writes `direction: "unknown"`
+#: EXPLICITLY -- the schema requires the qualifier -- so "fill the gaps, do
+#: not overwrite" is not something a layer position can mean: whichever
+#: layer sits higher wins, including when its value is "unknown".
+QUALIFIER_LADDER: dict[str, tuple[str, ...]] = {
+    "direction": ("unknown", "modulator"),
+}
+
+
+def resolve_qualifier(name: str, hi: Any, lo: Any,
+                      stats: Counter | None = None) -> Any:
+    """One qualifier, two witnesses, `hi` from the higher-precedence layer.
+
+    Three rules, and the first two are not policy but arithmetic:
+
+      a claim beats no claim        "unknown" never wins
+      specific beats graded        `inhibitor` is not replaced by `modulator`
+      specific vs opposite         neither; the bottom of the ladder
+
+    DELIBERATELY ORDER-INDEPENDENT. The outcome does not depend on which
+    witness arrived first, so merging stays associative and idempotent --
+    the property `primary_knowledge_source` lost when it grew a source
+    string quadratically and the value came to depend on arrival order.
+    Here that would be worse than untidy: the same release built twice
+    could state opposite directions on one edge.
+
+    The third rule costs 40 edges their direction on the GtoP download of
+    2026-11-01, where ChEMBL and the Guide to PHARMACOLOGY disagree
+    outright -- 11 inhibitor against agonist, 7 the reverse, 22 more
+    through `modulator`. Two curated sources contradicting each other is
+    not a fact, and keeping whichever sits higher in LAYER_PRECEDENCE
+    would assert a mechanism on the strength of a list's ordering. Counted
+    rather than silent: `qualifier_irreconcilable:<name>` reaches the
+    MANIFEST through Assembly.stats.
+    """
+    ladder = QUALIFIER_LADDER.get(name)
+    if ladder is None or lo is None or hi == lo:
+        return hi if hi is not None else lo
+    if hi is None:
+        return lo
+    floor = len(ladder)
+    rank = {v: i for i, v in enumerate(ladder)}
+    hi_rank, lo_rank = rank.get(hi, floor), rank.get(lo, floor)
+    if hi_rank != lo_rank:
+        kept = hi if hi_rank > lo_rank else lo
+        if kept is lo and stats is not None:
+            stats[f"qualifier_kept_more_specific:{name}"] += 1
+        return kept
+    if stats is not None:
+        stats[f"qualifier_irreconcilable:{name}"] += 1
+    return ladder[0]
+
+
+def merge_edges(a: dict, b: dict, derive: DeriveFn | None = None,
+                stats: Counter | None = None) -> dict:
     """One fact, two witnesses.
 
     support_count records HOW MANY independent assertions back the fact. A
@@ -204,8 +263,18 @@ def merge_edges(a: dict, b: dict, derive: DeriveFn | None = None) -> dict:
     # 1,264 edges -- the losing layer was the one holding the evidence. Any
     # qualifier the schema declares as derived is recomputed from the merged
     # qualifiers, so no layer's local view can survive the merge.
+    #
+    # AND PRECEDENCE ALONE CANNOT DECIDE A GRADED ONE EITHER, which
+    # QUALIFIER_LADDER exists for. `merged_quals.update(a)` took the higher
+    # layer's value unconditionally; measured on the Guide to PHARMACOLOGY
+    # download of 2026-11-01, that would have replaced ChEMBL's `inhibitor`
+    # or `agonist` with GtoP's `modulator` on 49 edges -- a stated direction
+    # overwritten by a vaguer one, by a layer placed above it precisely
+    # because it was assumed to know MORE.
     merged_quals = dict(b.get("qualifiers") or {})
-    merged_quals.update(a.get("qualifiers") or {})
+    for name, hi in (a.get("qualifiers") or {}).items():
+        merged_quals[name] = resolve_qualifier(name, hi, merged_quals.get(name),
+                                               stats)
     out["qualifiers"] = derive(a["predicate"], merged_quals) if derive else merged_quals
     return out
 
@@ -274,7 +343,8 @@ class Assembly:
                 self.stats["fact_id_collision"] += 1
             e["edge_id"] = fid
             if k in self.edges:
-                self.edges[k] = merge_edges(self.edges[k], e, self.derive)
+                self.edges[k] = merge_edges(self.edges[k], e, self.derive,
+                                            self.stats)
                 self.stats["edge_merged"] += 1
             else:
                 if self.derive:
