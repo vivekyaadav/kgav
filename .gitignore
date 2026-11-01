@@ -48,3 +48,4 @@ web/client/public/__manus__/
 # run_reproduce_block.py: lock and the script it runs
 .reproduce.lock
 .reproduce.sh
+/kgav-*.patch
