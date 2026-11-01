@@ -69,6 +69,28 @@ C_ACTION = "Action"
 C_PMID = "PubMed ID"
 C_AFFINITY = "Original Affinity Median nm"
 C_CHEMBL_ID = "ChEMBL ID"
+C_AFF_UNITS = "Original Affinity Units"
+
+#: GtoP's affinity unit -> the TARGETS qualifier the SCHEMA declares for it.
+#:
+#: There is no untyped `affinity` field and there should not be: TARGETS
+#: declares kd_nm, ic50_nm, ki_nm and ec50_nm separately because which
+#: measurement a number is forms part of the claim. This layer invented
+#: `affinity_nm` instead, which nothing noticed until the layer first
+#: produced edges -- 4,270 UNDECLARED_QUALIFIER violations, 8 seconds into
+#: a phase-4 assembly, 9 minutes into a rebuild.
+#:
+#: AN UNRECOGNISED UNIT EMITS NO POTENCY AT ALL, and is counted. This table
+#: was written against GtoP's documented vocabulary rather than against a
+#: measured one, which is the mistake that produced this module's whole
+#: history -- so it fails to silence rather than to a guess. Extend it from
+#: `affinity_unit_unmapped` in the driver's report, not from documentation.
+AFFINITY_UNIT_TO_QUALIFIER = {
+    "PKI": "ki_nm", "KI": "ki_nm",
+    "PIC50": "ic50_nm", "IC50": "ic50_nm",
+    "PKD": "kd_nm", "KD": "kd_nm",
+    "PEC50": "ec50_nm", "EC50": "ec50_nm",
+}
 
 INTERACTION_COLUMNS = (C_LIGAND_ID, C_UNIPROT, C_SPECIES, C_TYPE,
                        C_ACTION, C_PMID)
@@ -393,13 +415,23 @@ def ingest_interactions(em, rows: list[dict], inchikeys: dict[str, str],
             # driver can report how often the source contradicts itself
             # rather than hiding it inside direction_unknown.
             stats["type_action_conflict"] += 1
-        affinity: float | None = None
+        # The value is already in nM; the UNIT says which measurement it
+        # is, and so which declared qualifier it belongs under. `relation`
+        # is deliberately not carried: it is one field on the edge, an edge
+        # can gather several potency types from several rows, and attaching
+        # whichever row's relation won would be a line-number claim again.
+        potency: dict[str, float] = {}
         raw_affinity = (r.get(C_AFFINITY) or "").strip()
         if raw_affinity:
-            try:
-                affinity = float(raw_affinity)
-            except ValueError:
-                stats["unparseable_affinity"] += 1
+            qual = AFFINITY_UNIT_TO_QUALIFIER.get(
+                (r.get(C_AFF_UNITS) or "").strip().upper())
+            if qual is None:
+                stats["affinity_unit_unmapped"] += 1
+            else:
+                try:
+                    potency[qual] = float(raw_affinity)
+                except ValueError:
+                    stats["unparseable_affinity"] += 1
         pmids = {f"PMID:{p.strip()}"
                  for p in str(r.get(C_PMID) or "").split("|")
                  if p.strip().isdigit()}
@@ -420,7 +452,7 @@ def ingest_interactions(em, rows: list[dict], inchikeys: dict[str, str],
         prev = pending.get((cid, pid))
         if prev is None:
             pending[(cid, pid)] = {"direction": direction,
-                                   "affinity": affinity, "pmids": pmids}
+                                   "potency": potency, "pmids": pmids}
             continue
         stats["duplicate"] += 1
         settled = resolve_qualifier("direction", prev["direction"], direction,
@@ -429,17 +461,17 @@ def ingest_interactions(em, rows: list[dict], inchikeys: dict[str, str],
             stats["duplicate_changed_direction"] += 1
         prev["direction"] = settled
         prev["pmids"] |= pmids
-        # The MOST POTENT reported value, by a stated rule rather than by
-        # row order. One qualifier cannot hold several papers' measurements,
-        # and the publications above say which papers they were.
-        if affinity is not None:
-            prev["affinity"] = (affinity if prev["affinity"] is None
-                                else min(prev["affinity"], affinity))
+        # The MOST POTENT reported value PER MEASUREMENT TYPE, by a stated
+        # rule rather than by row order. One qualifier cannot hold several
+        # papers' numbers, and the publications above say which papers they
+        # were. Per type, because a Ki and an IC50 are not comparable and
+        # taking the smaller of the two would invent a measurement.
+        for qual, value in potency.items():
+            have = prev["potency"].get(qual)
+            prev["potency"][qual] = value if have is None else min(have, value)
 
     for (cid, pid), rec in pending.items():
-        quals = {"direction": rec["direction"]}
-        if rec["affinity"] is not None:
-            quals["affinity_nm"] = rec["affinity"]
+        quals = {"direction": rec["direction"], **rec["potency"]}
         em.edge(cid, "TARGETS", pid, source=GTOP_SOURCE, date=default_date,
                 tier=GTOP_TIER, quals=quals,
                 pmids=sorted(rec["pmids"]) or None)

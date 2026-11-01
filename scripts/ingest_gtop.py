@@ -132,6 +132,9 @@ def main(argv=None) -> int:
                       "pairs where GtoP's own rows contradict each other")):
         if s[k]:
             print(f"  {s[k]:7,} {label}")
+    if s["affinity_unit_unmapped"]:
+        print(f"  {s['affinity_unit_unmapped']:7,} potency values dropped: "
+              f"their affinity unit is not in AFFINITY_UNIT_TO_QUALIFIER")
     print("\n  dropped:")
     for k in ("not_human", "no_uniprot", "multi_accession",
               "protein_not_in_graph", "ligand_without_inchikey",

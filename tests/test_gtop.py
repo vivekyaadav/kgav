@@ -29,6 +29,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from kgav.emit import Emit
 from kgav.gtop import (
     ACTION_TO_DIRECTION,
+    AFFINITY_UNIT_TO_QUALIFIER,
     C_TYPE,
     GTOP_SOURCE,
     INTERACTION_COLUMNS,
@@ -106,7 +107,8 @@ def _inter(**kw):
     base = {"Ligand ID": "1", "Target UniProt ID": "P04637",
             "Target Species": "Human", "Type": "Inhibitor",
             "Action": "Inhibition", "PubMed ID": "12345678",
-            "Original Affinity Median nm": "40"}
+            "Original Affinity Median nm": "40",
+            "Original Affinity Units": "pKi"}
     bad = sorted(set(kw) - set(next(csv.reader([IHEAD]))))
     if bad:
         raise KeyError(
@@ -288,7 +290,7 @@ def test_a_human_interaction_becomes_a_targets_edge():
     assert e["predicate"] == "TARGETS"
     assert e["object"] == "UniProtKB:P04637"
     assert e["qualifiers"]["direction"] == "inhibitor"
-    assert e["qualifiers"]["affinity_nm"] == 40.0
+    assert e["qualifiers"]["ki_nm"] == 40.0
     assert e["publications"] == ["PMID:12345678"]
     assert e["primary_knowledge_source"] == GTOP_SOURCE
 
@@ -354,7 +356,7 @@ def test_an_unparseable_affinity_is_counted_not_crashed():
                             KEYS, PROTS, IDX)
     assert s["edges"] == 1
     assert s["unparseable_affinity"] == 1
-    assert "affinity_nm" not in em.edges[0]["qualifiers"]
+    assert "ki_nm" not in em.edges[0]["qualifiers"]
 
 
 # ---------------------------------------------------------------- placement
@@ -687,7 +689,7 @@ def test_the_affinity_is_the_most_potent_reported_not_the_first_listed():
         em = Emit()
         ingest_interactions(em, [_inter(**{"Original Affinity Median nm": v})
                                  for v in order], KEYS, PROTS, IDX)
-        assert em.edges[0]["qualifiers"]["affinity_nm"] == 40.0
+        assert em.edges[0]["qualifiers"]["ki_nm"] == 40.0
 
 
 def test_an_affinity_on_only_one_row_still_reaches_the_edge():
@@ -695,14 +697,14 @@ def test_an_affinity_on_only_one_row_still_reaches_the_edge():
     ingest_interactions(em, [_inter(**{"Original Affinity Median nm": ""}),
                              _inter(**{"Original Affinity Median nm": "40"})],
                         KEYS, PROTS, IDX)
-    assert em.edges[0]["qualifiers"]["affinity_nm"] == 40.0
+    assert em.edges[0]["qualifiers"]["ki_nm"] == 40.0
 
 
 def test_an_edge_with_no_affinity_carries_no_affinity_qualifier():
     em = Emit()
     ingest_interactions(em, [_inter(**{"Original Affinity Median nm": ""})],
                         KEYS, PROTS, IDX)
-    assert "affinity_nm" not in em.edges[0]["qualifiers"]
+    assert "ki_nm" not in em.edges[0]["qualifiers"]
 
 
 def test_a_changed_direction_is_counted_so_the_driver_can_report_it():
@@ -742,3 +744,97 @@ def test_the_reconciliation_is_the_assemblers_own_function():
     from kgav.assemble import resolve_qualifier as canonical
     assert G.resolve_qualifier is canonical
     assert "resolve_qualifier(" in inspect.getsource(G.ingest_interactions)
+
+
+# ------------------------------------------------- the edges must be legal
+def test_the_emitted_edges_validate_against_the_schema():
+    """THE TEST THAT WAS NOT HERE, and its absence cost a rebuild.
+
+    102 tests in this file built edges with Emit() and never ran one
+    through the validator, so `affinity_nm` -- a qualifier gtop.py invented
+    and the schema has never declared on TARGETS -- could only surface in
+    `make rebuild`: 4,270 violations, 8 seconds into a phase-4 assembly,
+    9 minutes in. tests/test_host_targets.py has validated its own output
+    all along; this layer simply never borrowed the idea.
+
+    TARGETS already declares kd_nm, ic50_nm, ki_nm and ec50_nm. Which
+    measurement a number is forms part of the claim, which is why there is
+    no untyped `affinity` field to put it in.
+    """
+    from kgav.schema import load_schema
+    em = Emit()
+    ingest_interactions(em, [_inter()], KEYS, PROTS, IDX)
+    assert em.edges, "nothing was emitted, so nothing was validated"
+    # COMPLETE stub nodes. Incomplete ones raise MISSING_PROPERTY, which
+    # buries the edge-level violation this test is for -- the first run of
+    # it reported nine node defects and not the qualifier.
+    nodes = [{"id": NODE, "class": "SmallMolecule",
+              "properties": {"smiles": "CCO", "inchikey_skel": SKEL,
+                             "is_approved": False, "salt_collapsed": False,
+                             "stereo_collapsed": False}},
+             {"id": "UniProtKB:P04637", "class": "Protein",
+              "properties": {"taxon_id": "NCBITaxon:9606", "is_viral": False,
+                             "sequence_hash": "ab", "reviewed": True}}]
+    violations = load_schema().validate_batch(
+        nodes + list(em.nodes.values()), em.edges)
+    assert violations == [], [str(v) for v in violations[:6]]
+
+
+def test_two_measurement_types_are_kept_apart():
+    """A Ki and an IC50 are not comparable, so the minimum is taken PER
+    TYPE. Taking the smaller of the two would invent a measurement no
+    paper reported."""
+    em = Emit()
+    ingest_interactions(em, [
+        _inter(**{"Original Affinity Median nm": "40",
+                  "Original Affinity Units": "pKi"}),
+        _inter(**{"Original Affinity Median nm": "90",
+                  "Original Affinity Units": "pIC50"})],
+        KEYS, PROTS, IDX)
+    q = em.edges[0]["qualifiers"]
+    assert q["ki_nm"] == 40.0 and q["ic50_nm"] == 90.0
+
+
+@pytest.mark.parametrize("unit", ["pA2", "pKB", "-", "", "Hill coefficient"])
+def test_an_unrecognised_unit_emits_no_potency_rather_than_a_guess(unit):
+    """FAIL TO SILENCE, NOT TO A GUESS. AFFINITY_UNIT_TO_QUALIFIER was
+    written from GtoP's documented vocabulary and not a measured one --
+    which is the mistake that produced this module's entire history. An
+    unmapped unit drops its number and says so, rather than landing it
+    under a qualifier it does not mean."""
+    em = Emit()
+    s = ingest_interactions(em, [_inter(**{"Original Affinity Units": unit})],
+                            KEYS, PROTS, IDX)
+    assert s["edges"] == 1 and s["affinity_unit_unmapped"] == 1
+    assert em.edges[0]["qualifiers"] == {"direction": "inhibitor"}
+
+
+def test_every_mapped_unit_names_a_qualifier_the_schema_declares():
+    """The table is only safe because the schema agrees with it. A
+    qualifier here that TARGETS does not declare is precisely the defect
+    this replaced, and it would again surface only in a rebuild."""
+    import yaml
+    spec = yaml.safe_load((ROOT / "schema" / "kg_schema.yaml").read_text())
+    targets = next(e for e in spec["edge_classes"]
+                   if e["predicate"] == "TARGETS")
+    declared = set(targets["qualifiers"])
+    assert set(AFFINITY_UNIT_TO_QUALIFIER.values()) <= declared, (
+        set(AFFINITY_UNIT_TO_QUALIFIER.values()) - declared)
+
+
+def test_a_typed_potency_still_validates_against_the_schema():
+    """The validation test above runs with _inter's default pKi, so this
+    pins that the TYPED path is the one being validated -- not a row that
+    happens to emit no potency at all."""
+    from kgav.schema import load_schema
+    em = Emit()
+    ingest_interactions(em, [_inter()], KEYS, PROTS, IDX)
+    assert "ki_nm" in em.edges[0]["qualifiers"], em.edges[0]["qualifiers"]
+    nodes = [{"id": NODE, "class": "SmallMolecule",
+              "properties": {"smiles": "CCO", "inchikey_skel": SKEL,
+                             "is_approved": False, "salt_collapsed": False,
+                             "stereo_collapsed": False}},
+             {"id": "UniProtKB:P04637", "class": "Protein",
+              "properties": {"taxon_id": "NCBITaxon:9606", "is_viral": False,
+                             "sequence_hash": "ab", "reviewed": True}}]
+    assert load_schema().validate_batch(nodes, em.edges) == []
