@@ -126,6 +126,12 @@ def main(argv=None) -> int:
         if s[k]:
             print(f"  {k.removeprefix('compound_by_'):<12} {s[k]:7,} edges "
                   f"joined by a looser key than the exact InChIKey")
+    for k, label in (("duplicate_changed_direction",
+                      "pairs whose direction the second row changed"),
+                     ("qualifier_irreconcilable:direction",
+                      "pairs where GtoP's own rows contradict each other")):
+        if s[k]:
+            print(f"  {s[k]:7,} {label}")
     print("\n  dropped:")
     for k in ("not_human", "no_uniprot", "multi_accession",
               "protein_not_in_graph", "ligand_without_inchikey",

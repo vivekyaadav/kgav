@@ -42,6 +42,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from kgav.assemble import resolve_qualifier
+
 GTOP_SOURCE = "infores:guidetopharmacology"
 GTOP_TIER = 1
 HUMAN = "Human"
@@ -348,7 +350,7 @@ def ingest_interactions(em, rows: list[dict], inchikeys: dict[str, str],
     its own duplicate. Passing None mints.
     """
     stats: Counter = Counter()
-    seen = set()
+    pending: dict[tuple[str, str], dict] = {}
     for r in rows:
         if (r.get(C_SPECIES) or "").strip() != HUMAN:
             stats["not_human"] += 1
@@ -391,22 +393,56 @@ def ingest_interactions(em, rows: list[dict], inchikeys: dict[str, str],
             # driver can report how often the source contradicts itself
             # rather than hiding it inside direction_unknown.
             stats["type_action_conflict"] += 1
-        if (cid, pid) in seen:
-            stats["duplicate"] += 1
-            continue
-        seen.add((cid, pid))
-        quals = {"direction": direction}
-        affinity = (r.get(C_AFFINITY) or "").strip()
-        try:
-            if affinity:
-                quals["affinity_nm"] = float(affinity)
-        except ValueError:
-            stats["unparseable_affinity"] += 1
-        pmids = [f"PMID:{p.strip()}"
+        affinity: float | None = None
+        raw_affinity = (r.get(C_AFFINITY) or "").strip()
+        if raw_affinity:
+            try:
+                affinity = float(raw_affinity)
+            except ValueError:
+                stats["unparseable_affinity"] += 1
+        pmids = {f"PMID:{p.strip()}"
                  for p in str(r.get(C_PMID) or "").split("|")
-                 if p.strip().isdigit()]
+                 if p.strip().isdigit()}
+
+        # ACCUMULATED, NOT FIRST-WINS. GtoP states a pair more than once --
+        # 987 times on 2026.3.1, different papers for one compound and one
+        # target -- and `if (cid, pid) in seen: continue` kept whichever row
+        # the CSV happened to list first. On 61 of those pairs the rows
+        # DISAGREE about direction, so the edge's mechanism was decided by a
+        # line number: 24 pairs read `agonist` or `inhibitor` depending only
+        # on file order.
+        #
+        # Reconciled through assemble.resolve_qualifier, the same function
+        # that reconciles two LAYERS, because the question is identical and
+        # the answer must not depend on where it is asked. It is also
+        # order-independent, which is what makes the layer reproducible: the
+        # rows arrive in whatever order the export lists them.
+        prev = pending.get((cid, pid))
+        if prev is None:
+            pending[(cid, pid)] = {"direction": direction,
+                                   "affinity": affinity, "pmids": pmids}
+            continue
+        stats["duplicate"] += 1
+        settled = resolve_qualifier("direction", prev["direction"], direction,
+                                    stats)
+        if settled != prev["direction"]:
+            stats["duplicate_changed_direction"] += 1
+        prev["direction"] = settled
+        prev["pmids"] |= pmids
+        # The MOST POTENT reported value, by a stated rule rather than by
+        # row order. One qualifier cannot hold several papers' measurements,
+        # and the publications above say which papers they were.
+        if affinity is not None:
+            prev["affinity"] = (affinity if prev["affinity"] is None
+                                else min(prev["affinity"], affinity))
+
+    for (cid, pid), rec in pending.items():
+        quals = {"direction": rec["direction"]}
+        if rec["affinity"] is not None:
+            quals["affinity_nm"] = rec["affinity"]
         em.edge(cid, "TARGETS", pid, source=GTOP_SOURCE, date=default_date,
-                tier=GTOP_TIER, quals=quals, pmids=pmids or None)
+                tier=GTOP_TIER, quals=quals,
+                pmids=sorted(rec["pmids"]) or None)
         stats["edges"] += 1
-        stats[f"direction_{direction}"] += 1
+        stats[f"direction_{rec['direction']}"] += 1
     return stats

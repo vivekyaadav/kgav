@@ -604,3 +604,141 @@ def test_the_chembl_id_column_is_read_from_the_real_ligand_header(tmp_path):
                  + _row_text(LHEAD, **{"Ligand ID": "1",
                                        "ChEMBL ID": "CHEMBL25"}) + "\n")
     assert ligand_chembl_ids(p) == {"1": "CHEMBL25"}
+
+
+# ------------------------------------------- one pair stated more than once
+#
+# GtoP states a (compound, target) pair repeatedly -- 987 times on 2026.3.1,
+# different papers for one interaction -- and the reader kept whichever row
+# the CSV listed first. On 61 of those pairs the rows DISAGREE about
+# direction, so 24 edges read `agonist` or `inhibitor` on no better basis
+# than file order. Reconciled through assemble.resolve_qualifier, the same
+# function that reconciles two layers.
+def _two(d1, d2, **kw):
+    """Two rows for one pair, differing only in Type (and anything in kw).
+
+    ACTION IS CLEARED. _inter defaults it to "Inhibition", which
+    contradicts any Type that is not inhibitor-like -- so direction_of
+    returned `unknown` for both rows and these tests passed or failed on
+    the single-row contradiction rule instead of the pair rule they are
+    about. The interaction itself is tested by
+    test_a_row_that_contradicts_itself_asserts_no_direction.
+    """
+    return [_inter(Type=d1, Action="", **kw),
+            _inter(Type=d2, Action="", **kw)]
+
+
+def test_two_rows_that_disagree_outright_assert_no_direction():
+    """THE 24. Both orders, because the point is that order stops
+    mattering."""
+    for rows in (_two("Agonist", "Inhibitor"), _two("Inhibitor", "Agonist")):
+        em = Emit()
+        s = ingest_interactions(em, rows, KEYS, PROTS, IDX)
+        assert s["edges"] == 1
+        assert em.edges[0]["qualifiers"]["direction"] == "unknown"
+        assert s["qualifier_irreconcilable:direction"] == 1
+
+
+def test_a_row_with_no_direction_does_not_erase_one_that_has_it():
+    """THE 32. `Antibody` maps to unknown; a real direction on the other row
+    must survive it whichever came first."""
+    for rows in (_two("Agonist", "Antibody"), _two("Antibody", "Agonist")):
+        em = Emit()
+        ingest_interactions(em, rows, KEYS, PROTS, IDX)
+        assert em.edges[0]["qualifiers"]["direction"] == "agonist"
+
+
+def test_a_graded_direction_does_not_replace_a_specific_one():
+    for rows in (_two("Inhibitor", "Allosteric modulator"),
+                 _two("Allosteric modulator", "Inhibitor")):
+        em = Emit()
+        ingest_interactions(em, rows, KEYS, PROTS, IDX)
+        assert em.edges[0]["qualifiers"]["direction"] == "inhibitor"
+
+
+def test_the_direction_is_the_same_whatever_order_the_rows_arrive():
+    """The whole reason for reconciling rather than first-wins: the export
+    lists rows in whatever order it likes, and a release built twice must
+    not state two different mechanisms."""
+    import itertools
+    seen = set()
+    for perm in itertools.permutations(["Agonist", "Inhibitor", "Antibody"]):
+        em = Emit()
+        ingest_interactions(em, [_inter(Type=t, Action="") for t in perm],
+                            KEYS, PROTS, IDX)
+        seen.add(em.edges[0]["qualifiers"]["direction"])
+    assert len(seen) == 1, seen
+
+
+def test_publications_from_every_row_survive():
+    """987 rows' PMIDs were being discarded with the rows. The evidence for
+    one interaction is every paper that reported it."""
+    em = Emit()
+    rows = [_inter(**{"PubMed ID": "111"}), _inter(**{"PubMed ID": "222"})]
+    s = ingest_interactions(em, rows, KEYS, PROTS, IDX)
+    assert s["edges"] == 1 and s["duplicate"] == 1
+    assert em.edges[0]["publications"] == ["PMID:111", "PMID:222"]
+
+
+def test_the_affinity_is_the_most_potent_reported_not_the_first_listed():
+    """A stated rule rather than row order. One qualifier cannot hold
+    several papers' measurements; the publications say which papers."""
+    for order in (["90", "40"], ["40", "90"]):
+        em = Emit()
+        ingest_interactions(em, [_inter(**{"Original Affinity Median nm": v})
+                                 for v in order], KEYS, PROTS, IDX)
+        assert em.edges[0]["qualifiers"]["affinity_nm"] == 40.0
+
+
+def test_an_affinity_on_only_one_row_still_reaches_the_edge():
+    em = Emit()
+    ingest_interactions(em, [_inter(**{"Original Affinity Median nm": ""}),
+                             _inter(**{"Original Affinity Median nm": "40"})],
+                        KEYS, PROTS, IDX)
+    assert em.edges[0]["qualifiers"]["affinity_nm"] == 40.0
+
+
+def test_an_edge_with_no_affinity_carries_no_affinity_qualifier():
+    em = Emit()
+    ingest_interactions(em, [_inter(**{"Original Affinity Median nm": ""})],
+                        KEYS, PROTS, IDX)
+    assert "affinity_nm" not in em.edges[0]["qualifiers"]
+
+
+def test_a_changed_direction_is_counted_so_the_driver_can_report_it():
+    em = Emit()
+    s = ingest_interactions(em, _two("Agonist", "Inhibitor"), KEYS, PROTS, IDX)
+    assert s["duplicate_changed_direction"] == 1
+    em = Emit()
+    s = ingest_interactions(em, _two("Agonist", "Agonist"), KEYS, PROTS, IDX)
+    assert not s["duplicate_changed_direction"]
+
+
+def test_the_direction_counters_count_edges_and_not_rows():
+    """They are emitted once per pair now. Counting per row would double
+    every figure the driver prints."""
+    em = Emit()
+    s = ingest_interactions(em, _two("Inhibitor", "Inhibitor"),
+                            KEYS, PROTS, IDX)
+    assert s["edges"] == 1 and s["direction_inhibitor"] == 1
+
+
+def test_distinct_pairs_are_still_separate_edges():
+    """The accumulator is keyed on the pair; a second protein must not be
+    folded into the first."""
+    em = Emit()
+    s = ingest_interactions(
+        em, [_inter(), _inter(**{"Target UniProt ID": "Q00987"})],
+        KEYS, PROTS | {"UniProtKB:Q00987"}, IDX)
+    assert s["edges"] == 2 and not s["duplicate"]
+
+
+def test_the_reconciliation_is_the_assemblers_own_function():
+    """One implementation. A second copy of this rule in a layer is how the
+    graph would come to answer the same question two ways."""
+    import inspect
+
+    import kgav.gtop as G
+    from kgav.assemble import resolve_qualifier as canonical
+    assert G.resolve_qualifier is canonical
+    assert "resolve_qualifier(" in inspect.getsource(G.ingest_interactions)
