@@ -1,12 +1,22 @@
 """Gate for the Guide to PHARMACOLOGY layer.
 
-Built against a published column list rather than a downloaded file, so
-the failure that matters is a release whose columns have shifted being
-read anyway -- a field in the wrong place becoming a direction is worse
-than no layer at all.
+A field in the wrong place becoming a direction is worse than no layer at
+all, so the reader refuses a file whose columns are not what it expects.
+
+THAT GUARD WAS THE ONLY THING THAT WORKED. Until 2026-11-01 both the
+reader and every fixture here used snake_case column names taken from the
+published column list -- `ligand_id`, `target_uniprot`, `action` -- and
+GtoPdb serves `"Ligand ID"`, `"Target UniProt ID"`, `"Action"`. The tests
+matched the reader, the reader matched the documentation, and nothing
+matched the data. 286 lines of them passed; the first real download was
+refused on the first column check.
+
+So the fixtures here are the download's own header, verbatim. A test that
+invents its subject cannot find out that the subject is wrong.
 """
 from __future__ import annotations
 
+import csv
 import sys
 from importlib import import_module
 from pathlib import Path
@@ -19,23 +29,86 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from kgav.emit import Emit
 from kgav.gtop import (
     ACTION_TO_DIRECTION,
+    C_TYPE,
     GTOP_SOURCE,
     INTERACTION_COLUMNS,
+    TYPE_TO_DIRECTION,
     GtopFormatError,
     _rows,
     direction_of,
+    file_version,
     ingest_interactions,
     ligand_inchikeys,
 )
 
-IHEAD = ("ligand_id,target_uniprot,target_species,action,pubmed_id,"
-         "original_affinity_median_nm")
+#: interactions.csv's header, VERBATIM from the GtoPdb 2026.3.1 download,
+#: and its quoted version line.
+#:
+#: NOT A HAND-WRITTEN SUBSET, which is what this file had before: snake_case
+#: names invented from the published column list. Every fixture matched the
+#: reader, the reader matched the documentation, and the documentation
+#: matched nothing the site serves -- so 286 lines of tests passed while the
+#: reader could not open a real file. A fixture taken from the data is the
+#: only thing that could have caught it.
+#:
+#: Kept in full rather than trimmed to the six columns used, because the
+#: pair that matters is in the tail: `Type` and `Ligand Type` both exist and
+#: mean different things, and a loose column match would take either.
+GTOP_VERSION_LINE = '"# GtoPdb Version: 2026.3.1 - published: 2026-10-12"'
+
+IHEAD = (
+    '"Target","Target ID","Target Subunit IDs","Target Gene Symbol",'
+    '"Target UniProt ID","Target Ensembl Gene ID","Target Ligand",'
+    '"Target Ligand ID","Target Ligand Subunit IDs",'
+    '"Target Ligand Gene Symbol","Target Ligand UniProt ID",'
+    '"Target Ligand Ensembl Gene ID","Target Ligand PubChem SID",'
+    '"Target Species","Ligand ID","Ligand","Ligand Type",'
+    '"Ligand Subunit IDs","Ligand Gene Symbol","Ligand Species",'
+    '"Ligand PubChem SID","Approved","Type","Action","Action comment",'
+    '"Selectivity","Endogenous","Primary Target","concentration Range",'
+    '"Affinity Units","Affinity High","Affinity Median","Affinity Low",'
+    '"Original Affinity Units","Original Affinity Low nm",'
+    '"Original Affinity Median nm","Original Affinity High nm",'
+    '"Original Affinity Relation","Assay Description","Receptor Site",'
+    '"Ligand Context","PubMed ID","Webpage URLs","Patent Numbers"'
+)
+
+LHEAD = (
+    '"Ligand ID","Name","Species","Type","Approved","Withdrawn","Labelled",'
+    '"Radioactive","PubChem SID","PubChem CID","UniProt ID","Ensembl ID",'
+    '"ChEMBL ID","Ligand Subunit IDs","Ligand Subunit Name",'
+    '"Ligand Subunit UniProt IDs","Ligand Subunit Ensembl IDs",'
+    '"IUPAC name","INN","Synonyms","SMILES","InChIKey","InChI",'
+    '"GtoImmuPdb","GtoMPdb","Antibacterial"'
+)
+
+
+def _row_text(head: str, **vals) -> str:
+    """One CSV row under `head`, with named columns filled and the rest
+    blank -- so a fixture names the columns it means instead of counting
+    commas, and stays correct when GtoP adds a column."""
+    cols = next(csv.reader([head]))
+    return ",".join(f'"{vals.get(c, "")}"' for c in cols)
 
 
 def _inter(**kw):
-    base = {"ligand_id": "1", "target_uniprot": "P04637",
-            "target_species": "Human", "action": "Inhibitor",
-            "pubmed_id": "12345678", "original_affinity_median_nm": "40"}
+    """One interaction row, keyed by the real column names.
+
+    UNKNOWN KEYS RAISE. When the columns were renamed, call sites still
+    passed `target_species="Rat"` -- a key nothing reads, so the row stayed
+    Human and the test asserted a drop that had not happened. A fixture
+    that silently ignores an argument is a test that passes for the wrong
+    reason, so the names are checked against the download's own header.
+    """
+    base = {"Ligand ID": "1", "Target UniProt ID": "P04637",
+            "Target Species": "Human", "Type": "Inhibitor",
+            "Action": "Inhibition", "PubMed ID": "12345678",
+            "Original Affinity Median nm": "40"}
+    bad = sorted(set(kw) - set(next(csv.reader([IHEAD]))))
+    if bad:
+        raise KeyError(
+            f"{bad} are not columns of interactions.csv. Pass the real "
+            f"names, e.g. _inter(**{{'Target Species': 'Rat'}}).")
     base.update(kw)
     return base
 
@@ -46,26 +119,76 @@ CMPDS = {"INCHIKEY:AAAAAAAAAAAAAA-BBBBBBBBBB-C"}
 
 
 # ------------------------------------------------------------- the columns
+def test_the_real_download_header_is_accepted(tmp_path):
+    """THE TEST THAT WAS MISSING. Everything else here could pass against
+    an invented header; this one cannot."""
+    p = tmp_path / "interactions.csv"
+    p.write_text(GTOP_VERSION_LINE + "\n" + IHEAD + "\n"
+                 + _row_text(IHEAD, **_inter()) + "\n")
+    rows = _rows(p, INTERACTION_COLUMNS)
+    assert len(rows) == 1
+    assert rows[0]["Target UniProt ID"] == "P04637"
+    assert rows[0]["Type"] == "Inhibitor"
+
+
+def test_the_quoted_version_comment_is_skipped_and_kept(tmp_path):
+    """GtoPdb QUOTES its comment line, so it does not start with '#'. The
+    old filter was `not l.startswith("#")` and the old fixture wrote an
+    unquoted '#GtP v2026.1' -- the test passed and the reader could not
+    open a real export. The version is returned too: DATA_LICENSES.md
+    wants the release in the MANIFEST, and this is the release."""
+    p = tmp_path / "interactions.csv"
+    p.write_text(GTOP_VERSION_LINE + "\n" + IHEAD + "\n"
+                 + _row_text(IHEAD, **_inter()) + "\n")
+    assert file_version(p) == "GtoPdb Version: 2026.3.1 - published: 2026-10-12"
+    assert len(_rows(p, INTERACTION_COLUMNS)) == 1
+
+
+def test_a_file_with_no_comment_line_keeps_its_first_row(tmp_path):
+    """Only the FIRST line is a comment. Filtering every line that looks
+    like one would silently drop data if an export ever stopped quoting."""
+    p = tmp_path / "interactions.csv"
+    p.write_text(IHEAD + "\n" + _row_text(IHEAD, **_inter()) + "\n")
+    assert file_version(p) is None
+    assert len(_rows(p, INTERACTION_COLUMNS)) == 1
+
+
 def test_a_file_missing_a_used_column_is_refused_by_name(tmp_path):
     """Real files drift from docs. A shifted field read as a direction is
     worse than no layer, so the reader names what it looked for."""
     p = tmp_path / "interactions.csv"
-    p.write_text("#GtP v2026.1\nligand_id,target_uniprot\n1,P04637\n")
+    p.write_text(GTOP_VERSION_LINE + '\n"Ligand ID","Target UniProt ID"\n'
+                 '"1","P04637"\n')
     with pytest.raises(GtopFormatError, match="missing column"):
         _rows(p, INTERACTION_COLUMNS)
 
 
-def test_the_leading_version_comment_is_skipped(tmp_path):
+def test_the_snake_case_names_the_reader_used_to_expect_are_refused(tmp_path):
+    """The format that was assumed for weeks. If this ever passes, the
+    column constants have drifted back to the documentation."""
     p = tmp_path / "interactions.csv"
-    p.write_text("#GtP v2026.1 2026-01-01\n" + IHEAD +
-                 "\n1,P04637,Human,Inhibitor,12345678,40\n")
-    rows = _rows(p, INTERACTION_COLUMNS)
-    assert len(rows) == 1 and rows[0]["target_uniprot"] == "P04637"
+    p.write_text("ligand_id,target_uniprot,target_species,action,pubmed_id\n"
+                 "1,P04637,Human,Inhibition,12345678\n")
+    with pytest.raises(GtopFormatError, match="missing column"):
+        _rows(p, INTERACTION_COLUMNS)
+
+
+def test_the_interaction_type_is_read_and_not_the_ligand_type():
+    """interactions.csv has BOTH `Type` and `Ligand Type`. `Type` is the
+    interaction; `Ligand Type` is the molecule class, which says nothing
+    about direction. Reading the wrong one is a whole-layer error that
+    looks like a working layer."""
+    assert C_TYPE == "Type"
+    assert "Ligand Type" in IHEAD and '"Type"' in IHEAD
+    em = Emit()
+    ingest_interactions(em, [_inter(**{"Ligand Type": "Antibody"})],
+                        KEYS, PROTS, CMPDS)
+    assert em.edges[0]["qualifiers"]["direction"] == "inhibitor"
 
 
 def test_a_ligand_file_with_no_inchikey_column_is_refused(tmp_path):
     p = tmp_path / "ligands.csv"
-    p.write_text("ligand_id,name\n1,aspirin\n")
+    p.write_text('"Ligand ID","Name"\n"1","aspirin"\n')
     with pytest.raises(GtopFormatError, match="no InChIKey column"):
         ligand_inchikeys(p)
 
@@ -73,38 +196,80 @@ def test_a_ligand_file_with_no_inchikey_column_is_refused(tmp_path):
 def test_inchikeys_load_under_either_spelling(tmp_path):
     for col in ("inchikey", "InChIKey"):
         p = tmp_path / f"l_{col}.csv"
-        p.write_text(f"ligand_id,{col}\n1,KEY-1\n2,\n")
-        got = ligand_inchikeys(p)
-        assert got == {"1": "KEY-1"}, col
+        p.write_text(f'"Ligand ID","{col}"\n"1","KEY-1"\n"2",""\n')
+        assert ligand_inchikeys(p) == {"1": "KEY-1"}, col
+
+
+def test_the_real_ligand_header_yields_its_inchikeys(tmp_path):
+    p = tmp_path / "ligands.csv"
+    p.write_text(GTOP_VERSION_LINE + "\n" + LHEAD + "\n"
+                 + _row_text(LHEAD, **{"Ligand ID": "1",
+                                       "InChIKey": "KEY-1"}) + "\n")
+    assert ligand_inchikeys(p) == {"1": "KEY-1"}
 
 
 # ----------------------------------------------------------- the direction
-@pytest.mark.parametrize("action,want", [
+@pytest.mark.parametrize("type_value,want", [
     ("Inhibitor", "inhibitor"), ("Antagonist", "inhibitor"),
-    ("Channel blocker", "inhibitor"), ("Agonist", "agonist"),
-    ("Partial agonist", "agonist"), ("Activator", "agonist"),
+    ("Channel blocker", "inhibitor"), ("Gating inhibitor", "inhibitor"),
+    ("Agonist", "agonist"), ("Activator", "agonist"),
     ("Allosteric modulator", "modulator"),
 ])
-def test_known_actions_map_into_the_schemas_enum(action, want):
-    assert direction_of(action) == want
+def test_every_type_value_maps_into_the_schemas_enum(type_value, want):
+    assert direction_of(type_value) == want
 
 
-@pytest.mark.parametrize("action", ["Binding", "Unknown", "", "None",
-                                    "Competitive", None])
-def test_a_binder_is_not_recorded_as_an_inhibitor(action):
-    """THE POINT OF THE LAYER IS AN HONEST DIRECTION. Recording a binder
-    as an inhibitor would manufacture the mechanistic claim this exists to
-    supply properly."""
-    assert direction_of(action) == "unknown"
+@pytest.mark.parametrize("type_value", ["None", "Antibody", "Fusion protein",
+                                        "Subunit-specific", "", None])
+def test_a_type_that_states_no_direction_is_unknown(type_value):
+    """1,600 rows of 24,968 in 2026.3.1. An antibody may antagonise or may
+    only bind, and recording a guess would manufacture the mechanistic
+    claim this layer exists to supply properly."""
+    assert direction_of(type_value) == "unknown"
 
 
-def test_the_direction_vocabulary_is_the_schemas(tmp_path):
+def test_the_action_column_alone_decides_nothing():
+    """`Action` is read to refuse, never to assign. Were it assigning, its
+    largest value -- `Inhibition`, 8,159 rows -- would have to map, and
+    the bug this replaces was exactly that it did not."""
+    assert direction_of("", "Inhibition") == "unknown"
+    assert direction_of("None", "Inhibition") == "unknown"
+
+
+@pytest.mark.parametrize("type_value,action,want", [
+    ("Antagonist", "Partial agonist", "unknown"),   # 77 rows in 2026.3.1
+    ("Agonist", "Inverse agonist", "unknown"),      # 59 rows
+    ("Inhibitor", "Inhibition", "inhibitor"),       # agreement
+    ("Agonist", "Full agonist", "agonist"),
+    ("Inhibitor", "Binding", "inhibitor"),          # Action uninformative
+])
+def test_a_row_that_contradicts_itself_asserts_no_direction(
+        type_value, action, want):
+    """Taking `Type` where the same row's `Action` says the opposite would
+    assert the opposite of what the source states beside it."""
+    assert direction_of(type_value, action) == want
+
+
+@pytest.mark.parametrize("action", ["Positive", "Negative", "Inhibition",
+                                    "Inverse agonist", "Potentiation", ""])
+def test_an_allosteric_modulator_stays_a_modulator(action):
+    """DECIDED 2026-11-01, and the cost is real. For allosteric rows the
+    two columns are complementary -- `Type` is the site, `Action` is the
+    direction, Positive 364 rows and Negative 355 -- so this is not a
+    contradiction. A positive allosteric modulator has no intrinsic
+    activity, so filing it as an agonist would overstate GtoP's claim; the
+    price is that M2, M4 and M5 cannot tell a PAM from a NAM."""
+    assert direction_of("Allosteric modulator", action) == "modulator"
+
+
+def test_the_direction_vocabulary_is_the_schemas():
     """One vocabulary, so a direction means the same thing whichever
     source wrote it. host_targets.py populates the same enum from ChEMBL."""
     import yaml
     enum = yaml.safe_load(
         (ROOT / "schema" / "kg_schema.yaml").read_text()
     )["enums"]["target_direction"]
+    assert set(TYPE_TO_DIRECTION.values()) <= set(enum)
     assert set(ACTION_TO_DIRECTION.values()) <= set(enum)
     assert "unknown" in enum
 
@@ -128,7 +293,7 @@ def test_non_human_rows_are_dropped():
     """GtP curates rat, mouse and others alongside human. A rat target is
     not a human one and the host layer holds only human proteins."""
     em = Emit()
-    s = ingest_interactions(em, [_inter(target_species="Rat")], KEYS,
+    s = ingest_interactions(em, [_inter(**{"Target Species": "Rat"})], KEYS,
                             PROTS, CMPDS)
     assert em.edges == [] and s["not_human"] == 1
 
@@ -138,7 +303,7 @@ def test_a_complex_accession_list_is_dropped_not_split():
     first would assert the ligand targets one subunit, which the source
     does not say."""
     em = Emit()
-    s = ingest_interactions(em, [_inter(target_uniprot="P04637|Q00987")],
+    s = ingest_interactions(em, [_inter(**{"Target UniProt ID": "P04637|Q00987"})],
                             KEYS, PROTS, CMPDS)
     assert em.edges == [] and s["multi_accession"] == 1
 
@@ -147,7 +312,7 @@ def test_a_ligand_without_an_inchikey_is_skipped_and_counted():
     """Without one it cannot be matched to a compound already in the
     graph, and minting on a name would duplicate a drug already there."""
     em = Emit()
-    s = ingest_interactions(em, [_inter(ligand_id="99")], KEYS, PROTS, CMPDS)
+    s = ingest_interactions(em, [_inter(**{"Ligand ID": "99"})], KEYS, PROTS, CMPDS)
     assert em.edges == [] and s["ligand_without_inchikey"] == 1
 
 
@@ -174,14 +339,14 @@ def test_a_protein_not_in_the_graph_is_skipped():
 
 def test_the_same_pair_twice_is_one_edge():
     em = Emit()
-    s = ingest_interactions(em, [_inter(), _inter(action="Antagonist")],
+    s = ingest_interactions(em, [_inter(), _inter(Type="Antagonist")],
                             KEYS, PROTS, CMPDS)
     assert s["edges"] == 1 and s["duplicate"] == 1
 
 
 def test_an_unparseable_affinity_is_counted_not_crashed():
     em = Emit()
-    s = ingest_interactions(em, [_inter(original_affinity_median_nm="n/a")],
+    s = ingest_interactions(em, [_inter(**{"Original Affinity Median nm": "n/a"})],
                             KEYS, PROTS, CMPDS)
     assert s["edges"] == 1
     assert s["unparseable_affinity"] == 1
@@ -207,8 +372,11 @@ def test_the_driver_writes_nothing_when_no_edge_survives(tmp_path, capsys):
     raw = tmp_path / "raw"
     raw.mkdir()
     (raw / "interactions.csv").write_text(
-        "#v\n" + IHEAD + "\n1,P04637,Rat,Inhibitor,1,40\n")
-    (raw / "ligands.csv").write_text("ligand_id,inchikey\n1,KEY-1\n")
+        GTOP_VERSION_LINE + "\n" + IHEAD + "\n"
+        + _row_text(IHEAD, **_inter(**{"Target Species": "Rat"})) + "\n")
+    (raw / "ligands.csv").write_text(
+        GTOP_VERSION_LINE + "\n" + LHEAD + "\n"
+        + _row_text(LHEAD, **{"Ligand ID": "1", "InChIKey": "KEY-1"}) + "\n")
     rel = tmp_path / "rel"
     rel.mkdir()
     import json as _json
@@ -229,13 +397,28 @@ def test_the_driver_writes_nothing_when_no_edge_survives(tmp_path, capsys):
 # nothing signed the term.
 def _expected_direction(action: str) -> str:
     a = action.upper()
+    # INVERSE AGONIST FIRST, and this is not cosmetic ordering: it contains
+    # "AGONIST", so the agonist rule would claim it and an inverse agonist
+    # reduces constitutive activity -- the opposite. The 2026.3.1 vocabulary
+    # also brought ACTIVATION (not ACTIVATOR) and POTENTIATION, neither of
+    # which any rule here matched, so both read "unknown" while the table
+    # said "agonist".
+    if "INVERSE AGONIST" in a:
+        return "inhibitor"
     if "ANTAGONIST" in a or "INHIBIT" in a or "BLOCKER" in a or "NEGATIVE" in a:
         return "inhibitor"
-    if "AGONIST" in a or "ACTIVATOR" in a or "POSITIVE" in a:
+    if ("AGONIST" in a or "ACTIVAT" in a or "POSITIVE" in a
+            or "POTENTIAT" in a):
         return "agonist"
     if "MODULATOR" in a or "ENHANCER" in a or a == "MIXED":
         return "modulator"
     return "unknown"
+
+
+@pytest.mark.parametrize("term", sorted(TYPE_TO_DIRECTION))
+def test_every_type_in_the_table_means_what_it_says(term):
+    """The same independent re-derivation, over the column that decides."""
+    assert TYPE_TO_DIRECTION[term] == _expected_direction(term)
 
 
 @pytest.mark.parametrize("action", sorted(ACTION_TO_DIRECTION))
@@ -275,12 +458,12 @@ def test_a_non_numeric_pubmed_id_is_dropped():
     """PMID:abc is not a citation. The isdigit filter had no test, so
     removing it changed nothing."""
     em = Emit()
-    rows = [_inter(pubmed_id="12345678|not-a-pmid|  |87654321")]
+    rows = [_inter(**{"PubMed ID": "12345678|not-a-pmid|  |87654321"})]
     ingest_interactions(em, rows, {"1": "KEYAAA"})
     assert em.edges[0]["publications"] == ["PMID:12345678", "PMID:87654321"]
 
 
 def test_an_edge_with_no_usable_pmid_carries_none_rather_than_junk():
     em = Emit()
-    ingest_interactions(em, [_inter(pubmed_id="n/a")], {"1": "KEYAAA"})
+    ingest_interactions(em, [_inter(**{"PubMed ID": "n/a"})], {"1": "KEYAAA"})
     assert not (em.edges[0].get("publications") or [])
