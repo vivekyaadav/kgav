@@ -9,10 +9,10 @@ docs/kg_audit_report.txt.
 
     release          v0.1
     nodes_sha        cb0496762795fb79
-    edges_sha        68cf33748e71a067
+    edges_sha        3863a5452838dc40
 
     78,789 nodes
-    389,306 edges
+    392,907 edges
 
     NODES BY CLASS   (0 = declared in the schema, absent from this release)
       SmallMolecule                  25,383
@@ -34,7 +34,7 @@ docs/kg_audit_report.txt.
       PHYSICALLY_INTERACTS_WITH                 153,533
       HAS_ANTIVIRAL_ACTIVITY_AGAINST     L       26,276
       ENCODED_BY                                 19,498
-      TARGETS                                    14,381
+      TARGETS                                    17,982
       HOST_FACTOR_FOR                             8,263
       INHIBITS                                    3,943
       CHEMICALLY_SIMILAR_TO                       3,384
@@ -75,6 +75,7 @@ docs/kg_audit_report.txt.
       infores:virhostnet                       10,163
       infores:biogrid-orcs                      8,263
       infores:ncats-opendata                    7,432
+      infores:guidetopharmacology               6,765
       infores:intact                            6,617
       infores:kgav-computed                     3,384
       infores:mint                                878
@@ -82,12 +83,13 @@ docs/kg_audit_report.txt.
       infores:mondo                                16
       infores:dip                                  12
       infores:hpidb                                 1
-      4,979 edge(s) cite more than one curator, so these counts sum to more
+      8,143 edge(s) cite more than one curator, so these counts sum to more
         than the edge total.
 
-    10 layer(s) assembled, hub cut degree 460
+    11 layer(s) assembled, hub cut degree 460
       chembl
       folds
+      gtop
       host
       hosttargets
       ncats

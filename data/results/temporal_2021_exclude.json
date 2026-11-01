@@ -9,7 +9,7 @@
     "label_train_active": 2477,
     "held_out_not_a_label": 2421,
     "label_test_inactive": 6816,
-    "undated_dropped": 5342,
+    "undated_dropped": 8943,
     "label_train_inactive": 13481,
     "label_undecidable": 342,
     "label_test_active": 3160,
@@ -304,13 +304,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "cb0496762795fb79",
-      "edges_sha": "68cf33748e71a067"
+      "edges_sha": "3863a5452838dc40"
     },
     "code": {
-      "commit": "24e070d576d9b135e4bb185ad5ae5158c349a59d",
-      "dirty": false
+      "commit": "2589e1d0fc659e7014acecd065eb85f2695cfa56",
+      "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-10-30T09:02:12+00:00"
+    "generated_utc": "2026-11-01T19:12:45+00:00"
   }
 }

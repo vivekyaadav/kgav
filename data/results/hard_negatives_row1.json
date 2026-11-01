@@ -32,65 +32,65 @@
       "M2": {
         "n_pos": 792,
         "n_neg": 10956,
-        "auc": 0.4740526038958405,
+        "auc": 0.4600795860208511,
         "evaluable": true,
-        "auc_ci_lo": 0.4535807394508909,
-        "auc_ci_hi": 0.49452446834079006,
+        "auc_ci_lo": 0.4398250661710937,
+        "auc_ci_hi": 0.4803341058706085,
         "imputed": true,
-        "coverage_pos": 0.008838383838383838,
-        "coverage_neg": 0.06069733479372034
+        "coverage_pos": 0.012626262626262626,
+        "coverage_neg": 0.09236947791164658
       },
       "M3": {
         "n_pos": 792,
         "n_neg": 10956,
-        "auc": 0.4789686754363644,
+        "auc": 0.4663231092413732,
         "evaluable": true,
-        "auc_ci_lo": 0.45842531352234583,
-        "auc_ci_hi": 0.49951203735038296,
+        "auc_ci_lo": 0.4459688957803015,
+        "auc_ci_hi": 0.4866773227024449,
         "imputed": true,
-        "coverage_pos": 0.008838383838383838,
-        "coverage_neg": 0.05093099671412924
+        "coverage_pos": 0.010101010101010102,
+        "coverage_neg": 0.07749178532311063
       },
       "M4": {
         "n_pos": 792,
         "n_neg": 10956,
-        "auc": 0.4368235107556028,
+        "auc": 0.3925524757431932,
         "evaluable": true,
-        "auc_ci_lo": 0.41697681320899727,
-        "auc_ci_hi": 0.4566702083022083,
+        "auc_ci_lo": 0.3736400742886807,
+        "auc_ci_hi": 0.4114648771977057,
         "imputed": true,
-        "coverage_pos": 0.013888888888888888,
-        "coverage_neg": 0.14074479737130338
+        "coverage_pos": 0.01893939393939394,
+        "coverage_neg": 0.23430083972252647
       },
       "M5": {
         "n_pos": 792,
         "n_neg": 10956,
-        "auc": 0.453229469761507,
+        "auc": 0.4224019009923993,
         "evaluable": true,
-        "auc_ci_lo": 0.4330891077207589,
-        "auc_ci_hi": 0.4733698318022551,
+        "auc_ci_lo": 0.40283686971569366,
+        "auc_ci_hi": 0.441966932269105,
         "imputed": true,
-        "coverage_pos": 0.013888888888888888,
-        "coverage_neg": 0.10779481562614093
+        "coverage_pos": 0.017676767676767676,
+        "coverage_neg": 0.17342095655348666
       },
       "M6": {
         "n_pos": 792,
         "n_neg": 10956,
-        "auc": 0.48531125189463087,
+        "auc": 0.48487527935433195,
         "evaluable": true,
-        "auc_ci_lo": 0.46467948288715505,
-        "auc_ci_hi": 0.5059430209021067,
+        "auc_ci_lo": 0.46424944860796535,
+        "auc_ci_hi": 0.5055011101006985,
         "imputed": true,
-        "coverage_pos": 0.003787878787878788,
-        "coverage_neg": 0.03313253012048193
+        "coverage_pos": 0.008838383838383838,
+        "coverage_neg": 0.03897407813070464
       },
       "M7": {
         "n_pos": 792,
         "n_neg": 10956,
-        "auc": 0.5370033278200036,
+        "auc": 0.5370080528726476,
         "evaluable": true,
-        "auc_ci_lo": 0.5158142365082236,
-        "auc_ci_hi": 0.5581924191317836,
+        "auc_ci_lo": 0.5158189240847441,
+        "auc_ci_hi": 0.5581971816605512,
         "imputed": true,
         "coverage_pos": 0.08964646464646464,
         "coverage_neg": 0.01624680540343191
@@ -109,21 +109,21 @@
       "COMBINED": {
         "n_pos": 792,
         "n_neg": 10956,
-        "auc": 0.72125623706949,
+        "auc": 0.6688222702564159,
         "evaluable": true,
-        "auc_ci_lo": 0.7006643785561575,
-        "auc_ci_hi": 0.7418480955828226,
+        "auc_ci_lo": 0.6476104307387763,
+        "auc_ci_hi": 0.6900341097740555,
         "imputed": true,
-        "coverage_pos": 0.6742424242424242,
-        "coverage_neg": 0.20545819642205185
+        "coverage_pos": 0.6767676767676768,
+        "coverage_neg": 0.29791894852135814
       },
       "degree": {
         "n_pos": 792,
         "n_neg": 10956,
-        "auc": 0.7036136395905016,
+        "auc": 0.6593367846961768,
         "evaluable": true,
-        "auc_ci_lo": 0.682768354927529,
-        "auc_ci_hi": 0.7244589242534742,
+        "auc_ci_lo": 0.6380541230116015,
+        "auc_ci_hi": 0.6806194463807522,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0
@@ -166,12 +166,12 @@
       "M4": {
         "n_pos": 455,
         "n_neg": 3062,
-        "auc": 0.5026420998987948,
+        "auc": 0.5059359321279635,
         "evaluable": true,
-        "auc_ci_lo": 0.47417365091917574,
-        "auc_ci_hi": 0.5311105488784139,
+        "auc_ci_lo": 0.4774232814304566,
+        "auc_ci_hi": 0.5344485828254705,
         "imputed": true,
-        "coverage_pos": 0.006593406593406593,
+        "coverage_pos": 0.013186813186813187,
         "coverage_neg": 0.0013063357282821686
       },
       "M5": {
@@ -221,21 +221,21 @@
       "COMBINED": {
         "n_pos": 455,
         "n_neg": 3062,
-        "auc": 0.5565506994638282,
+        "auc": 0.5598556570796936,
         "evaluable": true,
-        "auc_ci_lo": 0.5275608165025445,
-        "auc_ci_hi": 0.5855405824251119,
+        "auc_ci_lo": 0.5308480048509533,
+        "auc_ci_hi": 0.588863309308434,
         "imputed": true,
-        "coverage_pos": 0.12527472527472527,
+        "coverage_pos": 0.13186813186813187,
         "coverage_neg": 0.012736773350751143
       },
       "degree": {
         "n_pos": 455,
         "n_neg": 3062,
-        "auc": 0.4485526230790764,
+        "auc": 0.4494921799298024,
         "evaluable": true,
-        "auc_ci_lo": 0.42103491501918033,
-        "auc_ci_hi": 0.47607033113897246,
+        "auc_ci_lo": 0.42195436774366596,
+        "auc_ci_hi": 0.47702999211593883,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0
@@ -256,13 +256,13 @@
       "M2": {
         "n_pos": 140,
         "n_neg": 2607,
-        "auc": 0.5067592744807935,
+        "auc": 0.5063756918187298,
         "evaluable": true,
-        "auc_ci_lo": 0.45747132926771644,
-        "auc_ci_hi": 0.5560472196938706,
+        "auc_ci_lo": 0.4570983672973005,
+        "auc_ci_hi": 0.555653016340159,
         "imputed": true,
         "coverage_pos": 0.014285714285714285,
-        "coverage_neg": 0.0007671653241273494
+        "coverage_neg": 0.0015343306482546988
       },
       "M3": {
         "n_pos": 140,
@@ -278,35 +278,35 @@
       "M4": {
         "n_pos": 140,
         "n_neg": 2607,
-        "auc": 0.5086333497725902,
+        "auc": 0.5080579757794947,
         "evaluable": true,
-        "auc_ci_lo": 0.45929406238942533,
-        "auc_ci_hi": 0.5579726371557551,
+        "auc_ci_lo": 0.4587343546131335,
+        "auc_ci_hi": 0.557381596945856,
         "imputed": true,
         "coverage_pos": 0.02142857142857143,
-        "coverage_neg": 0.004219409282700422
+        "coverage_neg": 0.005370157268891446
       },
       "M5": {
         "n_pos": 140,
         "n_neg": 2607,
-        "auc": 0.5099553400186312,
+        "auc": 0.5093827059016932,
         "evaluable": true,
-        "auc_ci_lo": 0.46058038257678663,
-        "auc_ci_hi": 0.5593302974604757,
+        "auc_ci_lo": 0.46002314371848474,
+        "auc_ci_hi": 0.5587422680849017,
         "imputed": true,
         "coverage_pos": 0.02142857142857143,
-        "coverage_neg": 0.0015343306482546988
+        "coverage_neg": 0.002685078634445723
       },
       "M6": {
         "n_pos": 140,
         "n_neg": 2607,
-        "auc": 0.5,
+        "auc": 0.5031905857855224,
         "evaluable": true,
-        "auc_ci_lo": 0.4509047722424141,
-        "auc_ci_hi": 0.5490952277575859,
+        "auc_ci_lo": 0.454002919969685,
+        "auc_ci_hi": 0.5523782516013599,
         "imputed": true,
-        "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_pos": 0.007142857142857143,
+        "coverage_neg": 0.0007671653241273494
       },
       "M7": {
         "n_pos": 140,
@@ -333,21 +333,21 @@
       "COMBINED": {
         "n_pos": 140,
         "n_neg": 2607,
-        "auc": 0.5784906022247794,
+        "auc": 0.5814195298372513,
         "evaluable": true,
-        "auc_ci_lo": 0.527898792710317,
-        "auc_ci_hi": 0.6290824117392418,
+        "auc_ci_lo": 0.5308040156053124,
+        "auc_ci_hi": 0.6320350440691902,
         "imputed": true,
-        "coverage_pos": 0.16428571428571428,
-        "coverage_neg": 0.00728807057920982
+        "coverage_pos": 0.17142857142857143,
+        "coverage_neg": 0.008438818565400843
       },
       "degree": {
         "n_pos": 140,
         "n_neg": 2607,
-        "auc": 0.36910926626116497,
+        "auc": 0.36901611047180666,
         "evaluable": true,
-        "auc_ci_lo": 0.32602462887119216,
-        "auc_ci_hi": 0.4121939036511378,
+        "auc_ci_lo": 0.32593727554962126,
+        "auc_ci_hi": 0.41209494539399205,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0
@@ -379,10 +379,10 @@
       "degree": {
         "n_pos": 115,
         "n_neg": 95,
-        "auc": 0.09716247139588101,
+        "auc": 0.0922654462242563,
         "evaluable": true,
-        "auc_ci_lo": 0.05293503874578367,
-        "auc_ci_hi": 0.14138990404597834,
+        "auc_ci_lo": 0.04912878946801422,
+        "auc_ci_hi": 0.13540210298049837,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0
@@ -403,13 +403,13 @@
       "M3": {
         "n_pos": 65,
         "n_neg": 95,
-        "auc": 0.4897165991902834,
+        "auc": 0.4846153846153846,
         "evaluable": true,
-        "auc_ci_lo": 0.3984961034541009,
-        "auc_ci_hi": 0.5809370949264658,
+        "auc_ci_lo": 0.39348199214505586,
+        "auc_ci_hi": 0.5757487770857134,
         "imputed": true,
         "coverage_pos": 0.03076923076923077,
-        "coverage_neg": 0.05263157894736842
+        "coverage_neg": 0.06315789473684211
       },
       "M7": {
         "n_pos": 65,
@@ -436,21 +436,21 @@
       "COMBINED": {
         "n_pos": 65,
         "n_neg": 95,
-        "auc": 0.5427530364372469,
+        "auc": 0.5366801619433198,
         "evaluable": true,
-        "auc_ci_lo": 0.4513165541294314,
-        "auc_ci_hi": 0.6341895187450625,
+        "auc_ci_lo": 0.44520433163016404,
+        "auc_ci_hi": 0.6281559922564756,
         "imputed": true,
         "coverage_pos": 0.3076923076923077,
-        "coverage_neg": 0.22105263157894736
+        "coverage_neg": 0.23157894736842105
       },
       "degree": {
         "n_pos": 65,
         "n_neg": 95,
-        "auc": 0.6606477732793522,
+        "auc": 0.6681781376518219,
         "evaluable": true,
-        "auc_ci_lo": 0.5733729168835177,
-        "auc_ci_hi": 0.7479226296751867,
+        "auc_ci_lo": 0.5813982414538748,
+        "auc_ci_hi": 0.754958033849769,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0
@@ -517,10 +517,10 @@
       "degree": {
         "n_pos": 56,
         "n_neg": 65,
-        "auc": 0.33145604395604394,
+        "auc": 0.3313186813186813,
         "evaluable": true,
-        "auc_ci_lo": 0.23599075818044216,
-        "auc_ci_hi": 0.42692132973164576,
+        "auc_ci_lo": 0.23586612509178267,
+        "auc_ci_hi": 0.42677123754557994,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0
@@ -563,12 +563,12 @@
       "M4": {
         "n_pos": 56,
         "n_neg": 41,
-        "auc": 0.4586236933797909,
+        "auc": 0.4673344947735192,
         "evaluable": true,
-        "auc_ci_lo": 0.3417250178294617,
-        "auc_ci_hi": 0.5755223689301201,
+        "auc_ci_lo": 0.3503552791523872,
+        "auc_ci_hi": 0.5843137103946512,
         "imputed": true,
-        "coverage_pos": 0.03571428571428571,
+        "coverage_pos": 0.05357142857142857,
         "coverage_neg": 0.12195121951219512
       },
       "M5": {
@@ -607,21 +607,21 @@
       "COMBINED": {
         "n_pos": 56,
         "n_neg": 41,
-        "auc": 0.5004355400696864,
+        "auc": 0.5091463414634146,
         "evaluable": true,
-        "auc_ci_lo": 0.3835467019087407,
-        "auc_ci_hi": 0.617324378230632,
+        "auc_ci_lo": 0.3923851640897962,
+        "auc_ci_hi": 0.6259075188370331,
         "imputed": true,
-        "coverage_pos": 0.125,
+        "coverage_pos": 0.14285714285714285,
         "coverage_neg": 0.12195121951219512
       },
       "degree": {
         "n_pos": 56,
         "n_neg": 41,
-        "auc": 0.6814024390243902,
+        "auc": 0.6816202090592335,
         "evaluable": true,
-        "auc_ci_lo": 0.576148463974836,
-        "auc_ci_hi": 0.7866564140739445,
+        "auc_ci_lo": 0.5763919716914839,
+        "auc_ci_hi": 0.786848446426983,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0
@@ -653,13 +653,13 @@
       "M4": {
         "n_pos": 54,
         "n_neg": 70,
-        "auc": 0.5092592592592593,
+        "auc": 0.5113756613756614,
         "evaluable": true,
-        "auc_ci_lo": 0.40630914422907655,
-        "auc_ci_hi": 0.612209374289442,
+        "auc_ci_lo": 0.4084179247318959,
+        "auc_ci_hi": 0.6143333980194268,
         "imputed": true,
-        "coverage_pos": 0.018518518518518517,
-        "coverage_neg": 0.0
+        "coverage_pos": 0.037037037037037035,
+        "coverage_neg": 0.014285714285714285
       },
       "M5": {
         "n_pos": 54,
@@ -686,21 +686,21 @@
       "COMBINED": {
         "n_pos": 54,
         "n_neg": 70,
-        "auc": 0.5092592592592593,
+        "auc": 0.5113756613756614,
         "evaluable": true,
-        "auc_ci_lo": 0.40630914422907655,
-        "auc_ci_hi": 0.612209374289442,
+        "auc_ci_lo": 0.4084179247318959,
+        "auc_ci_hi": 0.6143333980194268,
         "imputed": true,
-        "coverage_pos": 0.018518518518518517,
-        "coverage_neg": 0.0
+        "coverage_pos": 0.037037037037037035,
+        "coverage_neg": 0.014285714285714285
       },
       "degree": {
         "n_pos": 54,
         "n_neg": 70,
-        "auc": 0.7411375661375661,
+        "auc": 0.7407407407407407,
         "evaluable": true,
-        "auc_ci_lo": 0.6514344971323989,
-        "auc_ci_hi": 0.8308406351427333,
+        "auc_ci_lo": 0.6509883759920175,
+        "auc_ci_hi": 0.8304931054894639,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0
@@ -743,13 +743,13 @@
       "M4": {
         "n_pos": 53,
         "n_neg": 89,
-        "auc": 0.5377358490566038,
+        "auc": 0.5420818316726733,
         "evaluable": true,
-        "auc_ci_lo": 0.43894219934374423,
-        "auc_ci_hi": 0.6365294987694633,
+        "auc_ci_lo": 0.44330056211626767,
+        "auc_ci_hi": 0.640863101229079,
         "imputed": true,
-        "coverage_pos": 0.07547169811320754,
-        "coverage_neg": 0.0
+        "coverage_pos": 0.09433962264150944,
+        "coverage_neg": 0.011235955056179775
       },
       "M5": {
         "n_pos": 53,
@@ -787,21 +787,21 @@
       "COMBINED": {
         "n_pos": 53,
         "n_neg": 89,
-        "auc": 0.5410218359126564,
+        "auc": 0.5360398558405767,
         "evaluable": true,
-        "auc_ci_lo": 0.44223669379265323,
-        "auc_ci_hi": 0.6398069780326595,
+        "auc_ci_lo": 0.43724388224750954,
+        "auc_ci_hi": 0.6348358294336438,
         "imputed": true,
         "coverage_pos": 0.11320754716981132,
-        "coverage_neg": 0.033707865168539325
+        "coverage_neg": 0.0449438202247191
       },
       "degree": {
         "n_pos": 53,
         "n_neg": 89,
-        "auc": 0.7445410218359126,
+        "auc": 0.7443290226839092,
         "evaluable": true,
-        "auc_ci_lo": 0.6572969420691946,
-        "auc_ci_hi": 0.8317851016026306,
+        "auc_ci_lo": 0.6570604107699958,
+        "auc_ci_hi": 0.8315976345978227,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0
@@ -846,12 +846,12 @@
       "M4": {
         "n_pos": 44,
         "n_neg": 316,
-        "auc": 0.5113636363636364,
+        "auc": 0.5227272727272727,
         "evaluable": true,
-        "auc_ci_lo": 0.41970411012073777,
-        "auc_ci_hi": 0.603023162606535,
+        "auc_ci_lo": 0.43063850633464845,
+        "auc_ci_hi": 0.614816039119897,
         "imputed": true,
-        "coverage_pos": 0.022727272727272728,
+        "coverage_pos": 0.045454545454545456,
         "coverage_neg": 0.0
       },
       "M5": {
@@ -879,21 +879,21 @@
       "COMBINED": {
         "n_pos": 44,
         "n_neg": 316,
-        "auc": 0.5294519562715765,
+        "auc": 0.5409234752589183,
         "evaluable": true,
-        "auc_ci_lo": 0.43713804077771173,
-        "auc_ci_hi": 0.6217658717654413,
+        "auc_ci_lo": 0.4482753849606189,
+        "auc_ci_hi": 0.6335715655572176,
         "imputed": true,
-        "coverage_pos": 0.06818181818181818,
+        "coverage_pos": 0.09090909090909091,
         "coverage_neg": 0.00949367088607595
       },
       "degree": {
         "n_pos": 44,
         "n_neg": 316,
-        "auc": 0.4430379746835443,
+        "auc": 0.44868383199079404,
         "evaluable": true,
-        "auc_ci_lo": 0.3552294597253679,
-        "auc_ci_hi": 0.5308464896417207,
+        "auc_ci_lo": 0.3604754916521842,
+        "auc_ci_hi": 0.5368921723294039,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0
@@ -903,10 +903,10 @@
       "degree": {
         "n_pos": 35,
         "n_neg": 882,
-        "auc": 0.794881762228701,
+        "auc": 0.7947521865889213,
         "evaluable": true,
-        "auc_ci_lo": 0.7051373635823619,
-        "auc_ci_hi": 0.8846261608750401,
+        "auc_ci_lo": 0.7049904274388524,
+        "auc_ci_hi": 0.8845139457389902,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0
@@ -929,43 +929,43 @@
       "M2": {
         "n_pos": 620,
         "n_neg": 998,
-        "auc": 0.49899799599198397,
+        "auc": 0.5006125153532872,
         "evaluable": true,
-        "auc_ci_lo": 0.47006063334013937,
-        "auc_ci_hi": 0.5279353586438286,
+        "auc_ci_lo": 0.4716678348275201,
+        "auc_ci_hi": 0.5295571958790544,
         "imputed": true,
-        "coverage_pos": 0.0,
+        "coverage_pos": 0.0032258064516129032,
         "coverage_neg": 0.002004008016032064
       },
       "M4": {
         "n_pos": 620,
         "n_neg": 998,
-        "auc": 0.5009171568944341,
+        "auc": 0.5005276682397052,
         "evaluable": true,
-        "auc_ci_lo": 0.47197113712389077,
-        "auc_ci_hi": 0.5298631766649773,
+        "auc_ci_lo": 0.4715833630622602,
+        "auc_ci_hi": 0.5294719734171502,
         "imputed": true,
-        "coverage_pos": 0.004838709677419355,
-        "coverage_neg": 0.003006012024048096
+        "coverage_pos": 0.008064516129032258,
+        "coverage_neg": 0.0070140280561122245
       },
       "M6": {
         "n_pos": 620,
         "n_neg": 998,
-        "auc": 0.499498997995992,
+        "auc": 0.5019159286314565,
         "evaluable": true,
-        "auc_ci_lo": 0.47055932488462976,
-        "auc_ci_hi": 0.5284386711073543,
+        "auc_ci_lo": 0.4729656106747221,
+        "auc_ci_hi": 0.5308662465881909,
         "imputed": true,
-        "coverage_pos": 0.0,
+        "coverage_pos": 0.004838709677419355,
         "coverage_neg": 0.001002004008016032
       },
       "M7": {
         "n_pos": 620,
         "n_neg": 998,
-        "auc": 0.512314144417868,
+        "auc": 0.5123133363501196,
         "evaluable": true,
-        "auc_ci_lo": 0.4833275106927408,
-        "auc_ci_hi": 0.5413007781429953,
+        "auc_ci_lo": 0.48332670484874135,
+        "auc_ci_hi": 0.5412999678514977,
         "imputed": true,
         "coverage_pos": 0.03064516129032258,
         "coverage_neg": 0.006012024048096192
@@ -984,24 +984,24 @@
       "COMBINED": {
         "n_pos": 620,
         "n_neg": 998,
-        "auc": 0.5136426077962376,
+        "auc": 0.5129711034973172,
         "evaluable": true,
-        "auc_ci_lo": 0.4846524441418489,
-        "auc_ci_hi": 0.5426327714506263,
+        "auc_ci_lo": 0.48398269267431093,
+        "auc_ci_hi": 0.5419595143203235,
         "imputed": true,
-        "coverage_pos": 0.04032258064516129,
-        "coverage_neg": 0.013026052104208416
+        "coverage_pos": 0.041935483870967745,
+        "coverage_neg": 0.01603206412825651
       },
       "degree": {
         "n_pos": 620,
         "n_neg": 998,
-        "auc": 0.5250331307776844,
+        "auc": 0.525169694227164,
         "evaluable": true,
-        "auc_ci_lo": 0.496023044907959,
-        "auc_ci_hi": 0.5540432166474099,
+        "auc_ci_lo": 0.49615948206643,
+        "auc_ci_hi": 0.5541799063878979,
         "imputed": true,
-        "coverage_pos": 0.2467741935483871,
-        "coverage_neg": 0.20340681362725452
+        "coverage_pos": 0.24838709677419354,
+        "coverage_neg": 0.20440881763527055
       }
     },
     "DENV-2": {
@@ -1098,35 +1098,35 @@
       "M2": {
         "n_pos": 66,
         "n_neg": 2519,
-        "auc": 0.5151515151515151,
+        "auc": 0.5149530236866482,
         "evaluable": true,
-        "auc_ci_lo": 0.44395266620844237,
-        "auc_ci_hi": 0.586350364094588,
+        "auc_ci_lo": 0.4437619116634886,
+        "auc_ci_hi": 0.5861441357098078,
         "imputed": true,
         "coverage_pos": 0.030303030303030304,
-        "coverage_neg": 0.0
+        "coverage_neg": 0.0003969829297340214
       },
       "M4": {
         "n_pos": 66,
         "n_neg": 2519,
-        "auc": 0.5147665620075307,
+        "auc": 0.5143816088635461,
         "evaluable": true,
-        "auc_ci_lo": 0.4435827315335184,
-        "auc_ci_hi": 0.585950392481543,
+        "auc_ci_lo": 0.4432128527307024,
+        "auc_ci_hi": 0.5855503649963898,
         "imputed": true,
         "coverage_pos": 0.030303030303030304,
-        "coverage_neg": 0.0007939658594680428
+        "coverage_neg": 0.0015879317189360857
       },
       "M6": {
         "n_pos": 66,
         "n_neg": 2519,
-        "auc": 0.5,
+        "auc": 0.507380273557328,
         "evaluable": true,
-        "auc_ci_lo": 0.4294342995019331,
-        "auc_ci_hi": 0.5705657004980669,
+        "auc_ci_lo": 0.4364954122218081,
+        "auc_ci_hi": 0.5782651348928478,
         "imputed": true,
-        "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_pos": 0.015151515151515152,
+        "coverage_neg": 0.0003969829297340214
       },
       "M7": {
         "n_pos": 66,
@@ -1142,21 +1142,21 @@
       "COMBINED": {
         "n_pos": 66,
         "n_neg": 2519,
-        "auc": 0.5219693962250532,
+        "auc": 0.5291842602283253,
         "evaluable": true,
-        "auc_ci_lo": 0.45051383177748416,
-        "auc_ci_hi": 0.5934249606726223,
+        "auc_ci_lo": 0.45747622893240947,
+        "auc_ci_hi": 0.6008922915242412,
         "imputed": true,
-        "coverage_pos": 0.045454545454545456,
-        "coverage_neg": 0.0015879317189360857
+        "coverage_pos": 0.06060606060606061,
+        "coverage_neg": 0.0023818975784041284
       },
       "degree": {
         "n_pos": 66,
         "n_neg": 2519,
-        "auc": 0.5717185751921758,
+        "auc": 0.5716824858349273,
         "evaluable": true,
-        "auc_ci_lo": 0.49893024166599126,
-        "auc_ci_hi": 0.6445069087183605,
+        "auc_ci_lo": 0.49889476816164036,
+        "auc_ci_hi": 0.6444702035082143,
         "imputed": true,
         "coverage_pos": 0.15151515151515152,
         "coverage_neg": 0.00833664152441445
@@ -1177,13 +1177,13 @@
       "M4": {
         "n_pos": 44,
         "n_neg": 70,
-        "auc": 0.5,
+        "auc": 0.5040584415584416,
         "evaluable": true,
-        "auc_ci_lo": 0.3906700850497436,
-        "auc_ci_hi": 0.6093299149502565,
+        "auc_ci_lo": 0.39466605143783806,
+        "auc_ci_hi": 0.6134508316790451,
         "imputed": true,
-        "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_pos": 0.022727272727272728,
+        "coverage_neg": 0.014285714285714285
       },
       "M6": {
         "n_pos": 44,
@@ -1199,24 +1199,24 @@
       "COMBINED": {
         "n_pos": 44,
         "n_neg": 70,
-        "auc": 0.5,
+        "auc": 0.5040584415584416,
         "evaluable": true,
-        "auc_ci_lo": 0.3906700850497436,
-        "auc_ci_hi": 0.6093299149502565,
+        "auc_ci_lo": 0.39466605143783806,
+        "auc_ci_hi": 0.6134508316790451,
         "imputed": true,
-        "coverage_pos": 0.0,
-        "coverage_neg": 0.0
+        "coverage_pos": 0.022727272727272728,
+        "coverage_neg": 0.014285714285714285
       },
       "degree": {
         "n_pos": 44,
         "n_neg": 70,
-        "auc": 0.6935064935064935,
+        "auc": 0.6881493506493507,
         "evaluable": true,
-        "auc_ci_lo": 0.5913764018212558,
-        "auc_ci_hi": 0.7956365851917312,
+        "auc_ci_lo": 0.5855225752860369,
+        "auc_ci_hi": 0.7907761260126644,
         "imputed": true,
         "coverage_pos": 0.5,
-        "coverage_neg": 0.12857142857142856
+        "coverage_neg": 0.14285714285714285
       }
     },
     "HCoV-229E": {
@@ -1234,12 +1234,12 @@
       "M4": {
         "n_pos": 36,
         "n_neg": 32,
-        "auc": 0.5138888888888888,
+        "auc": 0.5277777777777778,
         "evaluable": true,
-        "auc_ci_lo": 0.375555435930949,
-        "auc_ci_hi": 0.6522223418468287,
+        "auc_ci_lo": 0.38971304546523844,
+        "auc_ci_hi": 0.6658425100903171,
         "imputed": true,
-        "coverage_pos": 0.027777777777777776,
+        "coverage_pos": 0.05555555555555555,
         "coverage_neg": 0.0
       },
       "M6": {
@@ -1256,21 +1256,21 @@
       "COMBINED": {
         "n_pos": 36,
         "n_neg": 32,
-        "auc": 0.5138888888888888,
+        "auc": 0.5277777777777778,
         "evaluable": true,
-        "auc_ci_lo": 0.375555435930949,
-        "auc_ci_hi": 0.6522223418468287,
+        "auc_ci_lo": 0.38971304546523844,
+        "auc_ci_hi": 0.6658425100903171,
         "imputed": true,
-        "coverage_pos": 0.027777777777777776,
+        "coverage_pos": 0.05555555555555555,
         "coverage_neg": 0.0
       },
       "degree": {
         "n_pos": 36,
         "n_neg": 32,
-        "auc": 0.6380208333333334,
+        "auc": 0.6401909722222222,
         "evaluable": true,
-        "auc_ci_lo": 0.5067439423614291,
-        "auc_ci_hi": 0.7692977243052377,
+        "auc_ci_lo": 0.5091325847556516,
+        "auc_ci_hi": 0.7712493596887928,
         "imputed": true,
         "coverage_pos": 0.4444444444444444,
         "coverage_neg": 0.1875
@@ -1337,13 +1337,13 @@
       "degree": {
         "n_pos": 11,
         "n_neg": 79,
-        "auc": 0.5397008055235903,
+        "auc": 0.5339470655926352,
         "evaluable": true,
-        "auc_ci_lo": 0.35372813850512363,
-        "auc_ci_hi": 0.725673472542057,
+        "auc_ci_lo": 0.3482985913642974,
+        "auc_ci_hi": 0.7195955398209729,
         "imputed": true,
         "coverage_pos": 0.09090909090909091,
-        "coverage_neg": 0.012658227848101266
+        "coverage_neg": 0.02531645569620253
       }
     },
     "DENV-1": {
@@ -1381,7 +1381,7 @@
         "missing_predicates": []
       },
       "M2": {
-        "drugs_reached": 1605,
+        "drugs_reached": 2240,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11137",
@@ -1398,7 +1398,7 @@
         "missing_predicates": []
       },
       "M3": {
-        "drugs_reached": 1131,
+        "drugs_reached": 1539,
         "viruses_reached": [
           "NCBITaxon:11053",
           "NCBITaxon:11060",
@@ -1424,7 +1424,7 @@
         "missing_predicates": []
       },
       "M4": {
-        "drugs_reached": 2983,
+        "drugs_reached": 4107,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11082",
@@ -1444,7 +1444,7 @@
         "missing_predicates": []
       },
       "M5": {
-        "drugs_reached": 2505,
+        "drugs_reached": 3430,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11082",
@@ -1463,7 +1463,7 @@
         "missing_predicates": []
       },
       "M6": {
-        "drugs_reached": 576,
+        "drugs_reached": 708,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11137",
@@ -1535,7 +1535,7 @@
         "missing_predicates": []
       },
       "M2": {
-        "drugs_reached": 1364,
+        "drugs_reached": 1953,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11137",
@@ -1565,7 +1565,7 @@
         ]
       },
       "M4": {
-        "drugs_reached": 2703,
+        "drugs_reached": 3872,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11082",
@@ -1597,7 +1597,7 @@
         ]
       },
       "M6": {
-        "drugs_reached": 502,
+        "drugs_reached": 618,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11137",
@@ -1652,13 +1652,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "cb0496762795fb79",
-      "edges_sha": "68cf33748e71a067"
+      "edges_sha": "3863a5452838dc40"
     },
     "code": {
-      "commit": "6b771c13a29dc7ca739b50b533d38acb9c91f90c",
-      "dirty": false
+      "commit": "2589e1d0fc659e7014acecd065eb85f2695cfa56",
+      "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-10-30T14:15:26+00:00"
+    "generated_utc": "2026-11-01T19:22:47+00:00"
   }
 }

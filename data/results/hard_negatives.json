@@ -33,57 +33,57 @@
       "M2": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.4924532574782679,
+        "auc": 0.5073799552275575,
         "evaluable": true,
-        "auc_ci_lo": 0.4324171959613605,
-        "auc_ci_hi": 0.5524893189951753,
+        "auc_ci_lo": 0.4467575186434831,
+        "auc_ci_hi": 0.5680023918116319,
         "imputed": true,
-        "coverage_pos": 0.056179775280898875,
-        "coverage_neg": 0.07340324118207817
+        "coverage_pos": 0.12359550561797752,
+        "coverage_neg": 0.1124880838894185
       },
       "M3": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5183840912464214,
+        "auc": 0.5405224267704318,
         "evaluable": true,
-        "auc_ci_lo": 0.4573752965310499,
-        "auc_ci_hi": 0.5793928859617928,
+        "auc_ci_lo": 0.47885588739448104,
+        "auc_ci_hi": 0.6021889661463826,
         "imputed": true,
-        "coverage_pos": 0.10112359550561797,
-        "coverage_neg": 0.06482364156339371
+        "coverage_pos": 0.1797752808988764,
+        "coverage_neg": 0.10104861773117255
       },
       "M4": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5073807203068886,
+        "auc": 0.5511011786812174,
         "evaluable": true,
-        "auc_ci_lo": 0.44675825550103837,
-        "auc_ci_hi": 0.568003185112739,
+        "auc_ci_lo": 0.48917744255455037,
+        "auc_ci_hi": 0.6130249148078845,
         "imputed": true,
-        "coverage_pos": 0.16853932584269662,
-        "coverage_neg": 0.16137818330382678
+        "coverage_pos": 0.3595505617977528,
+        "coverage_neg": 0.27672613373280674
       },
       "M5": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5159021738964114,
+        "auc": 0.5501800231666022,
         "evaluable": true,
-        "auc_ci_lo": 0.45497709662427804,
-        "auc_ci_hi": 0.5768272511685447,
+        "auc_ci_lo": 0.4882772001273586,
+        "auc_ci_hi": 0.6120828462058459,
         "imputed": true,
-        "coverage_pos": 0.15730337078651685,
-        "coverage_neg": 0.12651504834536292
+        "coverage_pos": 0.30337078651685395,
+        "coverage_neg": 0.20985973035544056
       },
       "M6": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5242139957492192,
+        "auc": 0.5213066942911311,
         "evaluable": true,
-        "auc_ci_lo": 0.4630164296245174,
-        "auc_ci_hi": 0.5854115618739211,
+        "auc_ci_lo": 0.4602018829602408,
+        "auc_ci_hi": 0.5824115056220214,
         "imputed": true,
         "coverage_pos": 0.07865168539325842,
-        "coverage_neg": 0.029688138363066868
+        "coverage_neg": 0.03554405556312134
       },
       "M7": {
         "n_pos": 89,
@@ -110,21 +110,21 @@
       "COMBINED": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.541360953717291,
+        "auc": 0.5807013329212106,
         "evaluable": true,
-        "auc_ci_lo": 0.47967267040921163,
-        "auc_ci_hi": 0.6030492370253704,
+        "auc_ci_lo": 0.5182583199464579,
+        "auc_ci_hi": 0.6431443458959634,
         "imputed": true,
-        "coverage_pos": 0.2808988764044944,
-        "coverage_neg": 0.2005992101320986
+        "coverage_pos": 0.4606741573033708,
+        "coverage_neg": 0.3136320305052431
       },
       "degree": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.6062052524226237,
+        "auc": 0.6237301595802469,
         "evaluable": true,
-        "auc_ci_lo": 0.5435578629105505,
-        "auc_ci_hi": 0.6688526419346968,
+        "auc_ci_lo": 0.561077156799571,
+        "auc_ci_hi": 0.6863831623609228,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0
@@ -153,7 +153,7 @@
         "missing_predicates": []
       },
       "M2": {
-        "drugs_reached": 1605,
+        "drugs_reached": 2234,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11137",
@@ -170,7 +170,7 @@
         "missing_predicates": []
       },
       "M3": {
-        "drugs_reached": 1131,
+        "drugs_reached": 1536,
         "viruses_reached": [
           "NCBITaxon:11053",
           "NCBITaxon:11060",
@@ -196,7 +196,7 @@
         "missing_predicates": []
       },
       "M4": {
-        "drugs_reached": 2983,
+        "drugs_reached": 4101,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11082",
@@ -216,7 +216,7 @@
         "missing_predicates": []
       },
       "M5": {
-        "drugs_reached": 2505,
+        "drugs_reached": 3424,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11082",
@@ -235,7 +235,7 @@
         "missing_predicates": []
       },
       "M6": {
-        "drugs_reached": 576,
+        "drugs_reached": 708,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11137",
@@ -307,7 +307,7 @@
         "missing_predicates": []
       },
       "M2": {
-        "drugs_reached": 1364,
+        "drugs_reached": 1947,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11137",
@@ -337,7 +337,7 @@
         ]
       },
       "M4": {
-        "drugs_reached": 2703,
+        "drugs_reached": 3866,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11082",
@@ -369,7 +369,7 @@
         ]
       },
       "M6": {
-        "drugs_reached": 502,
+        "drugs_reached": 618,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11137",
@@ -424,13 +424,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "cb0496762795fb79",
-      "edges_sha": "68cf33748e71a067"
+      "edges_sha": "3863a5452838dc40"
     },
     "code": {
-      "commit": "6b771c13a29dc7ca739b50b533d38acb9c91f90c",
-      "dirty": false
+      "commit": "2589e1d0fc659e7014acecd065eb85f2695cfa56",
+      "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-10-30T14:19:17+00:00"
+    "generated_utc": "2026-11-01T19:27:21+00:00"
   }
 }
