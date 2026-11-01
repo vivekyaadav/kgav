@@ -293,3 +293,194 @@ def derived_policy(derived_dir: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return {k: v for k, v in doc.items() if k != PROVENANCE_KEY}
+
+
+# ---------------------------------------------------- what code wrote a layer
+#
+# THE FAILURE THIS IS FOR, 2026-11-02. src/kgav/gtop.py was patched to emit
+# typed potency qualifiers in place of `affinity_nm`. `make rebuild` then
+# failed with 4,270 UNDECLARED_QUALIFIER 'affinity_nm' -- the IDENTICAL count
+# as before the patch -- and did so twice.
+#
+# The cause is structural, not a forgotten step. gtop is a PHASE 3 layer: it
+# reads the assembled release, so it runs AFTER assemble_release and
+# assemble_release runs again to pick it up. That means the phase-2 assemble
+# of each run consumes the phase-3 layer output of the PREVIOUS run.
+# assemble_release validates and returns 1, rebuild_release stops on a
+# non-zero exit, and so the run died on last run's gtop output before this
+# run's ingest_gtop.py could replace it. `rm -rf data/releases/v0.1-gtop`
+# fixed it, because an absent layer is simply left out.
+#
+# Nothing was wrong except that no number anywhere said "this directory was
+# written by code that has since changed". A layer release carries its edges
+# and nothing about its origin, so a reused layer and a freshly built one are
+# indistinguishable -- which pipeline.plan's docstring already calls the more
+# dangerous of its two skips, for the same reason.
+#
+# The release-side half of this problem was solved for results files in 2026
+# -09 (see the module docstring) and for derived releases by write_derived
+# above. This is the same stamp for the third kind of artifact, with the same
+# four statuses, because a third vocabulary for one idea is its own defect.
+LAYER_STAMP_NAME = "BUILT_BY.json"
+
+
+def source_closure(script: Path, root: Path) -> list[Path]:
+    """The script, plus every `kgav.*` module it reaches by static import.
+
+    WHY STATIC AND NOT sys.modules. The stamp is written by whatever ran the
+    ingest, not by the ingest itself -- twelve scripts each write their own
+    output and none of them would be stamping anything. Parsing the imports
+    needs no cooperation from the script and gives the same answer whether
+    the script ran or not, which is also what makes `check_layer` able to
+    answer for a layer built months ago.
+
+    WHY THE WHOLE TRANSITIVE SET. ingest_gtop.py imports kgav.gtop, which
+    imports kgav.units; a change to unit conversion changes that layer's
+    edges while leaving both the script and kgav/gtop.py untouched.
+
+    Only `kgav.*` is followed. The standard library and third-party packages
+    are pinned elsewhere and hashing site-packages would make every layer
+    stale on an unrelated upgrade.
+    """
+    import ast
+
+    root, script = Path(root), Path(script)
+    src = root / "src"
+    out: dict[str, Path] = {}
+    if script.exists():
+        out[str(script)] = script
+    queue, seen = [script], set()
+    while queue:
+        path = queue.pop()
+        if path in seen or not path.exists():
+            continue
+        seen.add(path)
+        try:
+            tree = ast.parse(path.read_text())
+        except (OSError, SyntaxError):
+            continue
+        names: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.level == 0 \
+                    and (node.module or "").startswith("kgav"):
+                names.add(node.module)
+                # `from kgav.agent import tools` names a module, not an
+                # attribute. Both readings are tried below; a name that is
+                # not a module simply has no file.
+                names.update(f"{node.module}.{a.name}" for a in node.names)
+            elif isinstance(node, ast.Import):
+                names.update(a.name for a in node.names
+                             if a.name.startswith("kgav"))
+        for name in names:
+            rel = Path(*name.split("."))
+            for cand in (src / rel.with_suffix(".py"), src / rel / "__init__.py"):
+                if cand.exists():
+                    out[str(cand)] = cand
+                    queue.append(cand)
+    return sorted(out.values())
+
+
+def source_sha(script: Path, root: Path) -> str:
+    """One hash over the layer's whole source closure.
+
+    Keyed on the path RELATIVE to root as well as the content. The content
+    hashes are concatenated in path-sorted order, so most renames move the
+    hash on their own -- but `from kgav.gtop import x` resolves to either
+    src/kgav/gtop.py or src/kgav/gtop/__init__.py, so a module becoming a
+    package moves the file with identical content and no edit anywhere
+    else. Without the path term that is one content hash in the same
+    position, indistinguishable from no change. See
+    tests/test_layer_stamp.py, where a mutant deleting this survived a
+    test that claimed to cover it.
+    """
+    root = Path(root)
+    h = hashlib.sha256()
+    for path in source_closure(script, root):
+        try:
+            rel = path.relative_to(root)
+        except ValueError:
+            rel = path
+        h.update(str(rel).encode())
+        h.update(b"\0")
+        h.update((_sha256(path) or "").encode())
+        h.update(b"\0")
+    return h.hexdigest()[:16]
+
+
+def write_layer(layer_dir: Path, script: Path, root: Path) -> None:
+    """Record which code wrote this layer release.
+
+    Called by whatever drove the ingest, after it succeeded. A layer written
+    by hand -- `python scripts/ingest_gtop.py` on its own -- is left
+    unstamped rather than wrongly stamped, and check_layer says so.
+    """
+    layer_dir = Path(layer_dir)
+    if not layer_dir.exists():
+        return
+    root = Path(root)
+    closure = source_closure(Path(script), root)
+    body = {
+        "script": Path(script).name,
+        "source_sha": source_sha(Path(script), root),
+        # PER-FILE, not just the rolled-up hash. The rolled-up hash answers
+        # "is this stale"; these answer "which file moved", which is the
+        # question a person actually has in front of a failing rebuild.
+        "file_shas": {
+            (str(p.relative_to(root)) if p.is_relative_to(root) else str(p)):
+            _sha256(p) for p in closure},
+        "code": code_commit(root),
+        "generated_utc": _dt.datetime.now(_dt.UTC).isoformat(
+            timespec="seconds"),
+    }
+    (layer_dir / LAYER_STAMP_NAME).write_text(json.dumps(body, indent=2))
+
+
+def check_layer(layer_dir: Path, script: Path, root: Path) -> tuple[str, str]:
+    """(status, message) for a layer release against the code on disk.
+
+    The four statuses are check_derived's, and they need different actions:
+
+      absent     never built. The layer is simply left out of the release.
+      unstamped  on disk with no record of what wrote it. Every layer built
+                 before 2026-11-02 reads this way; it is not an error, it is
+                 the absence this stamp exists to end.
+      stale      written by code that has since changed. On a phase-3 layer
+                 this is the state that kills a rebuild before the layer can
+                 be replaced, so it names the files that moved.
+      ok         written by the code now on disk.
+    """
+    layer_dir, root = Path(layer_dir), Path(root)
+    if not layer_dir.exists():
+        return "absent", f"{layer_dir.name} was never built"
+    stamp_path = layer_dir / LAYER_STAMP_NAME
+    if not stamp_path.exists():
+        return "unstamped", (
+            f"{layer_dir.name} carries no {LAYER_STAMP_NAME}, so there is no "
+            f"way to tell which code wrote it; rebuild it to find out")
+    try:
+        doc = json.loads(stamp_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return "unstamped", f"{layer_dir.name}'s {LAYER_STAMP_NAME} is unreadable"
+    now = source_sha(Path(script), root)
+    if doc.get("source_sha") == now:
+        return "ok", f"{layer_dir.name} matches the code on disk"
+    # NAME THE FILES, in both directions: one whose content moved, one added
+    # to the closure, and one removed from it are three different changes and
+    # "the hash differs" distinguishes none of them.
+    was = doc.get("file_shas") or {}
+    now_shas = {
+        (str(p.relative_to(root)) if p.is_relative_to(root) else str(p)):
+        _sha256(p) for p in source_closure(Path(script), root)}
+    moved = sorted(k for k in set(was) & set(now_shas) if was[k] != now_shas[k])
+    added = sorted(set(now_shas) - set(was))
+    gone = sorted(set(was) - set(now_shas))
+    parts = ([f"changed: {', '.join(moved)}"] if moved else []) \
+        + ([f"new in its closure: {', '.join(added)}"] if added else []) \
+        + ([f"no longer imported: {', '.join(gone)}"] if gone else [])
+    detail = ("; " + "; ".join(parts)) if parts else (
+        "; no file in its closure differs, so the stamp itself is from "
+        "another tree")
+    return "stale", (
+        f"{layer_dir.name} was written by different code "
+        f"(stamp {doc.get('source_sha')}, now {now}){detail}; re-run "
+        f"{Path(script).name} or delete the directory")

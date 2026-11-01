@@ -29,7 +29,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from kgav.pipeline import blocking, plan
+from kgav.pipeline import blocking, layer_dir, plan
+from kgav.provenance import write_layer
 
 
 def main(argv=None) -> int:
@@ -63,6 +64,57 @@ def main(argv=None) -> int:
             print(f"  phase {s['phase']}  absent     {s['name']}"
                   f"  -- {s['reason']}")
     print()
+
+    # WHICH REUSED LAYERS WERE WRITTEN BY CODE THAT HAS SINCE CHANGED.
+    # The REUSED note further down says reuse is correct only if nothing a
+    # layer depends on has changed, and then leaves the reader to know. For
+    # the code half of "anything", this answers it: provenance.check_layer
+    # hashes the layer's whole import closure.
+    #
+    # PRINTED BEFORE THE REQUIRED-LAYER REFUSAL, deliberately. A run that
+    # cannot start is exactly when someone is reading this output, and a
+    # diagnosis withheld until the build is otherwise healthy is withheld
+    # when it is most wanted.
+    #
+    # It is a WARNING, not a refusal. A stale phase-1 layer is reused and
+    # merely out of date; a stale PHASE 3 layer is the shape that killed
+    # this script twice on 2026-11-02, because the phase-2 assemble
+    # consumes last run's phase-3 output, validates it, and exits 1 before
+    # the ingest that would replace it can run. So the phase is named and
+    # the remedy differs by phase.
+    stale = [s for s in layers if s["code"] == "stale"]
+    if stale:
+        print("WRITTEN BY CODE THAT HAS SINCE CHANGED:")
+        for s in stale:
+            print(f"  phase {s['phase']}  {s['code_reason']}")
+        # PHASE, NOT RUNNABILITY. The first version of this said "phase 3
+        # and will NOT be re-run", which is the wrong condition and would
+        # have stayed silent through the failure it was written for: on
+        # 2026-11-02 gtop WAS runnable and DID re-run. It never got the
+        # chance, because phase 2 assembles before phase 3 runs, so the
+        # stale output is validated first and the run exits 1 there. A
+        # stale phase-3 layer is dangerous whether or not its ingest is
+        # queued behind the assemble that will reject it.
+        p3 = [s for s in stale if s["phase"] == 3]
+        if p3:
+            names = ", ".join(s["name"] for s in p3)
+            queued = [s for s in p3 if s["run"]]
+            print(f"\n  {names} {'is' if len(p3) == 1 else 'are'} PHASE 3, "
+                  f"and the phase-2 assemble runs first.")
+            print("  It reads the stale output and validates it, so if those "
+                  "qualifiers no longer\n  validate this run exits there -- "
+                  + ("before the phase-3 ingest that would\n  replace them, "
+                     "even though it is queued to run this pass.\n"
+                     if queued else "and the ingest is not queued either.\n")
+                  + "  Delete the directory instead: an absent layer is left "
+                    "out, a stale one is not.")
+        print()
+    unstamped = [s for s in layers if s["code"] == "unstamped"]
+    if unstamped:
+        print("UNSTAMPED (built before layer stamps existed, so what wrote "
+              "them is unknown):")
+        print(f"  {', '.join(s['name'] for s in unstamped)}")
+        print("  Rebuilding any of them records it. Not an error.\n")
 
     stop = blocking(args.root)
     if stop:
@@ -120,6 +172,12 @@ def main(argv=None) -> int:
                   "written is reused.")
             return 1
         print(f"  ok  ({took:.0f}s)")
+        # STAMP IT HERE, not inside the ingest. Twelve scripts write their
+        # own output and a thirteenth would forget; this is the one place
+        # that knows a layer ingest just succeeded.
+        if s["kind"] == "layer":
+            write_layer(layer_dir(args.root, s["name"]),
+                        args.root / "scripts" / s["script"], args.root)
 
     print(f"\n{'=' * 70}")
     print(f"rebuild complete in {time.time() - t0:.0f}s")

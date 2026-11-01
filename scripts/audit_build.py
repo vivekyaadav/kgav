@@ -40,7 +40,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from kgav.pipeline import LAYERS, availability, layer_dir
-from kgav.provenance import check_file
+from kgav.provenance import check_file, check_layer
 from kgav.schema import load_schema, print_capped
 from kgav.virus_register import declared_taxa, family_of
 
@@ -92,6 +92,19 @@ def layer_releases(root: Path) -> list[tuple[str, int, int, bool]]:
                     _count_lines(d / "edges.jsonl"),
                     built))
     return out
+
+
+def _script_for(layer: str) -> str:
+    """The ingest script a layer's name belongs to, from LAYERS.
+
+    Not `f"ingest_{layer}.py"`: hosttargets is ingest_host_targets.py, and
+    guessing would silently hash a script that does not exist and report
+    every layer as unstamped.
+    """
+    for x in LAYERS:
+        if x.name == layer:
+            return x.script
+    raise KeyError(layer)
 
 
 def edge_reconciliation(root: Path, release: Path) -> dict | None:
@@ -326,8 +339,9 @@ def main(argv=None) -> int:
     # --------------------------------------------- 2. layer releases
     print(f"\n{'-' * 74}\n2. LAYERS BUILT — what each ingest actually "
           f"wrote\n{'-' * 74}")
-    print(f"    {'layer':<14} {'nodes':>10} {'edges':>10}  note")
+    print(f"    {'layer':<14} {'nodes':>10} {'edges':>10}  {'code':<10} note")
     unbuilt = []
+    stale_layers = []
     for name, n, e, built in layer_releases(args.root):
         if not built:
             unbuilt.append(name)
@@ -336,7 +350,22 @@ def main(argv=None) -> int:
             note = "built, no edges — ran and joined nothing"
         else:
             note = ""
-        print(f"    {name:<14} {n:>10,} {e:>10,}  {note}")
+        # WHAT CODE WROTE IT. nodes and edges say how much a layer holds
+        # and nothing about whether it is current. A reused layer written
+        # before its own module was patched is indistinguishable here from
+        # one built this morning -- which is how a rebuild died twice on
+        # 2026-11-02 against a stale phase-3 layer. See
+        # provenance.check_layer.
+        code, why = check_layer(layer_dir(args.root, name),
+                                args.root / "scripts" / _script_for(name),
+                                args.root)
+        if code == "stale":
+            stale_layers.append((name, why))
+        print(f"    {name:<14} {n:>10,} {e:>10,}  {code:<10} {note}")
+    if stale_layers:
+        print("\n    STALE — written by code that has since changed:")
+        for _name, why in stale_layers:
+            print(f"      {why}")
 
     # ------------------------------------------ 3. assembled release
     print(f"\n{'-' * 74}\n3. ASSEMBLED RELEASE — {args.release}\n{'-' * 74}")

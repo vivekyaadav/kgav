@@ -38,6 +38,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from kgav.provenance import check_layer
+
 CHEMBL_DB = Path("data/raw/chembl/chembl_37/chembl_37_sqlite/chembl_37.db")
 
 
@@ -164,17 +166,28 @@ def plan(root: Path, env: dict | None = None) -> list[dict]:
         for layer in (x for x in LAYERS if x.phase == phase):
             ok, why = availability(layer, root, env)
             d = layer_dir(root, layer.name)
+            # WHICH CODE WROTE IT, alongside whether it exists. `existing`
+            # is what makes a skipped layer get REUSED rather than dropped,
+            # and until 2026-11-02 that was the whole story a caller could
+            # tell. It is not enough: a phase-3 layer reused from a run
+            # before its own module was patched kills the phase-2 assemble
+            # of the next run, before the ingest that would fix it. See
+            # provenance.check_layer.
+            code, code_reason = check_layer(d, root / "scripts" / layer.script,
+                                            root)
             steps.append({"kind": "layer", "name": layer.name,
                           "script": layer.script, "phase": phase,
                           "run": ok, "reason": why,
                           "required": layer.required,
                           "existing": d.exists(),
+                          "code": code, "code_reason": code_reason,
                           "written": (d.stat().st_mtime if d.exists()
                                       else None)})
         steps.append({"kind": "assemble", "name": "assemble",
                       "script": ASSEMBLE, "phase": phase + 1,
                       "run": True, "reason": "", "required": True,
-                      "existing": False, "written": None})
+                      "existing": False, "code": "n/a", "code_reason": "",
+                      "written": None})
     return steps
 
 
