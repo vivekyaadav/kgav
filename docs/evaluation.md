@@ -2,17 +2,30 @@
 
 ## The claim
 
-**Of seven reasoning channels, two were ever evaluated. Both are
-indistinguishable from chance. The other five reach too few measured actives
+**Of eight reasoning channels, two were ever evaluated. Both are
+indistinguishable from chance. The other six reach too few measured actives
 for their AUCs to describe anything but the imputed floor.**
+
+<!-- BLOCK: claim_channels — asserted line by line by
+     tests/test_claim_block.py against data/results/hard_negatives.json,
+     the single-screen publication-disjoint protocol (row 5). Do not
+     hand-edit; re-derive by running the Reproducing block.
+
+     Everything here is derived: which channels are `evaluated` is
+     reached >= kgav.calibration.MIN_REACHED_POSITIVES, the intervals are
+     kgav.labels.auc_interval, the reach counts are
+     round(coverage_pos * n_pos), and the three counts in the sentence
+     above are the channel totals. "M8 emits no paths at all" was true
+     once and stopped being true -- it reaches 82 drugs and one labelled
+     active -- which is also why the first count is eight, not seven. -->
 
     evaluated   M4  0.507 [0.447, 0.568]   reaches 15 of 89 actives
                 M5  0.516 [0.455, 0.577]   reaches 14 of 89
 
-    not         M3  reaches  9    M2 reaches 5    M1 reaches 3
-    evaluated   M6  reaches  1    M7 reaches 0    M8 emits no paths at all
+    not         M3  reaches  9    M6 reaches 7    M2 reaches 5
+    evaluated   M1  reaches  3    M8 reaches 1    M7 reaches 0
 
-    baseline    degree 0.584 [0.522, 0.647] — the only scorer clear of 0.5,
+    baseline    degree 0.606 [0.544, 0.669] — the only scorer clear of 0.5,
                 and it is the null hypothesis, not a reasoning channel
 
 So a calibrated ranking returns nothing, and that is the correct output. The
