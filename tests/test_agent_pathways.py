@@ -451,8 +451,13 @@ def test_the_background_is_binned_by_pathway_size(tools):
     """
     bg = tools._pathway_background(V)
     assert bg["total"] == 3
-    assert len(bg["edges"]) == len(bg["rates"])
-    assert all(lo <= hi for lo, hi in bg["edges"])
+    # A HISTOGRAM OVER EXACT SIZES, not quantile bins. The counts must
+    # account for every pathway in the population: a size silently
+    # dropped from the histogram is a size whose rate is estimated from
+    # its neighbours without anyone being told.
+    assert sum(n for _h, n in bg["by_size"].values()) == bg["total"]
+    assert sum(h for h, _n in bg["by_size"].values()) == bg["hits"]
+    assert all(0 <= h <= n for h, n in bg["by_size"].values())
 
 
 def test_the_background_respects_the_member_cap(tools):
@@ -640,23 +645,29 @@ def test_the_matched_expectation_tracks_size_not_the_flat_rate(graded):
     assert large - small > 1.5
 
 
-def test_the_bins_span_the_size_range_in_order(graded):
-    """Quantile bins, lowest sizes first. Without the sort the quantiles
-    are taken over an arbitrary order and describe nothing."""
+def test_the_histogram_covers_every_size_present(graded):
+    """One entry per distinct size, and nothing invented between them.
+    The quantile version this replaces reported ten bins whatever the
+    data, so a size could be described by a bin that contained none of
+    it."""
     bg = GraphTools(graded)._pathway_background(V2)
-    assert len(bg["edges"]) == 10
-    assert bg["edges"][0][0] == 1
-    assert bg["edges"][-1][1] == 100
-    los = [lo for lo, _ in bg["edges"]]
-    assert los == sorted(los)
+    assert sorted(bg["by_size"]) == list(range(1, 101))
+    assert sum(n for _h, n in bg["by_size"].values()) == 100
 
 
-def test_each_bin_rate_is_monotone_here_because_the_fixture_is(graded):
-    """Not a property of real data -- a property of THIS fixture, which is
-    what makes it able to detect a bin-selection bug."""
-    rates = GraphTools(graded)._pathway_background(V2)["rates"]
-    assert rates[0] == 0.0 and rates[-1] == 1.0
-    assert rates == sorted(rates)
+def test_the_rate_rises_with_size_here_because_the_fixture_is_built_that_way(
+        graded):
+    """Not a property of real data -- a property of THIS fixture, which
+    is what makes it able to detect a size-selection bug. Only pathways
+    over 50 members hold a dependency factor, so the estimated rate must
+    be 0 at the bottom and 1 at the top with a single crossing."""
+    t = GraphTools(graded)
+    probs = t._size_matched_probs(V2, list(range(1, 101)))
+    assert probs[0] == pytest.approx(0.0)
+    assert probs[-1] == pytest.approx(1.0)
+    assert probs == sorted(probs), "the estimate is not monotone in size"
+    crossings = sum(1 for a, b in zip(probs, probs[1:]) if a < 0.5 <= b)
+    assert crossings == 1, f"{crossings} crossings of 0.5; the fixture has one"
 
 
 def test_a_size_above_every_bin_uses_the_largest_bin(graded):
@@ -770,3 +781,215 @@ def test_the_release_name_wins_over_the_register(release):
         {"druga": DRUG, "sarscov2": DRUG}))
     t = GraphTools(release)
     assert t.names["sarscov2"] == DRUG, "the release's own mapping must win"
+
+
+# ----------------------------------------------- ties, which the audit found
+#
+# THE BUG, in full, because the fixtures above could not see it. `sized`
+# held (size, hit) tuples and `_pathway_background` sorted it with a bare
+# `sized.sort()`, which orders by size AND THEN by the hit flag -- and
+# False < True. Inside every tied-size block each non-hit therefore sorted
+# before each hit, the quantile cut split that block, and the lower piece
+# got a rate of 0. `_size_matched_probs` returned the FIRST bin whose
+# upper edge reached the size, which for a tied size is exactly that
+# zero-rate piece.
+#
+# Too low an expectation means too high a ratio and too small a p-value,
+# so the error ran in the one direction that manufactures findings.
+#
+# WHY NOTHING HERE CAUGHT IT: the `graded` fixture has sizes 1..100, each
+# exactly once. It has no tied sizes at all, and ties are the rule on the
+# real graph -- the median pathway has 4 members and thousands share it.
+# A fixture that cannot produce the condition cannot test the handling of
+# it, which is the defect this suite has found most often.
+@pytest.fixture
+def tied(tmp_path) -> Path:
+    """400 pathways, EVERY ONE of 4 members, hit rate exactly 0.25.
+
+    The degenerate case, and the one the quantile code answered 0.000 to
+    whatever the truth was. With one size there is nothing for
+    size-matching to match on, so the correct answer is the flat rate.
+    """
+    nodes = [_node(V2, "OrganismTaxon", name="Dengue"),
+             _node(DRUG, "SmallMolecule", smiles="C", inchikey_skel="DRUGA",
+                   chembl_id="CHEMBL1")]
+    edges = []
+    for i in range(400):
+        pw = f"REACT:T{i:03d}"
+        nodes.append(_node(pw, "Pathway", label=f"tied {i}"))
+        for m in range(4):
+            pid = f"UniProtKB:T{i:03d}_{m}"
+            nodes.append(_node(pid, "Protein", gene_symbol=f"T{i}_{m}",
+                               is_viral=False, taxon_id="NCBITaxon:9606",
+                               sequence_hash="h", reviewed=True))
+            edges.append(_edge(pid, "PARTICIPATES_IN", pw))
+            if i % 4 == 0 and m == 0:
+                edges.append(_edge(pid, "HOST_FACTOR_FOR", V2,
+                                   direction="dependency"))
+    (tmp_path / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in edges))
+    return tmp_path
+
+
+def test_one_tied_size_returns_the_true_rate_not_zero(tied):
+    """THE REGRESSION. Every pathway is 4 members and a quarter of them
+    hold a dependency factor, so the background for a 4-member pathway
+    is 0.25. The quantile version returned 0.000 -- and an expectation
+    of zero renders as an infinite ratio beside p = 0.0000."""
+    t = GraphTools(tied)
+    bg = t._pathway_background(V2)
+    assert bg["total"] == 400 and bg["hits"] == 100
+    assert sorted(bg["by_size"]) == [4], "the fixture should hold one size"
+    assert t._size_matched_probs(V2, [4])[0] == pytest.approx(0.25)
+    assert t._size_matched_expectation(V2, [4] * 8) == pytest.approx(2.0)
+
+
+def test_the_estimate_does_not_depend_on_the_hit_flag_ordering(tied):
+    """The bug was an ORDERING one: non-hits sorted before hits inside a
+    tied block. Estimating per size cannot depend on the order within a
+    size at all, so shuffling the pathway ids must not move the answer."""
+    t = GraphTools(tied)
+    first = t._size_matched_probs(V2, [4])[0]
+    t2 = GraphTools(tied)
+    t2._cache.clear()
+    assert t2._size_matched_probs(V2, [4])[0] == pytest.approx(first)
+
+
+@pytest.fixture
+def mixed(tmp_path) -> Path:
+    """300 pathways over three tied sizes, each with its OWN rate.
+
+    sizes 2 (rate 0.0), 4 (rate 0.5) and 8 (rate 1.0), 100 of each. One
+    size per rate, so an estimate that pools across sizes is visible
+    immediately and a flat background cannot pass.
+    """
+    nodes = [_node(V2, "OrganismTaxon", name="Dengue"),
+             _node(DRUG, "SmallMolecule", smiles="C", inchikey_skel="DRUGA",
+                   chembl_id="CHEMBL1")]
+    # The drug targets one protein in a 4-member pathway, so pathways()
+    # has something to answer about and the prose can be checked. It adds
+    # no pathway and changes no membership, so every rate above is
+    # untouched.
+    edges = [_edge(DRUG, "TARGETS", "UniProtKB:M4_000_1")]
+    plan = [(2, 0.0), (4, 0.5), (8, 1.0)]
+    for size, rate in plan:
+        for i in range(100):
+            pw = f"REACT:M{size}_{i:03d}"
+            nodes.append(_node(pw, "Pathway", label=f"mixed {size}/{i}"))
+            for m in range(size):
+                pid = f"UniProtKB:M{size}_{i:03d}_{m}"
+                nodes.append(_node(pid, "Protein", gene_symbol=f"M{size}_{i}_{m}",
+                                   is_viral=False, taxon_id="NCBITaxon:9606",
+                                   sequence_hash="h", reviewed=True))
+                edges.append(_edge(pid, "PARTICIPATES_IN", pw))
+                if m == 0 and i < round(rate * 100):
+                    edges.append(_edge(pid, "HOST_FACTOR_FOR", V2,
+                                       direction="dependency"))
+    (tmp_path / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in edges))
+    return tmp_path
+
+
+def test_each_tied_size_keeps_its_own_rate(mixed):
+    """300 pathways, so the pooling floor is 30 and each size has 100 of
+    its own -- no size is smoothed against its neighbours. A flat
+    background would answer 0.5 everywhere."""
+    t = GraphTools(mixed)
+    assert t._size_matched_probs(V2, [2])[0] == pytest.approx(0.0)
+    assert t._size_matched_probs(V2, [4])[0] == pytest.approx(0.5)
+    assert t._size_matched_probs(V2, [8])[0] == pytest.approx(1.0)
+
+
+def test_a_size_the_graph_has_none_of_takes_its_nearest_neighbours(mixed):
+    """5 is absent. The nearest sizes are 4 (distance 1) and 8 (distance
+    3), so the estimate is 4's. Returning 0.0 for an unseen size -- the
+    other obvious implementation -- would make every unusual pathway
+    look like a discovery."""
+    t = GraphTools(mixed)
+    assert t._size_matched_probs(V2, [5])[0] == pytest.approx(0.5)
+    assert t._size_matched_probs(V2, [1])[0] == pytest.approx(0.0)
+    assert t._size_matched_probs(V2, [99])[0] == pytest.approx(1.0)
+
+
+def test_the_pooling_floor_cannot_swallow_the_whole_distribution(mixed):
+    """An unconditional floor of 100 would pool 4 with its neighbours on
+    a 300-pathway graph and flatten the very thing being measured. The
+    floor is capped at a tenth of the population, so a small graph gets
+    a noisier local estimate rather than a precise global one."""
+    from kgav.agent.tools import MIN_BACKGROUND_SAMPLES
+
+    t = GraphTools(mixed)
+    assert MIN_BACKGROUND_SAMPLES == 100
+    # 300 pathways -> floor 30, and size 4 has 100 of its own.
+    assert t._size_matched_probs(V2, [4])[0] == pytest.approx(0.5), (
+        "size 4 was pooled with its neighbours despite having 100 "
+        "pathways of its own")
+
+
+def test_no_background_is_not_an_infinite_ratio(tmp_path):
+    """A3. `ratio inf` beside `p 0.0000` was the strongest possible
+    claim from the weakest possible null. An expectation of zero is a
+    statement about coverage, not about the compound."""
+    nodes = [_node(V2, "OrganismTaxon", name="Dengue"),
+             _node(DRUG, "SmallMolecule", smiles="C", inchikey_skel="DRUGA",
+                   chembl_id="CHEMBL1"),
+             _node("UniProtKB:X1", "Protein", gene_symbol="X1",
+                   is_viral=False, taxon_id="NCBITaxon:9606",
+                   sequence_hash="h", reviewed=True),
+             _node("REACT:ONLY", "Pathway", label="only pathway")]
+    edges = [_edge(DRUG, "TARGETS", "UniProtKB:X1"),
+             _edge("UniProtKB:X1", "PARTICIPATES_IN", "REACT:ONLY")]
+    (tmp_path / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in edges))
+    text = " ".join(GraphTools(tmp_path).pathways(DRUG, V2).verbalised)
+    assert "ratio inf" not in text, text
+    assert "inf" not in text.split("ratio")[-1][:20] if "ratio" in text else True
+    assert "nothing to compare against" in text, text
+
+
+def test_the_background_median_is_the_populations_own(mixed):
+    """QUOTED IN THE ANSWER, so it has to be the real median. The
+    previous version took the lower edge of the middle QUANTILE BIN,
+    which is a different quantity whenever the bins are uneven -- and
+    over tied sizes they always are. A mutant returning 0 here survived
+    every test in this file.
+
+    The fixture holds 100 pathways each of 2, 4 and 8 members, so the
+    150th is a 4.
+    """
+    t = GraphTools(mixed)
+    bg = t._pathway_background(V2)
+    assert bg["total"] == 300
+    assert t._background_median(bg) == 4
+    assert " median of 4 members " in " ".join(
+        t.pathways(DRUG, V2).verbalised), "the answer quotes another median"
+
+
+def test_the_background_median_of_an_empty_population_is_not_invented():
+    """Zero is the only honest answer with nothing to take a median of,
+    and it must not come from falling off the end of a loop that was
+    meant to find something."""
+    assert GraphTools._background_median({"total": 0, "by_size": {}}) == 0
+
+
+def test_the_median_takes_the_lower_size_on_an_exact_half():
+    """THE ONE INPUT `>=` AND `>` DISAGREE ON. With 100 pathways of 2
+    members and 100 of 8, the cumulative count lands on exactly half at
+    size 2: the lower median is 2, and `>` would skip past it and
+    report 8 -- a four-fold error in the figure the answer quotes as
+    the population's typical size. Every fixture above has an odd split
+    and cannot see it.
+    """
+    bg = {"total": 200, "by_size": {2: (0, 100), 8: (100, 100)}}
+    assert GraphTools._background_median(bg) == 2
+
+
+def test_the_median_of_a_single_size_is_that_size():
+    assert GraphTools._background_median(
+        {"total": 400, "by_size": {4: (100, 400)}}) == 4

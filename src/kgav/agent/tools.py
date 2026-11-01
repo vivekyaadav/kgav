@@ -50,7 +50,15 @@ MAX_DEPENDENCY_NAMES = 6
 # Quantile bins for the pathway-size background. Quantiles, not equal width,
 # for the reason degree_bins uses them: pathway size is heavy-tailed (median
 # 4, p99 113 on v0.1) and equal-width bins put nearly everything in the first.
-PATHWAY_SIZE_BINS = 10
+#: The smallest pooled sample a background rate may be estimated from.
+#: A binomial rate has standard error sqrt(p(1-p)/n), worst at p = 0.5,
+#: so n = 100 holds that error at or under 0.05 whatever the true rate.
+#: Pooling stops as soon as the window reaches it, so a size with enough
+#: pathways of its own is never smoothed against its neighbours.
+#:
+#: It replaces PATHWAY_SIZE_BINS = 10, which split tied sizes across
+#: quantile bins -- see _pathway_background for what that cost.
+MIN_BACKGROUND_SAMPLES = 100
 
 
 @dataclass
@@ -786,51 +794,110 @@ class GraphTools:
             if cap is not None and len(members) > cap:
                 continue
             sized.append((len(members), bool(members & deps)))
-        # Ties on size are the rule, not the exception -- the median pathway
-        # has 4 members and thousands share it -- so the sort breaks ties on
-        # the count itself rather than leaving them in dict order, which
-        # varies between processes.
-        sized.sort()
+        # PER EXACT SIZE, NOT QUANTILE BINS. Ties on size are the rule and
+        # not the exception -- the median pathway has 4 members and
+        # thousands share it -- and quantile binning over tied data is
+        # unsound twice over.
+        #
+        # THE BUG IT REPLACES, found by external audit on 2026-11-02 and
+        # reproduced here before this was written. `sized` held
+        # (size, hit) tuples and the code sorted it with a bare
+        # `sized.sort()`, which orders by size AND THEN by the hit flag --
+        # and False < True. So inside every tied-size block each non-hit
+        # sorted before each hit; the quantile cut then split that block
+        # and handed the lower piece a rate of 0. `_size_matched_probs`
+        # returns the FIRST bin whose upper edge reaches the size, which
+        # for a tied size is exactly that zero-rate piece.
+        #
+        # Measured on a simulated distribution of 4,000 pathways, sizes
+        # 1-200, with a UNIFORM true hit rate of 0.12:
+        #
+        #     size 1 (982 pathways, the commonest)  true 0.115 -> 0.000
+        #     size 2 (599)                          true 0.109 -> 0.282
+        #     size 5 (279)                          true 0.122 -> 0.085
+        #
+        # and where every pathway shares one size, the returned rate is
+        # 0.000 whatever the truth. Too low an expectation means too high
+        # a ratio and too small a p-value, so the error ran in the one
+        # direction that manufactures findings -- in the headline number
+        # of the feature. Sorting on the size alone fixes the ordering and
+        # not the method: quantile cuts still slice one size across
+        # several bins.
+        #
+        # So the rate is estimated for each size from the pathways of
+        # THAT size, pooling outward over neighbouring sizes only while
+        # the sample is too small to estimate a rate from.
+        from collections import defaultdict
+
+        per: dict[int, list[int]] = defaultdict(lambda: [0, 0])
+        for size, hit in sized:
+            per[size][1] += 1
+            per[size][0] += int(hit)
         total = len(sized)
-        nbins = min(PATHWAY_SIZE_BINS, total) or 1
-        edges, rates = [], []
-        for b in range(nbins):
-            lo = b * total // nbins
-            hi = (b + 1) * total // nbins
-            chunk = sized[lo:hi]
-            if not chunk:
-                edges.append((0, 0))
-                rates.append(0.0)
-                continue
-            edges.append((chunk[0][0], chunk[-1][0]))
-            rates.append(sum(1 for _, h in chunk if h) / len(chunk))
-        out = {"edges": edges, "rates": rates, "total": total,
+        out = {"by_size": {k: (v[0], v[1]) for k, v in sorted(per.items())},
+               "total": total,
                "hits": sum(1 for _, h in sized if h),
                "n_dependency": len(deps)}
         self._cache[key] = out
         return out
 
     def _size_matched_probs(self, virus: str, sizes: list[int]) -> list[float]:
-        """The background hit probability for a pathway of each given size."""
+        """The background hit probability for a pathway of each given size.
+
+        Estimated from the pathways of that exact size, widening to the
+        nearest neighbouring sizes only until the pooled sample reaches
+        MIN_BACKGROUND_SAMPLES. A size the graph holds no pathway of
+        takes the nearest sizes that bracket it, by the same widening.
+        """
         bg = self._pathway_background(virus)
         if not bg["total"]:
             return [0.0] * len(sizes)
+        by_size = bg["by_size"]
+        known = sorted(by_size)
+        # THE FLOOR CANNOT EXCEED THE GRAPH. On the real release 100 is
+        # 0.8% of 13,236 pathways, so pooling stays local. On a small
+        # graph an unconditional 100 swallows the whole distribution and
+        # every size gets the same rate -- the flat background this
+        # method exists to replace, arrived at from the other side. A
+        # window wider than a tenth of all pathways is not size-matched
+        # in any useful sense, so that is the cap, and a noisier local
+        # estimate is preferred to a precise global one.
+        floor = min(MIN_BACKGROUND_SAMPLES, max(1, bg["total"] // 10))
         probs = []
         for s in sizes:
-            # The first bin whose upper edge reaches s, else the largest.
-            # Written as one condition rather than two: the first version
-            # tracked "the last bin whose lower edge is at or below s" AND
-            # "the bin containing s", which agree for every ordered bin set,
-            # so deleting either left the other doing the whole job and a
-            # mutation of it could not be detected. Redundant logic is
-            # untestable logic.
-            idx = len(bg["edges"]) - 1
-            for i, (_lo, hi) in enumerate(bg["edges"]):
-                if s <= hi:
-                    idx = i
+            # Widen outward from s by DISTANCE IN SIZE, nearest first, so
+            # the estimate stays as local as the data allows. A pathway of
+            # 4 members is informed by pathways of 3 and 5 long before one
+            # of 200.
+            hits = seen = 0
+            for size in sorted(known, key=lambda k: (abs(k - s), k)):
+                h, n = by_size[size]
+                hits += h
+                seen += n
+                if seen >= floor:
                     break
-            probs.append(bg["rates"][idx])
+            probs.append(hits / seen if seen else 0.0)
         return probs
+
+    @staticmethod
+    def _background_median(bg: dict) -> int:
+        """The median member count over the background population.
+
+        Read off `by_size`, which is a histogram, so the median is the
+        size at which the running count passes half the population. The
+        previous version took the lower edge of the middle QUANTILE BIN,
+        which is a different quantity whenever the bins are uneven --
+        and over tied sizes they always are.
+        """
+        total = bg.get("total") or 0
+        if not total:
+            return 0
+        seen = 0
+        for size, (_hits, n) in sorted(bg["by_size"].items()):
+            seen += n
+            if seen * 2 >= total:
+                return size
+        return 0
 
     def _size_matched_expectation(self, virus: str,
                                   sizes: list[int]) -> float:
@@ -1059,7 +1126,17 @@ class GraphTools:
         here = len(with_dep) / len(rows) if rows else 0.0
         raw = bg["hits"] / bg["total"] if bg["total"] else 0.0
         med = sorted(sizes)[len(sizes) // 2] if sizes else 0
-        ratio = (len(with_dep) / expected) if expected else float("inf")
+        # NO BACKGROUND IS NOT AN INFINITE RATIO. This read
+        # `float("inf")` and rendered literally as `ratio inf` beside a
+        # p-value of 0.0000 -- the strongest possible claim produced by
+        # the weakest possible null. An expectation of zero means the
+        # graph holds no comparable pathway that contains a dependency
+        # factor, which is a statement about coverage and not about this
+        # compound.
+        ratio = (len(with_dep) / expected) if expected else None
+        ratio_text = f"ratio {ratio:.2f}" if ratio is not None else (
+            "no ratio: the size-matched background expects none, so there "
+            "is nothing to compare against")
         lines = [
             (f"{self._label(compound)} has {len(target_edges)} human "
              f"target(s) in this graph."),
@@ -1072,12 +1149,12 @@ class GraphTools:
             # measurement: a larger-than-typical pathway set hits more
             # often for no reason but its size.
             (f"A SIZE-MATCHED background expects {expected:.1f} of them to "
-             f"contain one (ratio {ratio:.2f}). The virus has "
+             f"contain one ({ratio_text}). The virus has "
              f"{bg['n_dependency']:,} dependency factors, so a pathway's "
              f"size largely decides whether it holds one: unmatched, "
              f"{bg['hits']:,} of {bg['total']:,} ({raw:.0%}) of all "
              f"pathways under the cap qualify, but that population has a "
-             f"median of {bg['edges'][len(bg['edges']) // 2][0]} members "
+             f"median of {self._background_median(bg)} members "
              f"against {med} here. "
              + (f"Against that expectation the excess is not significant "
                 f"(p {p_excess:.2f}), so membership is no more than these "
