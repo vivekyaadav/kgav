@@ -8,6 +8,9 @@
   "unwithholdable": 50,
   "evidence_predicate": "INHIBITS",
   "label_predicate": "HAS_ANTIVIRAL_ACTIVITY_AGAINST",
+  "viral_proteins_reached": 22,
+  "compounds_with_inhibits_to_viral": 3737,
+  "small_molecules": 25383,
   "provenance": {
     "release": {
       "id": "v0.1",
@@ -15,10 +18,10 @@
       "edges_sha": "3863a5452838dc40"
     },
     "code": {
-      "commit": "e1dc0e848b123dff35b0c072e87c6e20f3f88634",
+      "commit": "a9892bd2a5a97eb4f6b0eef047cdd6877cd239a6",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-01T20:40:49+00:00"
+    "generated_utc": "2026-11-01T20:47:14+00:00"
   }
 }
