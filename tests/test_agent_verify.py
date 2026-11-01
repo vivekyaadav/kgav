@@ -366,3 +366,147 @@ def test_the_facts_are_taken_whole_not_filtered():
                ["nirmatrelvir: 5 routes, best ic50_nm=5 [Eabc123]"],
                ["Eabc123"])
     assert v.passed, [f.detail for f in v.findings]
+
+
+# ------------------------------------ numbers are paired with their units (A8)
+#
+# WHAT THIS IS FOR. The number check held BARE numeric tokens, so any
+# number in the facts could be reattached to any claim with any unit.
+# Reproduced against a fact reading `IC50 19 nM`, every one of these
+# verified clean before 2026-11-02:
+#
+#     "IC50 19 uM"              a 1000-fold error
+#     "19 mM"                   a million-fold error
+#     "inhibits nsp5 by 19%"    a potency reread as an efficacy
+#     "inhibits nsp5 19-fold"   the same, as a ratio
+#
+# The earlier UNIT_RE work made the ordinal exclusions unit-aware -- it
+# stopped "3 nM" being dropped as a small number -- and never checked the
+# pairing. Found by external audit.
+_POTENCY_FACT = "nirmatrelvir INHIBITS nsp5 (IC50 19 nM) [e1]"
+
+
+def _fails(answer: str, facts: list[str]) -> list[str]:
+    v = verify(answer, facts, ["e1"])
+    return [f.code for f in v.findings if f.severity == "fail"]
+
+
+@pytest.mark.parametrize("answer,why", [
+    ("nirmatrelvir inhibits nsp5 with an IC50 of 19 uM [e1]", "1000-fold"),
+    ("nirmatrelvir inhibits nsp5 with an IC50 of 19 mM [e1]", "million-fold"),
+    ("nirmatrelvir inhibits nsp5 with an IC50 of 19 pM [e1]", "1000-fold down"),
+    ("nirmatrelvir inhibits nsp5 by 19% [e1]", "potency as efficacy"),
+    ("nirmatrelvir inhibits nsp5 19-fold [e1]", "potency as a ratio"),
+    ("nirmatrelvir inhibits nsp5 19x [e1]", "the same, abbreviated"),
+])
+def test_the_right_number_with_the_wrong_unit_is_a_finding(answer, why):
+    assert "ungrounded_number" in _fails(answer, [_POTENCY_FACT]), why
+
+
+def test_the_right_number_with_the_right_unit_passes():
+    """The check must not fire on the answer it exists to allow."""
+    assert _fails(
+        "nirmatrelvir inhibits nsp5 with an IC50 of 19 nM [e1]",
+        [_POTENCY_FACT]) == []
+
+
+@pytest.mark.parametrize("spelling", ["19 nM", "19 nm", "19nM", "19 nmol"])
+def test_spellings_of_one_unit_compare_equal(spelling):
+    """Pairing must not turn a formatting difference into a fabrication
+    report -- that would make the check unusable and it would be turned
+    off, which is worse than the hole it closes."""
+    assert _fails(f"the IC50 is {spelling} [e1]", [_POTENCY_FACT]) == []
+
+
+def test_a_unit_carried_in_the_fact_key_still_grounds_the_answer():
+    """A fact may write `ic50_nm=19` rather than `IC50 19 nM`. The
+    module's own docstring records an earlier change breaking exactly
+    this, so the facts side reads the key suffix too."""
+    assert _fails("the IC50 is 5 nM [e1]",
+                  ["qualifiers ic50_nm=5 for this edge [e1]"]) == []
+
+
+def test_a_fact_grounds_the_same_number_mentioned_without_a_unit():
+    """The facts side emits the bare number as well as the pair. An
+    answer that names the figure without repeating the unit is vague,
+    not fabricated, and reporting it would bury the real findings."""
+    assert _fails("the value is 19 [e1]", [_POTENCY_FACT]) == []
+
+
+def test_a_number_absent_from_the_facts_is_still_a_finding():
+    """The original purpose of the check, which the pairing must not
+    weaken."""
+    assert "ungrounded_number" in _fails(
+        "the IC50 is 750 nM [e1]", [_POTENCY_FACT])
+
+
+def test_a_fold_change_in_the_facts_grounds_a_fold_change_in_the_answer():
+    """Allowing a hyphen as the unit separator must not make every
+    hyphenated number ungrounded."""
+    assert _fails("a 19-fold increase [e1]",
+                  ["measured a 19-fold increase [e1]"]) == []
+
+
+def test_two_potencies_cannot_be_swapped_between_claims():
+    """THE SHAPE THE AUDIT CALLS SET CONTAINMENT. Both numbers and both
+    units are present in the facts, so a bare-token check passes a
+    claim that attaches each to the wrong edge."""
+    facts = ["drugA INHIBITS nsp5 (IC50 19 nM) [e1]",
+             "drugB INHIBITS nsp12 (IC50 400 uM) [e2]"]
+    # Right pairing.
+    assert verify("drugA reads 19 nM and drugB reads 400 uM [e1] [e2]",
+                  facts, ["e1", "e2"]).passed
+    # Units swapped: 19 uM and 400 nM are each individually "present".
+    bad = [f.code for f in verify(
+        "drugA reads 19 uM and drugB reads 400 nM [e1] [e2]",
+        facts, ["e1", "e2"]).findings if f.severity == "fail"]
+    assert "ungrounded_number" in bad
+
+
+# ---------------------------------- the unit vocabulary itself, not just pairs
+def test_no_alias_is_unreachable():
+    """DEAD CODE THAT LOOKS LIKE NORMALISING IS WORSE THAN NONE.
+    Python's alternation is ordered, and UNIT_RE listed `nm` before
+    `nmol`, so "nmol" was captured as "nm" and three entries in
+    _UNIT_ALIASES could never fire. Found by a mutant that deleted the
+    whole alias map with no test noticing.
+    """
+    from kgav.agent.verify import UNIT_RE, _UNIT_ALIASES
+
+    unreachable = [
+        k for k in _UNIT_ALIASES
+        if not UNIT_RE.match(" " + k, 0)
+        or UNIT_RE.match(" " + k, 0).group(0).strip(" -").lower() != k]
+    assert unreachable == [], (
+        f"UNIT_RE never produces {unreachable}, so their alias entries "
+        f"are dead -- put the longer alternative first")
+
+
+@pytest.mark.parametrize("a,b", [
+    ("19 nmol", "19 nM"),      # alias, and the one the reorder fixed
+    ("19 percent", "19%"),
+    ("19 x", "19-fold"),
+    ("19 µm", "19 um"),
+    ("19 hours", "19 h"),
+    ("19-fold", "19 fold"),    # the separator, not the unit
+    ("19-day", "19 days"),
+])
+def test_two_spellings_of_one_unit_are_one_token(a, b):
+    """A formatting difference must not read as a fabricated figure, or
+    the check becomes unusable and gets switched off."""
+    from kgav.agent.verify import UNIT_RE, _unit_token
+
+    ta = _unit_token(UNIT_RE.match(a, a.index(" ") if " " in a else 2).group(0))
+    tb = _unit_token(UNIT_RE.match(b, b.index(" ") if " " in b else 2).group(0))
+    assert ta == tb, f"{a} -> {ta!r} but {b} -> {tb!r}"
+
+
+def test_the_separator_is_stripped_from_the_unit():
+    """UNIT_RE matches its own separator, so `.strip()` alone left the
+    hyphen attached and "19-fold" did not equal "19 fold". Introduced
+    by the hyphen change in the commit that needed it."""
+    from kgav.agent.verify import _unit_token
+
+    assert _unit_token("-fold") == "fold"
+    assert _unit_token(" nM") == "nm"
+    assert _unit_token("  -  ") == ""

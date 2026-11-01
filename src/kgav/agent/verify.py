@@ -46,9 +46,19 @@ NUMBER_RE = re.compile(r"\d+(?:[.,]\d+)*")
 # v0.1 is 3 nM, so the exempted range is exactly where the most potent
 # compounds live -- and a 100-fold error in a potency is the kind of plausible
 # wrong number this module's docstring says is hardest to catch.
+# THE SEPARATOR MAY BE A HYPHEN. "19-fold" and "19-day" are unit-bearing
+# and were read as a bare 19, which matched any 19 in the facts -- so a
+# potency reread as a ratio verified clean. Added 2026-11-02.
+# LONGEST ALTERNATIVE FIRST. Python's alternation is ordered, so with
+# `nm` ahead of `nmol` the regex captured "nmol" as "nm" and left "ol"
+# dangling -- which happened to be harmless here, and meant three
+# entries in _UNIT_ALIASES could never fire. Dead code that looks like
+# it is normalising something is worse than no normalising. Found by a
+# surviving mutant that deleted the alias map with no test noticing.
 UNIT_RE = re.compile(
-    r"\s*(?:nm|µm|um|mm|pm|molar|m\b|%|percent|fold|x\b|×|nmol|µmol|umol"
-    r"|mg|µg|ug|kg|ml|µl|ul|l\b|kda|da\b|hours?|hrs?|h\b|days?|min)",
+    r"[\s-]*(?:nmol|µmol|umol|molar|percent|hours?|hrs?|days?|kda|fold"
+    r"|nm|µm|um|mm|pm|mg|µg|ug|kg|ml|µl|ul|da\b|min"
+    r"|m\b|l\b|h\b|x\b|%|×)",
     re.IGNORECASE)
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
 
@@ -196,7 +206,38 @@ def _caveat_name(warning) -> str:
     return getattr(warning, "key", None) or str(warning)[:70]
 
 
-def _numbers(text: str, exclude_ordinals: bool = True) -> set[str]:
+#: Spellings that mean the same magnitude, so "19 nM" and "19 nm" and
+#: "19 nmol" compare equal and "19 uM" does not compare equal to any of
+#: them. Anything not listed keeps its own lowercased spelling.
+_UNIT_ALIASES = {
+    "nmol": "nm", "\u00b5m": "um", "umol": "um", "\u00b5mol": "um",
+    "molar": "m", "percent": "%", "x": "fold", "\u00d7": "fold",
+    "\u00b5g": "ug", "\u00b5l": "ul", "hrs": "h", "hr": "h",
+    "hours": "h", "hour": "h", "days": "day", "da": "da",
+}
+
+#: A fact may carry the unit in the KEY rather than after the number --
+#: `ic50_nm=19`, `ki_nm: 3`. Matched so the facts side can pair those too;
+#: without it every unit-bearing answer would read as ungrounded.
+_KEYED_UNIT_RE = re.compile(
+    r"[a-z0-9_]*_(nm|um|mm|pm|molar|pct|percent|fold|mg|ug|kg|ml|ul|kda|da)"
+    r"\s*[=:]\s*$", re.IGNORECASE)
+
+
+def _unit_token(raw: str) -> str:
+    """The unit, stripped of its separator and normalised.
+
+    The separator is part of the match -- UNIT_RE starts `[\\s-]*` so that
+    "19-fold" is unit-bearing -- and `.strip()` alone leaves the hyphen
+    on, so "19-fold" and "19 fold" did not compare equal. Introduced by
+    the hyphen change in the same commit that needed it.
+    """
+    u = (raw or "").strip(" \t\r\n-").lower()
+    return _UNIT_ALIASES.get(u, u)
+
+
+def _numbers(text: str, exclude_ordinals: bool = True,
+             facts_side: bool = False) -> set[str]:
     """Numeric tokens, normalised so 1,560 and 1560 compare equal.
 
     Years and small ordinals are excluded: "the 2021 study" and "Route 1" are
@@ -208,20 +249,45 @@ def _numbers(text: str, exclude_ordinals: bool = True) -> set[str]:
     the answer side became unit-aware it was not, and an answer reading
     "5 nM" against a fact reading "ic50_nm=5" was reported as an ungrounded
     figure. The facts are the ground truth here and are taken whole.
+
+    A NUMBER IS PAIRED WITH ITS UNIT, which it was not until 2026-11-02.
+    The set held bare numeric tokens, so any number in the facts could be
+    reattached to any claim with any unit. Against a fact reading
+    `IC50 19 nM`, every one of these verified clean:
+
+        "IC50 19 uM"              a 1000-fold error
+        "19 mM"                   a million-fold error
+        "inhibits nsp5 by 19%"    a potency reread as an efficacy
+        "inhibits nsp5 19-fold"   the same, as a ratio
+
+    The earlier UNIT_RE work made the exclusions unit-aware -- it stopped
+    "3 nM" being dropped as a small ordinal -- and never checked the
+    PAIRING. Found by external audit.
+
+    `facts_side` emits the bare number as well as the pair, because a fact
+    is ground truth for both a united and an un-united mention of it. The
+    answer side emits the pair alone, which is what makes a wrong unit a
+    finding.
     """
     out = set()
     t = text or ""
     for m in NUMBER_RE.finditer(t):
         norm = m.group(0).replace(",", "")
-        # A unit immediately after the number makes it a magnitude claim, so
-        # neither exclusion applies: "3 nM" is checked, "Route 1" is not.
-        united = bool(UNIT_RE.match(t, m.end()))
-        if exclude_ordinals and not united:
+        unit_m = UNIT_RE.match(t, m.end())
+        unit = _unit_token(unit_m.group(0)) if unit_m else ""
+        if not unit and facts_side:
+            keyed = _KEYED_UNIT_RE.search(t, 0, m.start())
+            if keyed:
+                unit = _unit_token(keyed.group(1))
+        if exclude_ordinals and not unit:
             if norm.isdigit() and len(norm) == 4 and norm.startswith(("19", "20")):
                 continue      # a year
             if norm.isdigit() and int(norm) <= 10:
                 continue      # an ordinal or list index
-        out.add(norm)
+        out.add(f"{norm} {unit}" if unit else norm)
+        if facts_side and unit:
+            # A fact grounds a mention of the same number without a unit.
+            out.add(norm)
     return out
 
 
@@ -313,7 +379,7 @@ def verify(answer: str, facts: list[str], citable_edge_ids: list[str],
     # 4. Every number in the answer must appear in the facts. A transposed
     #    digit in a potency value is harder to notice than a wrong sentence.
     fact_numbers = _numbers(" ".join(facts) + " " + " ".join(required_warnings),
-                            exclude_ordinals=False)
+                            exclude_ordinals=False, facts_side=True)
     # Strip citation brackets first: the digits inside [E999999] are already
     # reported by the citation check, and repeating them as a numeric finding
     # adds noise to a report a human has to read.
