@@ -193,6 +193,48 @@ def auc_interval(auc: float, n_pos: int, n_neg: int,
     return (max(0.0, auc - z * se), min(1.0, auc + z * se))
 
 
+def auc_ceiling(reached_pos: int, reached_neg: int,
+                n_pos: int, n_neg: int) -> float:
+    """The highest AUC a scorer with this coverage could attain, ranking
+    everything it reaches PERFECTLY.
+
+    WHY THIS IS NOT A DETAIL. Unreached compounds take the imputed floor,
+    so a scorer that reaches few positives cannot separate the classes
+    however good its ranking is -- the floor does the arithmetic. On
+    release v0.1, SARS-CoV-2, every channel sits within 0.04 of this
+    ceiling and three sit ON it:
+
+        M1  reaches  3 of 89   measured 0.5135   ceiling 0.5136
+        M8  reaches  1 of 89   measured 0.506    ceiling 0.506
+        M7  reaches  0 of 89   measured 0.4973   ceiling 0.4973
+
+    M1 achieved the best score it was capable of, and that score is
+    0.514. M7's ceiling is BELOW chance: it reaches 39 negatives and no
+    positives, so those negatives necessarily outrank the floor-tied
+    positives. "Slightly below chance" is arithmetic there, not a result.
+
+    AND THE EXISTING FLOOR DOES NOT CATCH THIS. MIN_REACHED_POSITIVES
+    gates on the COUNT of positives reached, and the count does not
+    determine the ceiling -- both coverages do. M2 reaches 11, clears
+    the floor of 10, and has a ceiling of 0.5125: it was admitted to the
+    evaluable set while being incapable of demonstrating separation.
+
+    THE BEST CASE, spelled out, because the formula is only obvious once:
+    every reached positive outranks every negative; the unreached
+    positives sit at the floor, tied with the unreached negatives (half
+    credit each) and below the reached negatives (no credit).
+
+    Reported, not enforced. Whether this replaces the count as the
+    readability gate is a decision about what the evaluation claims, and
+    it belongs in the prereg rather than in a helper.
+    """
+    if n_pos <= 0 or n_neg <= 0:
+        return 0.5
+    k = max(0, min(reached_pos, n_pos))
+    j = max(0, min(reached_neg, n_neg))
+    return (k * n_neg + 0.5 * (n_pos - k) * (n_neg - j)) / (n_pos * n_neg)
+
+
 def evaluate_against_negatives(scores: dict[str, float], pos: set[str],
                                neg: set[str], impute_missing: bool = True) -> dict:
     """Rank only measured compounds and report AUC plus enrichment.
@@ -231,6 +273,16 @@ def evaluate_against_negatives(scores: dict[str, float], pos: set[str],
         wins += lower + 0.5 * equal
     auc = wins / (n_p * n_n)
     lo, hi = auc_interval(auc, n_p, n_n)
+    reached_p = sum(1 for d in pos if d in scores)
+    reached_n = sum(1 for d in neg if d in scores)
+    # AGAINST THE COUNTS ACTUALLY RANKED, not the class sizes. Under
+    # imputation these are the same (every compound is ranked, reached or
+    # floored). Without it, unreached compounds leave the evaluation
+    # entirely, so nothing is holding the scorer down and a perfect
+    # ranking reaches 1.0 -- passing len(pos)/len(neg) there would
+    # impose an imputation ceiling on a cell with no imputation. Found
+    # by a surviving mutant, which turned out to be the correct code.
+    ceiling = auc_ceiling(reached_p, reached_n, n_p, n_n)
     return {"n_pos": n_p, "n_neg": n_n, "auc": auc, "evaluable": True,
             # THE INTERVAL TRAVELS WITH THE NUMBER. A point AUC says nothing
             # about whether the scorer discriminates: 0.523 on 89 positives
@@ -243,5 +295,11 @@ def evaluate_against_negatives(scores: dict[str, float], pos: set[str],
             # Coverage is now reported separately from n_pos/n_neg: it is what
             # fraction the scorer actually REACHED, and a high AUC on low
             # coverage means the floor is doing the work, not the paths.
-            "coverage_pos": sum(1 for d in pos if d in scores) / max(len(pos), 1),
-            "coverage_neg": sum(1 for d in neg if d in scores) / max(len(neg), 1)}
+            "coverage_pos": reached_p / max(len(pos), 1),
+            "coverage_neg": reached_n / max(len(neg), 1),
+            # WHAT THIS CELL COULD HAVE SCORED AT BEST. An AUC near 0.5
+            # means one of two completely different things -- the scorer
+            # ranked badly, or it could not have ranked well -- and
+            # nothing in this dict distinguished them. See auc_ceiling.
+            "auc_ceiling": ceiling,
+            "auc_headroom": ceiling - 0.5}
