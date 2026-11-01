@@ -294,7 +294,14 @@ def test_every_significant_readable_cell_is_named():
         "no readable cell is significant any more; the document builds a "
         "section on at least one and must be corrected rather than this "
         "test relaxed")
-    assert f"{WORD[len(sig)]} of them are nominally significant" in flat, (
+    # The verb agrees with the derived count. On 2026-11-02 the count fell
+    # to one and this read "One of them are nominally significant", which
+    # would have forced the document into bad grammar to satisfy a test --
+    # the same category of mistake as a document quoting a figure to match
+    # a literal. The rule lives here, with fmt_p, and the document quotes
+    # what it produces.
+    verb = "is" if len(sig) == 1 else "are"
+    assert f"{WORD[len(sig)]} of them {verb} nominally significant" in flat, (
         f"{len(sig)} readable cells are significant; the document states "
         f"a different number")
     for v, n, m in sorted(sig, key=lambda x: x[2]["p_value"]):
@@ -304,13 +311,131 @@ def test_every_significant_readable_cell_is_named():
             f"document does not name it with its figures")
 
 
+def family_sizes() -> dict[str, int]:
+    """The four correction families, counted from the results file.
+
+    EVERY ONE OF THESE WAS TYPED until 2026-11-02, and the test below only
+    checked that alpha was 0.05/n -- which is true of any n. The gtop layer
+    then moved two of them in one rebuild: readable cells 13 -> 11, and
+    cells computed 91 -> 61, because a channel that reaches nothing for a
+    virus is absent from the file rather than present with a zero. Both
+    alphas stayed arithmetically correct while describing families that no
+    longer existed, which is the exact failure this suite was written for,
+    sitting inside the test that was supposed to prevent it.
+
+    The metapath count comes from the schema, which is the one place the
+    eight channels are declared.
+    """
+    import yaml
+
+    per = json.loads(RESULTS.read_text())["per_virus"]
+    n_metapaths = len(yaml.safe_load(
+        (ROOT / "schema" / "kg_schema.yaml").read_text())["metapaths"])
+    readable = [1 for ch in per.values() for n, m in ch.items()
+                if n not in ("degree", "COMBINED")
+                and m.get("hits_determined") and m.get("trustworthy")]
+    computed = [1 for ch in per.values() for n in ch
+                if n not in ("degree", "COMBINED")]
+    return {"readable cells only": len(readable),
+            "every cell computed": len(computed),
+            "every cell planned": len(per) * n_metapaths,
+            "planned, plus COMBINED and degree": len(per) * (n_metapaths + 2)}
+
+
 def test_the_correction_families_are_arithmetic():
-    """The alpha table is four divisions. A typed alpha beside a live
-    p-value is a verdict nothing re-derives."""
+    """The alpha table is four divisions, and the four n are counts of
+    things -- so both halves are derived. A typed alpha beside a live
+    p-value is a verdict nothing re-derives; a typed n beside a correct
+    division is the same verdict with the arithmetic checked."""
     flat = " ".join(DOC.read_text().split())
-    for n in (13, 91, 120, 150):
+    for label, n in family_sizes().items():
         assert f"| {n} | {0.05 / n:.5f} |" in flat, (
-            f"the alpha row for n={n} is not 0.05/{n} = {0.05 / n:.5f}")
+            f"the {label!r} family holds {n} tests, so its row should read "
+            f"| {n} | {0.05 / n:.5f} | and the document says otherwise")
+
+
+def test_each_alpha_row_is_the_family_it_names():
+    """The rows are matched by NAME, not just by the set of numbers.
+    Deriving four n and finding all four somewhere in the document would
+    pass with two rows swapped -- and swapping "readable cells only" with
+    "every cell computed" is a five-fold change in the threshold the one
+    significant cell is judged against."""
+    text = DOC.read_text()
+    for label, n in family_sizes().items():
+        rows = [ln for ln in text.splitlines()
+                if ln.startswith("|") and label in ln]
+        assert len(rows) == 1, (
+            f"expected exactly one alpha row naming {label!r}, got "
+            f"{len(rows)}")
+        cells = [c.strip() for c in rows[0].strip("|").split("|")]
+        assert cells[1] == str(n), (
+            f"the {label!r} row says n={cells[1]} and the results file "
+            f"gives {n}")
+        assert cells[2] == f"{0.05 / n:.5f}", (
+            f"the {label!r} row says alpha={cells[2]}, not "
+            f"{0.05 / n:.5f}")
+
+
+def test_each_alpha_row_verdict_is_the_comparison_it_describes():
+    """The fourth column is a verdict on the one significant readable
+    cell, and a verdict is the thing most worth deriving: "clears" beside
+    an alpha smaller than p is the sentence a reader takes away.
+
+    The stated factor is checked too, where one is stated. It read "by a
+    factor of 10" against a threshold 12 times the p-value, which is the
+    kind of number that is written once and never recomputed.
+    """
+    per = json.loads(RESULTS.read_text())["per_virus"]
+    sig = sorted(
+        (m["p_value"] for ch in per.values() for n, m in ch.items()
+         if n not in ("degree", "COMBINED") and m.get("hits_determined")
+         and m.get("trustworthy") and m.get("p_value") is not None
+         and m["p_value"] < 0.05))
+    assert len(sig) == 1, (
+        f"{len(sig)} significant readable cells; this table is written for "
+        f"one and its header names that cell's p-value")
+    p = sig[0]
+    text = DOC.read_text()
+    assert f"M7 at p={p:.6f}" in text, (
+        f"the alpha table's header should name the cell it judges, at "
+        f"p={p:.6f}")
+    factors_checked = 0
+    for label, n in family_sizes().items():
+        row = next(ln for ln in text.splitlines()
+                   if ln.startswith("|") and label in ln)
+        verdict = [c.strip() for c in row.strip("|").split("|")][3]
+        alpha = 0.05 / n
+        clears = p < alpha
+        assert ("clears" in verdict) is clears, (
+            f"the {label!r} row says {verdict!r}; p={p:.6f} against "
+            f"alpha={alpha:.5f} {'clears' if clears else 'does not clear'}")
+        stated = re.search(r"factor of (\d+)", verdict)
+        if stated:
+            factors_checked += 1
+            assert int(stated[1]) == round(alpha / p), (
+                f"the {label!r} row claims a factor of {stated[1]}; "
+                f"{alpha:.5f}/{p:.6f} is {round(alpha / p)}")
+    # NOT VACUOUS. The factor check is inside an `if`, so a table that
+    # stopped stating factors -- or a regex that stopped matching them --
+    # would leave this test green having checked only the four verdicts.
+    assert factors_checked >= 1, (
+        "no alpha row states a factor, so the factor arithmetic above "
+        "checked nothing")
+
+
+def test_the_planned_family_shows_the_multiplication_it_used():
+    """`15 viruses x 8 metapaths` is the only row whose n is a product,
+    and both factors move -- the register grew from 6 viruses to 16 while
+    this document was being written."""
+    import yaml
+
+    per = json.loads(RESULTS.read_text())["per_virus"]
+    n_metapaths = len(yaml.safe_load(
+        (ROOT / "schema" / "kg_schema.yaml").read_text())["metapaths"])
+    flat = " ".join(DOC.read_text().split())
+    assert (f"({len(per)} viruses x {n_metapaths} metapaths)") in flat, (
+        f"the planned-family row should show "
+        f"({len(per)} viruses x {n_metapaths} metapaths)")
 
 
 def test_the_prose_figures_beside_the_table_are_the_tables_own():
@@ -321,7 +446,23 @@ def test_the_prose_figures_beside_the_table_are_the_tables_own():
     text = DOC.read_text()
     m4 = per["SARS-CoV-2"]["M4"]
     deg = per["SARS-CoV-2"]["degree"]
-    assert f"{m4['lift_vs_degree']:.2f}x a degree" in text
+    # THE RATIO IS QUOTED ONLY WHILE IT EXISTS. This asserted
+    # f"{m4['lift_vs_degree']:.2f}x a degree", which held until 2026-11-02:
+    # the gtop layer gave degree more neighbours, degree's own Hits@k for
+    # SARS-CoV-2 became the interval [4, 5], and `lift_vs_degree` went to
+    # None rather than to a different number. The assertion did not fail,
+    # it CRASHED -- TypeError formatting None -- which says nothing about
+    # the document. So the branch is explicit, and when there is no ratio
+    # the document must not print one: the same treatment SARS-CoV M1
+    # already gets below, for the same reason.
+    if m4["lift_vs_degree"] is None:
+        assert "x a degree" not in text, (
+            "SARS-CoV-2 M4 has no lift_vs_degree -- degree's own Hits@k is "
+            "an interval -- and the document still quotes a ratio against "
+            "it. Withdraw the figure; do not recompute one from the point "
+            "draw")
+    else:
+        assert f"{m4['lift_vs_degree']:.2f}x a degree" in text
     assert f"degree lift of **{deg['lift']:.2f}**" in text
     assert m4["vs_degree_readable"] is False
     # SARS-CoV M1 IS NOT DETERMINED, SO NO POINT IS QUOTED FOR IT.

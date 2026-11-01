@@ -131,6 +131,16 @@ data-timeline:
 data-audit:
 	python scripts/data_audit.py
 
+# WHAT HAS BEEN INGESTED, BUILT, AND IS STILL MISSING, per layer and per
+# virus. docs/kg_audit_report.txt has cited this as `make audit` in three
+# places since it was written, and there was no such target: the script
+# existed, the name did not, so the one line telling a reader how to
+# check the per-virus tiers named a command that would not run. Found on
+# 2026-11-02 by tests/test_kg_audit_report.py, which now checks every
+# make target that report cites against this file.
+audit:
+	python scripts/audit_build.py
+
 # THE PATHWAY NULL, AS AN ARTIFACT THE AGENT CAN CITE. Without the results
 # file the agent reports the pathway route as unmeasured, which is honest and
 # weaker than the finding; with it, every ranking carries the measured

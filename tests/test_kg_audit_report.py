@@ -318,6 +318,112 @@ def test_every_virus_in_the_register_is_placed_in_a_tier(flat):
             f"section 7")
 
 
+def test_every_make_target_the_report_cites_exists(text):
+    """The report attributes figures to commands. On 2026-11-02 section 9
+    opened "From `make audit`" -- and there is no `audit` target in the
+    Makefile, and never has been. The figures under it were correct; the
+    provenance line was a command nobody could run, which is the one
+    thing a reader would use to check them.
+
+    This is the cheapest guard in the file and it covers every section:
+    a target renamed in the Makefile breaks every document that cites it
+    by the old name, silently.
+    """
+    # RETRACTIONS ARE NOT CITATIONS. This report records what it used to
+    # say -- three paragraphs open "An earlier version" -- and one of
+    # them quotes the `make audit` that this test was written to catch.
+    # Forbidding the words outright would forbid recording the mistake,
+    # which is the same scoping every other guard in this suite applies
+    # to its own claim block.
+    live = "\n\n".join(p for p in text.split("\n\n")
+                       if "An earlier version" not in p)
+    assert "An earlier version" in text, (
+        "no retraction paragraph in the report, so the exclusion above "
+        "is not being exercised and this test is checking the whole text "
+        "under a rule that looks narrower than it is")
+    cited = set(re.findall(r"make ([a-z][a-z0-9-]*)", live))
+    targets = set(re.findall(r"^([A-Za-z][A-Za-z0-9_-]*):",
+                             (ROOT / "Makefile").read_text(), re.M))
+    # "make the" and the like: prose, not a target. Only a citation that
+    # LOOKS like a target name is checked, which is why this reads the
+    # Makefile rather than guessing.
+    prose = {"the", "a", "an", "it", "sure", "this", "that"}
+    missing = sorted(c for c in cited - targets - prose)
+    assert not missing, (
+        f"the report cites make target(s) that the Makefile does not "
+        f"define: {missing}")
+
+
+def tier_membership() -> dict[str, set[str]]:
+    """The four tiers of section 9, derived.
+
+    Section 9 named them as output of `make audit`, which does not
+    exist. They are in fact a function of two tracked files, so they are
+    derived from those: COMBINED's pool and pos in
+    metapath_comparison.json, plus the register for the virus that is
+    scored at all.
+    """
+    import json
+
+    per = json.loads((ROOT / "data" / "results"
+                      / "metapath_comparison.json").read_text())["per_virus"]
+    register = {v["name"] for v in yaml.safe_load(REGISTER.read_text())
+                ["viruses"]}
+    combined = {v: ch.get("COMBINED", {}) for v, ch in per.items()}
+    return {
+        # A route that reaches at least one held-out positive.
+        "EVALUABLE": {v for v, c in combined.items() if c.get("pos", 0) > 0},
+        # A route that reaches compounds, none of them labelled.
+        "ROUTES REACH NO LABEL": {v for v, c in combined.items()
+                                  if c.get("pos") == 0 and c.get("pool", 0) > 0},
+        # Labels exist and no route terminates at the virus.
+        "LABELS, NO FEATURE ROUTE": {v for v, c in combined.items()
+                                     if c.get("pool") == 0},
+        # Scored nowhere, because there is nothing to score against.
+        "FEATURES, NOTHING TO SCORE": register - set(per),
+    }
+
+
+@pytest.mark.parametrize("tier", ["EVALUABLE", "ROUTES REACH NO LABEL",
+                                  "LABELS, NO FEATURE ROUTE",
+                                  "FEATURES, NOTHING TO SCORE"])
+def test_each_tier_holds_the_viruses_the_results_file_puts_in_it(text, tier):
+    """SET EQUALITY ON THE TIER'S OWN LIST, not membership in the
+    section. The existing check that every register virus appears
+    somewhere in section 9 is satisfied by any of the four tiers, so a
+    virus in the wrong tier passed it -- and the tiers are not degrees
+    of weak evidence, they are different kinds of absence. Putting a
+    virus one tier up turns "nothing can mark this ranking right or
+    wrong" into "this was evaluated".
+    """
+    want = tier_membership()[tier]
+    body = section(" ".join(text.split()), "PER-VIRUS STATE",
+                   until="KNOWN GAPS")
+    m = re.search(rf"{re.escape(tier)} \((\d+)\)", body)
+    assert m, f"section 9 has no {tier!r} tier with a count"
+    assert int(m[1]) == len(want), (
+        f"the {tier} tier is headed ({m[1]}) and the results file puts "
+        f"{len(want)} viruses in it: {sorted(want)}")
+    # The names run from the tier heading to the NEXT TIER HEADING, found
+    # by the four known tier names rather than by a shape. A generic
+    # "capitals then (N)" boundary matched inside the tier's own virus
+    # list -- "JEV, TBEV LABELS, NO FEATURE ROUTE (2)" is all capitals
+    # and commas -- so the span stopped two viruses early and the test
+    # failed on a correct document. The boundary is the thing being
+    # parsed, so it is named, not guessed.
+    rest = body[m.end():]
+    bounds = [b.start() for name in tier_membership()
+              for b in [re.search(rf"{re.escape(name)} \(\d+\)", rest)] if b]
+    bounds += [b.start() for b in [re.search(r"THE AGENT ENFORCES", rest)] if b]
+    span = rest[:min(bounds)] if bounds else rest
+    listed = {v for v in {x["name"] for x in
+                          yaml.safe_load(REGISTER.read_text())["viruses"]}
+              if re.search(rf"(?<![\w-]){re.escape(v)}(?![\w-])", span)}
+    assert listed == want, (
+        f"the {tier} tier lists {sorted(listed)} and the results file "
+        f"gives {sorted(want)}")
+
+
 def _virus_pathways_body(tools_src: str) -> str:
     """The method's own source, sliced out so a claim about it is not
     satisfied by an identifier appearing somewhere else in the file."""
@@ -413,6 +519,69 @@ def test_section_8_does_not_credit_virus_pathways_with_a_p_value(flat):
         assert "reports no p-value" not in span.lower(), (
             "virus_pathways now emits a p-value and section 8 still "
             "says it does not")
+
+
+def test_section_8_quotes_the_landscape_run_it_names(flat):
+    """SECTION 8 KEEPS A SECOND COPY OF THE PATHWAY RESULT, and on
+    2026-11-02 every figure in it was stale: the run date, the
+    uncorrected count, and both DENV naive/matched pairs.
+
+    docs/evaluation.md holds the same four figures and has been guarded
+    against the results file since the landscape table was written.
+    THIS copy was not -- the same split that let section 1's channel
+    counts drift while the identical claim in evaluation.md was
+    checked. A figure duplicated into a second document needs a second
+    guard, or the document that is not checked becomes the one people
+    quote.
+    """
+    import json
+
+    res = ROOT / "data" / "results" / "pathway_landscape.json"
+    assert res.exists(), (
+        "pathway_landscape.json is missing, so section 8's result "
+        "paragraph cannot be checked -- and an unchecked figure here is "
+        "how all four of them went stale")
+    d = json.loads(res.read_text())
+    body = section(flat, "HOW THE GRAPH SUPPORTS PATHWAY ANALYSIS",
+                   until="PER-VIRUS STATE")
+
+    assert f"run {d['measured_on']}" in body, (
+        f"the run is dated {d['measured_on']} in the results file and "
+        f"section 8 names a different date")
+    assert f"degree_basis={d['degree_basis']}" in body
+    assert f"{d['permutations']:,} permutations" in body
+    assert f"seed {d['seed']}" in body
+    assert f"{d['n_tests']} tests" in body
+
+    rows = [r for ch in ("taxa", "interactome") for r in d[ch].values()]
+    alpha = 0.05 / d["n_tests"]
+    clearing = [r for r in rows
+                if min(r["p_matched"], r["p_matched_less"]) < alpha]
+    assert not clearing, (
+        "a row now clears Bonferroni and section 8 still says zero do")
+    assert f"{len(rows)} rows tested" in body
+
+    # THE UNCORRECTED COUNT IS THE POINT OF THE PARAGRAPH. It said four
+    # and the file gives six.
+    WORDS = {0: "zero", 1: "one", 2: "two", 3: "three", 4: "four",
+             5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine",
+             10: "ten", 11: "eleven", 12: "twelve"}
+    uncorrected = [r for r in rows
+                   if min(r["p_matched"], r["p_matched_less"]) < 0.05]
+    assert (f"would have reported {WORDS[len(uncorrected)]}") in body, (
+        f"{len(uncorrected)} rows clear 0.05 uncorrected and section 8 "
+        f"states a different number")
+
+    # Both DENV pairs, scoped to this section.
+    for curie, name in (("NCBITaxon:11053", "DENV-1"),
+                        ("NCBITaxon:11060", "DENV-2")):
+        r = d["interactome"][curie]
+        assert f"{r['p_naive']:.4f}" in body, (
+            f"{name}'s naive p is {r['p_naive']:.4f} and section 8 does "
+            f"not carry it")
+        assert f"{r['p_matched']:.4f}" in body, (
+            f"{name}'s degree-matched p is {r['p_matched']:.4f} and "
+            f"section 8 does not carry it")
 
 
 def test_section_8_carries_the_names_the_virus_warning(flat):
@@ -652,7 +821,13 @@ def test_section_1_counts_the_channels_against_the_results(flat):
     assert f"{without} of {len(per)} scored viruses have no" in flat, (
         f"{without} of {len(per)} viruses have no readable channel; "
         f"section 1 states a different number")
-    assert f"{len(sig)} readable cells in the whole" in flat, (
+    # The noun agrees with the derived count, for the reason the same rule
+    # was added to test_evaluation_table.py on 2026-11-02: at one cell this
+    # demanded "1 readable cells in the whole table", and a test that can
+    # only be satisfied by bad grammar is a test the document will be
+    # edited around. The rule is here; the report quotes what it produces.
+    noun = "cell" if len(sig) == 1 else "cells"
+    assert f"{len(sig)} readable {noun} in the whole" in flat, (
         f"{len(sig)} readable cells are significant uncorrected; "
         f"section 1 states a different number")
 

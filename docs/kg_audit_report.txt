@@ -36,10 +36,10 @@ needs antiviral activity labels, and it is the question the evaluation in
 docs/evaluation.md failed to answer honestly: 92.2% of labelled compounds
 share a publication between the evidence edge and the label it was
 supposed to predict, so a scorer is partly reading its own answer sheet.
-The result on this release is that 11 of 15 scored viruses have no
-readable reasoning channel at all and 2 readable cells in the whole
-table are significant uncorrected -- of which 1 survives the loosest
-correction family.
+The result on this release is that 12 of 15 scored viruses have no
+readable reasoning channel at all and 1 readable cell in the whole
+table is significant uncorrected -- which survives the loosest
+correction family and not the other three.
 
 The SECOND question is "where does the drugged human proteome overlap
 what this virus depends on". It touches no label predicate, so the
@@ -795,12 +795,12 @@ Three distinct capabilities, in increasing order of what they claim.
     channel takes the host partners of viral proteins, which is a larger
     and much softer set.
 
-    RESULT ON RELEASE v0.1, run 2026-10-28, degree_basis=study, 2,000
+    RESULT ON RELEASE v0.1, run 2026-11-02, degree_basis=study, 2,000
     permutations, seed 0: 22 rows tested, 44 tests with both directions,
     Bonferroni alpha 0.00114. ZERO rows clear it. The uncorrected version
-    of the same test would have reported four. DENV-1's interactome
-    overlap is p=0.0029 naive and 0.0600 degree-matched; DENV-2's is
-    0.0005 and 0.1499. Neither number moved because the data changed.
+    of the same test would have reported six. DENV-1's interactome
+    overlap is p=0.0102 naive and 0.0880 degree-matched; DENV-2's is
+    0.0036 and 0.2179. Neither gap opens because the data changed.
     docs/evaluation.md holds the full table, machine-checked against the
     results file.
 
@@ -822,9 +822,17 @@ uncorrected version is an artifact of protein popularity.
 9. PER-VIRUS STATE — WHAT EACH VIRUS CAN SUPPORT
 ================================================================================
 
-From `make audit`, release v0.1, 2026-10-28. Four tiers, and the
-distinction between them is the point: they are not degrees of weak
-evidence, they are different kinds of absence.
+Derived from data/results/metapath_comparison.json (COMBINED's pool and
+pos) and config/viruses.yaml, release v0.1, run 2026-11-02. Four tiers,
+and the distinction between them is the point: they are not degrees of
+weak evidence, they are different kinds of absence.
+
+An earlier version of this line read "From `make audit`". There is no
+`audit` target in the Makefile and there never has been. Every tier
+below was correct; the one sentence telling a reader how to check them
+named a command that does not run. The tiers are now asserted against
+those two files by tests/test_kg_audit_report.py, and a separate test
+checks that every `make` target this report cites exists.
 
   EVALUABLE (8) — labels present, a route present, and the route reaches
   at least one held-out positive.
