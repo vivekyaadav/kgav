@@ -127,18 +127,18 @@ cytotoxicity evidence of a negative drops the coverage ratio to 2.0x and M1 to
 0.621. The degree baseline falls 0.620 -> 0.473, which is the control working:
 degree *is* study volume.
 
-**3 -> 4. Evidence and answer from one paper.** Of 1,066 compounds carrying
-both an `INHIBITS` edge and an antiviral label, 1,012 have a publication on
-both sides and **933 -- 92.2% -- share a PMID**. A paper reporting an Mpro
+**3 -> 4. Evidence and answer from one paper.** Of 1,163 compounds carrying
+both an `INHIBITS` edge and an antiviral label, 1,107 have a publication on
+both sides and **1,019 -- 92.1% -- share a PMID**. A paper reporting an Mpro
 IC50 reports a cell-based EC50 in the same table, and ChEMBL files them as two
 records: M1 traverses a measurement taken alongside the answer. Neither split
 separates them, because both facts hang off one compound and carry one date.
 
-The remaining **50 compounds (4.7%) carry no publication on the `INHIBITS`
+The remaining **50 compounds (4.3%) carry no publication on the `INHIBITS`
 side at all**, and those are outside the control rather than cleared by it:
 `Graph.load(drop_pubs_shared_with=...)` withholds an edge that SHARES a PMID
 with its label, so an edge with no PMID is never a candidate for withholding.
-At 4.7% that does not move row 4, which is why the figure is stated rather
+At 4.3% that does not move row 4, which is why the figure is stated rather
 than qualified -- but the same measurement on DENV-2 reads 68%, and a virus
 can look clean under this control by having nothing to be disjoint from.
 Withholding that evidence took M1's reach over the evaluated positives from
@@ -211,7 +211,7 @@ the minimum for evaluating one channel of it.
 `lift_pvalue` reports the exact hypergeometric tail: the probability of that
 many hits under a **random ranking**. That is all it reports. It cannot see a
 confound that inflates the scorer and the labels together -- which is the
-confound this whole document is about, since 92.2% of compounds share a PMID
+confound this whole document is about, since 92.1% of compounds share a PMID
 between their `INHIBITS` edge and their antiviral label, and **degree IS study
 volume**.
 
@@ -626,7 +626,7 @@ SARS-CoV-2 is negative on 5 of 7 channels when negatives are MEASURED
 inactive, and positive on 6 of 7 -- reaching +2.23 on SARS-CoV -- when
 unlabelled compounds are counted as inactive. Counting the unlabelled as
 inactive turns the model into a predictor of which compounds were ever
-measured, which is the 92.2% shared-PMID confound wearing another costume.
+measured, which is the 92.1% shared-PMID confound wearing another costume.
 That is why the measured-negative reading is primary.
 
 The verdict also records a defect in the registered statistic: the
@@ -664,7 +664,7 @@ the single-edge case and was wrong; the docstring now records that.
 
 Pre-2021 graph, post-2021 measurements. **This protocol is
 publication-disjoint by construction** -- evidence is pre-cutoff and the label
-post-cutoff, so the 92.2% shared-PMID confound that took cross-sectional M1 to
+post-cutoff, so the 92.1% shared-PMID confound that took cross-sectional M1 to
 0.499 cannot occur. That is why it can show something the cross-sectional
 protocol cannot.
 
@@ -917,9 +917,9 @@ reported four.
 
 | Cause | Measurement |
 |---|---|
-| Evidence co-reported with labels | 92.2% shared PMIDs (933/1,012); a further 50 compounds have no `INHIBITS` publication and are outside the control |
+| Evidence co-reported with labels | 92.1% shared PMIDs (1,019/1,107); a further 50 compounds have no `INHIBITS` publication and are outside the control |
 | M1 was never purely direct-acting | 1,884 of 7,677 protein-target rows (24.5%) described a CELLULAR readout and were filed against a viral protein; now reattributed to the organism |
-| `INHIBITS` is effectively two proteins | nsp5 and nsp3 dominate; `INHIBITS` reaches 18 distinct viral proteins in all |
+| `INHIBITS` is effectively two proteins | nsp5 and nsp3 dominate; `INHIBITS` reaches 22 distinct viral proteins in all |
 | The graph is two compound populations | 44 of 18,075 compounds have both `INHIBITS` and `TARGETS` |
 | M8 walks, and reaches almost nothing | FIXED 2026-10-16: the layer assembles (104 `MEMBER_OF_CLASS`, 6 `FOLD_SIMILAR_TO`, 2 carrying `catalytic_type_match`). M8 now reaches 11 drugs for SARS-CoV-2, 29 for Zika, 11 for SARS-CoV and `no paths` for the other four coronaviruses; cross-sectional AUC 0.501 and 0.508 at 0.1% and 1.5% coverage, every row flagged. 34 of the 36 allowed transfers are blocked by comparator chains the spine does not build |
 | M3/M5 untestable temporally | both PPI layers wholly post-cutoff (STRING 2023-08-28, VirHostNet 2024-01-01); the protocol itself was blocked by L5 until 2026-10-11 |
@@ -979,9 +979,19 @@ us otherwise. The status check now excludes the generated-results directory.
 it correctly.
 
 It had already happened. These figures were recorded against an earlier
-release and were wrong by the time anyone re-ran the diagnostic:
+release and were wrong by the time anyone re-ran the diagnostic.
 
-| was | is | why it moved |
+**Read the second column as a date, not as the present.** It records what
+each figure read when the drift was found, and three of them have moved
+again since -- the shared-PMID share to 92.1% (1,019/1,107) and the
+proteins `INHIBITS` reaches to 22 on 2026-11-02, and the BASELINE AT CHANCE
+row to two temporal pairs on the same day. A history table whose "is"
+column is read as current is the defect it is recording, one layer up. The
+live values are the ones asserted against `data/results/*.json`, which is
+what the rest of this section is about; these are kept because a project
+that deletes its wrong figures cannot be checked on how it found them.
+
+| was | became, when the drift was found | why it moved |
 |---|---|---|
 | 94.9% shared PMIDs (1,015/1,070) | 92.2% (933/1,012) | the assay-readout fix removed 540 `INHIBITS` edges |
 | 45 of 12,821 with both edges | 44 of 18,075 | same, plus a different denominator |
@@ -1117,7 +1127,7 @@ python scripts/calibrate.py          # which channels were evaluable, and why no
 #    no step here regenerates.
 make pathway-landscape
 
-#    the shared-PMID confound, for the same reason. The 92.2% figure is why
+#    the shared-PMID confound, for the same reason. The 92.1% figure is why
 #    this document calls its own M1 result partly self-scoring, and until
 #    2026-11-02 it existed nowhere but that script's console output while
 #    being quoted in six places here and one in kg_audit_report.txt.

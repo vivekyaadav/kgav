@@ -136,6 +136,35 @@ def test_the_summary_table_row_carries_both_figures(c):
     assert (f"a further {c['unwithholdable']:,} compounds have no") in flat
 
 
+def test_the_count_of_viral_proteins_inhibits_reaches_is_the_files_own(c):
+    """THE THIRD FIGURE IN THIS FAMILY, and it had drifted furthest. On
+    2026-11-02 the document said `INHIBITS` reaches 19 proteins in one
+    place and 18 in another while the graph reached 22 -- two different
+    stale values for one number, in one document, neither checked.
+
+    It is not decoration. "`INHIBITS` is effectively two proteins" is an
+    argument about this count: M1's whole evidence basis is nsp5 and
+    nsp3 plus a long tail, and the size of that tail is the difference
+    between a narrow channel and a broken one.
+    """
+    flat = live(DOC.read_text())
+    assert (f"`INHIBITS` reaches {c['viral_proteins_reached']} distinct "
+            f"viral proteins") in flat, (
+        f"INHIBITS reaches {c['viral_proteins_reached']} distinct viral "
+        f"proteins and the document states a different number")
+
+
+def test_the_population_cannot_exceed_the_compounds_with_an_inhibits_edge(c):
+    """An arithmetic floor on the whole section. Every compound in the
+    population has an INHIBITS edge to a viral protein by construction,
+    so if this ever inverts, the two counts were measured against
+    different graphs -- which is the failure one directory up."""
+    assert c["both"] <= c["compounds_with_inhibits_to_viral"] <= c["small_molecules"], (
+        f"{c['both']:,} compounds have both an edge and a label, "
+        f"{c['compounds_with_inhibits_to_viral']:,} have the edge at all, "
+        f"out of {c['small_molecules']:,} small molecules")
+
+
 # ----------------------------------------------- the file itself is honest
 def test_the_counts_partition_the_population(c):
     """FOUR DISJOINT CASES, and they must sum. A compound with both an

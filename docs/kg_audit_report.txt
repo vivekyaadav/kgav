@@ -33,7 +33,7 @@ One question, asked two ways.
 
 The FIRST question is "which existing drug works against this virus". It
 needs antiviral activity labels, and it is the question the evaluation in
-docs/evaluation.md failed to answer honestly: 92.2% of labelled compounds
+docs/evaluation.md failed to answer honestly: 92.1% of labelled compounds
 share a publication between the evidence edge and the label it was
 supposed to predict, so a scorer is partly reading its own answer sheet.
 The result on this release is that 12 of 15 scored viruses have no

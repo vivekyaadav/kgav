@@ -209,6 +209,14 @@ def main(argv=None) -> int:
             "unwithholdable": unwithholdable,
             "evidence_predicate": "INHIBITS",
             "label_predicate": POS,
+            # THE THIRD FIGURE IN THE SAME FAMILY, and it had drifted
+            # too: evaluation.md said 19 in one place and 18 in another
+            # while the graph reached 22. "INHIBITS is effectively two
+            # proteins" is an argument about this number, so it belongs
+            # in the file the argument is checked against.
+            "viral_proteins_reached": len(viral_hit),
+            "compounds_with_inhibits_to_viral": len(inh_c),
+            "small_molecules": n_sm,
         }, rel, load_schema().version)
         print(f"\nwrote {args.out}")
     return 0
