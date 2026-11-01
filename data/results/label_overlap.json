@@ -1,0 +1,24 @@
+{
+  "both": 1163,
+  "both_sides_have_pubs": 1107,
+  "share_a_pub": 1019,
+  "evidence_has_no_pmid": 31,
+  "neither_has_a_pmid": 19,
+  "label_has_no_pmid": 6,
+  "unwithholdable": 50,
+  "evidence_predicate": "INHIBITS",
+  "label_predicate": "HAS_ANTIVIRAL_ACTIVITY_AGAINST",
+  "provenance": {
+    "release": {
+      "id": "v0.1",
+      "nodes_sha": "cb0496762795fb79",
+      "edges_sha": "3863a5452838dc40"
+    },
+    "code": {
+      "commit": "e1dc0e848b123dff35b0c072e87c6e20f3f88634",
+      "dirty": true
+    },
+    "schema_version": "0.13.0",
+    "generated_utc": "2026-11-01T20:40:49+00:00"
+  }
+}
