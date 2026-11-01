@@ -62,16 +62,59 @@ UNIT_RE = re.compile(
     re.IGNORECASE)
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
 
-# Sentences that make no factual claim and need no citation.
+# Openings that carry no claim of their own. A sentence is judged on
+# what FOLLOWS one of these, not excused by starting with one.
+#
+# THEY USED TO EXEMPT THE WHOLE SENTENCE, which made every one of these
+# verify clean against a fact about an IC50:
+#
+#   "Note that nirmatrelvir cures every coronavirus infection in humans."
+#   "This compound cures every coronavirus infection in humans everywhere."
+#
+# Found by external audit, 2026-11-02.
 HEDGE_STARTS = (
     "this", "these", "however", "note", "in summary", "overall", "the graph",
     "no ", "there is no", "i cannot", "it is not", "caution", "warning",
-    "the cell line",
-    # Restating a required caveat is not an uncited claim: the caveat is
-    # supplied by the brief, not asserted by the model. Derived from the
-    # registry rather than listed again here, so adding a caveat cannot leave
-    # its restatement being reported as an uncited claim.
-) + tuple(label.lower() for label in CAVEAT_LABELS.values())
+    "the cell line", "note that", "that",
+)
+
+# THE CAVEAT LABELS ARE NOT LISTED HERE ANY MORE. They were, and the
+# audit's own example is what that cost:
+#
+#   "CALIBRATION: scoring for this virus is fully validated and the
+#    ranking can be trusted."
+#
+# -- a fabrication that inverts the one thing the calibration caveat
+# exists to say, exempted because it began with the label.
+#
+# _is_supplied already covers a restated caveat, by CONTENT: its
+# docstring says in so many words that it "replaces prefix-matching a
+# caveat's label", and the labels stayed behind anyway. A Caveat is a
+# string carrying its own label, and _supplied_corpus holds the
+# warnings verbatim, so a genuine restatement is still exempt and a
+# claim wearing the label is not.
+_CAVEAT_LABEL_RE = re.compile(
+    r"^\s*(?:" + "|".join(re.escape(v) for v in CAVEAT_LABELS.values())
+    + r")\s*:\s*", re.IGNORECASE)
+
+
+def _strip_openings(sentence: str) -> str:
+    """The claim a sentence makes, with its hedges and labels removed.
+
+    Applied repeatedly and boundedly: "CELL CONTEXT: this was measured
+    in Vero cells" carries two, and one pass would leave the other
+    doing the exempting.
+    """
+    cur = _CAVEAT_LABEL_RE.sub("", sentence or "").strip()
+    for _ in range(4):
+        low = cur.lower()
+        for h in sorted(HEDGE_STARTS, key=len, reverse=True):
+            if low.startswith(h):
+                cur = cur[len(h):].lstrip(" ,:;-\u2014")
+                break
+        else:
+            break
+    return cur
 
 
 @dataclass
@@ -115,17 +158,36 @@ def _sentences(text: str) -> list[str]:
     return [s.strip() for s in SENTENCE_RE.split(t) if s.strip()]
 
 
-def _normalise(text: str) -> str:
-    """Lowercase, markdown-free, citation-free, single-spaced."""
+#: Punctuation that differs between a caveat as supplied and the same
+#: words as a model restates them: it ends a borrowed clause with a full
+#: stop where the brief had a comma. Dropped on BOTH sides, so
+#: containment compares words.
+_PUNCT_RE = re.compile(r"[.,;:!?()\[\]\u2014\u2013-]+")
+
+
+def _normalise(text: str, drop_punct: bool = False) -> str:
+    """Lowercase, markdown-free, citation-free, single-spaced.
+
+    `drop_punct` is for CONTAINMENT only. A model that restates half a
+    caveat ends it with a full stop where the brief had a comma --
+    "... measured in Vero cells." against "... measured in Vero cells,
+    which lack TMPRSS2." -- and the substring test then failed on the
+    punctuation alone. Harmless while an uncited claim was a warning
+    and the caveat labels exempted the sentence anyway; both of those
+    changed on 2026-11-02, and this surfaced immediately.
+    """
     s = EDGE_ID_RE.sub(" ", text or "")
     s = s.replace("**", "").replace("__", "").replace("*", "")
+    if drop_punct:
+        s = _PUNCT_RE.sub(" ", s)
     return " ".join(s.lower().split())
 
 
 def _supplied_corpus(facts: list, warnings: list) -> str:
     """Everything the brief handed the model, normalised for containment."""
     return _normalise(" ".join([str(x) for x in (facts or [])]
-                               + [str(x) for x in (warnings or [])]))
+                               + [str(x) for x in (warnings or [])]),
+                      drop_punct=True)
 
 
 def _is_supplied(sentence: str, corpus: str, min_words: int = 6) -> bool:
@@ -142,7 +204,7 @@ def _is_supplied(sentence: str, corpus: str, min_words: int = 6) -> bool:
     the shortcut: "it does not transfer." appears inside almost any corpus by
     accident, and exempting it would let a real uncited claim through.
     """
-    norm = _normalise(sentence)
+    norm = _normalise(sentence, drop_punct=True)
     if len(norm.split()) < min_words:
         return False
     return norm in corpus
@@ -339,20 +401,31 @@ def verify(answer: str, facts: list[str], citable_edge_ids: list[str],
         for s in _sentences(answer):
             if EDGE_ID_RE.search(s):
                 continue
-            low = s.lower()
-            if any(low.startswith(h) for h in HEDGE_STARTS):
-                continue
-            if len(s.split()) < 6:
-                continue
-            # Copied from the brief, so it is grounded by construction -- the
-            # model did not assert it, the retrieval did.
+            # Copied from the brief, so it is grounded by construction --
+            # the model did not assert it, the retrieval did. Tested
+            # FIRST and on the whole sentence, because the corpus holds
+            # each caveat with its label attached.
             if _is_supplied(s, supplied):
+                continue
+            core = _strip_openings(s)
+            if _is_supplied(core, supplied):
+                continue
+            # The LENGTH TEST APPLIES TO THE CLAIM, not to the sentence
+            # carrying it: "However, no." is a remark and "Note that
+            # nirmatrelvir cures every coronavirus infection" is not.
+            if len(core.split()) < 6:
                 continue
             uncited.append(s)
         if uncited:
             findings.append(Finding(
-                "warn", "uncited_claim",
-                f"{len(uncited)} sentence(s) make a claim without a citation"))
+                # FAIL, NOT WARN. As a warning it never touched `passed`,
+                # so an answer carrying a fabricated claim with no
+                # citation was reported as verified. The whole purpose of
+                # this module is that an unsupported sentence does not
+                # reach a reader.
+                "fail", "uncited_claim",
+                f"{len(uncited)} sentence(s) make a claim without a "
+                f"citation: " + " | ".join(s[:60] for s in uncited[:3])))
 
     # 3. Mandatory warnings must survive into the answer. This is the check
     #    that stops a cell-context caveat being dropped for brevity.

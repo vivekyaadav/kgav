@@ -383,21 +383,21 @@ def test_the_facts_are_taken_whole_not_filtered():
 # The earlier UNIT_RE work made the ordinal exclusions unit-aware -- it
 # stopped "3 nM" being dropped as a small number -- and never checked the
 # pairing. Found by external audit.
-_POTENCY_FACT = "nirmatrelvir INHIBITS nsp5 (IC50 19 nM) [e1]"
+_POTENCY_FACT = "nirmatrelvir INHIBITS nsp5 (IC50 19 nM) [E1]"
 
 
 def _fails(answer: str, facts: list[str]) -> list[str]:
-    v = verify(answer, facts, ["e1"])
+    v = verify(answer, facts, ["E1"])
     return [f.code for f in v.findings if f.severity == "fail"]
 
 
 @pytest.mark.parametrize("answer,why", [
-    ("nirmatrelvir inhibits nsp5 with an IC50 of 19 uM [e1]", "1000-fold"),
-    ("nirmatrelvir inhibits nsp5 with an IC50 of 19 mM [e1]", "million-fold"),
-    ("nirmatrelvir inhibits nsp5 with an IC50 of 19 pM [e1]", "1000-fold down"),
-    ("nirmatrelvir inhibits nsp5 by 19% [e1]", "potency as efficacy"),
-    ("nirmatrelvir inhibits nsp5 19-fold [e1]", "potency as a ratio"),
-    ("nirmatrelvir inhibits nsp5 19x [e1]", "the same, abbreviated"),
+    ("nirmatrelvir inhibits nsp5 with an IC50 of 19 uM [E1]", "1000-fold"),
+    ("nirmatrelvir inhibits nsp5 with an IC50 of 19 mM [E1]", "million-fold"),
+    ("nirmatrelvir inhibits nsp5 with an IC50 of 19 pM [E1]", "1000-fold down"),
+    ("nirmatrelvir inhibits nsp5 by 19% [E1]", "potency as efficacy"),
+    ("nirmatrelvir inhibits nsp5 19-fold [E1]", "potency as a ratio"),
+    ("nirmatrelvir inhibits nsp5 19x [E1]", "the same, abbreviated"),
 ])
 def test_the_right_number_with_the_wrong_unit_is_a_finding(answer, why):
     assert "ungrounded_number" in _fails(answer, [_POTENCY_FACT]), why
@@ -406,7 +406,7 @@ def test_the_right_number_with_the_wrong_unit_is_a_finding(answer, why):
 def test_the_right_number_with_the_right_unit_passes():
     """The check must not fire on the answer it exists to allow."""
     assert _fails(
-        "nirmatrelvir inhibits nsp5 with an IC50 of 19 nM [e1]",
+        "nirmatrelvir inhibits nsp5 with an IC50 of 19 nM [E1]",
         [_POTENCY_FACT]) == []
 
 
@@ -415,51 +415,51 @@ def test_spellings_of_one_unit_compare_equal(spelling):
     """Pairing must not turn a formatting difference into a fabrication
     report -- that would make the check unusable and it would be turned
     off, which is worse than the hole it closes."""
-    assert _fails(f"the IC50 is {spelling} [e1]", [_POTENCY_FACT]) == []
+    assert _fails(f"the IC50 is {spelling} [E1]", [_POTENCY_FACT]) == []
 
 
 def test_a_unit_carried_in_the_fact_key_still_grounds_the_answer():
     """A fact may write `ic50_nm=19` rather than `IC50 19 nM`. The
     module's own docstring records an earlier change breaking exactly
     this, so the facts side reads the key suffix too."""
-    assert _fails("the IC50 is 5 nM [e1]",
-                  ["qualifiers ic50_nm=5 for this edge [e1]"]) == []
+    assert _fails("the IC50 is 5 nM [E1]",
+                  ["qualifiers ic50_nm=5 for this edge [E1]"]) == []
 
 
 def test_a_fact_grounds_the_same_number_mentioned_without_a_unit():
     """The facts side emits the bare number as well as the pair. An
     answer that names the figure without repeating the unit is vague,
     not fabricated, and reporting it would bury the real findings."""
-    assert _fails("the value is 19 [e1]", [_POTENCY_FACT]) == []
+    assert _fails("the value is 19 [E1]", [_POTENCY_FACT]) == []
 
 
 def test_a_number_absent_from_the_facts_is_still_a_finding():
     """The original purpose of the check, which the pairing must not
     weaken."""
     assert "ungrounded_number" in _fails(
-        "the IC50 is 750 nM [e1]", [_POTENCY_FACT])
+        "the IC50 is 750 nM [E1]", [_POTENCY_FACT])
 
 
 def test_a_fold_change_in_the_facts_grounds_a_fold_change_in_the_answer():
     """Allowing a hyphen as the unit separator must not make every
     hyphenated number ungrounded."""
-    assert _fails("a 19-fold increase [e1]",
-                  ["measured a 19-fold increase [e1]"]) == []
+    assert _fails("a 19-fold increase [E1]",
+                  ["measured a 19-fold increase [E1]"]) == []
 
 
 def test_two_potencies_cannot_be_swapped_between_claims():
     """THE SHAPE THE AUDIT CALLS SET CONTAINMENT. Both numbers and both
     units are present in the facts, so a bare-token check passes a
     claim that attaches each to the wrong edge."""
-    facts = ["drugA INHIBITS nsp5 (IC50 19 nM) [e1]",
-             "drugB INHIBITS nsp12 (IC50 400 uM) [e2]"]
+    facts = ["drugA INHIBITS nsp5 (IC50 19 nM) [E1]",
+             "drugB INHIBITS nsp12 (IC50 400 uM) [E2]"]
     # Right pairing.
-    assert verify("drugA reads 19 nM and drugB reads 400 uM [e1] [e2]",
-                  facts, ["e1", "e2"]).passed
+    assert verify("drugA reads 19 nM and drugB reads 400 uM [E1] [E2]",
+                  facts, ["E1", "E2"]).passed
     # Units swapped: 19 uM and 400 nM are each individually "present".
     bad = [f.code for f in verify(
-        "drugA reads 19 uM and drugB reads 400 nM [e1] [e2]",
-        facts, ["e1", "e2"]).findings if f.severity == "fail"]
+        "drugA reads 19 uM and drugB reads 400 nM [E1] [E2]",
+        facts, ["E1", "E2"]).findings if f.severity == "fail"]
     assert "ungrounded_number" in bad
 
 
@@ -510,3 +510,101 @@ def test_the_separator_is_stripped_from_the_unit():
     assert _unit_token("-fold") == "fold"
     assert _unit_token(" nM") == "nm"
     assert _unit_token("  -  ") == ""
+
+
+# ------------------------------- an uncited claim is a failure, not a note (A9)
+#
+# TWO HOLES IN ONE CHECK, both reproduced before changing anything.
+#
+#   SEVERITY. `uncited_claim` was "warn", and `passed` is
+#   `not any(f.severity == "fail")`. So an answer carrying a fabricated
+#   sentence with no citation was reported as verified.
+#
+#   SCOPE. HEDGE_STARTS exempted the WHOLE SENTENCE by prefix, and every
+#   caveat label was on the list. The audit's example:
+#
+#     "CALIBRATION: scoring for this virus is fully validated and the
+#      ranking can be trusted."
+#
+#   -- a fabrication inverting the one thing that caveat exists to say,
+#   waved through because it began with the label.
+_FACT = "nirmatrelvir INHIBITS nsp5 (IC50 19 nM) [E1]"
+
+
+def _cav():
+    from kgav.agent.guards import caveat
+    return caveat("cell_context",
+                  "the chloroquine route was measured in Vero cells, "
+                  "which lack TMPRSS2.")
+
+
+@pytest.mark.parametrize("claim", [
+    # The audit's own example, verbatim.
+    "CALIBRATION: scoring for this virus is fully validated and the "
+    "ranking can be trusted.",
+    # Any other caveat label works the same way.
+    "THIN ROUTE: this compound is the best available option for every "
+    "patient.",
+    # And the generic hedges, which were never only about caveats.
+    "Note that nirmatrelvir cures every coronavirus infection in humans.",
+    "This compound cures every coronavirus infection in humans everywhere.",
+    "These results show the drug is safe and effective in all patients.",
+    "However, this compound eradicates the virus in every tested host.",
+])
+def test_a_claim_behind_a_hedge_or_a_label_is_a_failure(claim):
+    v = verify(claim, [_FACT], ["E1"])
+    assert "uncited_claim" in [f.code for f in v.findings], claim
+    assert v.passed is False, (
+        "an uncited claim must fail the answer, not annotate it")
+
+
+def test_a_restated_caveat_is_still_exempt():
+    """_is_supplied covers this BY CONTENT -- its own docstring says it
+    replaces prefix-matching the label, and the labels stayed on the
+    hedge list anyway. Removing them must not start reporting genuine
+    caveats as fabrications, or the check gets switched off."""
+    cav = _cav()
+    assert verify(str(cav), [_FACT], ["E1"], required_warnings=[cav]).passed
+
+
+def test_half_a_restated_caveat_is_still_exempt():
+    """A model legitimately borrows a clause and ends it with a full
+    stop where the brief had a comma. Containment then failed on the
+    punctuation alone -- harmless while this was a warning, and a
+    broken answer once it was not."""
+    cav = _cav()
+    half = "CELL CONTEXT: the chloroquine route was measured in Vero cells."
+    v = verify(half, [_FACT], ["E1"], required_warnings=[cav])
+    assert "uncited_claim" not in [f.code for f in v.findings], v.findings
+
+
+def test_a_short_remark_is_still_exempt():
+    """The length test applies to the CLAIM, not to the sentence
+    carrying it, so a genuine aside stays exempt while "Note that
+    <twelve words of fabrication>" does not."""
+    assert verify("However, no.", [_FACT], ["E1"]).passed
+    assert verify("This is the only route found [E1].", [_FACT], ["E1"]).passed
+
+
+def test_the_caveat_labels_are_no_longer_a_hedge_prefix():
+    """Pinned directly, because the fix is a DELETION and a deletion is
+    the easiest thing to put back by accident."""
+    from kgav.agent.guards import CAVEAT_LABELS
+    from kgav.agent.verify import HEDGE_STARTS
+
+    overlap = {lbl.lower() for lbl in CAVEAT_LABELS.values()} & set(HEDGE_STARTS)
+    assert overlap == set(), (
+        f"{sorted(overlap)} exempt a whole sentence by prefix again; "
+        f"_is_supplied covers a restated caveat by content")
+
+
+def test_openings_are_stripped_repeatedly():
+    """"CELL CONTEXT: this was ..." carries a label and a hedge, and one
+    pass would leave the other doing the exempting."""
+    from kgav.agent.verify import _strip_openings
+
+    assert _strip_openings(
+        "CELL CONTEXT: this compound binds nsp5").lower().startswith("compound")
+    assert _strip_openings("Note that these results hold").lower().startswith(
+        "results")
+    assert _strip_openings("plain sentence") == "plain sentence"
