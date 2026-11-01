@@ -464,3 +464,105 @@ def test_every_called_out_verdict_has_a_paired_note():
             assert any(name == v for v, _ in A.VERDICT_NOTES), (
                 f"{name!r} is assigned as a verdict and is not in "
                 f"VERDICT_NOTES, so its list is never printed")
+
+
+# ------------------------------------------------- the edge accounting
+#
+# Sections 2 and 3 carried two edge totals and nothing joined them, so a
+# reader comparing 18,954 hosttargets edges against 17,982 assembled
+# TARGETS had to work out the merge arithmetic or assume. On release v0.1
+# it balances exactly -- 421,397 - 28,490 = 392,907 -- and that is an
+# IDENTITY, not an estimate: assembly has no drop path, so a gap is edges
+# going missing without a count.
+def _layers(root: Path, counts: dict[str, int]) -> None:
+    """Write `n` edge lines into each named layer's release directory."""
+    for name, n in counts.items():
+        d = root / "data" / "releases" / f"v0.1-{name}"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "edges.jsonl").write_text(
+            "\n".join(json.dumps({"i": i}) for i in range(n)))
+
+
+def _manifest(release: Path, merged: int) -> None:
+    (release / "MANIFEST.json").write_text(json.dumps(
+        {"layers": {}, "merges": {"edge_merged": merged}}))
+
+
+def test_the_edge_accounting_balances_when_it_should(tmp_path):
+    rel = _release(tmp_path)
+    asm = A._count_lines(rel / "edges.jsonl")
+    _layers(tmp_path, {"spine": asm + 4, "chembl": 6})
+    _manifest(rel, 10)
+    rec = A.edge_reconciliation(tmp_path, rel)
+    assert rec["layer_total"] == asm + 10
+    assert rec["edge_merged"] == 10
+    assert rec["assembled"] == asm
+    assert rec["balances"] is True
+
+
+def test_a_missing_edge_is_reported_rather_than_absorbed(tmp_path):
+    """ONE edge short. The whole value of this check is catching a small
+    shortfall: a layer losing 24% of its edges looks like a merge, and a
+    reader has no way to tell the two apart by eye."""
+    rel = _release(tmp_path)
+    asm = A._count_lines(rel / "edges.jsonl")
+    _layers(tmp_path, {"spine": asm + 5, "chembl": 6})
+    _manifest(rel, 10)
+    rec = A.edge_reconciliation(tmp_path, rel)
+    assert rec["balances"] is False
+    assert rec["expected"] - rec["assembled"] == 1
+
+
+def test_the_derived_temporal_splits_are_not_counted_as_layers(tmp_path):
+    """THE MISTAKE THIS FUNCTION WAS WRITTEN AROUND. data/releases also
+    holds v0.1-train2021, -corrected, -strict and -corrected-strict:
+    derived releases, not ingest layers. A `v0.1-*` glob sums the real
+    release's 421,397 to 1,213,967 and reports a balanced graph as short
+    by 792,570 edges. The layer set comes from pipeline.LAYERS, so a
+    directory that is not a declared layer cannot enter the total."""
+    rel = _release(tmp_path)
+    asm = A._count_lines(rel / "edges.jsonl")
+    _layers(tmp_path, {"spine": asm + 10})
+    _manifest(rel, 10)
+    before = A.edge_reconciliation(tmp_path, rel)
+    assert before["balances"] is True
+    for name in ("train2021", "train2021-corrected", "train2021-strict",
+                 "train2021-corrected-strict"):
+        d = tmp_path / "data" / "releases" / f"v0.1-{name}"
+        d.mkdir(parents=True)
+        (d / "edges.jsonl").write_text(
+            "\n".join(json.dumps({"i": i}) for i in range(5_000)))
+    after = A.edge_reconciliation(tmp_path, rel)
+    assert after == before, (
+        "a derived temporal split entered the layer total; the set must "
+        "come from pipeline.LAYERS, never a glob over data/releases")
+
+
+def test_no_edge_merged_is_said_rather_than_guessed(tmp_path):
+    """An older MANIFEST has no `merges` block. Returning a balance of
+    zero merges would report a balanced release as short by every
+    duplicate in it -- a guard that fires on its own missing input is
+    worse than one that says it cannot run."""
+    rel = _release(tmp_path)
+    _layers(tmp_path, {"spine": 3})
+    (rel / "MANIFEST.json").write_text(json.dumps({"layers": {}}))
+    assert A.edge_reconciliation(tmp_path, rel) is None
+    (rel / "MANIFEST.json").unlink()
+    assert A.edge_reconciliation(tmp_path, rel) is None
+
+
+def test_the_audit_prints_the_accounting(tmp_path, capsys):
+    """Through main(), because a function nothing calls is not a check."""
+    rel = _release(tmp_path)
+    asm = A._count_lines(rel / "edges.jsonl")
+    _layers(tmp_path, {"spine": asm + 10})
+    _manifest(rel, 10)
+    import yaml
+    cfg = tmp_path / "v.yaml"
+    cfg.write_text(yaml.safe_dump(CFG))
+    A.main(["--config", str(cfg), "--release", str(rel),
+            "--root", str(tmp_path)])
+    out = capsys.readouterr().out
+    assert "edge accounting" in out
+    assert "balances" in out
+    assert "DOES NOT BALANCE" not in out

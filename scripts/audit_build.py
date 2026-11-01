@@ -94,6 +94,50 @@ def layer_releases(root: Path) -> list[tuple[str, int, int, bool]]:
     return out
 
 
+def edge_reconciliation(root: Path, release: Path) -> dict | None:
+    """Do the layer files and the assembled release account for each other?
+
+    WHY THIS IS AN IDENTITY AND NOT AN ESTIMATE. Assembly has no drop
+    path: every incoming edge either merges into an existing one by
+    content key -- counted as `edge_merged` -- or lands as new. No edge
+    is discarded for an unjoinable endpoint, and no edge is minted at
+    assembly (SAME_AS comes from the spine, not from the identity map).
+    So
+
+        sum(layer edges) - edge_merged == assembled edges
+
+    must hold exactly, and on release v0.1 it does: 421,397 - 28,490 =
+    392,907.
+
+    WHY IT IS WORTH PRINTING. Sections 2 and 3 have always sat next to
+    each other with those two totals in them and no third number to
+    join them, so a reader comparing 18,954 hosttargets edges against
+    17,982 assembled TARGETS had to either work out the merge
+    arithmetic or assume. 4,573 of those hosttargets assertions do
+    collapse into each other -- two rows whose compound identifiers
+    resolve to one InChIKey are one edge -- and until this ran, nothing
+    distinguished that from losing them.
+
+    THE LAYER SET COMES FROM `LAYERS`, NEVER A GLOB. data/releases also
+    holds the four v0.1-train2021* temporal splits, which are derived
+    releases rather than ingest layers; a `v0.1-*` glob sums to
+    1,213,967 and makes a balanced release look short by 792,570 edges.
+    That mistake was made while writing this function.
+    """
+    man = release / "MANIFEST.json"
+    if not (release / "edges.jsonl").exists() or not man.exists():
+        return None
+    merged = (json.loads(man.read_text()).get("merges") or {}).get(
+        "edge_merged")
+    if merged is None:
+        return None
+    layer_total = sum(e for _, _, e, _ in layer_releases(root))
+    asm = _count_lines(release / "edges.jsonl")
+    return {"layer_total": layer_total, "edge_merged": merged,
+            "assembled": asm, "expected": layer_total - merged,
+            "balances": layer_total - merged == asm}
+
+
 def assembled(release: Path) -> dict:
     """Node classes and edge predicates in the assembled release."""
     classes: Counter = Counter()
@@ -318,6 +362,23 @@ def main(argv=None) -> int:
         print(f"\n  manifest: {len(layers)} layer(s) assembled"
               + (f", hub cut degree {m['hub_cut_degree']}"
                  if "hub_cut_degree" in m else ""))
+
+    rec = edge_reconciliation(args.root, args.release)
+    if rec is None:
+        print("\n  edge accounting: no MANIFEST edge_merged, so the layer "
+              "files and this release cannot be reconciled")
+    else:
+        print(f"\n  edge accounting   {rec['layer_total']:>10,}  written by "
+              f"the layers above")
+        print(f"                    {-rec['edge_merged']:>10,}  merged into "
+              f"an existing edge by content key")
+        print(f"                    {rec['assembled']:>10,}  assembled"
+              + ("  — balances" if rec["balances"]
+                 else f"  — DOES NOT BALANCE, off by "
+                      f"{rec['expected'] - rec['assembled']:,}"))
+        if not rec["balances"]:
+            print("      Assembly has no drop path, so a gap here is edges "
+                  "going missing without a count, not expected attrition.")
 
     # --------------------------------------------- 4. per-virus matrix
     print(f"\n{'-' * 74}\n4. PER-VIRUS COVERAGE — what the graph holds for "
