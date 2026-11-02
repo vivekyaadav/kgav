@@ -1136,3 +1136,130 @@ def test_the_committed_results_file_predates_the_fix():
     else:
         land = L.load(RESULTS, release="v0.1")
         assert "single generator in row order" in land.protocol
+
+
+# ------------------------ the registration, checked against the code (S5)
+# A pre-registration that drifts from the code it registers is worse than
+# none: it reads as a commitment and documents a different study. Every
+# constant the document quotes is re-derived here from the thing it
+# describes. The DECISION items are deliberately not pinned -- they are
+# proposals awaiting a signature, and a test asserting a proposal would
+# make the signature meaningless.
+PREREG = _ROOT / "docs" / "prereg_pathway_overlap.md"
+
+
+@pytest.fixture(scope="module")
+def prereg() -> str:
+    assert PREREG.exists(), "the registration is missing"
+    return " ".join(PREREG.read_text().split())
+
+
+def test_it_says_plainly_that_it_is_not_a_registration_yet(prereg):
+    """The other four open by saying they were written BEFORE the code.
+    This one cannot, and the honest version of that is a sentence rather
+    than a silence."""
+    assert "UNSIGNED DRAFT" in prereg
+    assert "must not be executed before then" in prereg
+    assert "unregistered and its figures are exploratory" in prereg
+
+
+def test_the_quoted_release_matches_the_census(prereg):
+    census = _ROOT / "docs" / "kg_release_census.txt"
+    if not census.exists():
+        pytest.skip("census absent")
+    body = census.read_text()
+    for token in ("78,789 nodes", "392,907 edges"):
+        assert token.replace(" nodes", "").replace(" edges", "") in body
+        assert token in prereg, f"the registration does not quote {token}"
+    for sha in ("cb0496762795fb79", "3863a5452838dc40"):
+        assert sha in body and sha in prereg
+
+
+def test_the_declared_alpha_is_the_one_the_module_computes(prereg):
+    if not RESULTS.exists():
+        pytest.skip("no results file")
+    land = L.load(RESULTS, release="v0.1")
+    assert f"0.05/{land.n_tests}" in prereg
+    assert f"{land.alpha:.6f}" in prereg
+    assert f"{len(land.family)} rows x 2 = {land.n_tests}" in prereg
+
+
+def test_the_declared_readability_gate_is_the_derived_one(prereg):
+    """It was a constant 3.0 from the uncorrected alpha. The document
+    must register the DERIVATION, not a number that goes stale when the
+    family changes."""
+    assert "expected > -ln(alpha)" in prereg
+    assert "exp(-3) = 0.0498 < 0.05" in prereg, (
+        "the document should name the wrong derivation it replaces")
+    if RESULTS.exists():
+        land = L.load(RESULTS, release="v0.1")
+        assert f"{land.min_expected_hits:.2f}" in prereg
+
+
+def test_the_declared_seed_scheme_is_the_implemented_one(prereg):
+    import sys
+    from importlib import import_module
+    sys.path.insert(0, str(_ROOT / "scripts"))
+    pl = import_module("pathway_landscape")
+    assert 'Random(f"{seed}|{channel}|{virus}")' in prereg
+    assert "channel" in pl.SEED_SCHEME and "virus" in pl.SEED_SCHEME
+
+
+def test_every_powerless_row_is_named_in_the_registration(prereg):
+    """The six are the subject of a DECISION, so the document has to
+    list them rather than cite a count."""
+    if not RESULTS.exists():
+        pytest.skip("no results file")
+    import yaml
+    reg = {str(v["taxon"]): v["name"]
+           for v in yaml.safe_load((_ROOT / "config/viruses.yaml").read_text())
+           ["viruses"]}
+    land = L.load(RESULTS, release="v0.1")
+    dead = land.powerless_depletion()
+    assert len(dead) == 6
+    for r in dead:
+        name = reg.get(r.virus.split(":")[1], r.virus)
+        assert f"{r.channel} {name} {r.expected:.2f}" in prereg, (
+            f"{r.channel}/{name} at {r.expected:.2f} is not listed")
+
+
+def test_the_permutation_arithmetic_is_right(prereg):
+    """The document quotes three permutation counts and a step count.
+    Each is derived, so each is checked."""
+    if not RESULTS.exists():
+        pytest.skip("no results file")
+    land = L.load(RESULTS, release="v0.1")
+    import math as _m
+    hard = int(_m.ceil(1 / land.alpha))
+    ten = int(_m.ceil(10 / land.alpha)) - 1
+    assert f"N+1 > 1/alpha = {hard}" in prereg
+    assert f"N >= {ten:,}" in prereg
+    assert f"{L.resolvable_steps(100_000, land.alpha)} steps" in prereg
+
+
+def test_the_smallest_p_and_its_multiple_of_alpha_are_right(prereg):
+    """P2 rests on the smallest p being far above the threshold, so the
+    prediction is only as good as that number."""
+    if not RESULTS.exists():
+        pytest.skip("no results file")
+    import json
+    doc = json.loads(RESULTS.read_text())
+    land = L.load(RESULTS, release="v0.1")
+    ps = [r[d] for src in (doc["taxa"], doc["interactome"])
+          for r in src.values()
+          for d in ("p_matched", "p_matched_less") if r.get(d) is not None]
+    lo = min(ps)
+    assert f"{lo:.6f}" in prereg, f"smallest p is {lo:.6f}"
+    assert f"{lo / land.alpha:.1f}x the Bonferroni threshold" in prereg
+
+
+def test_the_three_decisions_are_marked_as_such(prereg):
+    """Three and no more. A fourth appearing silently would mean the
+    document started deciding things on its own."""
+    # THE HEADER'S COUNT AND THE MARKERS MUST AGREE. The first draft
+    # promised three and marked two -- the third belonged to the
+    # hard-negatives analysis and had been dropped from the body without
+    # the header being corrected. This test caught that.
+    assert "Two decisions are flagged **DECISION**" in prereg
+    assert prereg.count("**DECISION**") == 3, (
+        "one in the header plus one per decision; the count moved")
