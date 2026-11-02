@@ -309,11 +309,62 @@ def test_a_truncated_answer_fails():
 
 @pytest.mark.parametrize("ending", [
     "it is cited [E1].", "is that so [E1]?", "stop [E1]!",
-    'he said "yes" [E1]', "(see above) [E1]", "a list [E1]:",
+    'he said "yes" [E1]', "(see above) [E1]",
 ])
 def test_a_properly_closed_answer_is_not_called_truncated(ending):
     v = verify(ending, facts=["f [E1]"], citable_edge_ids=["E1"])
     assert "truncated_answer" not in [f.code for f in v.findings], ending
+
+
+# "a list [E1]:" USED TO BE IN THE LIST ABOVE, asserted as properly
+# closed. It is not: an answer ending by promising a list and not
+# delivering one is the definition of cut off. The case carried no
+# rationale of its own and sat among five genuinely complete endings, so
+# it reads as having been included by analogy with the other punctuation
+# rather than decided. Replaced by its opposite, with the reason, because
+# contradicting an existing assertion quietly is how the next person
+# re-adds it.
+@pytest.mark.parametrize("ending", [
+    "a list [E1]:",
+    "The direct-acting routes for this compound are:",
+    "VIRUS NOT VALIDATED:",
+    "Nirmatrelvir inhibits nsp5 [E1]. VIRUS NOT VALIDATED:",
+    "measured in Vero E6 cells...",
+    "measured in Vero E6 cells\u2026",
+])
+def test_an_answer_ending_open_is_truncated(ending):
+    v = verify(ending, facts=["nirmatrelvir inhibits nsp5 [chembl, 2021; E1]"],
+               citable_edge_ids=["E1"])
+    assert "truncated_answer" in [f.code for f in v.findings], ending
+
+
+def test_a_bare_caveat_label_does_not_verify_clean():
+    """THE WORST COMBINATION, and the reason the colon matters. A caveat
+    is enforced by its LABEL and a label ends in a colon, so a model cut
+    off one token after emitting its first label produced:
+
+        "VIRUS NOT VALIDATED:"
+
+    which passed EVERY check and returned no findings at all -- the
+    label is present so no caveat was dropped, the colon ended the
+    answer so it was not truncated, the sentence is under six words so
+    it is not an uncited claim, and it carries no citation and no
+    number. A fully verified answer that says nothing."""
+    v = verify("VIRUS NOT VALIDATED:", facts=["f [chembl, 2021; E1]"],
+               citable_edge_ids=["E1"], required_warnings=[CAVEAT])
+    assert not v.passed, v.report()
+    assert "truncated_answer" in [f.code for f in v.findings]
+
+
+def test_a_colon_inside_a_finished_answer_is_fine():
+    """The check is about how the answer ENDS. A caveat renders as
+    "LABEL: prose", so a colon mid-answer is the normal case and
+    rejecting it would fail every answer that carries a caveat."""
+    v = verify("VIRUS NOT VALIDATED: reliability is unknown. "
+               "Nirmatrelvir inhibits nsp5 [E1].",
+               facts=["nirmatrelvir inhibits nsp5 [chembl, 2021; E1]"],
+               citable_edge_ids=["E1"])
+    assert "truncated_answer" not in [f.code for f in v.findings]
 
 
 def test_an_empty_answer_is_not_reported_as_truncated():

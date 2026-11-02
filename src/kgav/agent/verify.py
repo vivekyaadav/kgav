@@ -476,8 +476,38 @@ def verify(answer: str, facts: list[str], citable_edge_ids: list[str],
     #     containment test. So a cut-off answer could lose the second half of
     #     a caveat, or report "160" from "1,600", and verify clean. Demanding
     #     terminal punctuation is crude and catches exactly this.
+    #
+    #     A COLON WAS ON THE ACCEPT LIST, which is backwards: a colon is a
+    #     promise of what follows, so it marks the likeliest cut point in
+    #     the answer rather than a complete one. "The direct-acting routes
+    #     for this compound are:" was read as finished.
+    #
+    #     And it combined with check 3 into something worse. A caveat is
+    #     enforced by its LABEL, and a label ends in a colon, so
+    #
+    #         "VIRUS NOT VALIDATED:"
+    #
+    #     passed EVERY check and verified clean with no findings at all:
+    #     the label is present so no caveat was dropped, the colon ended
+    #     the answer so it was not truncated, the sentence is under six
+    #     words so it is not an uncited claim, and it carries no citation
+    #     and no number. A model cut off one token after emitting its
+    #     first caveat label produced a fully verified answer -- which is
+    #     the exact event this check was written for, arriving one token
+    #     earlier than the example in its own comment.
+    #
+    #     A TRAILING ASCII ELLIPSIS IS ALSO NOT AN ENDING. "measured in
+    #     Vero E6 cells..." is a cut, not a sentence, and it ends in "."
+    #     so the last-character test cannot see it. Only the ASCII form
+    #     needs the extra clause: U+2026 is not on the accept list, so a
+    #     single-character ellipsis is already caught. A clause for it as
+    #     well survived mutation -- dead code that reads as load-bearing,
+    #     which is worse than its absence.
     stripped = (answer or "").rstrip()
-    if stripped and stripped[-1] not in ".!?\"')]:":
+    ends_open = bool(stripped) and (
+        stripped[-1] not in ".!?\"')]"
+        or stripped.endswith("..."))
+    if ends_open:
         findings.append(Finding(
             "fail", "truncated_answer",
             f"the answer ends mid-sentence ({stripped[-40:]!r}), so content "
