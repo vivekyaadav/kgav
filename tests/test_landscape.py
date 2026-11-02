@@ -989,3 +989,110 @@ def test_the_protocol_states_the_resolution_when_it_is_the_limit(tmp_path):
     good = L.load(_file(tmp_path, _rows(8), permutations=100_000,
                         n_tests=44), release="v0.1")
     assert "attainable" not in good.protocol, good.protocol
+
+
+# ----------------------- the minimum-detectable-effect table (S2, S4)
+# The table did not exist anywhere in the project, and "nothing survived
+# correction" was being published without it. Every row of the one now in
+# docs/scope_and_limits.md is re-derived here from the results file, so a
+# re-run with more permutations or another taxon fails until the document
+# is regenerated.
+_ROOT = Path(__file__).resolve().parents[1]
+SCOPE = _ROOT / "docs" / "scope_and_limits.md"
+RESULTS = _ROOT / "data" / "results" / "pathway_landscape.json"
+
+
+def test_the_minimum_detectable_ratio_is_the_poisson_tail_it_claims():
+    """The smallest k whose upper tail falls below alpha. Checked against
+    a direct sum at a size where the factorial still fits."""
+    import math as _m
+    alpha = 0.05 / 44
+    for m in (0.84, 2.53, 6.22, 7.43, 35.33):
+        k, ratio, bind = L.minimum_detectable_ratio(m, alpha, 2000)
+        assert bind == "poisson"
+        assert abs(ratio - k / m) < 1e-12
+        tail = lambda j: 1.0 - sum(_m.exp(-m) * m ** i / _m.factorial(i)
+                                   for i in range(j))
+        assert tail(k) < alpha, (m, k)
+        assert tail(k - 1) >= alpha, f"{k} is not the SMALLEST for m={m}"
+
+
+def test_a_large_expectation_does_not_overflow():
+    """m = 425 overflows a factorial, which is why the implementation
+    iterates the pmf. A table that cannot describe SARS-CoV-2 is not a
+    table of this family."""
+    k, ratio, bind = L.minimum_detectable_ratio(425.14, 0.05 / 44, 2000)
+    assert bind == "poisson" and k == 490
+    assert abs(ratio - 1.15) < 0.01
+
+
+def test_the_permutation_floor_can_bind_instead_of_the_tail():
+    """TWO THINGS CAN BIND. Where the grid cannot express a p below
+    alpha, no count is detectable however extreme -- an infinite minimum
+    detectable effect caused by the run's configuration, not by the
+    biology. Reporting only the Poisson tail would hide it."""
+    k, ratio, bind = L.minimum_detectable_ratio(10.0, 0.05 / 44,
+                                                permutations=200)
+    assert bind == "floor" and ratio == float("inf")
+    k2, _, bind2 = L.minimum_detectable_ratio(10.0, 0.05 / 44,
+                                              permutations=100_000)
+    assert bind2 == "poisson"
+
+
+def test_an_alpha_outside_the_unit_interval_is_refused_here_too():
+    for bad in (0.0, 1.0, -1.0):
+        with pytest.raises(ValueError):
+            L.minimum_detectable_ratio(10.0, bad)
+
+
+def test_the_family_covers_every_test_the_correction_charges_for():
+    """The module corrects alpha for the interactome channel and loaded
+    none of it, so fourteen of the twenty-two rows paying the
+    multiple-testing price were invisible to the module charging it."""
+    if not RESULTS.exists():
+        pytest.skip("no results file")
+    land = L.load(RESULTS, release="v0.1")
+    assert land.usable, land.refused_reason
+    assert len(land.family) * 2 == land.n_tests, (
+        f"{len(land.family)} family rows against {land.n_tests} tests")
+    assert {r.channel for r in land.family} == {"pathway", "interactome"}
+    # and they are NOT results: for_virus must still answer from `taxa`
+    assert len(land.taxa) < len(land.family)
+    for r in land.family:
+        assert not hasattr(r, "p_matched"), (
+            "a family row carries a p-value and will be read as a result")
+
+
+def test_the_powerless_depletion_tests_are_named():
+    if not RESULTS.exists():
+        pytest.skip("no results file")
+    land = L.load(RESULTS, release="v0.1")
+    dead = land.powerless_depletion()
+    assert len(dead) == 6, [(r.channel, r.virus, r.expected) for r in dead]
+    for r in dead:
+        assert r.expected <= L.min_expected_hits(r.alpha)
+    for r in land.family:
+        if r not in dead:
+            assert r.expected > L.min_expected_hits(r.alpha)
+
+
+def test_every_row_of_the_published_table_is_re_derived():
+    """The document is the deliverable S4 asks for, so it is checked
+    against the run rather than trusted."""
+    if not RESULTS.exists():
+        pytest.skip("no results file")
+    import yaml
+    reg = {str(v["taxon"]): v["name"]
+           for v in yaml.safe_load((_ROOT / "config/viruses.yaml").read_text())
+           ["viruses"]}
+    land = L.load(RESULTS, release="v0.1")
+    text = SCOPE.read_text()
+    for r in land.family:
+        name = reg.get(r.virus.split(":")[1], r.virus)
+        k, ratio, _ = r.minimum_detectable
+        row = (f"| {r.channel} | {name} | {r.expected:.2f} | "
+               f"{r.n_observed} | {k} hits = **{ratio:.2f}x** |")
+        assert row in text, f"missing or stale table row:\n  {row}"
+    assert "Six of the twenty-two downward tests" in text
+    assert "Seven of the twenty-two need a 2.4x excess" in text
+    assert f"{len(land.family) * 2}" in text

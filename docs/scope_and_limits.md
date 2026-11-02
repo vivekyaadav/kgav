@@ -134,6 +134,68 @@ The 1986–2008 shape of the histogram is UniProt's curation history —
 176,907 of 386,192 edges — not a record of when anything about these
 drugs was learned.
 
+## What the pathway null could have detected
+
+**A null result is only a finding if the reader knows what would have
+survived.** This table did not exist anywhere in the project until
+2026-11-02, and "nothing survived correction" was being reported without
+it. Failing to detect a 2x excess is not evidence against a 2x excess
+when the test needed 7x.
+
+Twenty-two tests in two channels, each also tested downward, so the
+family is forty-four and the Bonferroni threshold is 0.05/44 =
+**0.001136**. Minimum detectable effect is the smallest observed count
+whose Poisson upper tail falls below that threshold, as a multiple of the
+degree-matched expectation.
+
+| channel | virus | expected | observed | min. detectable | depletion |
+|---|---|---:|---:|---:|---|
+| interactome | JEV | 0.84 | 1 | 6 hits = **7.11x** | **no rejection region** |
+| interactome | West Nile | 0.88 | 4 | 6 hits = **6.85x** | **no rejection region** |
+| pathway | West Nile | 2.53 | 0 | 10 hits = **3.95x** | **no rejection region** |
+| interactome | DENV-3 | 4.44 | 6 | 13 hits = **2.93x** | **no rejection region** |
+| interactome | TBEV | 4.60 | 3 | 13 hits = **2.83x** | **no rejection region** |
+| pathway | DENV-2 | 6.22 | 2 | 16 hits = **2.57x** | **no rejection region** |
+| pathway | HCoV-NL63 | 7.43 | 10 | 18 hits = **2.42x** | testable |
+| interactome | DENV-1 | 7.09 | 11 | 17 hits = **2.40x** | testable |
+| interactome | DENV-2 | 35.33 | 40 | 56 hits = **1.58x** | testable |
+| interactome | HCoV-HKU1 | 36.49 | 25 | 57 hits = **1.56x** | testable |
+| interactome | HCoV-OC43 | 38.19 | 28 | 59 hits = **1.54x** | testable |
+| interactome | HCoV-NL63 | 40.96 | 32 | 63 hits = **1.54x** | testable |
+| interactome | Zika | 44.78 | 47 | 68 hits = **1.52x** | testable |
+| interactome | HCoV-229E | 50.36 | 34 | 74 hits = **1.47x** | testable |
+| pathway | HCoV-OC43 | 65.07 | 62 | 92 hits = **1.41x** | testable |
+| pathway | MERS-CoV | 66.54 | 60 | 94 hits = **1.41x** | testable |
+| pathway | Zika | 79.83 | 76 | 109 hits = **1.37x** | testable |
+| interactome | MERS-CoV | 79.86 | 64 | 109 hits = **1.36x** | testable |
+| pathway | HCoV-229E | 135.34 | 128 | 173 hits = **1.28x** | testable |
+| interactome | SARS-CoV | 148.88 | 167 | 188 hits = **1.26x** | testable |
+| pathway | SARS-CoV-2 | 358.98 | 384 | 419 hits = **1.17x** | testable |
+| interactome | SARS-CoV-2 | 425.14 | 438 | 490 hits = **1.15x** | testable |
+
+**Six of the twenty-two downward tests have no rejection region at all.**
+Under a Poisson background with mean *m* the most extreme downward
+observation is zero, with probability exp(−*m*); where that exceeds
+0.001136 — i.e. *m* < 6.78 — no observation whatsoever can clear the bar.
+Those six tests are in the correction family and cannot contribute a
+finding to it, which makes the sixteen that can harder to pass for no
+return. Dropping them is defensible, because emptiness depends on the
+matched expectation and not on any outcome, so it is not choosing tests
+after seeing them — but the family belongs in a preregistration that does
+not exist yet, and it is left alone until it does.
+
+**Seven of the twenty-two need a 2.4x excess or more**, and two need
+roughly 7x. Those are the rows where a real but moderate effect would be
+invisible, and they are all flaviviruses or the small coronaviruses — the
+taxa this release covers thinnest. The large-*m* rows at the bottom of
+the table are sensitive to a 15–30% excess and found none, which is the
+part of the null that carries weight.
+
+A separate limit compounds this: at 2,000 permutations only **two**
+attainable p-values lie below 0.001136, so the test can distinguish
+"significant" from "not" and little else. `src/kgav/landscape.py` reports
+this and states that 8,799 permutations would give ten.
+
 ## What the graph cannot be asked
 
 `make data-audit` reports the declared schema against the built graph.

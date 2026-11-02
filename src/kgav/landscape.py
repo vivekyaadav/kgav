@@ -127,6 +127,47 @@ def resolvable_steps(permutations: int, alpha: float) -> int:
     return max(0, int(math.floor(alpha * (permutations + 1) + 1e-12)))
 
 
+def minimum_detectable_ratio(expected: float, alpha: float,
+                             permutations: int = 0) -> tuple[int, float, str]:
+    """`(smallest detectable count, that count over expected, what binds)`.
+
+    THE TABLE A NULL RESULT CANNOT BE PUBLISHED WITHOUT, and this project
+    had it nowhere. "Nothing survived correction" is only a finding if
+    the reader knows what WOULD have survived: a row expected to hit 0.84
+    pathways needs six hits -- a 7.1x excess -- before it can clear the
+    corrected threshold, and failing to find that is not evidence against
+    a real effect of 2x.
+
+    Poisson upper tail, which is the same approximation
+    min_expected_hits already uses for the lower one, computed with an
+    iterative pmf because m = 425 overflows a factorial.
+
+    TWO THINGS CAN BIND, and reporting only the first would hide the
+    second. The Poisson tail gives the smallest k whose p falls below
+    alpha; the permutation grid cannot express a p below 1/(N+1) at all.
+    Where the floor is the coarser of the two, no k is detectable and
+    "floor" is returned -- a row whose minimum detectable effect is
+    infinite because of how the run was configured, not because of the
+    biology.
+    """
+    if not 0.0 < alpha < 1.0:
+        raise ValueError(f"alpha must be in (0, 1), got {alpha!r}")
+    if permutations > 0 and 1.0 / (permutations + 1) >= alpha:
+        return 0, float("inf"), "floor"
+    if expected <= 0:
+        return 1, float("inf"), "empty-background"
+    pmf = math.exp(-expected)
+    cum = pmf
+    k = 0
+    while k < 100_000:
+        k += 1
+        if 1.0 - cum < alpha:
+            return k, k / expected, "poisson"
+        pmf *= expected / k
+        cum += pmf
+    raise AssertionError(f"no detectable count for expected={expected}")
+
+
 #: Resolvable steps below alpha under which a run is reported as
 #: underpowered rather than quoted plainly. Ten is a convention and is
 #: labelled as one: the arithmetic only gives the hard floor, which is
@@ -160,6 +201,11 @@ class TaxonOverlap:
     # it.
     alpha: float = ALPHA
     n_tests: int = 1
+    #: Carried for the same reason as `alpha`: the minimum detectable
+    #: effect depends on the permutation grid as well as the threshold,
+    #: and a row computing it from a module default would report a
+    #: sensitivity the run never had.
+    n_permutations: int = 0
 
     @property
     def ratio(self) -> float:
@@ -194,6 +240,25 @@ class TaxonOverlap:
     def min_expected_hits(self) -> float:
         """The readability threshold for THIS row's corrected alpha."""
         return min_expected_hits(self.alpha)
+
+    @property
+    def depletion_can_reject(self) -> bool:
+        """Whether a DOWNWARD test on this row could reject at all.
+
+        The most extreme downward observation is zero, so the test has a
+        non-empty rejection region only where exp(-expected) < alpha.
+        Below that no observation whatsoever clears the bar -- the test
+        is in the correction family and cannot contribute a finding to
+        it, which makes every other test in the family harder to pass
+        for nothing.
+        """
+        return self.expected > self.min_expected_hits
+
+    @property
+    def minimum_detectable_ratio(self) -> float:
+        """The smallest UPWARD excess this row could have detected."""
+        return minimum_detectable_ratio(
+            self.expected, self.alpha, self.n_permutations)[1]
 
     @property
     def enriched(self) -> bool:
@@ -271,6 +336,33 @@ class TaxonOverlap:
         return head
 
 
+@dataclass(frozen=True)
+class FamilyRow:
+    """One test in the correction family, for POWER reporting only.
+
+    Deliberately thin and deliberately not a TaxonOverlap: it carries no
+    p-value and no verdict, because its only job is to answer "could
+    this test have rejected, and at what effect size". A record that
+    could be mistaken for a result would be read as one.
+    """
+    channel: str
+    virus: str
+    expected: float
+    n_observed: int
+    n_dependency: int
+    alpha: float
+    n_permutations: int = 0
+
+    @property
+    def depletion_can_reject(self) -> bool:
+        return self.expected > min_expected_hits(self.alpha)
+
+    @property
+    def minimum_detectable(self) -> tuple[int, float, str]:
+        return minimum_detectable_ratio(self.expected, self.alpha,
+                                        self.n_permutations)
+
+
 @dataclass
 class Landscape:
     """Every taxon's measured pathway overlap, with the run that measured it."""
@@ -286,6 +378,10 @@ class Landscape:
     #: correction answers to the family of tests performed, not to the
     #: subset this module reports -- see n_tests.
     other_channel_tests: int = 0
+    #: Every row in the correction family, both channels, for POWER
+    #: reporting only. See the loader: these are not results and never
+    #: reach for_virus.
+    family: list[FamilyRow] = field(default_factory=list)
 
     @property
     def usable(self) -> bool:
@@ -343,6 +439,35 @@ class Landscape:
     def resolvable_steps(self) -> int:
         """Attainable p-values strictly below this run's corrected alpha."""
         return resolvable_steps(self.permutations, self.alpha)
+
+    def powerless_depletion(self) -> list[FamilyRow]:
+        """Family rows whose DOWNWARD test has an empty rejection region.
+
+        On release v0.1 this is six of twenty-two, and the external
+        audit's count is exactly right:
+
+            interactome  JEV          0.84 expected
+            interactome  West Nile    0.88
+            pathway      West Nile    2.53
+            interactome  DENV-3       4.44
+            interactome  TBEV         4.60
+            pathway      DENV-2       6.22
+
+        WHAT IS NOT DONE HERE. These six are still in the family, so the
+        threshold every other test is judged against is 0.05/44 rather
+        than 0.05/38 -- six tests that cannot contribute a finding make
+        the sixteen that can harder to pass. Dropping them is defensible:
+        emptiness depends on the matched EXPECTATION, which is fixed by
+        the degree-matched design and knowable before any outcome is
+        looked at, so it is not choosing tests after seeing them.
+
+        It is still not a change to make in passing. This project's own
+        standing rule is that the correction family is fixed in the
+        preregistration before a p-value is in hand, and there is no
+        preregistration yet. So the rows are NAMED and the family is
+        left alone, and the decision belongs in that document.
+        """
+        return [r for r in self.family if not r.depletion_can_reject]
 
     @property
     def underpowered(self) -> bool:
@@ -506,10 +631,11 @@ class Landscape:
 
 
 def _overlap(virus: str, row: dict, alpha: float = ALPHA,
-             n_tests: int = 1) -> TaxonOverlap:
+             n_tests: int = 1, n_permutations: int = 0) -> TaxonOverlap:
     return TaxonOverlap(
         alpha=alpha,
         n_tests=n_tests,
+        n_permutations=n_permutations,
         virus=virus,
         n_dependency=int(row.get("n_dependency") or 0),
         n_observed=int(row.get("n_observed") or 0),
@@ -639,6 +765,28 @@ def load(results: Path, release: str | None = None) -> Landscape:
             f"permutations would give {MIN_RESOLVABLE_STEPS} steps")
         return base
 
-    base.taxa = {v: _overlap(v, r, alpha=alpha, n_tests=n_tests)
+    base.taxa = {v: _overlap(v, r, alpha=alpha, n_tests=n_tests,
+                             n_permutations=perms)
                  for v, r in rows.items()}
+    # EVERY ROW IN THE FAMILY, both channels, for power reporting only.
+    #
+    # The module corrects alpha for the interactome channel's fourteen
+    # taxa -- see n_tests -- and then loads none of them, so fourteen of
+    # the twenty-two rows paying the multiple-testing price were
+    # invisible to the module charging it. They are NOT in `taxa` and
+    # never reach for_virus: an interactome overlap reported as a pathway
+    # overlap would be a wrong answer, which is worse than a missing one.
+    # They are here so the power table can cover the real family.
+    base.family = []
+    for channel, src in (("pathway", rows),
+                         ("interactome", doc.get("interactome") or {})):
+        for v, r in sorted((src or {}).items()):
+            if not isinstance(r, dict):
+                continue
+            base.family.append(FamilyRow(
+                channel=channel, virus=v,
+                expected=float(r.get("expected") or 0.0),
+                n_observed=int(r.get("n_observed") or 0),
+                n_dependency=int(r.get("n_dependency") or 0),
+                alpha=alpha, n_permutations=perms))
     return base
