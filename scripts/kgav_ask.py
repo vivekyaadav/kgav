@@ -24,6 +24,7 @@ from kgav.agent.orchestrator import Orchestrator
 from kgav.agent.tools import GraphTools
 from kgav.agent.verify import verify_response
 from kgav import calibration as kgav_calibration
+from kgav.labels import measured_reach
 from kgav import landscape as kgav_landscape
 
 RULE = "─" * 74
@@ -138,8 +139,19 @@ def main() -> int:
     if not land.usable:
         print(f"note: {land.refused_reason}; the pathway route will be "
               f"reported as unmeasured", file=sys.stderr)
+    # MEASURED REACH, the fact that separates `evaluable` from ROUTES
+    # REACH NO LABEL. Loaded like the two above and refused the same
+    # way: a metapath_comparison.json that is absent, stale or stamped
+    # for another release gives None, and the agent then says reach is
+    # unmeasured instead of asserting it is zero.
+    reach = measured_reach(args.results, args.release)
+    if reach is None:
+        print("note: metapath_comparison.json is absent, stale or stamped "
+              "for another release; whether a route reaches a label will be "
+              "reported as unmeasured. `make check-results` says which.",
+              file=sys.stderr)
     orch = Orchestrator(GraphTools(args.release, calibration=cals or None,
-                                   landscape=land))
+                                   landscape=land, reach=reach))
 
     model = None
     if not args.no_model:

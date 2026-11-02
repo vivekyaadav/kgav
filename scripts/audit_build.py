@@ -39,8 +39,9 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from kgav.labels import measured_reach
 from kgav.pipeline import LAYERS, availability, layer_dir
-from kgav.provenance import check_file, check_layer
+from kgav.provenance import check_layer
 from kgav.schema import load_schema, print_capped
 from kgav.virus_register import declared_taxa, family_of
 
@@ -257,42 +258,6 @@ VERDICT_NOTES: tuple[tuple[str, str], ...] = (
       "wrong. Edge counts cannot see this,\n      which is why the column "
       "beside them read `evaluable`.")),
 )
-
-
-def measured_reach(results: Path, release: Path) -> dict[str, int] | None:
-    """Held-out positives each virus's metapaths actually reach.
-
-    `{virus label: COMBINED.pos}`, or None when that cannot be known.
-
-    WHY THIS IS NOT DERIVED FROM THE GRAPH. Whether a metapath reaches a
-    labelled compound is the result of walking it against a label set,
-    which is what compare_metapaths.py does. Edge counts cannot answer
-    it: DENV-1 has 349 labels and 53 virus-host interactions and reaches
-    none of the 349.
-
-    ONLY IF THE FILE IS CURRENT. provenance.check_file is the same audit
-    `make check-results` runs, so a comparison measured on a graph that
-    has since moved is reported as unmeasured rather than quoted here.
-    Returning None for "cannot be known" rather than 0 for "reaches
-    nothing" is the whole point: those are opposite claims, and this
-    script has twice shipped a figure from a previous graph.
-    """
-    path = Path(results) / "metapath_comparison.json"
-    if not path.exists():
-        return None
-    status, _msg = check_file(path, release)
-    if status != "ok":
-        return None
-    try:
-        per = json.loads(path.read_text())["per_virus"]
-    except (OSError, ValueError, KeyError):
-        return None
-    out = {}
-    for virus, channels in per.items():
-        pos = (channels.get("COMBINED") or {}).get("pos")
-        if isinstance(pos, int):
-            out[virus] = pos
-    return out or None
 
 
 def main(argv=None) -> int:

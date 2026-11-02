@@ -857,7 +857,25 @@ TRIAGE and PATHWAY queries for a virus with no feature route, naming the
 label count and stating that the refusal is "not because no compound
 looks promising, but because none can be reached" — because an empty
 ranking reads as the former. Below 25 edges a route is allowed with a
-THIN ROUTE caveat. Reliability is reported from the virus's own
+THIN ROUTE caveat.
+
+IT ENFORCED THREE OF THE FOUR UNTIL 2026-11-02, and this paragraph
+claimed all four. ROUTES REACH NO LABEL was invisible to it: the one
+fact separating that tier from EVALUABLE is measured reach, which
+cannot be counted from edges, and it was computed in
+scripts/audit_build.py — a script the agent cannot import. So the five
+viruses above were ranked carrying only "no channel performance has
+been measured for this virus on this release, so its reliability is
+unknown", when it is known and it is zero. DENV-1 is the worst case
+because it looks the best: 53 virus-host interactions clear the THIN
+ROUTE threshold, so the virus whose ranking is least checkable was the
+one carrying no caveat about its route at all. measured_reach now lives
+in src/kgav/labels.py with one owner, read by this audit and by
+guards.VirusRoutes alike, and the tier is stated as a LABELS
+UNREACHABLE caveat rather than a refusal — the walk is real and the
+mechanism it shows is true; what cannot be had is any evidence that the
+ORDER beats chance. A stale or absent metapath_comparison.json makes
+reach unmeasured rather than zero, because those are opposite claims. Reliability is reported from the virus's own
 calibration, and on this release NO virus has a channel whose interval
 clears chance, so every answerable virus carries VIRUS NOT VALIDATED.
 

@@ -88,7 +88,24 @@ class GraphTools:
     """The graph, loaded once, exposed as a fixed set of callable tools."""
 
     def __init__(self, release: Path, name_index: dict[str, str] | None = None,
-                 calibration=None, landscape=None):
+                 calibration=None, landscape=None,
+                 reach: dict[str, int] | None = None):
+        # MEASURED REACH PER VIRUS, {display label: held-out positives the
+        # metapaths reach}, or None for "not measured".
+        #
+        # The one fact in VirusRoutes that cannot come from the graph.
+        # labels.measured_reach is its single owner and returns None
+        # unless provenance says metapath_comparison.json is current for
+        # this release, so a stale file makes reach UNKNOWN rather than
+        # ZERO -- opposite claims, and the stale-figure mistake this
+        # project has made twice already.
+        #
+        # A virus absent from the map also resolves to None. The map is
+        # keyed by the label metapath_comparison.json uses, which is the
+        # same display label _label() returns, so the lookup needs no
+        # translation -- unlike calibration, which is keyed by whatever
+        # the caller passed and needed a node_labels map to fix.
+        self._reach = dict(reach or {})
         # ONE LANDSCAPE FOR THE WHOLE RELEASE, queried per virus.
         #
         # Unlike calibration there is no per-virus mapping to mis-key: the
@@ -298,6 +315,17 @@ class GraphTools:
         refusal can say what exists, and is never an input to an
         answer: quoting a label as evidence is the leak the rest of
         this module exists to stop.
+
+        ONE EXCEPTION TO THE PARAGRAPH ABOVE, added 2026-11-02:
+        reached_labels comes from the reach map, not from the graph,
+        because it cannot be counted from edges at all -- walking a
+        metapath against a label set is what produces it. The guarantee
+        the first paragraph protects still holds, by a different route:
+        the map is refused unless provenance says it was measured on
+        the release being served, so a figure from a previous graph is
+        reported as unmeasured rather than quoted. Without it the agent
+        cannot tell `evaluable` from ROUTES REACH NO LABEL and tells
+        five viruses their reliability is unknown when it is zero.
         """
         inhibits = crispr = ppi = labels = 0
         for e in self.edges:
@@ -331,8 +359,10 @@ class GraphTools:
                 a, b = self._taxon_of(subj), self._taxon_of(obj)
                 one_viral = (a is None) != (b is None)
                 ppi += one_viral and virus in (a, b)
-        return guards.VirusRoutes(label=self._label(virus), n_labels=labels,
-                                  inhibits=inhibits, crispr=crispr, ppi=ppi)
+        name = self._label(virus)
+        return guards.VirusRoutes(label=name, n_labels=labels,
+                                  inhibits=inhibits, crispr=crispr, ppi=ppi,
+                                  reached_labels=self._reach.get(name))
 
     def _taxon_of(self, node_id: str) -> str | None:
         """The virus a VIRAL protein belongs to, else None."""

@@ -395,7 +395,7 @@ def test_the_assumption_caveat_is_enforced_like_every_other(orch):
 V_OTHER = "NCBITaxon:694009"
 
 
-def _ppi_tools(tmp_path, pairs):
+def _ppi_tools(tmp_path, pairs, reach=None):
     """A release holding only PHYSICALLY_INTERACTS_WITH, from `pairs`.
 
     Built on disk and read back through GraphTools, so routes_for is
@@ -433,7 +433,7 @@ def _ppi_tools(tmp_path, pairs):
         "\n".join(json.dumps(n) for n in nodes))
     (tmp_path / "edges.jsonl").write_text(
         "\n".join(json.dumps(x) for x in edges))
-    return GraphTools(tmp_path)
+    return GraphTools(tmp_path, reach=reach)
 
 
 def test_routes_are_counted_from_the_release(tmp_path):
@@ -716,3 +716,57 @@ def test_the_refusal_says_it_cannot_look_rather_than_that_it_found_nothing(
     # AND IT DISCLOSES THE LABELS IT IS SITTING ON. A refusal that hides
     # how much evidence exists reads as an empty graph.
     assert "antiviral measurement" in result.note, result.note
+
+
+# ------------------------------------------- measured reach, plumbed in
+# routes_for counts every other field FROM THE GRAPH. Reach cannot be
+# counted from edges -- walking a metapath against a label set is what
+# produces it -- so it arrives from labels.measured_reach. These assert
+# the join: keyed by DISPLAY LABEL, and a virus the map does not cover
+# resolves to None rather than to 0.
+def test_reach_is_joined_by_display_label(tmp_path):
+    routes = _ppi_tools(
+        tmp_path, [("UniProtKB:NSP5", "UniProtKB:SIGMAR1")],
+        reach={"SARS-CoV-2": 1085}).routes_for(V)
+    assert routes.label == "SARS-CoV-2"
+    assert routes.reached_labels == 1085
+
+
+def test_a_virus_absent_from_the_reach_map_is_unmeasured(tmp_path):
+    """NOT zero. The map holds the viruses metapath_comparison.json
+    covers; a virus it omits has not been measured, and reporting that
+    as "no route reaches a label" is the opposite claim."""
+    routes = _ppi_tools(
+        tmp_path, [("UniProtKB:NSP5", "UniProtKB:SIGMAR1")],
+        reach={"DENV-1": 0}).routes_for(V)
+    assert routes.reached_labels is None
+    assert not routes.reach_measured
+
+
+def test_no_reach_map_leaves_every_virus_unmeasured(tmp_path):
+    """The default, and the behaviour of every caller that cannot
+    compute reach: the agent says so rather than refusing or asserting."""
+    tools = _ppi_tools(tmp_path, [("UniProtKB:NSP5", "UniProtKB:SIGMAR1")])
+    assert tools.routes_for(V).reached_labels is None
+    assert tools.routes_for(V_OTHER).reached_labels is None
+
+
+def test_a_reach_of_zero_survives_the_join(tmp_path):
+    """0 is a VALUE here, not an absence. A join written with `or None`
+    or a truthiness guard would turn the one tier this plumbing exists
+    for back into "unmeasured".
+
+    `unreachable` is deliberately NOT asserted: this fixture writes no
+    HAS_ANTIVIRAL_ACTIVITY_AGAINST edge, so n_labels is 0 and the virus
+    is in the FEATURES, NOTHING TO SCORE tier, where reach of 0 means
+    there was nothing to reach. The first version of this test asserted
+    it anyway and failed -- a fixture that cannot produce the condition
+    it claims to check, which is the defect class this suite keeps
+    finding. The tier itself is checked in test_agent_guards.py, where
+    the label count can be set."""
+    routes = _ppi_tools(
+        tmp_path, [("UniProtKB:NSP5", "UniProtKB:SIGMAR1")],
+        reach={"SARS-CoV-2": 0}).routes_for(V)
+    assert routes.reached_labels == 0
+    assert routes.reach_measured
+    assert routes.n_labels == 0 and not routes.unreachable

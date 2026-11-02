@@ -5,6 +5,7 @@ import json
 
 import pytest
 
+from kgav import labels as L
 from kgav.labels import edge_sources, build_labels, classify, evaluate_against_negatives
 
 V = "NCBITaxon:2697049"
@@ -195,3 +196,84 @@ def test_an_unknown_source_yields_no_labels_rather_than_all(mixed_sources):
     lab = build_labels(mixed_sources, sources={"infores:typo"})
     assert not lab.positives and not lab.negatives
     assert lab.stats["other_source"] == 5
+
+
+# --------------------------------------------------------------- reach
+# MEASURED REACH, moved here from scripts/audit_build.py on 2026-11-02.
+# It lived in a script, so the agent -- which cannot import a script --
+# could not tell a route that reaches labels from one that reaches none,
+# and told five viruses their reliability was unknown when it is zero.
+# These tests are about the three states the function must keep apart:
+# None for "cannot be known", 0 for "reaches nothing", n for reach.
+def _comparison(results, release, pos_by_virus, stale=False, raw=None):
+    from kgav.provenance import write_results
+    results.mkdir(parents=True, exist_ok=True)
+    path = results / "metapath_comparison.json"
+    per = raw if raw is not None else {
+        v: {"COMBINED": {"pos": n, "pool": max(n, 1)}}
+        for v, n in pos_by_virus.items()}
+    write_results(path, {"per_virus": per}, release=release)
+    if stale:
+        doc = json.loads(path.read_text())
+        doc["provenance"]["release"]["edges_sha"] = "0" * 16
+        path.write_text(json.dumps(doc))
+    return results
+
+
+def _tiny_release(tmp_path):
+    rel = tmp_path / "rel"
+    rel.mkdir()
+    (rel / "nodes.jsonl").write_text('{"id": "NCBITaxon:1"}\n')
+    (rel / "edges.jsonl").write_text(
+        '{"subject": "a", "predicate": "P", "object": "b"}\n')
+    return rel
+
+
+def test_measured_reach_reads_a_current_file(tmp_path):
+    rel = _tiny_release(tmp_path)
+    res = _comparison(tmp_path / "r", rel, {"DENV-1": 0, "DENV-2": 117})
+    assert L.measured_reach(res, rel) == {"DENV-1": 0, "DENV-2": 117}
+
+
+def test_an_absent_file_is_unmeasured_not_zero(tmp_path):
+    """None and 0 are OPPOSITE claims. A caller that cannot tell them
+    apart asserts that nothing is reachable because it failed to look."""
+    rel = _tiny_release(tmp_path)
+    assert L.measured_reach(tmp_path / "nothing-here", rel) is None
+
+
+def test_a_stale_file_is_unmeasured_not_zero(tmp_path):
+    """The specific way this project has shipped a wrong figure twice:
+    a results file measured on a graph that has since moved. Reported as
+    unknown rather than quoted."""
+    rel = _tiny_release(tmp_path)
+    res = _comparison(tmp_path / "r", rel, {"DENV-1": 0}, stale=True)
+    assert L.measured_reach(res, rel) is None, \
+        "a stale comparison was quoted as a measurement"
+
+
+def test_a_file_with_no_integer_reach_is_unmeasured(tmp_path):
+    rel = _tiny_release(tmp_path)
+    res = _comparison(tmp_path / "r", rel, {},
+                      raw={"DENV-1": {"COMBINED": {"pos": None}},
+                           "JEV": {"COMBINED": {}},
+                           "TBEV": {}})
+    assert L.measured_reach(res, rel) is None
+
+
+def test_a_virus_with_no_integer_reach_is_dropped_not_zeroed(tmp_path):
+    """One unreadable row must not become a reach of 0 for that virus
+    while the readable rows are kept."""
+    rel = _tiny_release(tmp_path)
+    res = _comparison(tmp_path / "r", rel, {},
+                      raw={"DENV-1": {"COMBINED": {"pos": "0"}},
+                           "DENV-2": {"COMBINED": {"pos": 117}}})
+    assert L.measured_reach(res, rel) == {"DENV-2": 117}
+
+
+def test_malformed_json_is_unmeasured(tmp_path):
+    rel = _tiny_release(tmp_path)
+    res = tmp_path / "r"
+    res.mkdir()
+    (res / "metapath_comparison.json").write_text("{not json")
+    assert L.measured_reach(res, rel) is None

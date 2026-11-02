@@ -33,6 +33,10 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# provenance imports nothing from this package, so this is a plain
+# top-level import and not a cycle dodged with a function-local one.
+from kgav.provenance import check_file
+
 ACTIVITY_PREDICATE = "HAS_ANTIVIRAL_ACTIVITY_AGAINST"
 # Binding constants belong here. Reading only EC50/IC50 meant classify()
 # returned None for all 667 Ki/Kd measurements in the chembl layer -- not
@@ -233,6 +237,52 @@ def auc_ceiling(reached_pos: int, reached_neg: int,
     k = max(0, min(reached_pos, n_pos))
     j = max(0, min(reached_neg, n_neg))
     return (k * n_neg + 0.5 * (n_pos - k) * (n_neg - j)) / (n_pos * n_neg)
+
+
+def measured_reach(results: Path, release: Path) -> dict[str, int] | None:
+    """Held-out positives each virus's metapaths actually reach.
+
+    `{virus label: COMBINED.pos}`, or None when that cannot be known.
+
+    WHY THIS IS NOT DERIVED FROM THE GRAPH. Whether a metapath reaches a
+    labelled compound is the result of walking it against a label set,
+    which is what compare_metapaths.py does. Edge counts cannot answer
+    it: DENV-1 has 349 labels and 53 virus-host interactions and reaches
+    none of the 349.
+
+    ONLY IF THE FILE IS CURRENT. provenance.check_file is the same audit
+    `make check-results` runs, so a comparison measured on a graph that
+    has since moved is reported as unmeasured rather than quoted here.
+    Returning None for "cannot be known" rather than 0 for "reaches
+    nothing" is the whole point: those are opposite claims, and this
+    project has twice shipped a figure from a previous graph.
+
+    LIVED IN scripts/audit_build.py UNTIL 2026-11-02, which is why the
+    agent could not express the tier this measures. The audit report
+    prints four per-virus tiers and says "THE AGENT ENFORCES THIS"; the
+    agent could see three of them, because the one fact separating
+    ROUTES REACH NO LABEL from `evaluable` was computed in a script it
+    does not import. Five viruses -- DENV-1, DENV-3, HCoV-NL63, JEV,
+    TBEV -- were therefore ranked with a caveat saying their reliability
+    was "unknown", when it is known and is zero. One owner now, read by
+    the audit and by guards.VirusRoutes alike.
+    """
+    path = Path(results) / "metapath_comparison.json"
+    if not path.exists():
+        return None
+    status, _msg = check_file(path, release)
+    if status != "ok":
+        return None
+    try:
+        per = json.loads(path.read_text())["per_virus"]
+    except (OSError, ValueError, KeyError):
+        return None
+    out = {}
+    for virus, channels in per.items():
+        pos = (channels.get("COMBINED") or {}).get("pos")
+        if isinstance(pos, int):
+            out[virus] = pos
+    return out or None
 
 
 def evaluate_against_negatives(scores: dict[str, float], pos: set[str],

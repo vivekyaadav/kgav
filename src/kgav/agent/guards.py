@@ -217,18 +217,81 @@ class VirusRoutes:
     n_labels is held-out positives. It is carried only so the refusal
     can say what is there, never to answer from: quoting a label as
     evidence is the leak every other guard here exists to prevent.
+
+    reached_labels IS THE THIRD STATE, and it is the one this class
+    could not express until 2026-11-02. Every other field is counted
+    from the graph being served; this one cannot be. Whether a route
+    REACHES a labelled compound is the result of walking it against the
+    label set, and edge counts cannot answer it -- DENV-1 holds 349
+    positives and 53 virus-host interactions and reaches none of the
+    349. So it arrives from labels.measured_reach, which quotes
+    metapath_comparison.json only while provenance says that file is
+    current for this release.
+
+    THREE VALUES, NOT TWO. None means not measured; 0 means measured
+    and no route reaches a single positive; a positive integer means
+    measured reach. None and 0 are OPPOSITE claims -- "cannot be known"
+    against "is nothing" -- and collapsing them with a truthiness test
+    is the specific mistake this field exists to make impossible, so
+    every check below is `is None` or `== 0`.
     """
     label: str
     n_labels: int = 0
     inhibits: int = 0
     crispr: int = 0
     ppi: int = 0
+    reached_labels: int | None = None
 
     @property
     def routes(self) -> tuple[str, ...]:
         return tuple(n for n, v in (("inhibits", self.inhibits),
                                     ("crispr", self.crispr),
                                     ("ppi", self.ppi)) if v)
+
+    @property
+    def reach_measured(self) -> bool:
+        """Whether reach is known at all. False is not a verdict on reach."""
+        return self.reached_labels is not None
+
+    @property
+    def unreachable(self) -> bool:
+        """Routes exist, labels exist, and the routes reach NONE of them.
+
+        The ROUTES REACH NO LABEL tier of docs/kg_audit_report.txt
+        section 9, which the report claims the agent enforces. It did
+        not: the agent saw a virus with routes and said its reliability
+        was "unknown", where it is known and it is zero. Five viruses on
+        release v0.1 -- DENV-1, DENV-3, HCoV-NL63, JEV and TBEV.
+
+        NOT THE SAME AS `thin`, and the difference is the point. A thin
+        route is small and might reach something; this route is walked
+        in full and lands on compounds no measurement covers. DENV-1's
+        53 PPI edges clear THIN_ROUTE comfortably, so before this the
+        agent's most confident-looking unanswerable virus carried no
+        caveat about reach at all.
+
+        NOT the no-route tier either: that is `not self.routes`, and
+        check() refuses it outright. DENV-4 has 312 labels and no route,
+        so it is already refused and is NOT one of the five above --
+        the external audit listed it as a sixth, and it is not.
+        """
+        return (self.reached_labels == 0 and bool(self.routes)
+                and self.n_labels > 0)
+
+    def unreachable_text(self) -> str:
+        routes = ", ".join(
+            f"{n} ({v:,} edge{'s' if v != 1 else ''})"
+            for n, v in (("direct-acting evidence", self.inhibits),
+                         ("CRISPR host factors", self.crispr),
+                         ("virus-host interactions", self.ppi)) if v)
+        return (f"{self.label} holds {self.n_labels:,} held-out antiviral "
+                f"measurement(s), and the routes this agent walks for it "
+                f"({routes}) reach NONE of them on this release. The ranking "
+                f"is complete and nothing in this graph can mark it right or "
+                f"wrong: not because it has not been checked, but because "
+                f"there is no overlap to check it against. Read the order "
+                f"below as the paths that exist, never as a comparison of "
+                f"the compounds.")
 
     @property
     def thin(self) -> bool:
@@ -278,6 +341,10 @@ CAVEAT_LABELS: dict[str, str] = {
     "pathway_route":         "PATHWAY ROUTE",
     "target_direction":      "TARGET DIRECTION",
     "thin_route":            "THIN ROUTE",
+    # Stronger than THIN ROUTE and a different claim: the route is not
+    # small, it is walked in full and reaches no labelled compound. See
+    # VirusRoutes.unreachable.
+    "labels_unreachable":    "LABELS UNREACHABLE",
 }
 
 
@@ -700,6 +767,20 @@ def check(kind: QueryKind, virus: str | None = None,
         warnings.append(caveat(
             "virus_calibrated" if _is_validated(calibration)
             else "virus_not_validated", _virus_caveat(calibration)))
+    # ORDER: the calibration caveat says what was measured, this says why
+    # nothing COULD be, and thin_route says the route is small. Reach
+    # before size, because "reaches none of the labels" subsumes the
+    # reason a reader would care that the route is small.
+    #
+    # ALLOWED, NOT REFUSED. The ranking is a real walk of real edges and
+    # a user asking how a compound might act on DENV-1 gets a true
+    # answer; what cannot be had is any evidence that the ORDER is
+    # better than chance. Refusing would also refuse the mechanism,
+    # which this release can give. The no-route tier above is different:
+    # there the ranking itself does not exist.
+    if routes is not None and routes.unreachable:
+        warnings.append(caveat("labels_unreachable",
+                               routes.unreachable_text()))
     if routes is not None and routes.thin:
         warnings.append(caveat("thin_route", routes.thin_text()))
     return Verdict(allowed=True, warnings=warnings)

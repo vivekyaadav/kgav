@@ -7,7 +7,9 @@ import pytest
 
 from kgav.agent import guards
 from kgav.agent.guards import (
+    CAVEAT_LABELS,
     CELL_CONTEXT_SENSITIVE,
+    ROUTED_KINDS,
     QueryKind,
     VirusRoutes,
     check,
@@ -864,3 +866,128 @@ def test_a_seeking_word_inside_a_longer_word_is_not_a_seeking_word(q):
 
     assert _seeks_candidates(q) is False, q
     assert classify_intent(q) is not QueryKind.PROSPECT, q
+
+
+# ------------------------------------- the route that reaches no label
+# THE THIRD STATE, added 2026-11-02. docs/kg_audit_report.txt section 9
+# prints four per-virus tiers and says "THE AGENT ENFORCES THIS". It
+# enforced three: a virus with routes that reach NONE of its held-out
+# positives was answered exactly like one whose routes reach plenty,
+# with a caveat saying its reliability was "unknown" -- where it is
+# known and it is zero. Five viruses on v0.1: DENV-1, DENV-3,
+# HCoV-NL63, JEV, TBEV.
+#
+# DENV-1's figures throughout: 349 held-out positives, 53 virus-host
+# interactions, reach 0. It is deliberately NOT thin -- 53 clears
+# THIN_ROUTE of 25 -- because the virus that looked most answerable in
+# this tier is the one worth testing.
+def _unreachable(label="DENV-1", n_labels=349, ppi=53, reached=0):
+    return VirusRoutes(label=label, n_labels=n_labels, ppi=ppi,
+                       reached_labels=reached)
+
+
+def _labels_of(verdict):
+    return [w.label for w in verdict.warnings]
+
+
+@pytest.mark.parametrize("kind", sorted(ROUTED_KINDS, key=lambda k: k.value))
+def test_a_route_reaching_no_label_is_caveated_on_every_routed_kind(kind):
+    v = check(kind, virus="NCBITaxon:11053", routes=_unreachable())
+    assert v.allowed, "the ranking exists; it is the evaluation that does not"
+    assert "LABELS UNREACHABLE" in _labels_of(v), _labels_of(v)
+
+
+def test_the_caveat_names_the_labels_and_the_routes():
+    v = check(QueryKind.TRIAGE, virus="NCBITaxon:11053",
+              routes=_unreachable())
+    text = next(w for w in v.warnings if w.label == "LABELS UNREACHABLE")
+    assert "349" in text
+    assert "53" in text
+    assert "DENV-1" in text
+    assert "reach NONE of them" in text
+    assert "mark it right or wrong" in text
+
+
+def test_unmeasured_reach_claims_nothing():
+    """None is not 0. A missing or stale metapath_comparison.json must
+    leave reach UNKNOWN, not assert that no route reaches a label --
+    the opposite-claims mistake labels.measured_reach exists to avoid,
+    and it would be undone here by one truthiness test."""
+    r = _unreachable(reached=None)
+    assert not r.reach_measured
+    assert not r.unreachable
+    v = check(QueryKind.TRIAGE, virus="NCBITaxon:11053", routes=r)
+    assert "LABELS UNREACHABLE" not in _labels_of(v), \
+        "unmeasured reach was reported as zero reach"
+
+
+def test_a_reachable_route_is_not_caveated():
+    r = _unreachable(label="DENV-2", n_labels=400, ppi=200, reached=117)
+    assert r.reach_measured and not r.unreachable
+    v = check(QueryKind.TRIAGE, virus="NCBITaxon:11060", routes=r)
+    assert "LABELS UNREACHABLE" not in _labels_of(v)
+
+
+def test_reach_of_one_is_enough_to_clear_the_caveat():
+    """The boundary. The tier is reach == 0, not reach below some
+    floor: MIN_REACHED_POSITIVES is a readability gate on the
+    evaluation and a different question from whether anything at all
+    was reached."""
+    assert not _unreachable(reached=1).unreachable
+    assert _unreachable(reached=0).unreachable
+
+
+def test_a_virus_with_no_label_is_not_unreachable():
+    """HCoV-HKU1: routes exist, no label exists -- FEATURES, NOTHING TO
+    SCORE. Reach is 0 because there is nothing to reach, and saying its
+    routes "reach none of its 0 measurements" would be true and
+    meaningless."""
+    r = VirusRoutes(label="HCoV-HKU1", n_labels=0, ppi=90,
+                    reached_labels=0)
+    assert not r.unreachable
+    v = check(QueryKind.TRIAGE, virus="NCBITaxon:290028", routes=r)
+    assert "LABELS UNREACHABLE" not in _labels_of(v)
+
+
+def test_a_routeless_virus_is_refused_rather_than_caveated():
+    """DENV-4 holds 312 labels and NO route, so no metapath terminates
+    at it: the LABELS, NO FEATURE ROUTE tier, which check() refuses
+    outright. The external audit listed DENV-4 as a sixth virus in the
+    reaches-no-label tier. It is not one -- a refusal is already the
+    strongest possible answer, and adding a caveat about reach to a
+    reply that was never given would be the weaker outcome."""
+    r = VirusRoutes(label="DENV-4", n_labels=312, reached_labels=0)
+    assert not r.unreachable
+    v = check(QueryKind.TRIAGE, virus="NCBITaxon:11070", routes=r)
+    assert not v.allowed
+    assert "LABELS UNREACHABLE" not in _labels_of(v)
+
+
+def test_thin_and_unreachable_are_both_said_reach_first():
+    """JEV: 46 labels through 7 virus-host interactions, reach 0. Both
+    are true and they are different claims -- one that the route is
+    small, one that it lands nowhere a measurement covers. Reach is
+    stated first because it subsumes the reason a reader would care
+    that the route is small."""
+    r = VirusRoutes(label="JEV", n_labels=46, ppi=7, reached_labels=0)
+    assert r.thin and r.unreachable
+    said = _labels_of(check(QueryKind.TRIAGE, virus="NCBITaxon:11072",
+                            routes=r))
+    assert "LABELS UNREACHABLE" in said and "THIN ROUTE" in said
+    assert said.index("LABELS UNREACHABLE") < said.index("THIN ROUTE")
+
+
+def test_unreachable_is_not_the_same_claim_as_thin():
+    """DENV-1's 53 edges clear THIN_ROUTE, so before this tier existed
+    the virus whose ranking is least checkable carried no caveat about
+    its route at all."""
+    r = _unreachable()
+    assert not r.thin, "DENV-1's 53 PPI edges are above THIN_ROUTE"
+    assert r.unreachable
+
+
+def test_the_caveat_key_is_registered():
+    """caveat() raises on an unknown key, so a label added to the
+    emitter and not to CAVEAT_LABELS fails loudly. Asserted because
+    the verifier enforces the LABEL and nothing else."""
+    assert CAVEAT_LABELS["labels_unreachable"] == "LABELS UNREACHABLE"
