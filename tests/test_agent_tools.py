@@ -836,3 +836,112 @@ def test_copying_a_marked_fact_does_not_satisfy_the_caveat(graph):
         copied + " ANSWER SHEET: these are held-out evaluation labels.",
         r.warnings)
     assert "ANSWER SHEET" not in [getattr(w, "label", "") for w in kept]
+
+
+# ------------------------------------- [NAMES THIS VIRUS], by longest match
+# A12. Measured against release v0.1 before the fix: 6 Reactome pathways
+# naming SARS-CoV-2 were flagged as naming SARS-CoV, and 6 dengue
+# pathways were flagged for nothing. A circularity warning on the WRONG
+# virus is worse than none -- it tells a reader the overlap for SARS-CoV
+# was decided in advance when nothing about SARS-CoV was involved.
+@pytest.fixture
+def namer(tmp_path):
+    """A release holding four taxa and nothing else, for label matching."""
+    def taxon(nid, label, family):
+        return {"id": nid, "class": "OrganismTaxon",
+                "properties": {"label": label, "family": family,
+                               "baltimore_class": "IV", "is_enveloped": True}}
+    nodes = [taxon("NCBITaxon:2697049", "SARS-CoV-2", "Coronaviridae"),
+             taxon("NCBITaxon:694009", "SARS-CoV", "Coronaviridae"),
+             taxon("NCBITaxon:11053", "DENV-1", "Flaviviridae"),
+             taxon("NCBITaxon:11060", "DENV-2", "Flaviviridae")]
+    (tmp_path / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text(
+        '{"subject": "a", "predicate": "P", "object": "b"}')
+    return GraphTools(tmp_path)
+
+
+SARS2, SARS1 = "NCBITaxon:2697049", "NCBITaxon:694009"
+DEN1, DEN2 = "NCBITaxon:11053", "NCBITaxon:11060"
+
+#: Every label here is a REAL Reactome pathway label from release v0.1,
+#: except the two negatives and the two-virus case. The six SARS-CoV-2
+#: rows are exactly the six the probe found mis-flagged.
+NAMING_CASES = [
+    ("Replication of the SARS-CoV-2 genome", {SARS2: True, SARS1: False}),
+    ("SARS-CoV-2 modulates autophagy", {SARS2: True, SARS1: False}),
+    ("SARS-CoV-2 modulates host translation machinery",
+     {SARS2: True, SARS1: False}),
+    ("SARS-CoV-2 targets PDZ proteins in cell-cell junction",
+     {SARS2: True, SARS1: False}),
+    ("SARS-CoV-2 targets host intracellular signalling and regulation",
+     {SARS2: True, SARS1: False}),
+    ("SARS-CoV-2 activates/modulates innate and adaptive immune responses",
+     {SARS2: True, SARS1: False}),
+    ("Dengue Virus-Host Interactions", {DEN1: True, DEN2: True, SARS2: False}),
+    ("Dengue Virus Attachment and Entry", {DEN1: True, DEN2: True}),
+    ("Assembly and Release of Dengue Virus Virions",
+     {DEN1: True, DEN2: True}),
+    ("Uncoating of the HIV Virion", {SARS2: False, DEN1: False}),
+    ("Glycolysis", {SARS2: False, DEN1: False}),
+]
+
+
+@pytest.mark.parametrize("label,want", NAMING_CASES,
+                         ids=[c[0][:34] for c in NAMING_CASES])
+def test_a_pathway_label_names_only_the_virus_it_names(namer, label, want):
+    got = {v: namer._names_virus(label, v) for v in want}
+    assert got == want, f"{label!r}: {got} != {want}"
+
+
+def test_a_label_naming_two_viruses_names_both(namer):
+    """SHADOWING IS BY SPAN, NOT GLOBAL. The eight-character "sars-cov"
+    at offset 0 is not shadowed by the ten-character "sars-cov-2" at
+    offset 13. Suppressing a name whenever a longer one matched ANYWHERE
+    in the label would drop the first virus -- which is the opposite
+    error from the one being fixed, and just as wrong."""
+    label = "SARS-CoV and SARS-CoV-2 entry"
+    assert namer._names_virus(label, SARS1)
+    assert namer._names_virus(label, SARS2)
+
+
+def test_a_name_is_found_at_every_occurrence_not_only_the_first(namer):
+    """THE DISCRIMINATING ORDER, and the one my first set of cases could
+    not produce. In "SARS-CoV and SARS-CoV-2 entry" the eight-character
+    name happens to come first and is unshadowed there, so a matcher
+    recording only a name's FIRST occurrence passes that case. Reverse
+    the order and the first "sars-cov" sits at offset 0 inside
+    "sars-cov-2" where it IS shadowed, while the real mention at offset
+    16 is never looked at -- so the label names SARS-CoV plainly and the
+    flag is dropped. A surviving mutant found this; no test did."""
+    label = "SARS-CoV-2 and SARS-CoV entry"
+    assert namer._names_virus(label, SARS2)
+    assert namer._names_virus(label, SARS1), \
+        "only the first occurrence of the name was searched"
+
+
+def test_the_serotype_specific_name_wins_over_the_shared_one(namer):
+    """The two mechanisms compose. "dengue virus" names all four
+    serotypes and "dengue virus 1" names one, so a label carrying the
+    longer name must flag DENV-1 alone."""
+    assert namer._names_virus("Dengue Virus 1 Attachment", DEN1)
+    assert not namer._names_virus("Dengue Virus 1 Attachment", DEN2)
+
+
+def test_the_threshold_is_the_registers_and_not_a_second_copy():
+    """It was a literal `len(n) >= 4` in tools.py. One owner."""
+    import inspect
+    from kgav.agent import tools as T
+    src = inspect.getsource(T.GraphTools._label_name_map)
+    assert "MIN_SEARCH_NAME" in src
+    assert "len(lab) >= 4" not in src
+
+
+def test_a_taxon_absent_from_the_release_is_not_matched(namer):
+    """Register names are only matched for taxa this graph holds, the
+    same rule resolution already applies: flagging a pathway for a virus
+    with no node behind it reports a confound that cannot exist here."""
+    assert "NCBITaxon:11089" not in namer.nodes       # Yellow fever, unbuilt
+    assert not namer._names_virus("Yellow fever virus entry",
+                                  "NCBITaxon:11089")

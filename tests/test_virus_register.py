@@ -11,7 +11,15 @@ from pathlib import Path
 
 import pytest
 
-from kgav.virus_register import declared_taxa, load, validate
+from kgav.virus_register import (
+    MIN_SEARCH_NAME,
+    declared_taxa,
+    dropped_short_names,
+    label_names,
+    load,
+    search_names,
+    validate,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -545,3 +553,65 @@ def test_a_declared_family_overrides_the_default(doc):
     from kgav.virus_register import family_of
     denv = next(v for v in doc["viruses"] if v["name"] == "DENV-1")
     assert family_of(denv, doc) == "Flaviviridae"
+
+
+# ------------------------------------------- names for matching a LABEL
+# A12. The [NAMES THIS VIRUS] circularity flag matched one virus's
+# search_names as substrings of a pathway label. Two consequences on
+# release v0.1, both measured against the real graph before the fix:
+# six Reactome pathways built from SARS-CoV-2 literature were flagged as
+# naming SARS-CoV ("sars-cov" is a substring of "sars-cov-2"), and six
+# dengue pathways were flagged for nothing, because every DENV name in
+# the register is serotype-specific and no Reactome dengue pathway names
+# a serotype.
+DENGUE_TAXA = ("NCBITaxon:11053", "NCBITaxon:11060",
+               "NCBITaxon:11069", "NCBITaxon:11070")
+
+
+def test_label_names_and_search_names_have_opposite_collision_rules():
+    """THE WHOLE REASON THERE ARE TWO FUNCTIONS. search_names resolves
+    what a person typed, so a string two taxa claim raises. label_names
+    recognises a virus in a label the graph already holds, where a
+    missed match hides a confound and a shared match costs a caveat."""
+    doc = load()
+    typed = search_names(doc)
+    assert "dengue" not in typed, \
+        "a typed 'dengue' must not resolve to one of four serotypes"
+    assert "dengue virus" not in typed
+    labels = label_names(doc)
+    owners = [t for t in DENGUE_TAXA if "dengue" in labels[t]]
+    assert len(owners) == 4, \
+        f"'dengue' must name all four serotypes for the flag, got {owners}"
+
+
+def test_label_names_is_a_superset_of_search_names_per_taxon():
+    """label_aliases ADD to the matching set. If an edit ever made them
+    replace it, serotype-specific labels would stop matching."""
+    doc = load()
+    labels = label_names(doc)
+    for name, curie in search_names(doc).items():
+        assert name in labels[curie], f"{name!r} lost for {curie}"
+
+
+def test_every_built_virus_has_a_name_the_detector_can_see():
+    """A virus with no name at or above the threshold can never be
+    flagged, so its circularity check is silently inert -- the state
+    MIN_SEARCH_NAME's own comment calls worse than absent."""
+    doc = load()
+    for curie, names in label_names(doc).items():
+        assert names, f"{curie} has no label name the detector can match"
+        assert all(len(n) >= MIN_SEARCH_NAME for n in names)
+
+
+def test_the_silently_dropped_names_are_reported():
+    """JEV is the known one and it is that entry's PRIMARY name, not an
+    alias. This asserts the audit function SEES it rather than asserting
+    the register is clean: lowering the threshold to three characters to
+    admit "jev" would re-admit the spurious short substring matches it
+    was raised to stop, and that trade belongs in a separate decision."""
+    dropped = dropped_short_names(load())
+    assert dropped.get("NCBITaxon:11072") == ["JEV"], dropped
+    # And JEV is still matchable, by its two long names, so the flag is
+    # not inert for it -- which is why this is reported and not fatal.
+    assert label_names(load())["NCBITaxon:11072"] >= {
+        "japanese encephalitis", "japanese encephalitis virus"}

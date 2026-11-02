@@ -401,6 +401,9 @@ viruses:
       - "denv 2"
     family: Flaviviridae
     full_name: "Dengue virus type 2"
+    label_aliases:
+      - "dengue"
+      - "dengue virus"
     proteome_id: UP000095876
     # Species 11060 has no curated polyprotein: its reference proteome is
     # TrEMBL-only with a single protein and zero Chain features. The 13-16
@@ -460,6 +463,17 @@ viruses:
       - "denv 1"
     family: Flaviviridae
     full_name: "Dengue virus type 1"
+    # SHARED ACROSS ALL FOUR SEROTYPES, and deliberately not in
+    # `aliases`. These are for recognising this virus in a text LABEL
+    # the graph already holds (virus_register.label_names), never for
+    # resolving what a person typed: "dengue" cannot resolve to one of
+    # four serotypes and search_names raises on a string two taxa
+    # claim. Release v0.1 holds six Reactome dengue pathways, none of
+    # which names a serotype, so all six went unflagged by the
+    # [NAMES THIS VIRUS] circularity check before this key existed.
+    label_aliases:
+      - "dengue"
+      - "dengue virus"
     proteome_id: UP000095813
     # Species 11053 has no curated polyprotein: its reference proteome is
     # TrEMBL-only with a single protein and zero Chain features. The 13-16
@@ -516,6 +530,9 @@ viruses:
       - "denv 3"
     family: Flaviviridae
     full_name: "Dengue virus type 3"
+    label_aliases:
+      - "dengue"
+      - "dengue virus"
     proteome_id: UP000095814
     # Species 11069 has no curated polyprotein: its reference proteome is
     # TrEMBL-only with a single protein and zero Chain features. The 13-16
@@ -556,6 +573,9 @@ viruses:
       - "denv 4"
     family: Flaviviridae
     full_name: "Dengue virus type 4"
+    label_aliases:
+      - "dengue"
+      - "dengue virus"
     proteome_id: UP000096325
     # Species 11070 has no curated polyprotein: its reference proteome is
     # TrEMBL-only with a single protein and zero Chain features. The 13-16

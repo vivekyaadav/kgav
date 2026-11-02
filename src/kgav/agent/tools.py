@@ -195,14 +195,20 @@ class GraphTools:
         # wins; a name for a taxon absent from this graph is dropped, because
         # resolving to a node that is not here would trade a wrong answer for
         # a crash.
+        # The doc is kept as well as the derived names, because the
+        # label-matching map needs label_names() off the same document --
+        # loading the register twice would let the two disagree.
+        self._register_doc: dict = {}
         try:
+            self._register_doc = virus_register.load()
             for key, curie in virus_register.search_names(
-                    virus_register.load()).items():
+                    self._register_doc).items():
                 self._register_names[key] = curie
         except (OSError, ValueError, KeyError):
             # A malformed register must not stop the agent answering about
             # the compounds it can still resolve.
             self._register_names = {}
+            self._register_doc = {}
         names_file = release / "NAMES.json"
         if names_file.exists():
             self.names.update(json.loads(names_file.read_text()))
@@ -493,6 +499,87 @@ class GraphTools:
             cite += f", {pubs}"
         cite += f", {e.get('first_asserted_date', '?')[:4]}; {e['_id']}]"
         return body + cite
+
+    def _label_name_map(self) -> dict[str, set[str]]:
+        """{name: taxa that name indicates} for matching against a LABEL.
+
+        virus_register.label_names plus the display label of every taxon
+        node the release holds, so a pathway naming a virus is recognised
+        whatever the register calls it. Cached: it is the same for every
+        row of every call.
+
+        MIN_SEARCH_NAME IS IMPORTED, not re-spelled. This was a literal
+        `len(n) >= 4` here, a second copy of a threshold whose owner is
+        virus_register -- in the module whose family_of docstring is an
+        account of what happened the last time one rule had five copies
+        and three were wrong.
+        """
+        cached = self._cache.get(("label_names",))
+        if cached is not None:
+            return cached
+        out: dict[str, set[str]] = defaultdict(set)
+        for curie, names in virus_register.label_names(
+                self._register_doc).items():
+            if curie not in self.nodes:
+                continue
+            for n in names:
+                out[n].add(curie)
+        for nid, node in self.nodes.items():
+            if node.get("class") != "OrganismTaxon":
+                continue
+            lab = str((node.get("properties") or {}).get("label") or "").lower()
+            if len(lab) >= virus_register.MIN_SEARCH_NAME:
+                out[lab].add(nid)
+        out = dict(out)
+        self._cache[("label_names",)] = out
+        return out
+
+    def _names_virus(self, label: str, virus: str) -> bool:
+        """Whether this text label names THIS virus, by longest match.
+
+        THE BUG THIS REPLACES. The test was `any(name in label)` over one
+        virus's names, and "sars-cov" is a substring of "sars-cov-2" --
+        as is "severe acute respiratory syndrome coronavirus" of the same
+        name plus " 2". So on release v0.1 six Reactome pathways built
+        from SARS-CoV-2 literature were flagged as naming SARS-CoV:
+
+            Replication of the SARS-CoV-2 genome
+            SARS-CoV-2 modulates autophagy
+            SARS-CoV-2 modulates host translation machinery
+            SARS-CoV-2 targets PDZ proteins in cell-cell junction
+            SARS-CoV-2 targets host intracellular signalling and regulation
+            SARS-CoV-2 activates/modulates innate and adaptive immune responses
+
+        A circularity warning on the wrong virus is worse than none: it
+        tells a reader the overlap for SARS-CoV was decided in advance
+        when nothing about SARS-CoV was involved.
+
+        SHADOWED BY SPAN, NOT GLOBALLY. A match is discarded only when a
+        LONGER name covers the same starting offset, so
+
+            "SARS-CoV and SARS-CoV-2 entry"
+
+        still names both: the eight-character match at offset 0 is not
+        shadowed by the ten-character one at offset 13. Suppressing
+        whenever any longer name matched anywhere would lose the first.
+
+        A name shared by several taxa keeps all of them -- for dengue it
+        must, see virus_register.label_names.
+        """
+        low = (label or "").lower()
+        spans: dict[tuple[int, int], set[str]] = defaultdict(set)
+        for name, taxa in self._label_name_map().items():
+            i = low.find(name)
+            while i != -1:
+                spans[(i, len(name))] |= taxa
+                i = low.find(name, i + 1)
+        if not spans:
+            return False
+        starts: dict[int, int] = {}
+        for start, length in spans:
+            starts[start] = max(starts.get(start, 0), length)
+        return any(virus in taxa for (start, length), taxa in spans.items()
+                   if length == starts[start])
 
     def _held_out_warnings(self, edges) -> list:
         """The HELD-OUT LABEL caveat for these edges, or nothing.
@@ -1388,11 +1475,6 @@ class GraphTools:
                       f"this virus depends on nothing."))
 
         cap = self._max_pathway_members
-        # Every name this graph knows for the virus, so a pathway whose
-        # own label names it can be recognised whatever the register
-        # calls it.
-        virus_names = {n for n, nid in self.names.items()
-                       if nid == virus and len(n) >= 4}
         oversized: set[str] = set()
         rows = []
         edge_ids: list[str] = []
@@ -1436,9 +1518,8 @@ class GraphTools:
                     # dropped: the biology is real, and a reader has to
                     # know which part of the overlap was decided in
                     # advance.
-                    low = row["label"].lower()
-                    row["names_the_virus"] = any(
-                        a in low for a in virus_names)
+                    row["names_the_virus"] = self._names_virus(
+                        row["label"], virus)
                     rows.append(row)
                 edge_ids.append(pe["_id"])
 

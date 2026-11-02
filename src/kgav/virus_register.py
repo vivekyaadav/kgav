@@ -255,6 +255,83 @@ def ppi_accession_map(doc: dict, section: str = "viruses") -> dict[str, str]:
     return out
 
 
+def label_names(doc: dict, section: str = "viruses") -> dict[str, set[str]]:
+    """{taxon CURIE: strings that, appearing in a TEXT LABEL, name this virus}
+
+    A DIFFERENT JOB FROM search_names, with the OPPOSITE collision rule,
+    and the two were one list until 2026-11-02.
+
+    search_names resolves what a PERSON TYPED, so a string two taxa both
+    claim is a curation error and raises -- answering about the wrong
+    virus is the failure it exists to prevent. This recognises a virus
+    in a label the graph already holds, which is the reverse trade: a
+    missed match hides a circularity confound, a shared match costs a
+    caveat. So a string here MAY be claimed by several taxa, and for
+    dengue it must be.
+
+    WHY DENGUE FORCED THIS. Every DENV name in the register is
+    serotype-specific -- "dengue virus 2", "denv-2" -- and it has to be,
+    because "dengue" alone cannot resolve to one of four serotypes and
+    search_names would raise on it. Release v0.1 holds six dengue
+    pathways from Reactome:
+
+        Dengue Virus-Host Interactions
+        Dengue Virus Attachment and Entry
+        Assembly and Release of Dengue Virus Virions
+
+    None of them names a serotype, so none matched any DENV name, so all
+    six went unflagged -- pathways Reactome built FROM dengue literature,
+    overlapping a dengue CRISPR screen, with nothing saying so. That is
+    the confound this flag exists for, missed on the family where it
+    matters most after SARS-CoV-2.
+
+    `label_aliases` in the register carries these shared strings. It is a
+    separate key from `aliases` rather than a relaxation of it, so no
+    edit made for this flag can widen what a typed question resolves to.
+    """
+    out: dict[str, set[str]] = {}
+    for entry in doc.get(section) or []:
+        taxon = str(entry.get("taxon") or "")
+        if not taxon:
+            continue
+        curie = f"NCBITaxon:{taxon}"
+        names = out.setdefault(curie, set())
+        cands = [entry.get("name"), entry.get("full_name")]
+        cands += list(entry.get("aliases") or [])
+        cands += list(entry.get("label_aliases") or [])
+        for raw in cands:
+            if not raw:
+                continue
+            key = " ".join(str(raw).lower().split())
+            if len(key) >= MIN_SEARCH_NAME:
+                names.add(key)
+    return out
+
+
+def dropped_short_names(doc: dict, section: str = "viruses") -> dict[str, list[str]]:
+    """{taxon CURIE: declared names MIN_SEARCH_NAME silently discards}
+
+    The threshold's own comment says a register entry that could never be
+    matched "is worse than absent: it reads as support the agent does not
+    have" -- and then nothing reported which entries were in that state.
+    JEV is: "JEV" is that entry's PRIMARY name, three characters, and
+    search_names drops it without a word.
+    """
+    out: dict[str, list[str]] = {}
+    for entry in doc.get(section) or []:
+        taxon = str(entry.get("taxon") or "")
+        if not taxon:
+            continue
+        cands = [entry.get("name"), entry.get("full_name")]
+        cands += list(entry.get("aliases") or [])
+        cands += list(entry.get("label_aliases") or [])
+        short = [str(c) for c in cands if c
+                 and len(" ".join(str(c).lower().split())) < MIN_SEARCH_NAME]
+        if short:
+            out[f"NCBITaxon:{taxon}"] = short
+    return out
+
+
 def search_names(doc: dict, section: str = "viruses") -> dict[str, str]:
     """Every string a person might type for a virus -> its taxon CURIE.
 
