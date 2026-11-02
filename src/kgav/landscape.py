@@ -57,29 +57,87 @@ one, depletion is stated as untested rather than inferred from the ratio.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Below this matched expectation the RATIO carries no information in the low
-# direction, so it is reported but not read. Under a Poisson background with
-# mean m the most extreme downward observation is zero hits, with probability
-# exp(-m); exp(-3) = 0.0498 and exp(-2.9) = 0.055, so below m = 3 even a total
-# absence of overlap is an ordinary draw. Derived, not chosen: a threshold
-# picked for looking round would be a fitted parameter with no record of what
-# fitted it.
-#
-# This does NOT gate whether a taxon was tested. The run measures the
-# enrichment tail, and a taxon with a small expectation can still return a
-# significant excess -- NCBITaxon:11082 would need 8 hits against 3.1 expected.
-MIN_EXPECTED_HITS = 3.0
-
-# An empirical p from N permutations cannot resolve below 1/(N+1). At 200 the
-# finest p is 0.005, which is enough for a 0.05 test but leaves a "p = 0.0000"
-# unable to distinguish 0.004 from 0.0000001. Runs coarser than this are
-# refused rather than quoted: the agent states these figures to a user.
-MIN_PERMUTATIONS = 200
-
 ALPHA = 0.05
+
+
+def min_expected_hits(alpha: float) -> float:
+    """The matched expectation below which the RATIO carries no information
+    in the low direction, for a test judged at `alpha`.
+
+    Under a Poisson background with mean m the most extreme downward
+    observation is zero hits, with probability exp(-m). So the ratio is
+    readable downward only where exp(-m) < alpha, i.e. m > -ln(alpha).
+    Derived, not chosen: a threshold picked for looking round would be a
+    fitted parameter with no record of what fitted it.
+
+    IT TAKES ALPHA AS AN ARGUMENT, and it used to be a module constant of
+    3.0 -- because exp(-3) = 0.0498 < 0.05. That is the UNCORRECTED
+    alpha. Every other verdict in this module is judged against
+    ALPHA / n_tests, which on release v0.1 is 0.05/44 = 0.001136, and the
+    threshold against that is -ln(0.001136) = 6.78. So one taxon was
+    passing as readable-downward while a zero overlap could never have
+    cleared the bar its own row quotes: DENV-2, 6.22 expected.
+
+    TaxonOverlap already carried `alpha` per row, with a comment saying
+    it is held there "so a verdict can never be computed against a
+    different threshold from the one reported next to it" -- and
+    ratio_readable reached past it for the global. The data was right and
+    the one property that needed it looked somewhere else.
+
+    (The external audit named DENV-2, DENV-3 and TBEV. DENV-3 and TBEV
+    have no dependency factors, so they have no row in this analysis and
+    were never tested in either direction. One taxon, not three.)
+    """
+    if not 0.0 < alpha < 1.0:
+        raise ValueError(f"alpha must be in (0, 1), got {alpha!r}")
+    return -math.log(alpha)
+
+
+def resolvable_steps(permutations: int, alpha: float) -> int:
+    """How many attainable p-values sit strictly below `alpha`.
+
+    An empirical p from N permutations takes values k/(N+1), so the
+    number below alpha is floor(alpha * (N + 1)) less the k = 0 case that
+    cannot occur. ZERO means the test cannot reject at any observation
+    whatsoever, however extreme.
+
+    THE SAME ERROR AS ABOVE, IN THE SAME MODULE. MIN_PERMUTATIONS = 200
+    was justified as "the finest p is 0.005, which is enough for a 0.05
+    test" -- the uncorrected alpha again. At the corrected 0.001136 a
+    200-permutation run resolves ZERO steps below the threshold and the
+    old floor accepted it. On release v0.1, with 2,000 permutations:
+
+        p floor         1/2001   = 0.000500
+        attainable      0.000500, 0.001000          <- below alpha
+        next            0.001499                    <- above alpha
+        corrected alpha 0.001136
+
+    Two values. A test with two resolvable steps below its own threshold
+    can report "nothing was significant" honestly -- failing to reject is
+    still failing to reject -- but it cannot distinguish a true p of
+    0.0012 from one of 0.0005, and its negative result is weaker than the
+    four decimal places it is quoted to.
+    """
+    if permutations <= 0:
+        return 0
+    return max(0, int(math.floor(alpha * (permutations + 1) + 1e-12)))
+
+
+#: Resolvable steps below alpha under which a run is reported as
+#: underpowered rather than quoted plainly. Ten is a convention and is
+#: labelled as one: the arithmetic only gives the hard floor, which is
+#: one step, and a test sitting at the hard floor is one permutation draw
+#: away from being unable to reject at all.
+MIN_RESOLVABLE_STEPS = 10
+
+# An absolute sanity floor, independent of alpha: below this a run is
+# refused whatever its family size. Kept because it catches a truncated or
+# aborted run, which the alpha-derived check would pass for a large alpha.
+MIN_PERMUTATIONS = 200
 
 
 @dataclass(frozen=True)
@@ -126,8 +184,16 @@ class TaxonOverlap:
         direction, which is the direction the run measures. Below the
         threshold a ratio of 0.00 is an ordinary draw from the background and
         says nothing, so it is printed and not interpreted.
+
+        AGAINST THIS ROW'S OWN ALPHA. It was the module constant, derived
+        from the uncorrected 0.05 -- see min_expected_hits.
         """
-        return self.expected >= MIN_EXPECTED_HITS
+        return self.expected >= self.min_expected_hits
+
+    @property
+    def min_expected_hits(self) -> float:
+        """The readability threshold for THIS row's corrected alpha."""
+        return min_expected_hits(self.alpha)
 
     @property
     def enriched(self) -> bool:
@@ -199,7 +265,7 @@ class TaxonOverlap:
                      f"{self.alpha:.4f}")
         if not self.ratio_readable:
             head += (f"; and with only {self.expected:.1f} expected, below "
-                     f"{MIN_EXPECTED_HITS:.0f}, even a zero overlap would be "
+                     f"{self.min_expected_hits:.1f}, even a zero overlap would be "
                      f"an ordinary draw, so the ratio is not readable "
                      f"downward")
         return head
@@ -227,10 +293,21 @@ class Landscape:
 
     @property
     def protocol(self) -> str:
-        return (f"a degree-matched permutation null, "
+        base = (f"a degree-matched permutation null, "
                 f"{self.permutations:,} permutations, seed {self.seed}, "
                 f"significance at {self.alpha:.4f} "
                 f"({ALPHA} Bonferroni-corrected for {self.n_tests} tests)")
+        # THE RESOLUTION, BESIDE THE THRESHOLD. Quoting a four-decimal
+        # alpha next to a permutation count that cannot resolve it is
+        # the false precision this whole module is written against.
+        if self.underpowered:
+            base += (f". Only {self.resolvable_steps} attainable p-value(s) "
+                     f"lie below that threshold at {self.permutations:,} "
+                     f"permutations, so a negative result here means the "
+                     f"test could not reject, not that the effect is small; "
+                     f"{int(math.ceil(MIN_RESOLVABLE_STEPS / self.alpha)) - 1:,} "
+                     f"permutations would give {MIN_RESOLVABLE_STEPS}")
+        return base
 
     @property
     def n_tests(self) -> int:
@@ -256,6 +333,35 @@ class Landscape:
     def alpha(self) -> float:
         """The corrected threshold every verdict here is judged against."""
         return ALPHA / self.n_tests
+
+    @property
+    def min_expected_hits(self) -> float:
+        """The downward-readability threshold for this run's own alpha."""
+        return min_expected_hits(self.alpha)
+
+    @property
+    def resolvable_steps(self) -> int:
+        """Attainable p-values strictly below this run's corrected alpha."""
+        return resolvable_steps(self.permutations, self.alpha)
+
+    @property
+    def underpowered(self) -> bool:
+        """Whether the permutation count can resolve this run's own alpha.
+
+        SEPARATE FROM `usable`, deliberately. A run with too few
+        resolvable steps has still measured something: failing to reject
+        is failing to reject, and "nothing survived correction" is the
+        finding this project is publishing. What it cannot do is
+        distinguish a p just under the threshold from one far below it,
+        so the negative result is weaker than its four decimal places
+        suggest. Refusing the file would delete a true finding to punish
+        its precision; reporting the resolution lets a reader weigh it.
+
+        A run resolving ZERO steps is different and IS refused by the
+        loader: it could not have rejected at any observation, so
+        quoting it as a null test asserts a test that never happened.
+        """
+        return self.resolvable_steps < MIN_RESOLVABLE_STEPS
 
     def for_virus(self, virus: str) -> TaxonOverlap | None:
         """This taxon's overlap, or None. Never another taxon's."""
@@ -336,7 +442,7 @@ class Landscape:
         if soft:
             tail += (f" The low end of that range is not a finding: "
                      f"{len(soft)} taxon(s) have a matched expectation under "
-                     f"{MIN_EXPECTED_HITS:.0f}, where even a zero overlap is "
+                     f"{self.min_expected_hits:.1f}, where even a zero overlap is "
                      f"an ordinary draw "
                      + ", ".join(f"{t.virus} ({t.expected:.1f} expected)"
                                  for t in soft) + ".")
@@ -512,6 +618,26 @@ def load(results: Path, release: str | None = None) -> Landscape:
     # tightening it.
     n_tests = max(1, mine + base.other_channel_tests)
     alpha = ALPHA / n_tests
+
+    # A RUN THAT CANNOT REJECT AT ANY OBSERVATION IS NOT A TEST.
+    # MIN_PERMUTATIONS above is an absolute floor derived against the
+    # UNCORRECTED 0.05 -- "at 200 the finest p is 0.005, which is enough
+    # for a 0.05 test". Against a corrected 0.001136 a 200-permutation
+    # run resolves ZERO attainable p-values below the threshold, and that
+    # floor accepted it. This check is the one that answers to the alpha
+    # the verdicts are actually judged against, so it has to sit here,
+    # after n_tests is known, rather than beside the constant.
+    steps = resolvable_steps(perms, alpha)
+    if steps < 1:
+        base.refused_reason = (
+            f"{perms:,} permutations cannot resolve the corrected threshold "
+            f"of {alpha:.6f} ({ALPHA} over {n_tests} tests): the finest "
+            f"attainable p is {1 / (perms + 1):.6f} and no attainable value "
+            f"lies below it, so this run could not have rejected at any "
+            f"observation. "
+            f"{int(math.ceil(MIN_RESOLVABLE_STEPS / alpha)) - 1:,} "
+            f"permutations would give {MIN_RESOLVABLE_STEPS} steps")
+        return base
 
     base.taxa = {v: _overlap(v, r, alpha=alpha, n_tests=n_tests)
                  for v, r in rows.items()}

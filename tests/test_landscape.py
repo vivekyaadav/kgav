@@ -95,21 +95,83 @@ def _load(tmp_path, taxa=None, release="v0.1", **over) -> L.Landscape:
 
 
 # ------------------------------------------------------------ the threshold
-def test_the_power_threshold_is_the_poisson_derivation_it_claims():
-    """MIN_EXPECTED_HITS is derived, not chosen for looking round.
+# BOTH TESTS BELOW REPLACE ONES THAT PINNED THE UNCORRECTED ALPHA. They
+# were right about the arithmetic and wrong about which alpha it answers
+# to, which is why they passed for months:
+#
+#   assert math.exp(-L.MIN_EXPECTED_HITS) < L.ALPHA
+#   assert 1 / (L.MIN_PERMUTATIONS + 1) < L.ALPHA
+#
+# L.ALPHA is 0.05. Every verdict in that module is judged against
+# ALPHA / n_tests, which on v0.1 is 0.05/44 = 0.001136. So the two
+# constants were checked against a threshold the module does not use,
+# and the checks held while the constants were wrong by a factor of two
+# (3.0 against 6.78) and by a factor of forty-four respectively. Stated
+# here rather than quietly rewritten, because a test that was passing is
+# the thing a reader will assume was right.
+def test_the_readability_threshold_is_derived_from_THIS_alpha():
+    """The smallest matched expectation at which a total absence of
+    overlap could reach the CORRECTED alpha. exp(-m) < alpha."""
+    for alpha in (0.05, 0.05 / 22, 0.05 / 44, 0.001):
+        m = L.min_expected_hits(alpha)
+        assert math.exp(-m) <= alpha * (1 + 1e-9)
+        assert math.exp(-(m - 0.01)) > alpha
 
-    The docstring says it is the smallest matched expectation at which a total
-    absence of overlap could reach p < 0.05. If that stops being arithmetic
-    the constant has become a fitted parameter with a story attached, which is
-    the objection calibration.py raises about hardcoded weights.
+
+def test_the_readability_threshold_rises_as_the_family_grows():
+    """The direction is the point: correcting for more tests makes a
+    zero overlap LESS surprising, so more is needed before the low end
+    of a ratio means anything."""
+    assert L.min_expected_hits(0.05 / 44) > L.min_expected_hits(0.05)
+    assert abs(L.min_expected_hits(0.05) - 3.0) < 0.01
+    assert abs(L.min_expected_hits(0.05 / 44) - 6.78) < 0.01
+
+
+def _overlap_at(expected, n_observed, alpha):
+    """One TaxonOverlap, built directly so the alpha can be set.
+
+    NAMED _overlap_at BECAUSE _row ALREADY EXISTS in this file and my
+    first version shadowed it, breaking 49 tests at once. A module-level
+    helper name is a shared namespace.
     """
-    assert math.exp(-L.MIN_EXPECTED_HITS) < L.ALPHA
-    assert math.exp(-(L.MIN_EXPECTED_HITS - 0.1)) > L.ALPHA
+    return L.TaxonOverlap(virus="NCBITaxon:11060", n_dependency=50,
+                          n_observed=n_observed, expected=expected,
+                          p_naive=0.5, p_matched=0.5, p_matched_less=0.045,
+                          alpha=alpha, n_tests=1)
 
 
-def test_the_permutation_floor_matches_the_resolution_it_claims():
-    """MIN_PERMUTATIONS must actually resolve a p below ALPHA."""
-    assert 1 / (L.MIN_PERMUTATIONS + 1) < L.ALPHA
+def test_a_row_reads_its_own_alpha_not_the_module_constant():
+    """TaxonOverlap carries `alpha` per row with a comment saying it is
+    held there "so a verdict can never be computed against a different
+    threshold from the one reported next to it" -- and ratio_readable
+    reached past it for the global. An expectation of 6.22 is readable
+    at the uncorrected 0.05 and is not at 0.05/44."""
+    loose = _overlap_at(expected=6.22, n_observed=2, alpha=0.05)
+    tight = _overlap_at(expected=6.22, n_observed=2, alpha=0.05 / 44)
+    assert loose.ratio_readable
+    assert not tight.ratio_readable, (
+        "DENV-2's 6.22 expected passes a threshold its own row's alpha "
+        "could never clear")
+
+
+def test_the_permutation_count_must_resolve_the_corrected_alpha():
+    """MIN_PERMUTATIONS is an absolute floor and answers to no alpha.
+    The real requirement is that an attainable p lies below the
+    threshold the verdicts use."""
+    assert L.resolvable_steps(2000, 0.05 / 44) == 2
+    assert L.resolvable_steps(200, 0.05 / 44) == 0, (
+        "a 200-permutation run resolves nothing below the corrected "
+        "alpha, and MIN_PERMUTATIONS accepted it")
+    assert L.resolvable_steps(200, 0.05) >= 10
+    assert L.resolvable_steps(0, 0.05) == 0
+
+
+def test_resolvable_steps_is_the_count_below_alpha_not_at_it():
+    """Boundary. With N+1 = 2001 and alpha exactly 2/2001, the value
+    0.000999... is not BELOW alpha by more than rounding, so the count
+    is the floor and the test is one-sided on purpose."""
+    assert L.resolvable_steps(2000, 2 / 2001) == 2
+    assert L.resolvable_steps(2000, 1 / 2001) == 1
 
 
 # ----------------------------------------------------------------- refusals
@@ -863,3 +925,67 @@ def test_the_refusal_never_quotes_a_label_as_evidence():
     v = guards.check(guards.QueryKind.TRIAGE, "NCBITaxon:11089",
                      routes=_routes(n_labels=1030))
     assert "held out" in v.reason
+
+
+# ------------------- the permutation count against this run's own alpha
+# S1. Five of these exist because mutation testing found five gaps at
+# once: the alpha guard, the zero-step refusal, the underpowered flag,
+# the protocol note, and the user-facing sentence in guards. Each was
+# code with no test behind it.
+def test_an_alpha_outside_the_unit_interval_is_refused():
+    """A threshold of 0 or 1 is not a threshold, and -ln of either is
+    not a readability bound. Silently returning inf or 0.0 would pass
+    a nonsense alpha straight into a verdict."""
+    for bad in (0.0, 1.0, -0.1, 1.5):
+        with pytest.raises(ValueError):
+            L.min_expected_hits(bad)
+
+
+def test_a_run_that_cannot_reject_at_all_is_refused(tmp_path):
+    """200 permutations clears MIN_PERMUTATIONS exactly and resolves
+    ZERO attainable p-values below a corrected 0.001136. The old floor
+    was derived against the uncorrected 0.05 and accepted it, so the
+    agent would have quoted a null test that could not have rejected at
+    any observation."""
+    land = L.load(_file(tmp_path, _rows(8), permutations=200, n_tests=44),
+                  release="v0.1")
+    assert not land.usable
+    assert "could not have rejected" in land.refused_reason
+    assert "200" in land.refused_reason
+    # and it says how many would do
+    assert "8,799" in land.refused_reason, land.refused_reason
+
+
+def test_the_real_run_is_usable_and_flagged_underpowered(tmp_path):
+    """2,000 permutations resolves TWO steps below 0.001136. Not
+    refused: failing to reject is still failing to reject, and
+    "nothing survived correction" is the finding being published.
+    Flagged, because the negative result is weaker than its four
+    decimal places suggest."""
+    land = L.load(_file(tmp_path, _rows(8), permutations=2000, n_tests=44),
+                  release="v0.1")
+    assert land.usable
+    assert land.resolvable_steps == 2
+    assert land.underpowered
+
+
+def test_a_well_powered_run_is_not_flagged(tmp_path):
+    land = L.load(_file(tmp_path, _rows(8), permutations=100_000,
+                        n_tests=44), release="v0.1")
+    assert land.usable and not land.underpowered
+    assert land.resolvable_steps >= L.MIN_RESOLVABLE_STEPS
+
+
+def test_the_protocol_states_the_resolution_when_it_is_the_limit(tmp_path):
+    """The protocol string is what the agent repeats to a user. Quoting
+    a four-decimal alpha beside a permutation count that cannot resolve
+    it is the false precision this module is written against."""
+    land = L.load(_file(tmp_path, _rows(8), permutations=2000, n_tests=44),
+                  release="v0.1")
+    proto = land.protocol
+    assert "2 attainable p-value(s)" in proto, proto
+    assert "could not reject, not that the effect is small" in proto
+    assert "8,799 permutations would give 10" in proto
+    good = L.load(_file(tmp_path, _rows(8), permutations=100_000,
+                        n_tests=44), release="v0.1")
+    assert "attainable" not in good.protocol, good.protocol

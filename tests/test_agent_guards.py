@@ -991,3 +991,31 @@ def test_the_caveat_key_is_registered():
     emitter and not to CAVEAT_LABELS fails loudly. Asserted because
     the verifier enforces the LABEL and nothing else."""
     assert CAVEAT_LABELS["labels_unreachable"] == "LABELS UNREACHABLE"
+
+
+# ---------------------- the readability threshold the USER is shown
+# S3's other half. pathway_caveat quoted the module constant -- 3,
+# derived from the uncorrected 0.05 -- in a sentence that names the
+# CORRECTED alpha two clauses earlier. So the user was shown both
+# thresholds and told the wrong one gated the ratio. A mutation
+# restoring the constant survived every test until this one.
+def test_the_pathway_caveat_quotes_the_rows_own_threshold():
+    from kgav.agent.guards import pathway_caveat
+    from kgav.landscape import Landscape, TaxonOverlap
+
+    V = "NCBITaxon:11060"
+    # DENV-2's real figures: 50 dependency factors, 6.22 expected, 2
+    # observed, lower-tail p 0.045 -- nominally interesting, nowhere
+    # near a corrected 0.001136, and its ratio is NOT readable downward
+    # at that alpha even though it is at 0.05.
+    row = TaxonOverlap(virus=V, n_dependency=50, n_observed=2,
+                       expected=6.22, p_naive=0.02, p_matched=0.9,
+                       p_matched_less=0.045, alpha=0.05 / 44, n_tests=44)
+    land = Landscape(source_file="pathway_landscape.json", release="v0.1",
+                     permutations=2000, seed=0, taxa={V: row},
+                     other_channel_tests=28)
+    said = pathway_caveat(land, V)
+    assert not row.ratio_readable
+    assert "6.8" in said, said
+    assert " 3," not in said and "below 3" not in said, (
+        "the caveat still quotes the uncorrected threshold")

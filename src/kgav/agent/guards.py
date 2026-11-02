@@ -49,7 +49,6 @@ from typing import Self
 # figure in user-facing prose with nothing linking it to the derivation --
 # the bug the deleted constants below were deleted for. landscape.py imports
 # nothing from this module, so the direction is one-way.
-from kgav.landscape import MIN_EXPECTED_HITS
 
 # TEMPORAL_AUC = 0.500 AND ABSENT_FRACTION = 0.77 WERE HERE, both deleted.
 #
@@ -1120,10 +1119,14 @@ def pathway_caveat(landscape, virus: str | None = None) -> str:
                  f"either: lower-tail p {overlap.p_matched_less:.4f} against "
                  f"a corrected threshold of {overlap.alpha:.4f}.")
     if not overlap.ratio_readable:
+        # THE ROW'S OWN THRESHOLD, not a module constant. This quoted 3,
+        # derived from the uncorrected 0.05, in a sentence that names the
+        # corrected alpha two clauses earlier -- so the user was shown
+        # both thresholds and told the wrong one gated the ratio.
         head += (f" The ratio is also not readable downward for this taxon — "
                  f"with {overlap.expected:.1f} expected, below "
-                 f"{MIN_EXPECTED_HITS:.0f}, even a zero overlap would be an "
-                 f"ordinary draw from the background.")
+                 f"{overlap.min_expected_hits:.1f}, even a zero overlap would "
+                 f"be an ordinary draw from the background.")
     return head + tail
 
 
