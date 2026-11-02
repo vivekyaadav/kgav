@@ -30,7 +30,7 @@ history finding in its own documents. The live figures live in two places:
 
 ```bash
 make audit           # per-layer, per-virus, what is built and what is missing
-make kg-report       # regenerates the release census in docs/kg_audit_report.txt
+make kg-report       # regenerates the release census in docs/kg_release_census.txt
 make check-results   # every results file against the graph on disk
 ```
 
@@ -99,11 +99,14 @@ scored, which channels clear chance, what the pathway test found — are in
 - **Two of three evaluation label predicates carry no edges.** `TREATS` and
   `IN_TRIAL_FOR` are declared and empty, so every evaluation rests on
   `HAS_ANTIVIRAL_ACTIVITY_AGAINST` alone.
-- **Two of twelve layers are not built.** `gtop` needs a Guide to
-  PHARMACOLOGY download that requires registration; `curated` needs
-  published-screen TSVs whose provenance has to be established first. The
-  second is what would give DENV-1, DENV-3, DENV-4, JEV and TBEV their first
-  dependency factors.
+- **One of twelve layers is not built.** `curated` needs published-screen
+  TSVs whose provenance has to be established first, and it is what would
+  give DENV-1, DENV-3, DENV-4, JEV and TBEV their first dependency factors.
+  `gtop` WAS in this sentence and is built: `docs/kg_release_census.txt`
+  lists it among the 11 assembled layers with 6,765 edges from
+  `infores:guidetopharmacology`. The prose said "not built" for months
+  after the edges landed, which is the drift this release's figures were
+  re-derived to find.
 - **Four of eleven node classes are empty** — `CellLine`, `Publication`,
   `Variant`, `VirusStrain` — so resistance and variant modelling have
   nothing to attach to, and assay context and publications exist only as

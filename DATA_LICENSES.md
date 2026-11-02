@@ -13,7 +13,7 @@ DrugBank's academic download is CC BY-NC — non-commercial only. Once its
 identifiers and annotations are baked into a release, removing them later means
 rebuilding, not patching.
 
-Default for this project: build on DrugCentral and ChEMBL, leave DrugBank out.
+Default for this project: build on ChEMBL, leave DrugBank out. DrugCentral is listed below as a licence-compatible OPTION and has no ingest in this repository -- `scripts/` holds no drugcentral module -- so a reader taking this line as a description of the build would be looking for a layer that does not exist.
 Coverage loss is modest and the graph stays usable for any downstream purpose.
 The drugbank_id property exists in the schema so the field is there if a licence
 is ever obtained; it stays null until then.

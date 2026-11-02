@@ -120,9 +120,15 @@ targets sit in, and does the virus depend on any member of them. That is
   lands at the next `make rebuild`. Gives M3 six flaviviruses instead of
   zero. Thin — 121 flavivirus rows, and Zika has three against Shah et
   al.'s 368, so IMEx has not curated that paper.
-- **C2. Guide to PHARMACOLOGY.** `src/kgav/gtop.py` and
-  `scripts/ingest_gtop.py` are built and tested; the files are not
-  downloaded. The only thing that moves the 84.5% unknown direction.
+- **C2. Guide to PHARMACOLOGY. DONE.** `src/kgav/gtop.py` and
+  `scripts/ingest_gtop.py` are built, tested AND BUILT INTO v0.1:
+  `docs/kg_release_census.txt` lists `gtop` among the 11 assembled layers
+  with 6,765 edges from `infores:guidetopharmacology`. This entry said
+  "the files are not downloaded" after they had been, which also means
+  the `direction: unknown` fraction it promised to move has already
+  moved -- see scope_and_limits.md for the current figure. OPEN: the
+  GtoPdb licence question is use-versus-access, and the edges are
+  already in the release, so it needs settling rather than planning.
 - **C3. MONDO terms for 13 of 16 viruses.** Three Disease nodes today, so
   `TREATS` and `IN_TRIAL_FOR` — both marked `evaluation_label` in the
   schema — are empty, and every evaluation rests on

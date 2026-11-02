@@ -876,3 +876,161 @@ def test_the_biolink_note_keeps_the_two_divergences_that_are_deliberate(flat):
     assert "no way to say that" in block
     assert "HOST_FACTOR_FOR" in block
     assert "dependency versus restriction" in block
+
+
+# ------------------------- the prose layer, re-derived from the tree
+# THE AUDIT'S CLOSING DIAGNOSIS, verbatim: "the prose layer moves slower
+# than the code, and nothing tests the prose that describes METHOD; the
+# existing tests pin structure well and pin no method sentence." These
+# are the sentences that were wrong on 2026-11-02, each pinned to the
+# thing it describes so correcting it once is enough.
+SCHEMA_FILE = ROOT / "schema" / "kg_schema.yaml"
+MAKEFILE = ROOT / "Makefile"
+
+
+def test_the_layout_block_names_the_schemas_real_directory(text):
+    """It said `config/` held the schema. The schema is in schema/, and
+    schema/ was absent from the block entirely."""
+    assert SCHEMA_FILE.exists()
+    block = text.split("DIRECTORY LAYOUT")[1][:1800]
+    assert "schema/" in block, block[:400]
+    assert "viruses.yaml (the register), schema," not in block, \
+        "config/ is still described as holding the schema"
+
+
+def test_the_module_count_is_the_number_of_modules(text):
+    """Re-derived. It said 28 where there are 27 plus __init__.py, and
+    enumerated "one per source layer" -- which is true of scripts/ and
+    not of this directory, because there is no spine.py."""
+    mods = sorted(p.name for p in (ROOT / "src" / "kgav").glob("*.py")
+                  if p.name != "__init__.py")
+    # Whitespace-normalised: the block is wrapped prose, so a phrase
+    # that spans a line break is invisible to a raw search. The first
+    # version of this test looked for "no spine.py" in the raw slice and
+    # failed against text that contained it across two lines.
+    block = " ".join(text.split("DIRECTORY LAYOUT")[1][:2200].split())
+    assert f"{len(mods)} modules" in block, (
+        f"{len(mods)} modules on disk; the report says otherwise")
+    assert not (ROOT / "src" / "kgav" / "spine.py").exists()
+    assert "no spine.py" in block
+
+
+def test_the_entry_point_count_is_the_number_of_entry_points(text):
+    """61 .py plus tier_spotcheck.sh. It said 57."""
+    n = len([p for p in (ROOT / "scripts").iterdir()
+             if p.suffix in (".py", ".sh")])
+    block = text.split("DIRECTORY LAYOUT")[1][:1800]
+    assert f"{n} entry points" in block, (
+        f"{n} entry points in scripts/; the report says otherwise")
+
+
+def test_no_predicate_qualifier_is_named_that_the_schema_lacks(text):
+    """`pmid` was listed as a qualifier and appears NOWHERE in
+    kg_schema.yaml. Publications ride on the edge's `publications` list."""
+    schema_text = SCHEMA_FILE.read_text()
+    assert "pmid" not in schema_text
+    assert "detection_method, pmid" not in text, \
+        "pmid is still listed as a qualifier"
+
+
+def test_hub_exclusion_is_claimed_for_exactly_the_gated_metapaths(text):
+    """Re-derived from `exclude_hubs` in the schema. The sentence named
+    M4 and M5; M8 carries the flag too and was missing."""
+    doc = yaml.safe_load(SCHEMA_FILE.read_text())
+    gated = sorted(name for name, mp in (doc.get("metapaths") or {}).items()
+                   if isinstance(mp, dict) and mp.get("exclude_hubs"))
+    assert gated, "no metapath declares exclude_hubs; this test is inert"
+    line = next(ln for ln in text.splitlines() if ln.startswith("HUB EXCLUSION"))
+    for name in gated:
+        assert name in line, f"{name} gates hubs and is not in: {line}"
+
+
+def test_no_manifest_is_claimed_as_tracked(text):
+    """It said data/releases is gitignored "except MANIFEST.json and the
+    smoke release". Nothing named MANIFEST.json is tracked at all."""
+    import subprocess
+    out = subprocess.run(["git", "ls-files", "data/releases"], cwd=ROOT,
+                         capture_output=True, text=True).stdout
+    tracked = [ln for ln in out.splitlines() if "MANIFEST.json" in ln]
+    assert not tracked, f"a MANIFEST.json IS tracked now: {tracked}"
+    assert "except MANIFEST.json" not in text
+
+
+def test_the_provenance_requirement_is_credited_where_it_lives(text):
+    """emit.py is 42 lines and holds no validator. Enforcement is
+    schema.Schema.validate_batch, and a layer is checked only if its
+    ingest calls it -- four of twelve do not, host among them."""
+    emit = (ROOT / "src" / "kgav" / "emit.py").read_text()
+    assert "validate_batch" not in emit, \
+        "emit.py validates now; the report paragraph needs revisiting"
+    skipping = sorted(
+        p.name for p in (ROOT / "scripts").glob("ingest_*.py")
+        if "validate_batch" not in p.read_text())
+    assert skipping, "every ingest validates now; correct the report"
+    for name in skipping:
+        assert name[: -len(".py")] in text, (
+            f"{name} skips validate_batch and the report does not say so")
+    # AND THE CLAIM ITSELF, not just its surroundings. The first version
+    # of this test asserted only that the four skipping ingests were
+    # NAMED somewhere, so restoring "Schema validation is enforced in
+    # emit.py" survived it -- a test checking something adjacent to the
+    # sentence rather than the sentence.
+    para = " ".join(text.split("ONE WRITER")[1][:900].split())
+    assert "validate_batch" in para, (
+        "the paragraph does not say where the rules actually live")
+    for claim in ("enforced in emit.py", "enforced there"):
+        assert claim not in para, (
+            f"the report still credits emit.py with enforcement: {claim!r}")
+
+
+def test_no_make_target_is_denied_that_the_makefile_defines(text):
+    """D3 and the shape of it. "There is no `audit` target in the
+    Makefile and there never has been" stood in the present tense after
+    Makefile:141 defined one -- inside a RETRACTION paragraph, which is
+    the one part of this report nothing checks, because the exclusion
+    that lets a retraction quote the old wrong text also exempts its own
+    claims. Checked on the WHOLE text for this class only."""
+    targets = set(re.findall(r"^([A-Za-z][A-Za-z0-9_-]*):",
+                             MAKEFILE.read_text(), re.M))
+    assert "audit" in targets, "the audit target went away"
+    flat = " ".join(text.split())
+    for t in sorted(targets):
+        for claim in (f"no `{t}` target", f"no {t} target"):
+            assert claim not in flat, (
+                f"the report denies the `{t}` target, which the Makefile "
+                f"defines")
+
+
+def test_a_built_layer_is_not_described_as_not_built(text):
+    """gtop. The census -- generated from the release and stamped with
+    its content hashes -- lists it among the assembled layers with 6,765
+    edges, and three documents said it was not built."""
+    census = (ROOT / "docs" / "kg_release_census.txt")
+    if not census.exists():
+        pytest.skip("census absent")
+    body = census.read_text()
+    assembled = body.split("layer(s) assembled")[1].split("\n\n")[0]
+    built = {ln.strip() for ln in assembled.splitlines() if ln.strip()
+             and not ln.strip().startswith("hub")}
+    assert "gtop" in built, "gtop is no longer assembled; recheck the prose"
+    # THE LAYER TABLE, which is where the claim actually sits. Restoring
+    # "gtop  optional  second TARGETS source  NOT BUILT" survived the
+    # first version of this test, because that version looked only for
+    # the phrase "needs the" in prose.
+    for line in text.splitlines():
+        if "NOT BUILT" not in line:
+            continue
+        layer = line.split()[0]
+        assert layer not in built, (
+            f"the layer table marks {layer} NOT BUILT and the census "
+            f"lists it among the assembled layers: {line.strip()}")
+    for doc in ("docs/kg_audit_report.txt", "README.md",
+                "docs/v1_release_plan.md"):
+        d = (ROOT / doc).read_text()
+        for layer in sorted(built):
+            # The claim shape, not the word: a retraction may say a layer
+            # "WAS in this sentence and is built".
+            assert f"{layer} needs the" not in d, (
+                f"{doc} says the built layer {layer} still needs something")
+            assert f"`{layer}` needs a" not in d, (
+                f"{doc} says the built layer {layer} still needs something")

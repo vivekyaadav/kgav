@@ -96,11 +96,17 @@ contribute" is a question with a file as its answer rather than a diff.
 It is also what lets `make audit` report a layer as BLOCKED with a
 reason instead of a build simply producing less.
 
-ONE WRITER. Every node and edge in the graph goes through emit.py.
-Schema validation and the provenance requirement are enforced there, so
-"an edge with no source" is not a thing a new layer can accidentally
-create. A second writer would be a second place for those rules to be
-half-applied.
+ONE WRITER, AND THE RULES ARE NOT IN IT. Every node and edge goes
+through emit.py, which is 42 lines and holds no validator. Schema
+validation and the provenance requirement live in
+schema.Schema.validate_batch, and a layer is checked only if its ingest
+CALLS it. Four of the twelve do not: ingest_curated, ingest_gtop,
+ingest_host and ingest_spine -- and host is the largest layer in the
+graph. So "an edge with no source is not a thing a new layer can
+accidentally create", which this paragraph asserted, is false of four
+layers that already exist, one of them the spine. One writer is still
+the right shape; the rules being somewhere else is what makes the
+guarantee a convention.
 
 NORMALISATION HAPPENS AT INGEST, NOT AT QUERY TIME.
     normalize_chem   any structure representation -> a stable node key:
@@ -167,19 +173,31 @@ THE AGENT IS A FIXED PIPELINE, NOT A LOOP.
 
 DIRECTORY LAYOUT
 
-    config/           viruses.yaml (the register), schema, ORCS polarity
-                      overrides
-    src/kgav/         28 modules: one per source layer, plus schema,
-                      assemble, emit, provenance, normalisation,
-                      baselines, calibration, temporal, landscape
+    config/           viruses.yaml (the register), ORCS polarity
+                      overrides. NOT the schema -- that was stated here
+                      for months and the schema has its own directory.
+    schema/           kg_schema.yaml: node classes, predicates,
+                      qualifiers, metapaths, held-out predicates
+    src/kgav/         27 modules plus __init__.py: one per source layer,
+                      then assemble, emit, provenance, normalisation,
+                      baselines, calibration, temporal, landscape,
+                      labels, channels, pipeline, schema.
+                      There is no spine.py: the spine is built by
+                      scripts/ingest_spine.py, so "one per source layer"
+                      is true of the SCRIPTS and not of this directory.
     src/kgav/agent/   orchestrator, guards, tools, verify, llm
-    scripts/          57 entry points: 12 ingests, the assembler, the
-                      evaluation protocols, the diagnostics, the audits
+    scripts/          62 entry points: 12 ingests, the assembler, the
+                      evaluation protocols, the diagnostics, the audits,
+                      and one shell script (tier_spotcheck.sh)
     tests/            the gate; every figure in docs/ that a rebuild
                       could move is re-derived here
     data/raw/         sources as they arrived            (gitignored)
     data/releases/    assembled graphs                   (gitignored,
-                      except MANIFEST.json and the smoke release)
+                      except the smoke release). NO MANIFEST.json is
+                      tracked: the line here claimed one was for months,
+                      so the commit that assembled v0.1 is unpublished
+                      and web/'s one factual claim is tested against a
+                      file that is not in the repository.
     data/results/     every measured figure              (TRACKED, on
                       purpose: a result that exists only on the machine
                       that produced it is not evidence for anything)
@@ -288,7 +306,9 @@ an infores identifier; evidence_tier and first_asserted_date are required.
 The schema validates this on ingest, so an edge without a source cannot
 enter the graph. Qualifiers carry the measurement context that makes an
 edge interpretable — assay_type, direction, screen_type, cell_line, ic50_nm,
-target_resolution, detection_method, pmid.
+target_resolution, detection_method. NOT pmid: it appears nowhere in
+kg_schema.yaml. Publications are carried on the edge's `publications`
+list, not as a qualifier, which is why no qualifier ladder mentions it.
 
 HOST_FACTOR_FOR.direction is the qualifier that matters most. A CRISPR
 screen reports a gene whose loss changes infection, and the SIGN decides
@@ -483,7 +503,12 @@ BioGRID ORCS                                 infores:biogrid-orcs
     densest repurposing signal in the graph and the only layer where a
     sign error produces a confidently wrong recommendation. Polarity is
     determined per screen rather than assumed, with manual overrides
-    recorded in config/orcs_polarity_overrides.json.
+    recorded in config/orcs_polarity_overrides.json -- which is `{}`,
+    and that is the result rather than an omission. Not one of the 96
+    coronavirus screens needed a hand-written polarity: 41 were
+    one-sided, 35 resolved from their own anchors, and 20 were dropped
+    as unresolvable. A file read as "where the overrides are kept"
+    understates it; there are none.
 
 NCATS OpenData                             infores:ncats-opendata
     The SARS-CoV-2 cytopathic-effect screen AND its host-toxicity
@@ -569,7 +594,7 @@ run is reported as blocked rather than skipped silently.
                              EC50/CC50 pairs                      [ChEMBL]
     similarity    optional   CHEMICALLY_SIMILAR_TO cold-start edges
                                                          [kgav-computed]
-    gtop          optional   second TARGETS source                 NOT BUILT
+    gtop          optional   second TARGETS source      [GuideToPharmacology]
 
 WHY hosttargets IS A SEPARATE LAYER. After the chemistry layer first ran,
 the graph held thousands of HOST_FACTOR_FOR edges and ZERO TARGETS edges,
@@ -677,9 +702,11 @@ queries, so each one's reach and performance can be measured separately.
       Gated on catalytic_type_match, so a cysteine-protease inhibitor is
       not transferred to a serine protease on fold similarity alone.
 
-HUB EXCLUSION on M4 and M5 is not cosmetic. Without it, every drug
+HUB EXCLUSION on M4, M5 and M8 is not cosmetic. Without it, every drug
 reaches every virus through ubiquitin or a ribosomal protein, and the
-score measures connectivity rather than biology.
+score measures connectivity rather than biology. M8 was missing from
+this sentence while carrying `exclude_hubs: true` in the schema, so the
+one cross-family route read as unfiltered.
 
 
 ================================================================================
@@ -828,7 +855,13 @@ and the distinction between them is the point: they are not degrees of
 weak evidence, they are different kinds of absence.
 
 An earlier version of this line read "From `make audit`". There is no
-`audit` target in the Makefile and there never has been. Every tier
+such target in the Makefile WHEN THIS WAS WRITTEN; `make audit` was
+added on 2026-11-02 and is at Makefile:141. The denial then stood here
+in the present tense for a day, inside a retraction paragraph -- the
+one part of this report nothing checked, because the exclusion that
+lets a retraction QUOTE the old wrong text also exempted its own
+claims. A test now checks this class against the Makefile over the
+whole text, retractions included. Every tier
 below was correct; the one sentence telling a reader how to check them
 named a command that does not run. The tiers are now asserted against
 those two files by tests/test_kg_audit_report.py, and a separate test
@@ -919,8 +952,6 @@ and had never been read. It failed on the first query.
 10. KNOWN GAPS
 ================================================================================
 
-  gtop layer           needs the Guide to PHARMACOLOGY registration
-                       download. Implemented, not built.
   curated layer        needs data/raw/curated_screens/*.tsv with
                        established provenance. Would give DENV-1,
                        DENV-3, DENV-4, JEV and TBEV their first
