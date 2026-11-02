@@ -1034,3 +1034,97 @@ def test_a_built_layer_is_not_described_as_not_built(text):
                 f"{doc} says the built layer {layer} still needs something")
             assert f"`{layer}` needs a" not in d, (
                 f"{doc} says the built layer {layer} still needs something")
+
+
+# ------------------------- the TARGETS direction figure, in SEVEN places
+# D2. The audit named one file. The pre-gtop figure "12,155 of 14,381
+# TARGETS edges state no direction (84.5%)" was quoted in seven places --
+# gtop.py, assemble.py, guards.py, ingest_gtop.py twice,
+# v1_release_plan.md and scope_and_limits.md -- every one of them
+# labelling it as v0.1's. It is not: it describes the release BEFORE the
+# gtop layer landed. Correct numbers attributed to the wrong release,
+# which is harder to spot than a wrong number.
+#
+# On the assembled v0.1: 10,395 of 17,982 unstated (57.8%), directed
+# 2,226 -> 7,587. Both halves of that moved, so quoting either one
+# without its release is ambiguous.
+CENSUS = ROOT / "docs" / "kg_release_census.txt"
+RELEASE = ROOT / "data" / "releases" / "v0.1"
+
+#: Files that quote a TARGETS total. Kept as a list so a new quote in a
+#: file nobody thought of still has to pick a side.
+QUOTING_FILES = (
+    "src/kgav/gtop.py",
+    "src/kgav/assemble.py",
+    "src/kgav/agent/guards.py",
+    "scripts/ingest_gtop.py",
+    "docs/v1_release_plan.md",
+    "docs/scope_and_limits.md",
+)
+
+
+def _census_targets() -> int:
+    for line in CENSUS.read_text().splitlines():
+        parts = line.split()
+        if len(parts) == 2 and parts[0] == "TARGETS":
+            return int(parts[1].replace(",", ""))
+    raise AssertionError("no TARGETS row in the census")
+
+
+def test_the_census_still_holds_a_targets_total():
+    assert _census_targets() > 0
+
+
+@pytest.mark.parametrize("path", QUOTING_FILES)
+def test_no_file_quotes_the_pre_gtop_total_as_this_release(path):
+    """The denominator pinned against the committed census, which is
+    stamped against the release and so needs no release on disk.
+
+    A file MAY still quote 14,381 -- the pre-gtop state is the reason the
+    layer exists and deleting it would lose the argument -- but not
+    beside a claim that it is this release. The check is the pairing, not
+    the number."""
+    total = _census_targets()
+    text = (ROOT / path).read_text()
+    flat = " ".join(text.split())
+    for stale in ("14,381", "12,155", "2,226"):
+        if stale not in flat:
+            continue
+        # Wherever a pre-gtop number appears, the sentence around it must
+        # say so, and the current total must appear somewhere in the file.
+        assert f"{total:,}" in flat, (
+            f"{path} quotes the pre-gtop figure {stale} and never quotes "
+            f"this release's {total:,}")
+        for claim in (f"{stale} on v0.1", f"{stale} in v0.1",
+                      f"v0.1's {stale}"):
+            assert claim not in flat, (
+                f"{path} attributes the pre-gtop figure to v0.1: {claim!r}")
+
+
+def test_the_direction_split_matches_the_release_when_one_is_present():
+    """RE-DERIVED where it can be. The quoted numerator cannot come from
+    the census -- it holds no qualifier breakdown -- so on a machine with
+    the release this recounts it, and elsewhere the test above pins the
+    denominator. Adding the split to the census would be better and needs
+    a regeneration step, so it is a follow-up rather than this patch."""
+    if not (RELEASE / "edges.jsonl").exists():
+        pytest.skip("no full release on disk")
+    import json
+    total = unknown = 0
+    with (RELEASE / "edges.jsonl").open() as fh:
+        for line in fh:
+            e = json.loads(line)
+            if e.get("predicate") != "TARGETS":
+                continue
+            total += 1
+            if ((e.get("qualifiers") or {}).get("direction") or "unknown") \
+                    == "unknown":
+                unknown += 1
+    assert total == _census_targets(), (
+        f"the release holds {total:,} TARGETS and the census says "
+        f"{_census_targets():,}; run make kg-report")
+    scope = (ROOT / "docs" / "scope_and_limits.md").read_text()
+    assert f"{unknown:,} of {total:,}" in " ".join(scope.split()), (
+        f"scope_and_limits.md does not state {unknown:,} of {total:,}")
+    pct = f"{unknown / total:.1%}"
+    assert pct in scope, f"the quoted percentage is not {pct}"

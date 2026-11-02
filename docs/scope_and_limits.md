@@ -81,7 +81,10 @@ species is a claim about one isolate of it.
 
 ### Most drug–target edges do not say which direction
 
-12,155 of 14,381 `TARGETS` edges state `direction: unknown` — **84.5%**.
+10,395 of 17,982 `TARGETS` edges state `direction: unknown` — **57.8%**
+on the assembled v0.1. It was 12,155 of 14,381 — **84.5%** — before the
+gtop layer landed, and that pre-gtop figure was quoted here, and in six
+other places, as though it described v0.1.
 ChEMBL's bulk activity table records potency; only `drug_mechanism`
 carries an action type, for a minority of approved drugs.
 

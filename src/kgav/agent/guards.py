@@ -1135,7 +1135,8 @@ def target_direction_caveat(n_directed: int, n_total: int) -> str:
     protein: activating a dependency factor should make infection easier, not
     harder. ChEMBL's bulk activity table records potency, not direction, so
     most TARGETS edges in this graph are a binding affinity with no
-    agonist/antagonist annotation at all -- 2,226 of 14,381 on v0.1, and the
+    agonist/antagonist annotation at all -- 7,587 of 17,982 on v0.1 do
+    (42.2%); it was 2,226 of 14,381 (15.5%) before the gtop layer -- and the
     figure is counted here per compound rather than quoted, because a
     compound whose every edge is directed deserves a different sentence.
 

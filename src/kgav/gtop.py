@@ -3,12 +3,23 @@
 WHY THIS SOURCE AND NOT ANOTHER. Two gaps in the graph are measured, and
 this closes the one that matters more.
 
-  DIRECTION. 12,155 of 14,381 TARGETS edges state no direction, because
-  ChEMBL's bulk activity table records potency and only drug_mechanism
-  carries action_type, for a minority of approved drugs. So "this drug
-  targets a dependency factor" cannot become "inhibiting it should block
-  infection". GtP curates `action` on essentially every interaction, which
-  is the field that gap is made of.
+  DIRECTION. Before this layer landed, 12,155 of 14,381 TARGETS edges
+  stated no direction -- 84.5% -- because ChEMBL's bulk activity table
+  records potency and only drug_mechanism carries action_type, for a
+  minority of approved drugs. So "this drug targets a dependency factor"
+  could not become "inhibiting it should block infection". GtP curates
+  `action` on essentially every interaction, which is the field that gap
+  is made of.
+
+  IT WORKED, AND THE FIGURE ABOVE IS NOT v0.1's. On the assembled v0.1,
+  which CONTAINS this layer, 10,395 of 17,982 TARGETS edges state no
+  direction -- 57.8%, down from 84.5%. The directed count went 2,226 ->
+  7,587, a 3.4x rise, by two routes: new directed edges, and existing
+  ChEMBL edges gaining an action through the qualifier ladder. The
+  pre-gtop numbers were quoted as "v0.1's" in seven places across this
+  module, assemble.py, guards.py, ingest_gtop.py and two documents --
+  correct numbers attributed to the wrong release, which is harder to
+  notice than a wrong number.
 
   COVERAGE. 18,665 of 21,667 small molecules carry no human target. GtP
   adds clinical and approved ligands, so the census's approved-plus-

@@ -15,7 +15,8 @@ UniProt filter and the InChIKey join, which is the number that says
 whether the layer is worth assembling.
 
 WHAT IT ADDS, in order of value: a DIRECTION on edges that have none
-(12,155 of 14,381 in v0.1 state nothing), then reach for approved and
+(12,155 of 14,381 stated nothing before this layer; 10,395 of 17,982 do
+on the assembled v0.1, which contains it), then reach for approved and
 clinical ligands the chemistry layer missed.
 """
 from __future__ import annotations
@@ -119,9 +120,16 @@ def main(argv=None) -> int:
             print(f"  {k.removeprefix('direction_'):<12} {s[k]:7,}")
     known = s["edges"] - s["direction_unknown"]
     if s["edges"]:
+        # THE BASELINE IS PRE-GTOP, and saying "v0.1's existing TARGETS
+        # layer" was wrong twice over: v0.1 now CONTAINS this layer, so
+        # the comparison was against a release that already includes the
+        # thing being measured, and the figure it quoted was from the
+        # release before. Labelled by what it is now.
         print(f"\n  {known:,} of {s['edges']:,} state a direction "
-              f"({known / s['edges']:.1%}). v0.1's existing TARGETS layer "
-              f"states one on 2,226 of 14,381 (15.5%).")
+              f"({known / s['edges']:.1%}). Before this layer existed, "
+              f"the ChEMBL-only TARGETS layer stated one on 2,226 of "
+              f"14,381 (15.5%); on the assembled v0.1 it is 7,587 of "
+              f"17,982 (42.2%).")
     for k in ("compound_by_skeleton", "compound_by_chembl_id"):
         if s[k]:
             print(f"  {k.removeprefix('compound_by_'):<12} {s[k]:7,} edges "

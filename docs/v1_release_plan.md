@@ -80,7 +80,10 @@ All of it is measured, and the honesty is the contribution:
 - Each flavivirus is **one strain's polyprotein** reassigned to the species
   taxon. "DENV-1 NS3" in this graph is strain 408685's NS3. This is what
   `chain_source` has always meant.
-- **12,155 of 14,381 `TARGETS` edges state no direction** (84.5%). So
+- **CLOSED BY gtop.** 12,155 of 14,381 `TARGETS` edges stated no
+  direction (84.5%) before that layer landed; on the assembled v0.1 it is
+  10,395 of 17,982 (57.8%), and the directed count rose 2,226 -> 7,587.
+  The original statement, kept because the reasoning still holds: so
   "this drug targets a dependency factor" is not "inhibiting it would
   help", and the landscape says so in its own output.
 - The landscape covers **11.8% of molecules**; the rest have no human

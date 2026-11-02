@@ -64,7 +64,11 @@ EquivalenceFn = Callable[[Any, Any], bool]
 #: `gtop` sits ABOVE `hosttargets` because both write TARGETS and only one
 #: of them knows the direction. The Guide to PHARMACOLOGY curates `action`
 #: on essentially every interaction; ChEMBL's bulk activity table records
-#: potency and leaves direction unstated on 12,155 of v0.1's 14,381 edges.
+#: potency and left direction unstated on 12,155 of 14,381 edges before
+#: this layer entered the order -- 84.5%. On the assembled v0.1, which
+#: contains it, 10,395 of 17,982 are unstated: 57.8%. The pre-gtop figure
+#: was labelled "v0.1's" here, which is the error worth naming: the
+#: numbers were right and the release they were attributed to was not.
 #: Earlier wins a qualifier conflict, so the curated action wins.
 LAYER_PRECEDENCE = ["spine", "host", "vhppi", "orcs", "curated", "chembl",
                     "selectivity", "gtop",
