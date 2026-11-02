@@ -630,14 +630,19 @@ def _two(d1, d2, **kw):
             _inter(Type=d2, Action="", **kw)]
 
 
-def test_two_rows_that_disagree_outright_assert_no_direction():
+def test_two_rows_that_disagree_outright_assert_a_contested_direction():
     """THE 24. Both orders, because the point is that order stops
-    mattering."""
+    mattering.
+
+    The value is `contested`, not `unknown`: the first says the sources
+    disagree and the second says nobody stated one, and a consumer that
+    cannot tell them apart reports a gap in the data where there is a
+    contradiction in it."""
     for rows in (_two("Agonist", "Inhibitor"), _two("Inhibitor", "Agonist")):
         em = Emit()
         s = ingest_interactions(em, rows, KEYS, PROTS, IDX)
         assert s["edges"] == 1
-        assert em.edges[0]["qualifiers"]["direction"] == "unknown"
+        assert em.edges[0]["qualifiers"]["direction"] == "contested"
         assert s["qualifier_irreconcilable:direction"] == 1
 
 

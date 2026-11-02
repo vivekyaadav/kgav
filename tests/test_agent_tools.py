@@ -945,3 +945,72 @@ def test_a_taxon_absent_from_the_release_is_not_matched(namer):
     assert "NCBITaxon:11089" not in namer.nodes       # Yellow fever, unbuilt
     assert not namer._names_virus("Yellow fever virus entry",
                                   "NCBITaxon:11089")
+
+
+# --------------------------- a contested direction is not a stated one
+# S9. assemble.resolve_qualifier now writes "contested" where two curated
+# sources assert opposite directions, instead of "unknown". The two mean
+# different things -- nobody said, against the sources disagree -- and a
+# consumer that cannot tell them apart reports a gap in the data where
+# there is a contradiction in it.
+def _targets_graph(tmp_path, direction):
+    nodes = [{"id": "CHEMBL:D", "class": "SmallMolecule",
+              "properties": {"label": "testdrug"}},
+             {"id": "UniProtKB:SIGMAR1", "class": "Protein",
+              "properties": {"taxon_id": "NCBITaxon:9606", "is_viral": False,
+                             "sequence_hash": "h", "reviewed": True,
+                             "gene_symbol": "SIGMAR1"}}]
+    q = {} if direction is None else {"direction": direction}
+    edges = [{"subject": "CHEMBL:D", "predicate": "TARGETS",
+              "object": "UniProtKB:SIGMAR1", "qualifiers": q,
+              "primary_knowledge_source": "infores:chembl",
+              "evidence_tier": 1, "first_asserted_date": "2021-01-01"}]
+    (tmp_path / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in edges))
+    return GraphTools(tmp_path)
+
+
+def test_a_contested_direction_is_not_rendered_as_a_mechanism(tmp_path):
+    """It read `as an {direction}` for anything that was not None or
+    "unknown", which produced "engages the host protein SIGMAR1 as an
+    contested" -- a sentence asserting a mechanism named contested."""
+    t = _targets_graph(tmp_path, "contested")
+    line = t.neighbours("CHEMBL:D").verbalised[0]
+    assert "as an contested" not in line, line
+    assert "sources disagree on whether it inhibits or activates" in line
+
+
+@pytest.mark.parametrize("direction,shows", [
+    ("inhibitor", "as an inhibitor"),
+    ("agonist", "as an agonist"),
+    ("unknown", "mechanism not stated"),
+    (None, "mechanism not stated"),
+])
+def test_the_other_directions_render_as_before(tmp_path, direction, shows):
+    t = _targets_graph(tmp_path, direction)
+    assert shows in t.neighbours("CHEMBL:D").verbalised[0]
+
+
+@pytest.mark.parametrize("direction,counts", [
+    ("inhibitor", True), ("agonist", True), ("modulator", True),
+    ("unknown", False), ("contested", False), (None, False),
+])
+def test_only_a_stated_direction_counts_as_directed(tmp_path, direction,
+                                                    counts):
+    """The count behind TARGET DIRECTION answers "does this edge say what
+    the drug DOES to the target". Two sources asserting opposite actions
+    do not, and "unknown" was excluded only by being falsy -- luck rather
+    than a rule, which is why "contested" slipped through it."""
+    import inspect
+
+    from kgav.agent import tools as T
+    src = inspect.getsource(T.GraphTools.pathways)
+    assert 'not in (None, "", "unknown", "contested")' in src
+    t = _targets_graph(tmp_path, direction)
+    edges = [e for e in t.edges if e["predicate"] == "TARGETS"]
+    n = sum(1 for e in edges
+            if (e.get("qualifiers") or {}).get("direction")
+            not in (None, "", "unknown", "contested"))
+    assert bool(n) is counts

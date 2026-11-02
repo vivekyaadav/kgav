@@ -177,6 +177,45 @@ QUALIFIER_LADDER: dict[str, tuple[str, ...]] = {
     "direction": ("unknown", "modulator"),
 }
 
+#: What a qualifier becomes when two specific claims contradict, in place
+#: of the ladder's bottom rung.
+#:
+#: WHY NOT JUST "unknown". The bottom rung means "no claim", and the
+#: ladder's first rule is that a claim beats no claim -- so a contested
+#: value written as "unknown" is overwritten by the NEXT witness, and the
+#: contradiction evaporates. Folding three witnesses:
+#:
+#:     (dependency + restriction) + restriction  ->  restriction
+#:     dependency + (restriction + restriction)  ->  unknown
+#:
+#: which is not associative, and resolve_qualifier's own docstring says it
+#: is ("merging stays associative and idempotent"). Measured on 39
+#: witnesses for one pair, 34 against 5, the answer was `dependency`,
+#: `restriction` or `unknown` depending purely on merge order -- "the same
+#: release built twice could state opposite directions on one edge", which
+#: is the failure that docstring names as the reason for the rule.
+#:
+#: CONTESTED IS ABSORBING, AND IT NEEDS NO SPECIAL CASE. It is absent
+#: from the ladder, so it is an unranked specific claim -- and two
+#: differing unranked claims already fall to the irreconcilable branch,
+#: which returns CONTESTED. Against "unknown" it wins as the more
+#: specific of the two; against itself the equality check returns it
+#: early. So changing the verdict from `ladder[0]` to CONTESTED is the
+#: whole fix, and the fold is associative, idempotent and
+#: order-independent as a consequence rather than by a guard.
+#:
+#: An explicit `if CONTESTED in (hi, lo): return CONTESTED` was written
+#: first and SURVIVED MUTATION: it is dead code that reads as
+#: load-bearing, which this module's neighbour removed for the same
+#: reason on the same day.
+#:
+#: Not reachable on HOST_FACTOR_FOR, where the schema makes `direction`
+#: identity-defining so a dependency edge and a restriction edge are two
+#: facts that never merge. It IS reachable on TARGETS, where
+#: inhibitor-against-agonist conflicts are real: 40 edges on the GtoP
+#: download of 2026-11-01.
+CONTESTED = "contested"
+
 
 def resolve_qualifier(name: str, hi: Any, lo: Any,
                       stats: Counter | None = None) -> Any:
@@ -219,7 +258,7 @@ def resolve_qualifier(name: str, hi: Any, lo: Any,
         return kept
     if stats is not None:
         stats[f"qualifier_irreconcilable:{name}"] += 1
-    return ladder[0]
+    return CONTESTED
 
 
 def merge_edges(a: dict, b: dict, derive: DeriveFn | None = None,

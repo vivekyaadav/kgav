@@ -49,7 +49,14 @@ enums:
 
   # How two classes were compared.
   fold_comparison_method: [interpro_shared, tmalign, dali, foldseek, manual]
-  target_direction:      [inhibitor, agonist, modulator, unknown]
+  # `contested` is written by assemble.resolve_qualifier when two
+  # curated sources assert opposite directions for one pair -- 40 edges
+  # on the GtoP download of 2026-11-01. It is NOT a synonym for
+  # `unknown`: that means nobody stated a direction, this means the
+  # sources disagree, and a consumer that cannot tell them apart
+  # reports a gap in the data where there is a contradiction in it.
+  target_direction:      [inhibitor, agonist, modulator, unknown,
+                          contested]
   lifecycle_stage:
     [attachment, entry, uncoating, genome_replication, translation,
      polyprotein_processing, assembly, egress, immune_modulation, unknown]

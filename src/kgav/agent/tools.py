@@ -467,7 +467,14 @@ class GraphTools:
                 + (f", assayed against the {q['domain']} site" if q.get("domain") else "")),
             "TARGETS": lambda: (
                 f"{s} engages the host protein {o}"
-                + (f" as an {q['direction']}" if q.get("direction") not in (None, "unknown")
+                # THREE STATES, NOT TWO. "contested" means two curated
+                # sources assert opposite directions, which is a different
+                # thing from nobody stating one -- and rendering it through
+                # the first branch produced "as an contested".
+                + (" (sources disagree on whether it inhibits or activates "
+                   "this target)" if q.get("direction") == "contested"
+                   else f" as an {q['direction']}"
+                   if q.get("direction") not in (None, "unknown")
                    else " (mechanism not stated: potency measured, not direction)")),
             "HOST_FACTOR_FOR": lambda: (
                 f"{s} is a host {q.get('direction', 'factor')} factor for {o}"
@@ -1258,9 +1265,16 @@ class GraphTools:
                      f"small molecules here carry an activity measurement "
                      f"and no target annotation at all.")
 
+        # A CONTESTED DIRECTION IS NOT A STATED ONE. This counts edges
+        # that say what the drug DOES to the target, and two sources
+        # asserting opposite actions do not. Counting "contested" as
+        # directed would report a mechanism where there is a
+        # contradiction -- and "unknown" was already excluded only by
+        # being falsy, which is luck rather than a rule.
         n_directed = sum(
             1 for e in target_edges
-            if (e.get("qualifiers") or {}).get("direction"))
+            if (e.get("qualifiers") or {}).get("direction")
+            not in (None, "", "unknown", "contested"))
         deps = self._dependency_factors(virus)
         cap = self._max_pathway_members
 

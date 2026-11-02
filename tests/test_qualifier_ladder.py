@@ -36,6 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from kgav.assemble import (
+    CONTESTED,
     LAYER_PRECEDENCE,
     QUALIFIER_LADDER,
     merge_edges,
@@ -71,12 +72,12 @@ def test_a_specific_direction_is_not_replaced_by_a_graded_one(specific):
     assert resolve_qualifier("direction", specific, "modulator") == specific
 
 
-def test_two_opposite_specifics_reconcile_to_neither():
+def test_two_opposite_specifics_reconcile_to_contested():
     """THE 40. Two curated sources contradicting each other is not a fact,
     and keeping whichever sits higher in LAYER_PRECEDENCE would assert a
     mechanism on the strength of a list's ordering."""
-    assert resolve_qualifier("direction", "inhibitor", "agonist") == "unknown"
-    assert resolve_qualifier("direction", "agonist", "inhibitor") == "unknown"
+    assert resolve_qualifier("direction", "inhibitor", "agonist") == CONTESTED
+    assert resolve_qualifier("direction", "agonist", "inhibitor") == CONTESTED
 
 
 @pytest.mark.parametrize("value", DIRECTIONS)
@@ -158,9 +159,13 @@ def test_a_merged_edge_fills_an_unknown_direction():
 
 
 def test_a_merged_edge_refuses_an_outright_contradiction():
+    """The verdict is CONTESTED, not "unknown". Same refusal, different
+    sentinel: "unknown" is the ladder's bottom rung and means no claim,
+    so the ladder's own first rule -- a claim beats no claim -- let the
+    next witness overwrite it. See test_contested_is_absorbing."""
     out = merge_edges(_edge("agonist", "infores:guidetopharmacology"),
                       _edge("inhibitor", "infores:chembl"))
-    assert out["qualifiers"]["direction"] == "unknown"
+    assert out["qualifiers"]["direction"] == "contested"
 
 
 def test_both_reconciliations_are_counted_not_silent():
@@ -192,3 +197,98 @@ def test_a_qualifier_only_one_side_states_survives_the_merge():
     b["qualifiers"] = {"direction": "unknown", "affinity_nm": 40.0}
     out = merge_edges(a, b)
     assert out["qualifiers"] == {"direction": "inhibitor", "affinity_nm": 40.0}
+
+
+# ------------------- the fold over N witnesses, not just the pair (S9)
+# resolve_qualifier's docstring claims the property this section checks:
+# "DELIBERATELY ORDER-INDEPENDENT ... merging stays associative and
+# idempotent ... Here that would be worse than untidy: the same release
+# built twice could state opposite directions on one edge."
+#
+# It held for TWO witnesses and failed for three, because the verdict was
+# the ladder's BOTTOM RUNG -- "no claim" -- and the ladder's first rule is
+# that a claim beats no claim. So the contradiction was overwritten by the
+# next witness. Measured on 39 witnesses for one pair, 34 against 5, the
+# answer was `inhibitor`, `agonist` or `unknown` purely by merge order.
+def _fold(values):
+    """resolve_qualifier folded left over a sequence of witnesses."""
+    out = values[0]
+    for v in values[1:]:
+        out = resolve_qualifier("direction", out, v)
+    return out
+
+
+def test_contested_is_absorbing():
+    """The clause that makes the fold associative again."""
+    for other in (*DIRECTIONS, CONTESTED):
+        assert resolve_qualifier("direction", CONTESTED, other) == CONTESTED
+        assert resolve_qualifier("direction", other, CONTESTED) == CONTESTED
+
+
+def test_the_fold_is_associative_over_a_contradiction():
+    """THE EXACT PAIR THAT FAILED.
+
+        (inhibitor + agonist) + agonist  ->  agonist     (was)
+        inhibitor + (agonist + agonist)  ->  unknown     (was)
+    """
+    left = resolve_qualifier(
+        "direction", resolve_qualifier("direction", "inhibitor", "agonist"),
+        "agonist")
+    right = resolve_qualifier(
+        "direction", "inhibitor",
+        resolve_qualifier("direction", "agonist", "agonist"))
+    assert left == right == CONTESTED
+
+
+@pytest.mark.parametrize("n_hi,n_lo", [(34, 5), (5, 34), (1, 2), (2, 1),
+                                       (1, 1), (10, 10)])
+def test_a_contradiction_survives_any_number_of_further_witnesses(n_hi, n_lo):
+    """A majority does not decide it and a minority does not either. The
+    ladder's rule is that two curated sources contradicting each other is
+    not a fact, and this makes that verdict stick rather than letting the
+    LAST witness carry it."""
+    seq = ["inhibitor"] * n_hi + ["agonist"] * n_lo
+    assert _fold(seq) == CONTESTED
+    assert _fold(list(reversed(seq))) == CONTESTED
+    interleaved = [v for pair in zip(["inhibitor"] * n_lo,
+                                     ["agonist"] * n_lo) for v in pair]
+    interleaved += ["inhibitor"] * (n_hi - min(n_hi, n_lo))
+    assert _fold(interleaved) == CONTESTED
+
+
+def test_every_order_of_one_contested_set_agrees():
+    """Exhaustive over a set small enough to enumerate, because "the same
+    release built twice" is the failure named in the docstring and a
+    sampled check would not prove it."""
+    import itertools
+    seq = ["inhibitor", "inhibitor", "agonist", "modulator", "unknown"]
+    assert {_fold(list(p)) for p in itertools.permutations(seq)} == {CONTESTED}
+
+
+def test_an_uncontested_fold_is_still_reconciled():
+    """The fix must not make everything contested. unknown fills, modulator
+    yields to a specific, and agreement passes through."""
+    assert _fold(["inhibitor", "unknown", "unknown"]) == "inhibitor"
+    assert _fold(["unknown", "modulator", "inhibitor"]) == "inhibitor"
+    assert _fold(["modulator", "modulator"]) == "modulator"
+    assert _fold(["agonist", "unknown", "modulator"]) == "agonist"
+
+
+def test_contested_is_a_permitted_schema_value():
+    """assemble_release validates its own output, so a sentinel outside
+    the enum would fail the build rather than ship."""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+    import yaml
+    doc = yaml.safe_load(
+        (Path(__file__).resolve().parents[1] / "schema/kg_schema.yaml")
+        .read_text())
+    enums = next(v for v in doc.values()
+                 if isinstance(v, dict) and "target_direction" in v)
+    assert CONTESTED in enums["target_direction"]
+    # and NOT in host_factor_direction: there `direction` is
+    # identity-defining, so the two never merge and the value is
+    # unreachable. Admitting it would invite a consumer to handle a case
+    # that cannot occur.
+    assert CONTESTED not in enums["host_factor_direction"]
