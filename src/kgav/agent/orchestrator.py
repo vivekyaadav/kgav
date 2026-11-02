@@ -33,10 +33,81 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from kgav.agent import guards
-from kgav.agent.verify import caveat_labels, dropped_warnings
+from kgav.agent.verify import (
+    EDGE_ID_RE,
+    FACT_ID_RE,
+    caveat_labels,
+    dropped_warnings,
+)
 from kgav.agent.tools import GraphTools, ToolResult
 
 MAX_BRIEF_EDGES = 100
+
+#: Citable edge ids a brief may carry. SEPARATE FROM THE FACT BOUND, and
+#: it had no bound at all: `MAX_BRIEF_EDGES` capped `facts` while
+#: `citable_edge_ids` grew with whatever the tools returned. On a graph
+#: with 300 dependency factors and 400 pathways, pathways() returns 29
+#: census lines and 1,500 PARTICIPATES_IN ids, and Brief.to_prompt joins
+#: every one of them into a single line:
+#:
+#:     prompt     14,579 chars
+#:     the ids     9,762 chars   -- 67% of it
+#:     the facts    3,329 chars
+#:
+#: Two thirds of the prompt bare identifiers, which is the
+#: context-window problem MAX_BRIEF_EDGES exists to prevent, in the half
+#: of the brief it did not cover.
+#:
+#: Higher than the fact bound on purpose. One shown fact can legitimately
+#: carry several ids -- assembly merges per-study edges and a path is a
+#: chain -- so a cap at the fact bound would discard ids whose facts are
+#: in front of the model.
+MAX_BRIEF_IDS = 400
+
+
+def shown_edge_ids(facts: list[str]) -> set[str]:
+    """Edge ids the model was actually shown a fact for.
+
+    TWO CITATION SHAPES, and reading only one is a bug I shipped into a
+    test run. tools._verbalise renders a fact's provenance as
+    "[chembl, PMID:1, 2021; E335139]", while EDGE_ID_RE matches a
+    bracket whose whole content is ids -- the shape a MODEL writes. Using
+    EDGE_ID_RE alone on the facts finds nothing in any real fact.
+    """
+    joined = " ".join(facts or [])
+    out = set(FACT_ID_RE.findall(joined))
+    for group in EDGE_ID_RE.findall(joined):
+        out |= {c.strip() for c in group.split(",")}
+    return out
+
+
+def bounded_ids(facts: list[str], ids: list[str]) -> tuple[list[str], int]:
+    """`(citable ids for the brief, how many were dropped)`, deduplicated.
+
+    PREFERRING THE IDS WHOSE FACT THE MODEL CAN SEE. An id with no fact
+    behind it is provenance for a COUNTED claim: real, and useless to a
+    model deciding what to cite -- and verify() no longer lets one exempt
+    a sentence from the uncited-claim check.
+
+    THIS PREFERENCE IS DEFENSIVE AND NOT REACHABLE TODAY, which is worth
+    saying rather than implying. build_brief takes one branch per
+    question, so a brief's results are the same shape: a pathway brief
+    carries census lines with no inline ids, and an evidence or explain
+    brief carries inline ids and stays far under the cap. A mixed brief
+    -- one id-poor result supplying the overflow and an id-rich one
+    behind it -- is what the ordering protects against, and no current
+    branch builds one. A mutation that replaced this with a plain
+    `ids[:MAX_BRIEF_IDS]` survived every test written through
+    build_brief for exactly that reason, so it is tested here directly
+    instead of through a fixture that cannot produce the condition.
+    """
+    ids = list(dict.fromkeys(ids or []))
+    if len(ids) <= MAX_BRIEF_IDS:
+        return ids, 0
+    shown = shown_edge_ids(facts)
+    keep = [i for i in ids if i in shown][:MAX_BRIEF_IDS]
+    keep += [i for i in ids if i not in shown][:MAX_BRIEF_IDS - len(keep)]
+    return keep, len(ids) - len(keep)
 
 
 #: A name must sit on a word boundary to count as a mention.
@@ -298,10 +369,29 @@ class Orchestrator:
                          f"not cited below)")
             trace.append(f"truncated_results={dropped}")
 
+        # THE FIRST RESULT IS ADMITTED WHOLE, which the `facts and` above
+        # says and the external audit read as unbounded. It is bounded in
+        # fact, by arithmetic rather than by this guard: the largest
+        # single result any tool can return is explain()'s MAX_PATHS (20)
+        # paths of one header plus M1's three edges = 80 lines, and
+        # _find_paths walks only M1 and M2. Every other tool caps lower.
+        # Dropping the first result instead would leave an EMPTY brief,
+        # which is worse than an over-long one -- so it is admitted and
+        # the overflow is RECORDED, where a raised per-tool cap becomes
+        # visible instead of silently doubling the prompt.
+        if len(facts) > MAX_BRIEF_EDGES:
+            trace.append(f"brief_over_fact_bound={len(facts)}")
+
+        # IDS BOUNDED TOO. See bounded_ids.
+        kept, n_dropped = bounded_ids(facts, ids)
+        if n_dropped:
+            trace.append(f"truncated_ids={n_dropped}")
+        ids = kept
+
         return Brief(question=question, intent=intent.value, allowed=True,
                      facts=facts,
                      warnings=list(dict.fromkeys(w for w in warns if w)),
-                     citable_edge_ids=list(dict.fromkeys(ids)),
+                     citable_edge_ids=ids,
                      resolved={k: v for k, v in resolved.items()},
                      trace=trace)
 

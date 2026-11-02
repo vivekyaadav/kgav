@@ -770,3 +770,159 @@ def test_a_reach_of_zero_survives_the_join(tmp_path):
     assert routes.reached_labels == 0
     assert routes.reach_measured
     assert routes.n_labels == 0 and not routes.unreachable
+
+
+# ------------------------------------------- the ids are bounded too
+# A13. MAX_BRIEF_EDGES capped `facts` and nothing capped
+# `citable_edge_ids`. Measured on the fixture below before the fix:
+# pathways() returns 29 census lines and 1,500 PARTICIPATES_IN ids, and
+# Brief.to_prompt joins all 1,500 into one line -- 9,762 of the prompt's
+# 14,579 characters, 67% of it, bare identifiers. That is the
+# context-window problem MAX_BRIEF_EDGES exists to prevent, in the half
+# of the brief it did not cover.
+@pytest.fixture
+def id_heavy(tmp_path):
+    """A graph whose pathway census returns far more ids than facts."""
+    def e(s, p, o, **q):
+        return {"subject": s, "predicate": p, "object": o, "qualifiers": q,
+                "primary_knowledge_source": "infores:chembl",
+                "evidence_tier": 1, "first_asserted_date": "2021-01-01"}
+    nodes = [{"id": V, "class": "OrganismTaxon",
+              "properties": {"label": "SARS-CoV-2", "family": "Coronaviridae",
+                             "baltimore_class": "IV", "is_enveloped": True}},
+             {"id": "CHEMBL:BIG", "class": "SmallMolecule",
+              "properties": {"label": "promiscuousdrug"}},
+             {"id": "UniProtKB:NSP5", "class": "Protein",
+              "properties": {"taxon_id": V, "is_viral": True,
+                             "sequence_hash": "hv", "reviewed": True,
+                             "gene_symbol": "nsp5"}}]
+    edges = [e("CHEMBL:BIG", "INHIBITS", "UniProtKB:NSP5", ic50_nm=19)]
+    for i in range(300):
+        pid = f"UniProtKB:H{i}"
+        nodes.append({"id": pid, "class": "Protein",
+                      "properties": {"taxon_id": "NCBITaxon:9606",
+                                     "is_viral": False,
+                                     "sequence_hash": f"h{i}",
+                                     "reviewed": True,
+                                     "gene_symbol": f"GENE{i}"}})
+        edges += [e(pid, "HOST_FACTOR_FOR", V, direction="dependency",
+                    screen_type="CRISPRko"),
+                  e("CHEMBL:BIG", "TARGETS", pid, direction="inhibitor")]
+    for j in range(400):
+        pw = f"REACT:{j}"
+        nodes.append({"id": pw, "class": "Pathway",
+                      "properties": {"label": f"pathway {j}"}})
+        for k in range(3):
+            edges.append(e(f"UniProtKB:H{(j * 3 + k) % 300}",
+                           "PARTICIPATES_IN", pw))
+    (tmp_path / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text(
+        "\n".join(json.dumps(x) for x in edges))
+    return Orchestrator(GraphTools(tmp_path))
+
+
+Q_PATHWAY = "which pathways does promiscuousdrug sit in for SARS-CoV-2"
+
+
+def test_the_citable_ids_are_bounded(id_heavy):
+    from kgav.agent.orchestrator import MAX_BRIEF_IDS
+    b = id_heavy.build_brief(Q_PATHWAY)
+    assert len(b.citable_edge_ids) <= MAX_BRIEF_IDS, len(b.citable_edge_ids)
+    assert any(t.startswith("truncated_ids=") for t in b.trace), b.trace
+
+
+def test_bounding_the_ids_bounds_the_prompt(id_heavy):
+    """The point of the cap. Two thirds of this prompt was identifiers."""
+    b = id_heavy.build_brief(Q_PATHWAY)
+    prompt = b.to_prompt()
+    ids_line = next(ln for ln in prompt.splitlines()
+                    if ln.startswith("CITABLE EDGE IDS"))
+    assert len(ids_line) < len(prompt) * 0.6, (
+        f"identifiers are {len(ids_line) / len(prompt):.0%} of the prompt")
+
+
+def test_the_ids_in_a_brief_are_unique(id_heavy):
+    ids = id_heavy.build_brief(Q_PATHWAY).citable_edge_ids
+    assert len(ids) == len(set(ids))
+
+
+def test_shown_edge_ids_reads_both_citation_shapes():
+    """A FACT carries "[chembl, PMID:1, 2021; E1]" and a MODEL writes
+    "[E1]". Reading only the second finds nothing in any real fact,
+    which is the bug the pre-existing verify tests caught when this
+    change was first written."""
+    from kgav.agent.orchestrator import shown_edge_ids
+    assert shown_edge_ids(
+        ["nirmatrelvir inhibits nsp5 [chembl, PMID:1, 2021; E335139]"]
+    ) == {"E335139"}
+    assert shown_edge_ids(["a claim [E7, E8]"]) == {"E7", "E8"}
+    assert shown_edge_ids(["342 pathway(s) contain a factor."]) == set()
+
+
+def test_an_id_whose_fact_was_shown_survives_the_trim():
+    """TRIMMED BY USEFULNESS, not by iteration order -- the shown ids go
+    first even when they are LAST in the input.
+
+    TESTED DIRECTLY, not through build_brief. The first version of this
+    went through the pathway fixture, where the census lines carry no
+    inline ids at all: `shown` was empty, so the assertion was
+    vacuously true and a mutation replacing the whole preference with
+    `ids[:MAX_BRIEF_IDS]` survived it. A fixture that cannot produce the
+    condition it checks, again."""
+    from kgav.agent.orchestrator import MAX_BRIEF_IDS, bounded_ids
+    facts = ["nirmatrelvir inhibits nsp5 [chembl, 2021; E9999]"]
+    ids = [f"E{i}" for i in range(MAX_BRIEF_IDS * 2)] + ["E9999"]
+    kept, dropped = bounded_ids(facts, ids)
+    assert len(kept) == MAX_BRIEF_IDS
+    assert dropped == len(ids) - MAX_BRIEF_IDS
+    assert "E9999" in kept, "the one id with a fact behind it was trimmed"
+    assert kept[0] == "E9999", "shown ids must be kept FIRST"
+
+
+def test_bounded_ids_leaves_a_short_list_alone():
+    from kgav.agent.orchestrator import bounded_ids
+    kept, dropped = bounded_ids(["a fact [chembl, 2021; E1]"], ["E1", "E2"])
+    assert kept == ["E1", "E2"] and dropped == 0
+
+
+def test_bounded_ids_deduplicates():
+    from kgav.agent.orchestrator import bounded_ids
+    kept, _ = bounded_ids([], ["E1", "E2", "E1", "E2"])
+    assert kept == ["E1", "E2"]
+
+
+def test_a_brief_under_the_cap_is_left_alone(id_heavy):
+    b = id_heavy.build_brief("what supports that promiscuousdrug inhibits nsp5")
+    assert not any(t.startswith("truncated_ids=") for t in b.trace), b.trace
+
+
+def test_no_tool_can_exceed_the_fact_bound(id_heavy):
+    """THE FIRST RESULT IS ADMITTED WHOLE -- `if facts and ...` -- which
+    the audit read as unbounded. It is bounded by arithmetic instead:
+    the largest single result is explain()'s MAX_PATHS paths of one
+    header plus M1's three edges, and _find_paths walks only M1 and M2.
+    This pins that, so raising a per-tool cap past the brief bound fails
+    here rather than silently doubling the prompt."""
+    from kgav.agent.orchestrator import MAX_BRIEF_EDGES
+    from kgav.agent import tools as T
+    assert T.MAX_PATHS * 4 <= MAX_BRIEF_EDGES
+    assert T.MAX_NEIGHBOURS <= MAX_BRIEF_EDGES
+    assert T.MAX_PATHWAYS + T.MAX_RATIO_ROWS + 10 <= MAX_BRIEF_EDGES
+    assert T.MAX_SUBGRAPH_EDGES <= MAX_BRIEF_EDGES
+
+
+def test_an_over_long_brief_is_recorded_rather_than_emptied(id_heavy):
+    """Dropping the first result would leave an EMPTY brief, which is
+    worse than an over-long one. So it is admitted and the overflow is
+    recorded where it can be seen."""
+    import kgav.agent.orchestrator as O
+    before = O.MAX_BRIEF_EDGES
+    try:
+        O.MAX_BRIEF_EDGES = 3
+        b = id_heavy.build_brief(Q_PATHWAY)
+        assert b.facts, "the brief was emptied rather than reported"
+        assert any(t.startswith("brief_over_fact_bound=") for t in b.trace), \
+            b.trace
+    finally:
+        O.MAX_BRIEF_EDGES = before

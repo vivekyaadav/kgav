@@ -608,3 +608,49 @@ def test_openings_are_stripped_repeatedly():
     assert _strip_openings("Note that these results hold").lower().startswith(
         "results")
     assert _strip_openings("plain sentence") == "plain sentence"
+
+
+# ----------------------------- a citation only exempts a SHOWN fact
+# A13. `if EDGE_ID_RE.search(s): continue` exempted any sentence
+# carrying any citable id, and a tool may return far more ids than it
+# shows facts for -- pathways() returns 29 census lines and 1,500
+# PARTICIPATES_IN ids, none of which appears in a line. Verified before
+# the fix: the sentence below passed CLEAN with every caveat kept.
+def test_a_citation_to_an_unshown_fact_does_not_exempt_a_claim():
+    """The hole the uncited_claim promotion was meant to close, reached
+    through the ids instead of the hedges."""
+    facts = ["342 pathway(s) contain at least one dependency factor."]
+    v = verify(
+        "Promiscuousdrug eradicates SARS-CoV-2 in every patient tested "
+        "and is the standard of care worldwide [E1001].",
+        facts, ["E1001", "E1002"])
+    assert not v.passed
+    assert any(f.code == "uncited_claim" for f in v.findings), v.findings
+    # NOT invented: the id really is citable. That is what made it work.
+    assert not any(f.code == "invented_citation" for f in v.findings)
+
+
+def test_a_citation_to_a_shown_fact_still_exempts():
+    """No regression. An id the model was shown a fact for is exactly
+    what a citation is for."""
+    facts = ["nirmatrelvir inhibits the viral protein nsp5 "
+             "(IC50 19 nM) [chembl, 2021; E1]"]
+    v = verify("Nirmatrelvir acts on the nsp5 protease by direct "
+               "inhibition of its active site [E1].", facts, ["E1"])
+    assert not any(f.code == "uncited_claim" for f in v.findings), v.findings
+
+
+def test_one_shown_id_among_several_cited_is_enough():
+    facts = ["nirmatrelvir inhibits the viral protein nsp5 [chembl, 2021; E1]"]
+    v = verify("Nirmatrelvir engages the protease through its catalytic "
+               "cysteine residue [E1, E9].", facts, ["E1", "E9"])
+    assert not any(f.code == "uncited_claim" for f in v.findings), v.findings
+
+
+def test_the_shown_set_comes_from_the_facts_not_the_allowed_list():
+    """If shown_ids were derived from citable_edge_ids the fix would be a
+    no-op, because that is the list the hole was built on."""
+    facts = ["342 pathway(s) contain at least one dependency factor."]
+    v = verify("This compound is curative in all recorded human cases "
+               "of infection [E1].", facts, ["E1"])
+    assert any(f.code == "uncited_claim" for f in v.findings), v.findings

@@ -33,6 +33,15 @@ from kgav.agent.guards import CAVEAT_LABELS
 # form, so a saved answer from before the change still parses.
 EDGE_ID_RE = re.compile(
     r"\[([A-Za-z]?E[0-9a-f]+(?:\s*,\s*[A-Za-z]?E[0-9a-f]+)*)\]")
+
+#: The id inside a FACT's provenance tail, which EDGE_ID_RE cannot read.
+#: tools._verbalise renders a citation as "[chembl, PMID:1, 2021; E335139]",
+#: and EDGE_ID_RE matches only a bracket whose whole content is ids -- the
+#: form a MODEL writes. The first version of shown_ids below used
+#: EDGE_ID_RE on the facts, found nothing in any real fact, and stripped
+#: the exemption from every correctly cited answer. Three pre-existing
+#: tests failed on it, which is the only reason it is not in the release.
+FACT_ID_RE = re.compile(r"\[[^\]]*;\s*([A-Za-z]?E[0-9a-f]+)\s*\]")
 NUMBER_RE = re.compile(r"\d+(?:[.,]\d+)*")
 
 # A NUMBER CARRYING A UNIT IS A MAGNITUDE CLAIM, whatever its size. The two
@@ -395,11 +404,37 @@ def verify(answer: str, facts: list[str], citable_edge_ids: list[str],
     #    reported as "verified: every claim is cited and grounded". Having no
     #    citable edges means citations cannot be checked; it says nothing
     #    about whether the numbers are real or the caveats survived.
+    #    AND A CITATION ONLY EXEMPTS A SENTENCE IF ITS FACT WAS SHOWN.
+    #    `if EDGE_ID_RE.search(s): continue` exempted any sentence
+    #    carrying ANY citable id, and a tool may hand over far more ids
+    #    than it shows facts for: pathways() returns 29 census lines and
+    #    1,500 PARTICIPATES_IN ids, none of which appears in a line. So
+    #
+    #      "Promiscuousdrug eradicates SARS-CoV-2 in every patient
+    #       tested and is the standard of care worldwide [E1001]."
+    #
+    #    verified CLEAN with every caveat kept: E1001 is citable, so the
+    #    citation is not invented, and the citation exempted the sentence
+    #    from this check. That is the hole the uncited_claim promotion
+    #    was meant to close, reached through the ids instead of the
+    #    hedges.
+    #
+    #    Those ids are provenance for a COUNTED claim, not support for a
+    #    sentence. They stay citable -- the count they back is real -- and
+    #    they no longer buy an exemption.
+    joined = " ".join(facts or [])
+    shown_ids: set[str] = set(FACT_ID_RE.findall(joined))
+    for group in EDGE_ID_RE.findall(joined):
+        shown_ids |= {c.strip() for c in group.split(",")}
+
     uncited: list[str] = []
     if citable_edge_ids:
         supplied = _supplied_corpus(facts, required_warnings)
         for s in _sentences(answer):
-            if EDGE_ID_RE.search(s):
+            here = set()
+            for group in EDGE_ID_RE.findall(s):
+                here |= {c.strip() for c in group.split(",")}
+            if here & shown_ids:
                 continue
             # Copied from the brief, so it is grounded by construction --
             # the model did not assert it, the retrieval did. Tested
