@@ -1096,3 +1096,43 @@ def test_every_row_of_the_published_table_is_re_derived():
     assert "Six of the twenty-two downward tests" in text
     assert "Seven of the twenty-two need a 2.4x excess" in text
     assert f"{len(land.family) * 2}" in text
+
+
+# --------------------- the seed scheme a file was written under (S6)
+def test_a_file_with_no_seed_scheme_is_reported_as_the_old_one(tmp_path):
+    """ABSENCE IS INFORMATIVE AND IS NOT DEFAULTED AWAY. A file written
+    under the shared-generator scheme records no scheme at all, and the
+    two are otherwise identical while differing in every p-value. The
+    committed v0.1 results file is one of these."""
+    land = L.load(_file(tmp_path, _rows(8), permutations=2000, n_tests=44),
+                  release="v0.1")
+    assert land.seed_scheme == ""
+    proto = land.protocol
+    assert "single generator in row order" in proto, proto
+    assert "adding a taxon moves every downstream p-value" in proto
+
+
+def test_a_file_with_a_seed_scheme_does_not_carry_the_warning(tmp_path):
+    land = L.load(_file(tmp_path, _rows(8), permutations=2000, n_tests=44,
+                        seed_scheme="per-row: Random(f'{seed}|{channel}|"
+                                    "{virus}')"),
+                  release="v0.1")
+    assert land.seed_scheme
+    assert "single generator" not in land.protocol
+
+
+def test_the_committed_results_file_predates_the_fix():
+    """Stated as a test so a regeneration is visible: once `make
+    reproduce` is re-run the file WILL carry a scheme and this flips.
+    It is not an assertion that the old file is correct -- it is a
+    record of which scheme the published figures came from."""
+    if not RESULTS.exists():
+        pytest.skip("no results file")
+    import json
+    doc = json.loads(RESULTS.read_text())
+    scheme = doc.get("seed_scheme")
+    if scheme:
+        assert "per-row" in scheme, scheme
+    else:
+        land = L.load(RESULTS, release="v0.1")
+        assert "single generator in row order" in land.protocol

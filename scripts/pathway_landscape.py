@@ -379,6 +379,44 @@ def degree_bins(g: Graph, universe: set[str], bins: int = DEGREE_BINS,
     return out
 
 
+#: How a row's generator is seeded, recorded in the output so a file
+#: produced under the old scheme is distinguishable from one produced
+#: under this. Without it the two are structurally identical and differ
+#: in every p-value.
+SEED_SCHEME = "per-row: Random(f'{seed}|{channel}|{virus}')"
+
+
+def row_rng(seed: int, channel: str, virus: str) -> random.Random:
+    """A generator for ONE row, derived from the run's seed and the row.
+
+    THE FOURTH INSTANCE OF ONE DEFECT IN THIS FUNCTION'S NEIGHBOURHOOD.
+    Three are already documented a few lines below -- unsorted pools,
+    unsorted bin order, degree ties broken by set iteration -- and each
+    was the same sentence: the seed stopped determining the draw. All
+    three are fixed, and ONE generator consumed in row order survives
+    every one of them.
+
+    Measured on the real matched_null with Random(0) and identical data,
+    one taxon's null total:
+
+        rows A, B        A = 1209
+        rows C, A, B     A = 1165     a virus added BEFORE it
+        rows B, A        A = 1165     the same two, other order
+
+    So adding a virus to config/viruses.yaml, reordering the register,
+    or running one channel alone moves every downstream p-value on the
+    same release and the same seed. A figure in a paper has to come back
+    the same on a rerun, and it did not come back the same on a rerun
+    that added a taxon.
+
+    A STRING SEED, and the choice matters here of all places. Random
+    seeds a str through sha512 of its bytes, not through hash(), so it is
+    stable across processes -- verified at PYTHONHASHSEED 0, 1 and 12345
+    -- which is exactly the property the three fixes below were about.
+    """
+    return random.Random(f"{seed}|{channel}|{virus}")
+
+
 def matched_null(observed: set[str], universe: set[str],
                  bins: dict[str, int], hits: set[str], draws: int,
                  rng: random.Random) -> list[int]:
@@ -497,6 +535,12 @@ def _write(out: Path, args, rows: dict[str, dict],
         "release": args.release.name,
         "permutations": args.permutations,
         "seed": args.seed,
+        # HOW THE SEED WAS USED, not just what it was. A file written
+        # under the shared-generator scheme and one written under this
+        # are structurally identical and differ in every p-value, so the
+        # seed alone does not identify the run. landscape.load reports
+        # the absence of this key as the flaw it is.
+        "seed_scheme": SEED_SCHEME,
         # WHICH YARDSTICK. Two files measured on different bases are not
         # comparable, and a file that does not say which it used cannot
         # be checked -- the same failure as a results file recording a
@@ -549,7 +593,9 @@ def main(argv=None) -> int:
 
     schema = load_schema()
     g = Graph.load(args.release, symmetry=schema.symmetry())
-    rng = random.Random(args.seed)
+    # NO RUN-WIDE GENERATOR. There was one here, passed to every row,
+    # and that is the bug row_rng exists to fix -- leaving it in place
+    # unused would be an invitation to the next caller.
 
     print("PATHWAY LANDSCAPE. No scorer, no ranking, no antiviral label.")
     print("Reads TARGETS, PARTICIPATES_IN and HOST_FACTOR_FOR only.\n")
@@ -653,7 +699,8 @@ def main(argv=None) -> int:
             continue
         any_virus = True
         row, ratio = overlap_row(targets, universe, bins, deps,
-                                 args.permutations, rng)
+                                 args.permutations,
+                                 row_rng(args.seed, "pathway", virus))
         rows[virus] = row
         print(f"    {virus:<18} {len(deps):6,} {row['n_observed']:8,} "
               f"{row['expected']:7.1f} {ratio:6.2f} {row['p_naive']:9.2e} "
@@ -680,7 +727,8 @@ def main(argv=None) -> int:
             iuncovered.append(virus)
             continue
         row, ratio = overlap_row(targets, universe, bins, partners,
-                                 args.permutations, rng)
+                                 args.permutations,
+                                 row_rng(args.seed, "interactome", virus))
         row["n_hubs_excluded"] = len(hubs)
         row["binary_edges"] = binary
         row["total_edges"] = total

@@ -382,6 +382,13 @@ class Landscape:
     #: reporting only. See the loader: these are not results and never
     #: reach for_virus.
     family: list[FamilyRow] = field(default_factory=list)
+    #: How the run seeded each row's generator, verbatim from the file.
+    #: EMPTY MEANS THE OLD SCHEME -- one generator consumed in row order
+    #: -- because a file written that way records no scheme at all, and
+    #: the two are otherwise structurally identical while differing in
+    #: every p-value. Absence is therefore informative and is reported,
+    #: not defaulted away.
+    seed_scheme: str = ""
 
     @property
     def usable(self) -> bool:
@@ -396,6 +403,16 @@ class Landscape:
         # THE RESOLUTION, BESIDE THE THRESHOLD. Quoting a four-decimal
         # alpha next to a permutation count that cannot resolve it is
         # the false precision this whole module is written against.
+        # WHICH SEED SCHEME, because the seed alone does not identify
+        # the run. Under the shared-generator scheme a row's draws
+        # depend on how many rows ran before it, so adding a taxon to
+        # the register moved every downstream p-value on the same
+        # release and the same seed.
+        if not self.seed_scheme:
+            base += (". The seed was consumed by a single generator in row "
+                     "order, so each row's draws depend on how many rows ran "
+                     "before it and adding a taxon moves every downstream "
+                     "p-value; re-run to seed per row")
         if self.underpowered:
             base += (f". Only {self.resolvable_steps} attainable p-value(s) "
                      f"lie below that threshold at {self.permutations:,} "
@@ -677,6 +694,7 @@ def load(results: Path, release: str | None = None) -> Landscape:
         release=measured_release,
         permutations=perms,
         seed=int(doc.get("seed") or 0),
+        seed_scheme=str(doc.get("seed_scheme") or ""),
         measured_on=str(doc.get("measured_on") or ""),
         uncovered=list(doc.get("uncovered") or []),
         source_file=src,

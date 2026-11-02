@@ -877,3 +877,132 @@ def test_the_recorded_count_reaches_the_loader(tmp_path):
     land = load(out)
     if land.usable:
         assert land.n_tests == doc["n_tests"]
+
+
+# ------------------------------- one generator per ROW, not per run (S6)
+# THE FOURTH INSTANCE OF ONE DEFECT IN THIS FUNCTION'S NEIGHBOURHOOD.
+# matched_null already documents three -- unsorted pools, unsorted bin
+# order, degree ties broken by set iteration -- and every one was the
+# same sentence: the seed stopped determining the draw. All three are
+# fixed, and ONE generator consumed in row order survived all of them.
+_UNIVERSE = {f"P{i}" for i in range(400)}
+_BINS = {f"P{i}": i % 8 for i in range(400)}
+_OBSERVED = {f"P{i}" for i in range(0, 120, 3)}
+_SETS = {"A": {f"P{i}" for i in range(0, 400, 7)},
+         "B": {f"P{i}" for i in range(1, 400, 11)},
+         "C": {f"P{i}" for i in range(2, 400, 13)}}
+
+
+def _totals(order, seed=0, channel="pathway", shared=None):
+    """Each row's null total, run in `order`. `shared` uses ONE rng for
+    all of them, which is the old behaviour."""
+    out = {}
+    for name in order:
+        rng = shared if shared is not None else L.row_rng(seed, channel, name)
+        out[name] = sum(L.matched_null(_OBSERVED, _UNIVERSE, _BINS,
+                                       _SETS[name], 200, rng))
+    return out
+
+
+def test_a_shared_generator_makes_a_row_depend_on_what_ran_before_it():
+    """The bug, demonstrated on the real matched_null. Kept as a test so
+    the fix cannot be reverted to 'simpler' without this failing."""
+    first = _totals(["A", "B"], shared=random.Random(0))
+    after = _totals(["C", "A", "B"], shared=random.Random(0))
+    assert first["A"] != after["A"], (
+        "the fixture no longer distinguishes the schemes, so the tests "
+        "below prove nothing")
+
+
+def test_a_row_is_identical_however_many_rows_ran_before_it():
+    base = _totals(["A", "B"])
+    added = _totals(["C", "A", "B"])
+    reordered = _totals(["B", "A"])
+    alone = _totals(["A"])
+    assert base["A"] == added["A"] == reordered["A"] == alone["A"]
+    assert base["B"] == added["B"] == reordered["B"]
+
+
+def test_the_two_channels_draw_independently():
+    """Running one channel alone must reproduce its rows, which it
+    cannot if both channels share a generator."""
+    assert (_totals(["A"], channel="pathway")["A"]
+            != _totals(["A"], channel="interactome")["A"])
+
+
+def test_the_seed_still_determines_the_draw():
+    """Per-row seeding must not become per-row randomness."""
+    assert _totals(["A"], seed=0)["A"] == _totals(["A"], seed=0)["A"]
+    assert _totals(["A"], seed=0)["A"] != _totals(["A"], seed=1)["A"]
+
+
+def test_a_string_seed_is_stable_across_processes():
+    """THE PROPERTY THE OTHER THREE FIXES WERE ABOUT. Random seeds a str
+    through sha512 of its bytes, not through hash(), so PYTHONHASHSEED
+    cannot move it. Asserted in real subprocesses rather than reasoned
+    about, because this module exists because of hash randomisation."""
+    code = ("import sys; sys.path.insert(0, 'scripts'); sys.path.insert(0, 'src');"
+            "from importlib import import_module;"
+            "print(import_module('pathway_landscape')"
+            ".row_rng(0, 'pathway', 'NCBITaxon:11060').random())")
+    seen = set()
+    for h in ("0", "1", "12345"):
+        env = dict(os.environ, PYTHONHASHSEED=h)
+        out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env,
+                             capture_output=True, text=True)
+        assert out.returncode == 0, out.stderr
+        seen.add(out.stdout.strip())
+    assert len(seen) == 1, f"the seed moved with PYTHONHASHSEED: {seen}"
+
+
+def test_the_seed_scheme_is_recorded():
+    """A file written under either scheme is structurally identical and
+    differs in every p-value, so the seed alone does not identify the
+    run."""
+    assert "channel" in L.SEED_SCHEME and "virus" in L.SEED_SCHEME
+    assert "per-row" in L.SEED_SCHEME
+
+
+def test_two_rows_in_one_channel_draw_differently():
+    """ORDER-INDEPENDENT IS NOT ENOUGH. A generator keyed on the seed and
+    channel alone is still built fresh per row, so every order test
+    passes -- and every row then draws the IDENTICAL sequence, which
+    correlates the null across the family instead of decorrelating it.
+    A mutation dropping the virus from the key survived every test above
+    until this one."""
+    a = L.row_rng(0, "pathway", "NCBITaxon:11060")
+    b = L.row_rng(0, "pathway", "NCBITaxon:11082")
+    assert [a.random() for _ in range(5)] != [b.random() for _ in range(5)]
+    # and through the real null, not just the raw stream
+    one = sum(L.matched_null(_OBSERVED, _UNIVERSE, _BINS, _SETS["A"], 200,
+                             L.row_rng(0, "pathway", "virus-one")))
+    two = sum(L.matched_null(_OBSERVED, _UNIVERSE, _BINS, _SETS["A"], 200,
+                             L.row_rng(0, "pathway", "virus-two")))
+    assert one != two, "the same factor set drew identically for two viruses"
+
+
+def test_the_written_file_records_the_seed_scheme(tmp_path):
+    """Checked on the DOC, not on the constant. A test asserting only
+    SEED_SCHEME's content passes while the key never reaches the file,
+    which is what a mutation deleting it proved."""
+    from kgav import landscape as LS
+    rel = _release(tmp_path)
+    out = tmp_path / "landscape.json"
+    L.main(["--release", str(rel), "--permutations", "300", "--out", str(out)])
+    doc = json.loads(out.read_text())
+    assert doc["seed_scheme"] == L.SEED_SCHEME
+    land = LS.load(out, release=rel.name)
+    assert land.seed_scheme == L.SEED_SCHEME
+    assert "single generator" not in land.protocol
+
+
+def test_each_call_site_passes_its_own_channel_and_virus(tmp_path):
+    """The helper being right does not make the CALL right. A mutation
+    passing a constant virus name at the pathway call site survived,
+    because every order test still held."""
+    import inspect
+    src = inspect.getsource(L.main)
+    assert 'row_rng(args.seed, "pathway", virus)' in src
+    assert 'row_rng(args.seed, "interactome", virus)' in src
+    assert "random.Random(args.seed)" not in src, \
+        "a run-wide generator is back"
