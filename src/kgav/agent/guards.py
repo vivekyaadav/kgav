@@ -357,6 +357,9 @@ CAVEAT_LABELS: dict[str, str] = {
     # independently required. "ANSWER SHEET" is the audit report's own
     # phrase for these edges.
     "held_out_label":        "ANSWER SHEET",
+    # Entities the question named that did not fit MAX_RESOLVED. See
+    # omitted_entities_caveat.
+    "entities_omitted":      "NAMES OMITTED",
 }
 
 
@@ -798,6 +801,23 @@ def check(kind: QueryKind, virus: str | None = None,
     return Verdict(allowed=True, warnings=warnings)
 
 
+def omitted_entities_caveat(omitted: list[str], kept: int) -> str:
+    """Said when the question named more entities than were resolved.
+
+    A RANKING OF SIX OF SEVEN READS AS A RANKING OF SEVEN. The cap was
+    applied silently, so a user who asked about seven compounds got an
+    ordered list of six with nothing saying which was missing -- and
+    "ivermectin is not in the ranking" is indistinguishable from
+    "ivermectin ranked last".
+    """
+    names = ", ".join(sorted(omitted))
+    return (f"this question named more entities than one answer covers, so "
+            f"{len(omitted)} of them are NOT in what follows: {names}. The "
+            f"{kept} below are the rest, and their order is a comparison "
+            f"among themselves only — an omitted name is missing, not "
+            f"ranked last. Ask about the omitted ones separately.")
+
+
 def held_out_caveat(counts: dict[str, int]) -> str:
     """Said when a reported edge IS an evaluation label.
 
@@ -886,6 +906,21 @@ def virus_assumed_caveat(label: str, others: list[str]) -> str:
     The default itself is not wrong: SARS-CoV-2 is the only virus any
     protocol here evaluated. Defaulting without saying so is.
 
+    AND THE CAVEAT NO LONGER SAYS THAT. It read "this answer is about
+    {label}, which is the only virus any protocol in this project
+    evaluated" -- a true sentence about SARS-CoV-2, interpolated with
+    whatever label the default happens to carry. Orchestrator.__init__
+    takes `default_virus` as an argument, so the claim is one caller away
+    from being asserted about Zika, which no protocol here evaluated. The
+    same shape as the `virus != SUPPORTED_VIRUS` gate _is_validated used
+    to carry: an assumption that was true when written, standing in for
+    the measurement it was shorthand for.
+    It is also a SECOND owner of a statement this module already makes
+    properly. Every answer carries CALIBRATION or VIRUS NOT VALIDATED for
+    the virus in hand, built from that virus's own calibration -- so the
+    evaluation status is reported beside this caveat, measured, and the
+    hardcoded clause could only ever agree with it or contradict it.
+
     AND IT MUST NOT SAY WHY. "The question named no virus" was asserted
     whenever no taxon RESOLVED, which is a different thing and was wrong in
     the case that mattered: a question reading "for dengue virus 2" was
@@ -900,9 +935,10 @@ def virus_assumed_caveat(label: str, others: list[str]) -> str:
             + (f" and {len(others) - 6} more" if len(others) > 6 else "")
             + ".") if others else ""
     return (f"no virus in this question resolved to a taxon in this graph, "
-            f"so this answer is about {label}, which is the only virus any "
-            f"protocol in this project evaluated.{tail} If you did name "
-            f"one, it was not recognised — name it as the graph labels it.")
+            f"so this answer is about {label}, which is this release's "
+            f"default and not a reading of your question.{tail} If you did "
+            f"name one, it was not recognised — name it as the graph "
+            f"labels it.")
 
 
 HOST_DIRECTED_CODES = frozenset({"M2", "M3", "M4", "M5", "M6"})

@@ -574,12 +574,12 @@ def test_a_brand_name_inside_an_english_word_is_not_resolved(tmp_path):
         "\n".join(json.dumps(n) for n in nodes))
     (tmp_path / "edges.jsonl").write_text("")
     orch = Orchestrator(GraphTools(tmp_path))
-    resolved, _problem = orch._resolve_mentions(
+    resolved, _problem, _omitted = orch._resolve_mentions(
         "which pathways does SARS-CoV-2 depend on?")
     assert set(resolved.values()) == {V}, (
         f"the question names one entity and resolved {resolved}")
     # And the compound IS resolved when it is actually named.
-    named, _ = orch._resolve_mentions("what is depen")
+    named, _, _ = orch._resolve_mentions("what is depen")
     assert "INCHIKEY:DEPEN" in named.values()
 
 
@@ -611,7 +611,7 @@ def test_the_suppression_check_keeps_the_boundary_rule(tmp_path):
         "\n".join(json.dumps(n) for n in nodes))
     (tmp_path / "edges.jsonl").write_text("")
     orch = Orchestrator(GraphTools(tmp_path))
-    resolved, _ = orch._resolve_mentions("the ace2 receptor in ace2x cells")
+    resolved, _, _ = orch._resolve_mentions("the ace2 receptor in ace2x cells")
     assert set(resolved.values()) == {"UniProtKB:ACE2R"}, (
         f"ace2 was resolved out of 'ace2x' after masking: {resolved}")
 
@@ -926,3 +926,165 @@ def test_an_over_long_brief_is_recorded_rather_than_emptied(id_heavy):
             b.trace
     finally:
         O.MAX_BRIEF_EDGES = before
+
+
+# ----------------------------- the cap must not decide WHICH kind survives
+# A14. `if len(found) >= 6: break` sat inside a loop ordered by name
+# LENGTH. Drug names are long and virus names are short, so seven named
+# compounds filled the quota before "zika" (four characters) was
+# reached. Reproduced end to end before the fix: the question
+#
+#   "rank hydroxychloroquine, dexamethasone, remdesivir, nitazoxanide,
+#    camostat mesylate, ivermectin, favipiravir for Zika"
+#
+# resolved six compounds, dropped ivermectin AND Zika, fell back to the
+# default virus and REFUSED -- "This release cannot answer that about
+# NCBITaxon:2697049. It holds 0 antiviral measurement(s) for it" -- a
+# refusal about a virus the user never named, quoted as a raw CURIE,
+# with figures. The same question naming five compounds answers Zika
+# correctly.
+ZIKA = "NCBITaxon:64320"
+MANY_DRUGS = ["hydroxychloroquine", "dexamethasone", "remdesivir",
+              "nitazoxanide", "camostat mesylate", "ivermectin",
+              "favipiravir"]
+
+
+@pytest.fixture
+def crowded(tmp_path):
+    """One virus and more compounds than MAX_RESOLVED admits."""
+    def e(s, p, o, **q):
+        return {"subject": s, "predicate": p, "object": o, "qualifiers": q,
+                "primary_knowledge_source": "infores:chembl",
+                "evidence_tier": 1, "first_asserted_date": "2021-01-01"}
+    nodes = [{"id": ZIKA, "class": "OrganismTaxon",
+              "properties": {"label": "Zika", "family": "Flaviviridae",
+                             "baltimore_class": "IV", "is_enveloped": True}},
+             {"id": "UniProtKB:NS5", "class": "Protein",
+              "properties": {"taxon_id": ZIKA, "is_viral": True,
+                             "sequence_hash": "h", "reviewed": True,
+                             "gene_symbol": "NS5"}},
+             {"id": "KGAV:G", "class": "Gene", "properties": {"symbol": "poly"}}]
+    edges = [e("UniProtKB:NS5", "ENCODED_BY", "KGAV:G"),
+             e("KGAV:G", "BELONGS_TO", ZIKA)]
+    for i, drug in enumerate(MANY_DRUGS):
+        nodes.append({"id": f"CHEMBL:{i}", "class": "SmallMolecule",
+                      "properties": {"label": drug}})
+        edges.append(e(f"CHEMBL:{i}", "INHIBITS", "UniProtKB:NS5",
+                       ic50_nm=100 + i))
+    (tmp_path / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text(
+        "\n".join(json.dumps(x) for x in edges))
+    return Orchestrator(GraphTools(tmp_path))
+
+
+CROWDED_Q = "rank " + ", ".join(MANY_DRUGS) + " for Zika"
+
+
+def test_the_named_virus_survives_a_crowded_question(crowded):
+    """The virus decides the calibration, the routes, every caveat and
+    the refusal itself. It is never the right thing to drop."""
+    b = crowded.build_brief(CROWDED_Q)
+    assert ZIKA in b.resolved.values(), b.resolved
+    assert b.allowed, b.refusal
+    assert "virus=" + ZIKA in " ".join(b.trace), b.trace
+    assert "(assumed)" not in " ".join(b.trace), b.trace
+
+
+def test_the_answer_is_about_the_virus_that_was_named(crowded):
+    b = crowded.build_brief(CROWDED_Q)
+    assert "Zika" in " ".join(str(w) for w in b.warnings)
+    assert "NCBITaxon:" not in (b.refusal or ""), \
+        "a raw CURIE reached the user"
+
+
+def test_omitted_entities_are_named_in_a_caveat(crowded):
+    """A ranking of six of seven reads as a ranking of seven: "not in
+    the list" is indistinguishable from "ranked last"."""
+    b = crowded.build_brief(CROWDED_Q)
+    said = [str(w) for w in b.warnings if "NAMES OMITTED" in str(w)]
+    assert said, [str(w)[:40] for w in b.warnings]
+    assert "ivermectin" in said[0] and "favipiravir" in said[0], said[0]
+
+
+def test_the_entities_kept_are_the_ones_asked_for_first(crowded):
+    """FIRST-NAMED, FIRST-KEPT. Matching is ordered by descending name
+    length, which is right for resolving overlapping names and arbitrary
+    for deciding whose compound is dropped -- it kept "camostat
+    mesylate" over "remdesivir" for no reason a user could predict."""
+    b = crowded.build_brief(CROWDED_Q)
+    kept = [n for n in b.resolved if n != "zika"]
+    assert kept == MANY_DRUGS[:len(kept)], kept
+
+
+def test_a_question_under_the_cap_omits_nothing(crowded):
+    b = crowded.build_brief("rank " + ", ".join(MANY_DRUGS[:4]) + " for Zika")
+    assert not any("NAMES OMITTED" in str(w) for w in b.warnings)
+    assert not any(t.startswith("omitted=") for t in b.trace), b.trace
+
+
+def test_the_cap_is_not_a_literal_in_the_loop():
+    """The threshold's owner is the module constant, and the length
+    filter's owner is virus_register -- this was the THIRD copy of
+    `len(name) < 4`."""
+    import inspect
+
+    from kgav.agent.orchestrator import Orchestrator as O
+    src = inspect.getsource(O._resolve_mentions)
+    assert "MAX_RESOLVED" in src and "MIN_SEARCH_NAME" in src
+    assert "len(found) >= 6" not in src
+    assert "len(name) < 4" not in src
+
+
+# ------------------------- an assumed virus is said out loud ON A REFUSAL
+def test_a_refusal_says_the_virus_was_assumed(crowded):
+    """THE PATH WHERE IT MATTERS MOST. The condition was `named is None
+    and verdict.allowed`, so the one case where the substitution does
+    the most damage -- refusing, in detail and with figures, about a
+    virus the user never named -- was the case that said nothing."""
+    # The default must be a virus this graph HOLDS, or the absent-default
+    # guard answers first with a clarification -- which is the correct
+    # behaviour there and not the path under test. The first version of
+    # this test reused `crowded` as built, whose default (SARS-CoV-2) is
+    # not in it, so it asserted a refusal against a fixture that cannot
+    # produce one.
+    orch = Orchestrator(crowded.tools, default_virus=ZIKA)
+    b = orch.build_brief("which compounds should be considered")
+    assert not b.allowed, (b.clarification, b.trace)
+    assert "VIRUS ASSUMED" in (b.refusal or ""), b.refusal[:200]
+    assert any("VIRUS ASSUMED" in str(w) for w in b.warnings)
+    # and the refusal itself still follows it
+    assert "prospective candidate generation" in b.refusal
+
+
+def test_the_assumed_caveat_claims_nothing_about_evaluation(crowded):
+    """It read "{label}, which is the only virus any protocol in this
+    project evaluated" -- true of SARS-CoV-2 and interpolated with
+    whatever default a caller passes. The evaluation status is already
+    reported, measured, by CALIBRATION / VIRUS NOT VALIDATED in the same
+    answer."""
+    from kgav.agent.guards import virus_assumed_caveat
+    said = virus_assumed_caveat("Zika", ["DENV-2"])
+    assert "only virus" not in said, said
+    assert "evaluated" not in said, said
+    assert "default" in said
+
+
+def test_a_default_virus_absent_from_the_graph_asks_rather_than_refuses(
+        tmp_path):
+    """guards.check would refuse about it and state figures -- "it holds
+    0 antiviral measurement(s)" -- naming it through _label, which
+    returns the raw CURIE for a node that is not there."""
+    nodes = [{"id": ZIKA, "class": "OrganismTaxon",
+              "properties": {"label": "Zika", "family": "Flaviviridae",
+                             "baltimore_class": "IV", "is_enveloped": True}}]
+    (tmp_path / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text("")
+    # default is SARS-CoV-2, which this release does not hold
+    orch = Orchestrator(GraphTools(tmp_path))
+    b = orch.build_brief("rank these compounds")
+    assert b.clarification, (b.allowed, b.refusal)
+    assert "Zika" in b.clarification
+    assert "NCBITaxon:" not in b.clarification, b.clarification
+    assert "default_virus_absent" in b.trace

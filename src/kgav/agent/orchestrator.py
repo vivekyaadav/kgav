@@ -40,8 +40,29 @@ from kgav.agent.verify import (
     dropped_warnings,
 )
 from kgav.agent.tools import GraphTools, ToolResult
+from kgav.virus_register import MIN_SEARCH_NAME
 
 MAX_BRIEF_EDGES = 100
+
+#: Entities resolved out of one question. It bounds DOWNSTREAM work -- one
+#: explain() per compound, one triage row per compound -- not the scan,
+#: which runs over the whole name index either way because _mentions is
+#: evaluated before any cap is consulted.
+#:
+#: IT USED TO BE A BARE `if len(found) >= 6: break` INSIDE the
+#: longest-first loop, and that is a different thing entirely. Drug names
+#: are long and virus names are short, so seven named compounds filled
+#: the quota before "zika" (four characters) was ever reached:
+#:
+#:   "rank hydroxychloroquine, dexamethasone, remdesivir, nitazoxanide,
+#:    camostat mesylate, ivermectin, favipiravir for Zika"
+#:
+#: resolved six compounds, dropped ivermectin AND Zika, fell back to the
+#: default virus, and refused -- about SARS-CoV-2. The same question with
+#: five compounds answers correctly about Zika. A cap applied during a
+#: length-ordered scan does not bound the work, it decides which KIND of
+#: entity survives.
+MAX_RESOLVED = 6
 
 #: Citable edge ids a brief may carry. SEPARATE FROM THE FACT BOUND, and
 #: it had no bound at all: `MAX_BRIEF_EDGES` capped `facts` while
@@ -227,17 +248,30 @@ class Orchestrator:
         self.default_virus = default_virus
 
     # ------------------------------------------------------------- stage 3
-    def _resolve_mentions(self, question: str) -> tuple[dict[str, str], str]:
+    def _resolve_mentions(
+            self, question: str) -> tuple[dict[str, str], str, list[str]]:
         """Longest-match entity resolution over the name index.
+
+        `(resolved, problem, omitted)`. `problem` means the question
+        cannot be answered at all; `omitted` names entities that matched
+        and did not fit MAX_RESOLVED, which is a caveat and not a
+        refusal.
 
         Longest first so "hydroxychloroquine" is not resolved as
         "chloroquine" -- the same substring hazard that required Vero E6 to be
         matched before Vero and SARS-CoV-2 before SARS-CoV.
+
+        A TAXON IS NEVER THE THING DROPPED. The cap used to break out of
+        this loop, which is ordered by name LENGTH, so the virus -- the
+        shortest name in a question full of drug names, and the one
+        entity that decides the calibration, the routes, every caveat
+        and the refusal itself -- was the first casualty. The cap now
+        applies after matching and only to non-taxon entities.
         """
         text = (question or "").lower()
         found: dict[str, str] = {}
         for name in sorted(self.tools.names, key=len, reverse=True):
-            if len(name) < 4:
+            if len(name) < MIN_SEARCH_NAME:
                 continue
             # Suppress a shorter name only where every occurrence sits inside
             # a longer match. "chloroquine" is a substring of
@@ -251,12 +285,33 @@ class Orchestrator:
                 covered = covered.replace(seen, " " * len(seen))
             if _mentions(covered, name):
                 found[name] = self.tools.names[name]
-            if len(found) >= 6:
-                break
         if not found:
             return {}, ("No entity in this question matches a node in the graph. "
-                        "Name a compound, protein or virus the graph contains.")
-        return found, ""
+                        "Name a compound, protein or virus the graph contains."), []
+
+        def _is_taxon(nid: str) -> bool:
+            return self.tools.nodes.get(nid, {}).get("class") == "OrganismTaxon"
+
+        taxa = {n: i for n, i in found.items() if _is_taxon(i)}
+        # THE REMAINDER IN THE ORDER THE QUESTION ASKED, not the order
+        # this loop matched in. Matching is by descending name LENGTH,
+        # which is the right order for resolving overlapping names and an
+        # arbitrary one for deciding whose compound gets dropped: it kept
+        # "camostat mesylate" over "remdesivir" for no reason a user
+        # could predict. First-named, first-kept at least matches what
+        # they wrote.
+        rest = sorted((n for n in found if n not in taxa),
+                      key=lambda n: text.find(n))
+        room = max(0, MAX_RESOLVED - len(taxa))
+        keep = dict(taxa)
+        for n in rest[:room]:
+            keep[n] = found[n]
+        # REPORTED, NOT SILENT. Dropping two of seven requested compounds
+        # from a ranking is a bounded harm; doing it without saying so is
+        # not, because the answer then looks like a complete comparison
+        # of everything the user asked about.
+        omitted = [n for n in rest[room:]]
+        return keep, "", omitted
 
     def _virus_in(self, resolved: dict[str, str]) -> str | None:
         for nid in resolved.values():
@@ -275,11 +330,35 @@ class Orchestrator:
         intent = guards.classify_intent(question)
         trace.append(f"intent={intent.value}")
 
-        resolved, problem = self._resolve_mentions(question)
+        resolved, problem, omitted = self._resolve_mentions(question)
         trace.append(f"resolved={len(resolved)}")
+        if omitted:
+            trace.append(f"omitted={len(omitted)}")
         named = self._virus_in(resolved)
         virus = named or self.default_virus
         trace.append(f"virus={virus}{'' if named else ' (assumed)'}")
+
+        # A DEFAULT VIRUS THAT IS NOT IN THIS GRAPH IS NOT AN ANSWER.
+        # guards.check would go on to refuse about it, and the refusal
+        # states figures -- "it holds 0 antiviral measurement(s)" -- and
+        # names the virus through _label, which returns the raw CURIE for
+        # a node that is absent. So a user who named a virus the cap then
+        # dropped could be told "This release cannot answer that about
+        # NCBITaxon:2697049", a sentence that is wrong about a virus they
+        # never mentioned, in a vocabulary no reader shares.
+        if named is None and virus not in self.tools.nodes:
+            return Brief(
+                question=question, intent=intent.value, allowed=True,
+                clarification=(
+                    "This question does not name a virus that this release "
+                    "holds, and the virus decides everything about the "
+                    "answer: which routes exist, what has been measured, and "
+                    "which caveats apply. Name one of "
+                    + ", ".join(sorted(
+                        self.tools._label(nid)
+                        for nid, d in self.tools.nodes.items()
+                        if d.get("class") == "OrganismTaxon")) + "."),
+                trace=trace + ["default_virus_absent"])
 
         # This virus's own calibration, so the caveat quotes what was
         # measured on it rather than a sentence asserting things about
@@ -293,19 +372,42 @@ class Orchestrator:
         # cell-context biology -- so a question meaning Zika answered about
         # SARS-CoV-2 is wrong in every one of those at once. Latent while the
         # graph held one virus; live since it holds eight across two families.
-        if named is None and verdict.allowed:
+        #
+        # AND ON A REFUSAL ABOVE ALL. The condition was `named is None and
+        # verdict.allowed`, so the one path where the substitution does the
+        # most damage -- the agent refusing, in detail and with figures,
+        # about a virus the user never named -- was the path that said
+        # nothing about it. The caveat is built either way now, and the
+        # refusal below carries it in its TEXT, because a refusal reaches
+        # the user as brief.refusal and nothing else does.
+        if named is None:
             others = sorted(
                 self.tools._label(nid) for nid, d in self.tools.nodes.items()
                 if d.get("class") == "OrganismTaxon" and nid != virus)
             verdict.warnings.append(guards.caveat(
                 "virus_assumed",
                 guards.virus_assumed_caveat(self.tools._label(virus), others)))
+        if omitted:
+            verdict.warnings.append(guards.caveat(
+                "entities_omitted",
+                guards.omitted_entities_caveat(omitted, len(resolved))))
         trace.append(f"allowed={verdict.allowed}")
         if not verdict.allowed:
             # The refusal is produced BEFORE retrieval, so no partial answer
             # can leak out alongside it.
+            #
+            # The caveats go in the TEXT and in `warnings`. A refusal is
+            # delivered as brief.refusal verbatim -- answer() sets
+            # out["answer"] = brief.refusal and returns -- so a warning
+            # carried only in the field would reach nobody.
+            reason = verdict.reason
+            if verdict.warnings:
+                reason = "\n\n".join([*map(str, verdict.warnings), reason])
             return Brief(question=question, intent=intent.value, allowed=False,
-                         refusal=verdict.reason, trace=trace)
+                         refusal=reason,
+                         warnings=list(dict.fromkeys(
+                             str(w) for w in verdict.warnings)),
+                         trace=trace)
 
         if problem:
             return Brief(question=question, intent=intent.value, allowed=True,
