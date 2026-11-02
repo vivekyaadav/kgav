@@ -8,6 +8,7 @@ import pytest
 
 from kgav.assemble import fact_id
 from kgav.agent.tools import GraphTools
+from kgav.schema import load_schema
 
 V = "NCBITaxon:2697049"
 DRUG = "INCHIKEY:NIRMA"
@@ -666,3 +667,172 @@ def test_the_contradiction_is_enforced_like_every_other_caveat(
     assert any(getattr(w, "key", "") == "contradicted"
                for w in dropped_warnings("an answer mentioning nothing",
                                          r.warnings))
+
+
+# ------------------------------------------- the answer sheet, marked
+# A11. VirusRoutes' docstring says of the label count: "never to answer
+# from: quoting a label as evidence is the leak every other guard here
+# exists to prevent." Three tools did exactly that, silently --
+# evidence(), profile() and NEIGHBOURS(), which the external audit did
+# not name. evidence() was worst: for a label edge the only warning it
+# attached was evidence_note's "EVIDENCE: Curated experimental result",
+# so the answer sheet arrived carrying the tier-1 reassurance.
+#
+# The edges are MARKED, not suppressed. For a virus with no route the
+# agent's own closing offer is to report what the graph stores and
+# retrieve evidence for a named claim, and for Yellow fever the graph
+# stores little else but these labels -- suppressing them would empty
+# the one offer left.
+HELD_OUT = sorted(load_schema().held_out_predicates())
+
+
+def test_the_schema_declares_more_than_one_held_out_predicate():
+    """The audit named HAS_ANTIVIRAL_ACTIVITY_AGAINST. The schema holds
+    out four, and a fix covering one would have left three leaking."""
+    assert len(HELD_OUT) >= 4, HELD_OUT
+    assert "HAS_ANTIVIRAL_ACTIVITY_AGAINST" in HELD_OUT
+    assert "MEASURED_INACTIVE_AGAINST" in HELD_OUT
+
+
+@pytest.mark.parametrize("predicate", HELD_OUT)
+def test_every_held_out_predicate_is_marked_when_rendered(tmp_path, predicate):
+    """Parametrised over the SCHEMA, not over a list kept here. A
+    predicate newly declared held_out is covered by this test the moment
+    it is declared."""
+    nodes = [{"id": "CHEMBL:X", "class": "SmallMolecule",
+              "properties": {"label": "testdrug"}},
+             {"id": "NCBITaxon:1", "class": "OrganismTaxon",
+              "properties": {"label": "Testvirus", "family": "Flaviviridae",
+                             "baltimore_class": "IV", "is_enveloped": True}},
+             {"id": "MONDO:1", "class": "Disease",
+              "properties": {"label": "testdisease"}}]
+    obj = "MONDO:1" if predicate in ("TREATS", "IN_TRIAL_FOR") \
+        else "NCBITaxon:1"
+    edges = [{"subject": "CHEMBL:X", "predicate": predicate, "object": obj,
+              "qualifiers": {}, "primary_knowledge_source": "infores:chembl",
+              "evidence_tier": 1, "first_asserted_date": "2020-01-01"}]
+    (tmp_path / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text(
+        "\n".join(json.dumps(x) for x in edges))
+    t = GraphTools(tmp_path)
+    r = t.evidence("CHEMBL:X")
+    assert r.ok
+    assert all(ln.startswith("[HELD-OUT LABEL]") for ln in r.verbalised), \
+        r.verbalised
+    assert "ANSWER SHEET" in [w.label for w in r.warnings]
+
+
+def test_a_feature_edge_is_not_marked(graph):
+    """The marker must distinguish, not decorate everything."""
+    r = graph.evidence(DRUG, "UniProtKB:NSP5")
+    assert r.ok
+    assert not any("HELD-OUT LABEL" in ln for ln in r.verbalised), r.verbalised
+    assert "ANSWER SHEET" not in [getattr(w, "label", "") for w in r.warnings]
+
+
+def test_a_mixed_result_marks_only_the_label_lines(graph):
+    r = graph.evidence(DRUG)
+    assert r.ok
+    marked = [ln for ln in r.verbalised if ln.startswith("[HELD-OUT LABEL]")]
+    plain = [ln for ln in r.verbalised if not ln.startswith("[HELD-OUT LABEL]")]
+    assert marked and plain, r.verbalised
+    assert all("shows activity against" in ln for ln in marked), marked
+    assert all("inhibits the viral protein" in ln for ln in plain), plain
+
+
+def test_the_answer_sheet_caveat_comes_before_the_tier_reassurance(graph):
+    """ORDER MATTERS HERE. The tier note says "Curated experimental
+    result", which raises confidence; it was the ONLY warning a label
+    edge carried."""
+    labels = [getattr(w, "label", "") for w in graph.evidence(DRUG).warnings]
+    assert "ANSWER SHEET" in labels and "EVIDENCE" in labels, labels
+    assert labels.index("ANSWER SHEET") < labels.index("EVIDENCE"), labels
+
+
+def test_neighbours_marks_them_too(graph):
+    """The tool the audit did not name. It had the same hole and NO
+    warning of any kind -- found by probing every public tool against
+    one fixture instead of the two the audit listed."""
+    r = graph.neighbours(DRUG)
+    assert r.ok
+    assert any(ln.startswith("[HELD-OUT LABEL]") for ln in r.verbalised)
+    assert "ANSWER SHEET" in [getattr(w, "label", "") for w in r.warnings]
+
+
+def test_profile_lists_labels_apart_from_features(graph):
+    """One flat list of predicate counts is how a Yellow fever profile
+    read "1,030 antiviral measurements" -- which looks like 1,030
+    supporting facts and is 1,030 rows of the answer sheet."""
+    r = graph.profile(V)
+    assert r.ok
+    lines = r.verbalised
+    heading = next(i for i, ln in enumerate(lines)
+                   if "held-out evaluation labels" in ln)
+    # EXACTLY ONCE, AND BELOW THE HEADING. The first version of this
+    # test asserted only that the heading and the data split existed,
+    # and a mutant that left the labels in the FEATURE rows as well --
+    # listing each label predicate twice, once as a feature -- survived
+    # it. The verbalised block is what the model is shown, so a label
+    # counted among the features is the leak back in full.
+    for pred in HELD_OUT:
+        hits = [i for i, ln in enumerate(lines) if ln.strip().startswith(pred)]
+        assert len(hits) <= 1, f"{pred} listed {len(hits)} times: {lines}"
+        for i in hits:
+            assert i > heading, f"{pred} listed among the features: {lines}"
+    assert any(ln.strip().startswith("HAS_ANTIVIRAL_ACTIVITY_AGAINST")
+               for ln in lines[heading + 1:]), lines
+    assert "HAS_ANTIVIRAL_ACTIVITY_AGAINST" in r.data["held_out_label_counts"]
+    assert "HAS_ANTIVIRAL_ACTIVITY_AGAINST" not in r.data[
+        "feature_edge_counts"]
+    said = next(w for w in r.warnings
+                if getattr(w, "label", "") == "ANSWER SHEET")
+    # The COUNT and the predicate are facts and are pinned. The rest of
+    # the prose is deliberately not: guards.py's own contract is that
+    # "the prose below it can be rewritten freely without changing what
+    # is checked", and the label is what verification enforces.
+    assert "HAS_ANTIVIRAL_ACTIVITY_AGAINST" in said
+    assert str(r.data["held_out_label_counts"][
+        "HAS_ANTIVIRAL_ACTIVITY_AGAINST"]) in said
+
+
+def test_profile_keeps_edge_counts_as_the_full_census(graph):
+    """The split is ADDITIONAL. edge_counts is read elsewhere as the
+    node's degree, and redefining a key in place is how a consumer
+    starts under-counting without failing."""
+    r = graph.profile(V)
+    total = sum(r.data["edge_counts"].values())
+    assert total == sum(r.data["feature_edge_counts"].values()) \
+        + sum(r.data["held_out_label_counts"].values())
+    assert total > 0
+
+
+def test_a_node_with_no_label_gets_no_heading_and_no_caveat(graph):
+    """Said only when true. A heading reading "held-out evaluation
+    labels:" above nothing teaches a reader to skip it."""
+    r = graph.profile("UniProtKB:NSP5")
+    assert r.ok
+    assert "held-out evaluation labels" not in " ".join(r.verbalised)
+    assert not r.data["held_out_label_counts"]
+    assert "ANSWER SHEET" not in [getattr(w, "label", "") for w in r.warnings]
+
+
+def test_copying_a_marked_fact_does_not_satisfy_the_caveat(graph):
+    """THE REASON THE TWO MARKERS DIFFER. verify.dropped_warnings
+    enforces a caveat by searching the answer for its LABEL. The
+    per-line marker is "[HELD-OUT LABEL]" and the caveat's label is
+    "ANSWER SHEET": had they matched, a model that merely copied a
+    marked fact line would satisfy the caveat without ever stating what
+    it means, and the enforcement could never bite."""
+    from kgav.agent import verify
+    r = graph.evidence(DRUG)
+    copied = next(ln for ln in r.verbalised
+                  if ln.startswith("[HELD-OUT LABEL]"))
+    dropped = [getattr(w, "label", "") for w in
+               verify.dropped_warnings(copied, r.warnings)]
+    assert "ANSWER SHEET" in dropped, \
+        "copying a marked fact satisfied the caveat that explains it"
+    kept = verify.dropped_warnings(
+        copied + " ANSWER SHEET: these are held-out evaluation labels.",
+        r.warnings)
+    assert "ANSWER SHEET" not in [getattr(w, "label", "") for w in kept]

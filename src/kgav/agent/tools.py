@@ -153,6 +153,12 @@ class GraphTools:
         # for every virus -- a fact declared in one place and consumed in
         # one of two.
         _schema = load_schema()
+        # THE PREDICATES THAT ARE THE ANSWER SHEET, read from the schema
+        # and not restated here. There are FOUR -- the external audit
+        # named one -- and a list kept in this file would drift the first
+        # time a predicate was declared held_out in the schema alone,
+        # which is the whole defect class this project keeps finding.
+        self._held_out = frozenset(_schema.held_out_predicates())
         self._constraints: dict[str, dict] = {
             name: (mp.get("constraints") or {})
             for name, mp in _schema.metapaths.items()}
@@ -476,11 +482,33 @@ class GraphTools:
             "CAUSES": lambda: f"{s} causes {o}",
         }
         body = templates.get(e["predicate"], lambda: f"{s} {e['predicate']} {o}")()
+        # MARKED HERE, ONCE, because this is the single place an edge
+        # becomes a sentence. Marking in each tool would have left
+        # whichever tool was written next unmarked -- and the audit
+        # found two of the three that already were.
+        if e["predicate"] in self._held_out:
+            body = "[HELD-OUT LABEL] " + body
         cite = f" [{src}"
         if pubs:
             cite += f", {pubs}"
         cite += f", {e.get('first_asserted_date', '?')[:4]}; {e['_id']}]"
         return body + cite
+
+    def _held_out_warnings(self, edges) -> list:
+        """The HELD-OUT LABEL caveat for these edges, or nothing.
+
+        A LIST so a caller can `warnings=[...] + self._held_out_warnings(h)`
+        without a branch. The caveat's label is enforced by verify(), so
+        this is the part a model cannot drop for brevity.
+        """
+        counts: dict[str, int] = defaultdict(int)
+        for e in edges:
+            if e["predicate"] in self._held_out:
+                counts[e["predicate"]] += 1
+        if not counts:
+            return []
+        return [guards.caveat("held_out_label",
+                              guards.held_out_caveat(dict(counts)))]
 
     # --------------------------------------------------------------- tools
     def resolve(self, text: str, limit: int = 5) -> ToolResult:
@@ -1559,11 +1587,16 @@ class GraphTools:
         warns = [guards.evidence_note(e.get("evidence_tier"),
                                       (e.get("qualifiers") or {}).get("detection_method"))
                  for e in hits]
+        # THE HELD-OUT CAVEAT GOES FIRST. The only warning this tool
+        # used to attach for a label edge was evidence_note's "EVIDENCE:
+        # Curated experimental result" -- so the answer sheet was
+        # returned carrying the tier-1 reassurance and nothing else.
         return ToolResult(True, "evidence",
                           data=[{k: v for k, v in e.items() if not k.startswith("_")}
                                 for e in hits],
                           verbalised=lines,
-                          warnings=list(dict.fromkeys(warns)),
+                          warnings=self._held_out_warnings(hits)
+                          + list(dict.fromkeys(warns)),
                           edge_ids=[e["_id"] for e in hits])
 
     def neighbours(self, node_id: str, predicate: str | None = None,
@@ -1582,6 +1615,10 @@ class GraphTools:
                    "other": e["object"] if e["subject"] == node_id else e["subject"]}
                   for e in hits],
             verbalised=[self._verbalise(e) for e in hits],
+            # NOT NAMED BY THE AUDIT, and it had the same hole with no
+            # warning at all. Found by probing every public tool against
+            # one fixture instead of the two the audit listed.
+            warnings=self._held_out_warnings(hits),
             edge_ids=[e["_id"] for e in hits],
             note=f"truncated to {limit}" if truncated else "")
 
@@ -1594,11 +1631,38 @@ class GraphTools:
         for e in self.edges:
             if e["subject"] == node_id or e["object"] == node_id:
                 counts[e["predicate"]] += 1
+        # FEATURES AND LABELS, LISTED APART. One flat list of predicate
+        # counts is how "which compounds should be considered for Yellow
+        # fever" returned a taxon profile reading "1,030 antiviral
+        # measurements" -- which looks like 1,030 supporting facts and is
+        # 1,030 rows of the answer sheet. The refusal written for that
+        # virus now catches the question (A4), but the profile itself
+        # still reported it that way for any question that reaches here,
+        # and the catch-all branch of build_brief reaches here often.
+        held = {k: v for k, v in counts.items() if k in self._held_out}
+        feat = {k: v for k, v in counts.items() if k not in self._held_out}
+
+        def _rows(d):
+            return [f"  {k}: {v:,}" for k, v in sorted(d.items(),
+                                                       key=lambda kv: -kv[1])]
+
         lines = [f"{self._label(node_id)} ({n['class']}, {node_id})"]
-        lines += [f"  {p}: {c}" for p, c in sorted(counts.items(),
-                                                   key=lambda kv: -kv[1])]
+        lines += _rows(feat)
+        if held:
+            lines.append("  held-out evaluation labels (the answer sheet, "
+                         "not evidence):")
+            lines += _rows(held)
         return ToolResult(True, "profile",
+                          # edge_counts stays the FULL census, so a
+                          # consumer summing it still gets the node's true
+                          # degree; the split is additional, not a
+                          # redefinition of a key other code reads.
                           data={"id": node_id, "class": n["class"],
                                 "properties": n["properties"],
-                                "edge_counts": dict(counts)},
+                                "edge_counts": dict(counts),
+                                "feature_edge_counts": feat,
+                                "held_out_label_counts": held},
+                          warnings=[guards.caveat(
+                              "held_out_label",
+                              guards.held_out_caveat(held))] if held else [],
                           verbalised=lines)

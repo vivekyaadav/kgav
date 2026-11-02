@@ -345,6 +345,18 @@ CAVEAT_LABELS: dict[str, str] = {
     # small, it is walked in full and reaches no labelled compound. See
     # VirusRoutes.unreachable.
     "labels_unreachable":    "LABELS UNREACHABLE",
+    # The answer sheet, said out loud. See held_out_caveat below.
+    #
+    # DELIBERATELY NOT "HELD-OUT LABEL", which is the marker tools.py
+    # puts on each rendered line. verify.dropped_warnings enforces a
+    # caveat by searching the answer for its LABEL, so if the two
+    # strings matched, a model that merely copied a marked fact line
+    # would satisfy this caveat without ever stating what it means --
+    # enforcement that can never bite, which is decoration. Two
+    # distinct strings make the per-line mark and the explanation
+    # independently required. "ANSWER SHEET" is the audit report's own
+    # phrase for these edges.
+    "held_out_label":        "ANSWER SHEET",
 }
 
 
@@ -784,6 +796,48 @@ def check(kind: QueryKind, virus: str | None = None,
     if routes is not None and routes.thin:
         warnings.append(caveat("thin_route", routes.thin_text()))
     return Verdict(allowed=True, warnings=warnings)
+
+
+def held_out_caveat(counts: dict[str, int]) -> str:
+    """Said when a reported edge IS an evaluation label.
+
+    THE LEAK EVERY OTHER GUARD HERE EXISTS TO PREVENT, and until
+    2026-11-02 three tools did it silently. VirusRoutes' own docstring
+    says of the label count: "never to answer from: quoting a label as
+    evidence is the leak every other guard here exists to prevent" --
+    and evidence(), profile() and neighbours() returned those very
+    edges verbalised, provenanced and citable, with nothing marking
+    them. evidence() was worst: the only warning it attached was
+    "EVIDENCE: Curated experimental result", the tier-1 note, so the
+    answer sheet arrived carrying a caveat that RAISED confidence in
+    it.
+
+    MARKED, NOT SUPPRESSED, and the reason is in the refusal above.
+    When a virus has no route the agent's closing offer is "asking what
+    the graph stores about a specific compound or protein, and
+    retrieving evidence for a named claim" -- and for Yellow fever the
+    graph stores little else BUT these labels. Hiding them would empty
+    the one offer left and reintroduce the A6 defect of offering what
+    the agent will then decline. They are also real published
+    measurements, and answering "what does the graph hold" by
+    concealing what it holds is a different dishonesty.
+
+    What is wrong is not showing them. It is showing them as
+    independent support for a prediction. So each line is marked where
+    it is rendered, and this caveat's LABEL must survive into the
+    answer -- dropped_warnings forces a retry and verify() fails the
+    answer without it, which is the only part a model cannot quietly
+    drop.
+    """
+    parts = ", ".join(f"{p} ({n:,})" for p, n in sorted(counts.items()))
+    return (f"{sum(counts.values()):,} of the edges reported here are "
+            f"held-out evaluation labels: {parts}. These are the ground "
+            f"truth this project measures its scoring AGAINST, removed from "
+            f"every metapath the agent walks. They are real published "
+            f"measurements and they are reported because you asked what the "
+            f"graph holds — but they are the answer sheet, not independent "
+            f"support, and nothing below may be read as the graph having "
+            f"predicted them.")
 
 
 def contradicted_caveat(drug: str, protein: str, detail: str = "") -> str:
