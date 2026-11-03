@@ -1,0 +1,106 @@
+digraph kgav {
+  rankdir=LR; newrank=true; compound=true;
+  graph [fontname="Helvetica", fontsize=11, nodesep=0.25, ranksep=0.6, pad=0.3,
+         label="kgav — architecture as wired in code (not as documented)\nred = defect found in this audit", labelloc=t, fontsize=16];
+  node  [fontname="Helvetica", fontsize=10, shape=box, style="rounded,filled", fillcolor="#ffffff"];
+  edge  [fontname="Helvetica", fontsize=8, color="#555555"];
+
+  subgraph cluster_raw { label="data/raw  (37 GB, gitignored, mostly hand-placed)"; style=filled; fillcolor="#eef3fb";
+    r_cfg   [label="config/viruses.yaml\n16 taxa register", fillcolor="#dde7f7"];
+    r_prot  [label="UniProt viral proteomes\n(fetch_raw.py)"];
+    r_host  [label="UniProt human proteome\nSTRING v12 aliases+links"];
+    r_vh    [label="VirHostNet / IntAct MITAB\n(fetch_vhppi, filter_intact)"];
+    r_orcs  [label="BioGRID ORCS screens\n+ ORCS web API (ORCS_KEY)"];
+    r_chembl[label="ChEMBL 37 SQLite"];
+    r_ncats [label="NCATS SARS-CoV-2 CPE\nassay + tox CSV"];
+    r_gtop  [label="GtoPdb interactions\n+ ligands CSV"];
+    r_folds [label="UniProt + InterPro REST\n(26 hard-coded chains)"];
+    r_cur   [label="curated_screens/*.tsv\n(EMPTY — layer never built)", fillcolor="#eeeeee", fontcolor="#888888"];
+  }
+
+  subgraph cluster_p1 { label="Phase 1 — per-layer ingest  (scripts/ingest_*.py + src/kgav/*.py)  → data/releases/v0.1-<layer>/"; style=filled; fillcolor="#f2f8ee";
+    l_spine [label="spine\nOrganismTaxon, viral Protein/PRO_ chains,\nGene, ENCODED_BY, BELONGS_TO, SAME_AS,\nDisease, CAUSES"];
+    l_host  [label="host\nProtein, Gene, Pathway(GO/Reactome)\nPARTICIPATES_IN, ENCODED_BY\nSTRING PPI (exp ≥ 400)"];
+    l_vh    [label="vhppi\nPHYSICALLY_INTERACTS_WITH host↔viral", ];
+    l_orcs  [label="orcs\nHOST_FACTOR_FOR (dependency/restriction)"];
+    l_chembl[label="chembl\nSmallMolecule\nHAS_ANTIVIRAL_ACTIVITY_AGAINST\nINHIBITS / MEASURED_INACTIVE (10 µM cut)"];
+    l_ht    [label="hosttargets\nTARGETS (pChEMBL ≥ 6, phase ≥ 2)"];
+    l_ncats [label="ncats\nHAS_ANTIVIRAL_ACTIVITY_AGAINST\n(SARS-CoV-2 only)"];
+    l_folds [label="folds\nTargetClass, MEMBER_OF_CLASS,\nFOLD_SIMILAR_TO (M8)"];
+  }
+
+  asm1 [label="assemble_release.py  (phase 2)\nmerge by (s,p,o,source)\nfirst witness wins for ec50/relation", shape=box, style="filled", fillcolor="#fff2cc"];
+
+  subgraph cluster_p3 { label="Phase 3 — layers that read the ASSEMBLED v0.1 (cycle)"; style=filled; fillcolor="#fdf1e6";
+    l_sel  [label="selectivity\nactivity edges with CC50/SI"];
+    l_sim  [label="similarity\nCHEMICALLY_SIMILAR_TO\nECFP4 Tanimoto ≥ 0.7, top-10"];
+    l_gtop [label="gtop\nTARGETS"];
+  }
+
+  asm2 [label="assemble_release.py  (phase 4)", shape=box, style="filled", fillcolor="#fff2cc"];
+  rel  [label="data/releases/v0.1\n78,789 nodes · 392,907 edges\nnodes.jsonl / edges.jsonl / MANIFEST\nvalidate_release.py → PASS", shape=cylinder, fillcolor="#ffe599"];
+
+  orch [label="pipeline.py (LAYERS as data)\nrebuild_release.py", shape=note, fillcolor="#f4f4f4"];
+
+  subgraph cluster_eval { label="Evaluation  (src/kgav/baselines, labels, temporal, calibration, landscape)"; style=filled; fillcolor="#f3eefa";
+    temporal [label="temporal_split.py\ncut on first_asserted_date ≤ 2021\n→ v0.1-train2021{,-strict,-corrected}"];
+    labels   [label="labels.build_labels\npositives/negatives from\nHAS_ANTIVIRAL_ACTIVITY edges\n(EC50 ≤ 10 µM vs '>' ≥ 10 µM)"];
+    graphld  [label="baselines.Graph.load\nheld-out predicates not walked\n(degree counts them anyway)"];
+    scorers  [label="Scorers per (compound, virus)\nM1..M8 DWPC metapaths\nCOMBINED = max percentile\ndegree · network proximity"];
+    metrics  [label="Metrics\nHits@k / MRR (run_baselines)\nlift + hypergeometric p (compare_metapaths)\nROC-AUC vs measured negatives (hard_negatives)\npermutation null (pathway_landscape)"];
+  }
+  results [label="data/results/*.json  (28 files, provenance-stamped)\n+ stale results-corrected/, results-prechange/", shape=folder, fillcolor="#e9e2f5"];
+  docs    [label="docs/*.md, README\n(hand-written claims;\n~190 tests grep their text)", shape=note, fillcolor="#f4f4f4"];
+
+  subgraph cluster_agent { label="Q&A agent  (src/kgav/agent)"; style=filled; fillcolor="#e8f6f6";
+    cli    [label="scripts/kgav_ask.py  (CLI)"];
+    orchA  [label="orchestrator\nintent (keywords) → mentions → guards.check\n→ one tool → brief (≤100 facts)"];
+    tools  [label="GraphTools\nexplain(M1/M2) · triage · pathways\nvirus_pathways · evidence · profile"];
+    guards [label="guards\nrefuse PROSPECT; caveats\n(CALIBRATION, THIN ROUTE, …)"];
+    llm    [label="Ollama localhost:11434\nqwen2.5:7b-instruct  T=0", fillcolor="#d0eeee"];
+    verify [label="verify\ncitations / caveat substrings /\nnumbers must appear in brief"];
+  }
+
+  web [label="web/  (Manus/shadcn template)\nstatic Express server, hand-typed demo graph\nNOT connected to anything", fillcolor="#eeeeee", fontcolor="#666666"];
+
+  // raw -> layers
+  r_cfg -> l_spine; r_prot -> l_spine; r_host -> l_host;
+  r_vh -> l_vh; r_orcs -> l_orcs; r_chembl -> l_chembl; r_chembl -> l_ht; r_ncats -> l_ncats; r_folds -> l_folds;
+  r_cur -> asm1 [style=dotted, color="#aaaaaa"];
+  // intra-phase-1 dependencies (resolution indexes)
+  l_spine -> l_vh [style=dashed, label="id index"]; l_host -> l_vh [style=dashed];
+  l_spine -> l_orcs [style=dashed]; l_host -> l_orcs [style=dashed, label="gene→protein"];
+  l_spine -> l_chembl [style=dashed, label="viral chain index"]; l_host -> l_ht [style=dashed];
+  l_spine -> l_folds [style=dashed];
+  // into assemble
+  {l_spine l_host l_vh l_orcs l_chembl l_ht l_ncats l_folds} -> asm1;
+  asm1 -> rel [label="v0.1 (interim)", style=dashed];
+  rel -> l_sel [label="reads assembled", color="#c55a11"]; rel -> l_sim [color="#c55a11"]; rel -> l_gtop [color="#c55a11"];
+  r_chembl -> l_sel; r_gtop -> l_gtop;
+  {l_sel l_sim l_gtop} -> asm2; asm2 -> rel [label="final v0.1"];
+  orch -> asm1 [style=dotted, arrowhead=none]; orch -> asm2 [style=dotted, arrowhead=none];
+
+  // eval
+  rel -> temporal; rel -> labels; rel -> graphld;
+  temporal -> graphld [label="train graph"]; temporal -> labels [label="test labels > 2021"];
+  graphld -> scorers; labels -> metrics; scorers -> metrics; metrics -> results;
+  results -> docs [style=dashed, label="hand-copied"];
+
+  // agent
+  cli -> orchA; orchA -> guards; orchA -> tools; tools -> rel [label="reads release +\nv0.1-selectivity", color="#2a7f7f"];
+  results -> cli [label="hard_negatives.json\npathway_landscape.json", color="#2a7f7f"];
+  orchA -> llm [label="prompt"]; llm -> verify; verify -> cli [label="print if verified"];
+
+  // defects
+  node [shape=box, style="filled", fillcolor="#fde2e1", color="#c00000", fontcolor="#900000", fontsize=9];
+  d1 [label="D: STRING dated 2023-08-28, VH-PPI 2024-01-01 (release dates)\n→ train2021 has 0 PPI edges → M3/M5 silently gone"];
+  d2 [label="D: 69% of 'HAS_ANTIVIRAL_ACTIVITY' edges are\nmeasured INACTIVE (censored '>')"];
+  d3 [label="D: 71% of labelled compounds have no edge\nbesides their label → unreachable by any metapath"];
+  d4 [label="D: GtoP + similarity dated 1970 ('undated')\n→ always in the 2021 train graph (leak)"];
+  d5 [label="D: degree beats every channel\n(SARS-CoV-2 AUC 0.62 vs ≤0.58)"];
+  d6 [label="D: CI runs full ruff → 281 findings → red"];
+  d7 [label="D: reach caveat never loads\n(file passed where dir expected)"];
+  edge [color="#c00000", style=dashed, arrowhead=none];
+  d1 -> temporal; d2 -> l_chembl; d3 -> labels; d4 -> l_sim; d5 -> metrics; d7 -> cli;
+  d6 -> orch;
+}

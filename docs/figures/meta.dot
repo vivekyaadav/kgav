@@ -1,0 +1,25 @@
+digraph meta {
+  graph [fontname="Helvetica", label="kgav v0.1 metagraph — each arrow is one sparse block matrix: rows×cols, nnz, density\nwhole graph: A ∈ {0,1}^(78,789 × 78,789), 390,684 unique directed pairs, density 6.3e-5 (dense float32 = 24.8 GB; CSR ≈ 3.4 MB)", labelloc=t, fontsize=14, pad=0.4, nodesep=0.8, ranksep=1.1];
+  node [fontname="Helvetica", shape=ellipse, style=filled, fontsize=11];
+  edge [fontname="Helvetica", fontsize=9];
+  SM  [label="SmallMolecule\n25,383\nmean deg 2.2", fillcolor="#fbe5d6"];
+  P   [label="Protein\n20,888 (host + viral)\nmean deg 24.7 · 632 isolated", fillcolor="#deebf7"];
+  G   [label="Gene\n19,190", fillcolor="#e2f0d9"];
+  PW  [label="Pathway (GO+Reactome)\n13,236", fillcolor="#fff2cc"];
+  T   [label="OrganismTaxon\n16\nmean deg 2,033 (SARS-CoV-2: 17,493)", fillcolor="#f8cbad"];
+  TC  [label="TargetClass\n66", fillcolor="#eeeeee"];
+  D   [label="Disease\n10", fillcolor="#eeeeee"];
+  SM -> T  [label="HAS_ANTIVIRAL_ACTIVITY (LABEL, held out)\n25,383×16 · nnz 24,496 · 6.0e-2", color="#c00000", fontcolor="#c00000", penwidth=2.5];
+  SM -> P  [label="TARGETS 25,383×20,888 · 17,982 · 3.4e-5\n(4,130 drugs → 1,946 proteins)", penwidth=2];
+  SM -> P  [label="INHIBITS · 3,943 · 7.4e-6\n(→ only 22 viral proteins)"];
+  SM -> P  [label="MEASURED_INACTIVE (held out) · 2,421", style=dashed, color="#c00000", fontcolor="#c00000"];
+  SM -> SM [label="CHEMICALLY_SIMILAR_TO · 3,384 · 5.3e-6"];
+  P  -> P  [label="PHYSICALLY_INTERACTS_WITH 20,888² · 153,533 · 3.5e-4", penwidth=3];
+  P  -> P  [label="SAME_AS 119 · FOLD_SIMILAR_TO 24"];
+  P  -> PW [label="PARTICIPATES_IN 20,888×13,236 · 157,211 · 5.7e-4", penwidth=3];
+  P  -> G  [label="ENCODED_BY 20,888×19,190 · 19,498 · 4.9e-5"];
+  P  -> T  [label="HOST_FACTOR_FOR 20,888×16 · 7,943 · 2.4e-2\n(only 8 taxa have any)", penwidth=2];
+  G  -> T  [label="BELONGS_TO 19,190×16 · 79\n(viral genes only)"];
+  P  -> TC [label="MEMBER_OF_CLASS · 158"];
+  T  -> D  [label="CAUSES 16×10 · 16"];
+}

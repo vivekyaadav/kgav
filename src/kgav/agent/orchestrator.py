@@ -431,7 +431,13 @@ class Orchestrator:
             results += [self.tools.profile(nid) for nid in resolved.values()]
         elif intent is guards.QueryKind.EVIDENCE and len(resolved) >= 2:
             ids = list(resolved.values())
-            results.append(self.tools.evidence(ids[0], ids[1]))
+            # Taxa are inserted into `resolved` first, but edges run
+            # compound -> virus, so the question's order says nothing about
+            # edge direction. Try both before reporting "no edge".
+            hit = self.tools.evidence(ids[0], ids[1])
+            if not hit.ok:
+                hit = self.tools.evidence(ids[1], ids[0])
+            results.append(hit)
         elif compounds:
             results += [self.tools.explain(c, virus) for c in compounds]
         else:
