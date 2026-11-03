@@ -1,0 +1,97 @@
+// kgav architecture, A4 portrait. Render:
+//   dot -Tpdf arch_a4.dot -o kgav_architecture_a4.pdf
+//   dot -Tpng -Gdpi=300 arch_a4.dot -o kgav_architecture_a4.png
+digraph kgav_a4 {
+  rankdir=TB;
+  size="7.9,11.3"; margin=0.1;
+  graph [label=<<font point-size="18"><b>kgav — architecture as wired in code</b></font><br/><font point-size="10">audit 2026-11-03 · release v0.1 · 78,789 nodes · 392,907 edges</font><br/><font point-size="10" color="#c00000">red ①–⑧ = known defect, see key at the bottom</font>>, labelloc=t, labeljust=c, fontname="Helvetica", fontsize=12, nodesep=0.45, ranksep=0.3, bgcolor=white, labeljust=l, penwidth=0.8, outputorder=edgesfirst];
+  node  [fontname="Helvetica", fontsize=10, shape=box, style="rounded,filled", fillcolor="#ffffff",
+         penwidth=0.8, margin="0.08,0.05", width=1.35, height=0.45];
+  edge  [fontname="Helvetica", fontsize=8.5, color="#555555", arrowsize=0.6, penwidth=0.9];
+
+
+  // ---------------------------------------------------------------- 1 BUILD
+  subgraph cluster_build { label=<<b>1 · Build the graph</b>   <font point-size="9">raw source (blue)  →  ingest layer (green)   ·   scripts/ingest_*.py</font>>; style="rounded"; color="#9db3d6"; margin=10;
+    node [fillcolor="#e6eefa"];
+    sA1 [label="viruses.yaml\n16 viruses"]; sA2 [label="UniProt + STRING\nhuman proteome"]; sA3 [label="VirHostNet\nIntAct"]; sA4 [label="BioGRID ORCS\nCRISPR screens"];
+    node [fillcolor="#e9f5e1"];
+    lA1 [label="spine\nviruses, viral proteins"]; lA2 [label=<host<br/>proteins, pathways, PPI <font color="#c00000"><b>①</b></font>>]; lA3 [label=<vhppi<br/>virus–host PPI <font color="#c00000"><b>①</b></font>>]; lA4 [label="orcs\nhost factors"];
+    node [fillcolor="#e6eefa"];
+    sB1 [label="ChEMBL 37\nSQLite"]; sB2 [label="ChEMBL 37\n(human targets)"]; sB3 [label="NCATS\nCPE screen"]; sB4 [label="UniProt + InterPro\nfold data"];
+    node [fillcolor="#e9f5e1"];
+    lB1 [label=<chembl<br/>compound activity <font color="#c00000"><b>③</b></font>>]; lB2 [label="hosttargets\ndrug → human target"]; lB3 [label="ncats\nSARS-CoV-2 activity"]; lB4 [label="folds\nprotein classes"];
+    {rank=same; sA1 sA2 sA3 sA4}
+    {rank=same; lA1 lA2 lA3 lA4}
+    {rank=same; sB1 sB2 sB3 sB4}
+    {rank=same; lB1 lB2 lB3 lB4}
+    sA1 -> lA1; sA2 -> lA2; sA3 -> lA3; sA4 -> lA4;
+    lA1 -> sB1 [style=invis]; lA2 -> sB2 [style=invis]; lA3 -> sB3 [style=invis]; lA4 -> sB4 [style=invis];
+    sB1 -> lB1; sB2 -> lB2; sB3 -> lB3; sB4 -> lB4;
+  }
+
+  // ---------------------------------------------------------------- 2 MERGE
+  subgraph cluster_merge { label=<<b>2 · Merge into one graph</b>   <font point-size="9">scripts/assemble_release.py runs twice</font>>; style="rounded"; color="#d6b656"; margin=10;
+    asm1 [label="merge, pass 1", fillcolor="#fff2cc"];
+    rel  [label=<<b>data/releases/v0.1</b><br/>78,789 nodes · 392,907 edges>, shape=cylinder, style=filled, fillcolor="#ffe599", width=2.3, height=0.6];
+    node [fillcolor="#fdebd9"];
+    p1 [label="selectivity\nCC50 / EC50"]; p2 [label=<similarity<br/>Tanimoto ≥ 0.7 <font color="#c00000"><b>②</b></font>>]; p3 [label=<gtop<br/>GtoPdb drug targets <font color="#c00000"><b>②</b></font>>];
+    asm2 [label="merge, pass 2\n(writes final v0.1)", fillcolor="#fff2cc"];
+    {rank=same; asm1 rel}
+    asm1 -> p2 [style=invis, weight=10];
+    {rank=same; p1 p2 p3}
+    asm1 -> rel;
+    rel -> p1 [color="#c55a11"]; rel -> p2 [color="#c55a11", label=" built from\n the merged graph"]; rel -> p3 [color="#c55a11"];
+    p1 -> asm2; p2 -> asm2; p3 -> asm2;
+  }
+  asm2 -> rel [constraint=false, color="#c55a11", style=dashed];
+  lB1 -> asm1; lB2 -> asm1 [weight=8]; lB3 -> asm1; lB4 -> asm1;
+  lB2 -> p2 [style=invis, weight=0];
+
+  // ---------------------------------------------------------------- 3 EVALUATE
+  subgraph cluster_eval { label=<<b>3 · Evaluate</b>   <font point-size="9">src/kgav/baselines.py, labels.py, temporal.py</font>>; style="rounded"; color="#b9a6d9"; margin=10;
+    node [fillcolor="#f0eaf9"];
+    e1 [label=<temporal split<br/>train on ≤ 2021 <font color="#c00000"><b>①②</b></font>>];
+    e2 [label=<labels<br/>active ≤ 10 µM <font color="#c00000"><b>③④</b></font>>];
+    e3 [label=<scorers<br/>M1–M8, degree <font color="#c00000"><b>⑤</b></font>>];
+    e4 [label=<metrics<br/>AUC, Hits@k, lift <font color="#c00000"><b>⑥</b></font>>];
+    res [label="data/results/\n28 JSON files", shape=folder, fillcolor="#e2d8f2"];
+    docs [label=<docs/*.md<br/>claims copied by hand <font color="#c00000"><b>⑦</b></font>>, shape=note, fillcolor="#f2f2f2"];
+    {rank=same; e1 e2}
+    {rank=same; e3 e4}
+    {rank=same; res docs}
+    e1 -> e3 [label=" train graph"]; e2 -> e4 [label=" test labels"]; e3 -> e4;
+    e4 -> res; res -> docs [style=dashed];
+  }
+  asm2 -> e1 [style=invis, weight=10];
+  rel -> e1 [constraint=false]; rel -> e2 [constraint=false];
+
+  // ---------------------------------------------------------------- 4 AGENT
+  subgraph cluster_agent { label=<<b>4 · Answer questions</b>   <font point-size="9">python scripts/kgav_ask.py "…"</font>>; style="rounded"; color="#8cc5c5"; margin=10;
+    node [fillcolor="#e3f4f4"];
+    a1 [label="your question\n(terminal)"]; a2 [label="orchestrator\nintent + guards"]; a3 [label=<graph tools<br/>explain · evidence <font color="#c00000"><b>⑧</b></font>>];
+    a4 [label="Ollama, local\nqwen2.5 7B", fillcolor="#c9eaea"]; a5 [label="verifier\ncitations, caveats"]; a6 [label="printed answer\nevidence + caveats"];
+    {rank=same; a1 a2 a3}
+    {rank=same; a6 a5 a4}
+    a1 -> a2 -> a3;
+    a3 -> a4 [label=" facts"]; a4 -> a5; a5 -> a6;
+  }
+  res -> a2 [style=invis, weight=10];
+  e3 -> res [style=invis, weight=10];
+  res -> a2 [color="#2a7f7f", label=" caveat\n numbers"];
+
+  // ---------------------------------------------------------------- KEY
+  key [shape=plaintext, style="", label=<
+    <table border="1" color="#c00000" cellborder="0" cellspacing="0" cellpadding="3" bgcolor="#fff5f5">
+      <tr><td align="left" colspan="2"><font color="#c00000" point-size="11"><b>Known defects</b></font><font point-size="9">   details and fixes: docs/audit_2026-11-03_fixes.md</font></td></tr>
+      <tr><td align="left" valign="top"><font color="#c00000"><b>①</b></font></td><td align="left"><font point-size="10">PPI edges carry database release dates (2023, 2024), so the 2021 training graph has no PPI edges</font></td></tr>
+      <tr><td align="left" valign="top"><font color="#c00000"><b>②</b></font></td><td align="left"><font point-size="10">GtoP and similarity edges are dated 1970 ("undated"), so they leak into every training graph</font></td></tr>
+      <tr><td align="left" valign="top"><font color="#c00000"><b>③</b></font></td><td align="left"><font point-size="10">69% of "has antiviral activity" edges are actually measured-inactive results</font></td></tr>
+      <tr><td align="left" valign="top"><font color="#c00000"><b>④</b></font></td><td align="left"><font point-size="10">71% of labelled compounds have no other edge, so no metapath can reach them</font></td></tr>
+      <tr><td align="left" valign="top"><font color="#c00000"><b>⑤</b></font></td><td align="left"><font point-size="10">The degree baseline (AUC 0.62) beats every reasoning channel (0.58 or less)</font></td></tr>
+      <tr><td align="left" valign="top"><font color="#c00000"><b>⑥</b></font></td><td align="left"><font point-size="10">About 150 tests with no multiple-testing correction; Hits@k depends on tie order</font></td></tr>
+      <tr><td align="left" valign="top"><font color="#c00000"><b>⑦</b></font></td><td align="left"><font point-size="10">Headline claims in the docs contradict the results files</font></td></tr>
+      <tr><td align="left" valign="top"><font color="#c00000"><b>⑧</b></font></td><td align="left"><font point-size="10">Reach caveat never loads; triage ranks using held-out labels</font></td></tr>
+    </table>>];
+  a5 -> key [style=invis, weight=10];
+
+}

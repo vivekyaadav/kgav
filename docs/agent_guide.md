@@ -40,6 +40,8 @@ problems that are being fixed (see `docs/audit_2026-11-03_fixes.md`).
 
 ![kgav architecture](figures/kgav_architecture.png)
 
+To print on A4: `figures/kgav_architecture_a4.pdf` (one page, fit to A4).
+
 Zoomable versions: `figures/kgav_architecture.svg` and `figures/kgav_metagraph.svg`
 (open in any browser). The `.dot` files next to them are the source to redraw them.
 
