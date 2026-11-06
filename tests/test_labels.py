@@ -2,6 +2,8 @@
 enough, ambiguity is dropped, and no scorer picks its own test set.
 """
 import json
+from collections import Counter
+from pathlib import Path
 
 import pytest
 
@@ -277,3 +279,114 @@ def test_malformed_json_is_unmeasured(tmp_path):
     res.mkdir()
     (res / "metapath_comparison.json").write_text("{not json")
     assert L.measured_reach(res, rel) is None
+
+
+# ------------------------------------------- the inactive floor is MEASURED
+# The justification for 10 uM was "the concentration above which a cell-based
+# antiviral hit is conventionally not pursued" -- an appeal to convention
+# with no citation, and the weakest sentence in labels.py. It is not needed:
+# a censored row "EC50 > 20000" is a screen stating where it stopped, so the
+# distribution of those bounds MEASURES the assay ceilings in the corpus.
+#
+# These tests re-derive the docstring's figures from the release. A number in
+# a comment with no way back to the data is the failure this repository keeps
+# finding; this is the way back.
+REAL_RELEASE = Path(__file__).resolve().parents[1] / "data" / "releases" / "v0.1"
+
+
+def test_the_census_reads_only_censored_rows_of_the_labelled_predicate(tmp_path):
+    rel = tmp_path / "rel"
+    rel.mkdir()
+    (rel / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in [
+        # counted: censored, right predicate, has a potency
+        {"predicate": L.ACTIVITY_PREDICATE,
+         "qualifiers": {"ec50_nm": 20000.0, "relation": ">"}},
+        {"predicate": L.ACTIVITY_PREDICATE,
+         "qualifiers": {"ic50_nm": 10000.0, "relation": ">="}},
+        # not counted: exact value, so it states no ceiling
+        {"predicate": L.ACTIVITY_PREDICATE,
+         "qualifiers": {"ec50_nm": 500.0, "relation": "="}},
+        # not counted: a different predicate is a different population
+        {"predicate": "MEASURED_INACTIVE_AGAINST",
+         "qualifiers": {"ec50_nm": 20000.0, "relation": ">"}},
+        # not counted: censored with no value to be a bound
+        {"predicate": L.ACTIVITY_PREDICATE, "qualifiers": {"relation": ">"}},
+    ]))
+    assert L.censored_bound_census(rel) == Counter({20000.0: 1, 10000.0: 1})
+
+
+def test_the_census_is_scoped_to_the_predicate_build_labels_reads():
+    """A census over a wider set of predicates would be a true statement
+    about a population the threshold does not decide."""
+    assert L.censored_bound_census.__defaults__[0] == L.ACTIVITY_PREDICATE
+
+
+@pytest.mark.skipif(not REAL_RELEASE.exists(), reason="no release on disk")
+def test_the_floor_admits_almost_all_censored_evidence():
+    """The claim the docstring now makes instead of citing a convention:
+    10 uM admits 98.1% of the censored rows and rejects the 1.9% whose
+    bound is too weak to prove anything."""
+    c = L.censored_bound_census(REAL_RELEASE)
+    total = sum(c.values())
+    assert total > 10_000, f"only {total} censored rows; the census is empty"
+    above = sum(n for v, n in c.items() if v >= L.DEFAULT_INACTIVE_ABOVE_NM)
+    assert above / total > 0.95, (
+        f"the floor now admits only {above / total:.1%} of censored evidence; "
+        f"the docstring says 98.1% and would need re-deriving")
+    below = total - above
+    assert below > 0, (
+        "no censored row falls below the floor, so the floor is rejecting "
+        "nothing and the rule it encodes is untested by this corpus")
+
+
+@pytest.mark.skipif(not REAL_RELEASE.exists(), reason="no release on disk")
+def test_the_floor_sits_at_or_below_the_modal_assay_ceiling():
+    """The reason 10 uM rather than 20: the corpus supports 10-20 uM and the
+    floor takes the conservative end. A floor ABOVE the modal ceiling would
+    discard the evidence of the commonest assay in the corpus."""
+    c = L.censored_bound_census(REAL_RELEASE)
+    mode_bound, _ = c.most_common(1)[0]
+    assert L.DEFAULT_INACTIVE_ABOVE_NM <= mode_bound, (
+        f"the floor ({L.DEFAULT_INACTIVE_ABOVE_NM:,.0f} nM) is above the "
+        f"modal assay ceiling ({mode_bound:,.0f} nM), so the commonest "
+        f"screen in the corpus can no longer prove a compound inactive")
+
+
+def test_the_two_cuts_cannot_overlap():
+    """CONSISTENCY, not convention. A censored row "> X" proves inactivity
+    only if X >= active_below_nm; below that the true value could sit
+    between X and the active cut, which would make the compound ACTIVE. Set
+    the floor lower and one compound can be classified both ways."""
+    assert L.DEFAULT_INACTIVE_ABOVE_NM >= L.DEFAULT_ACTIVE_BELOW_NM
+
+    # The overlap, demonstrated rather than asserted.
+    censored = {"qualifiers": {"ec50_nm": 2000.0, "relation": ">"}}
+    exact = {"qualifiers": {"ec50_nm": 5000.0, "relation": "="}}
+    assert classify(censored, 1000.0, 10000.0) == "inactive"
+    assert classify(exact, 1000.0, 10000.0) == "active"
+    # Tied, the weak bound is correctly undecidable instead.
+    assert classify(censored, 10000.0, 10000.0) is None
+
+
+def test_a_dead_band_is_expressible_and_stays_consistent():
+    """The open choice the docstring records: active <= 1 uM, inactive >=
+    10 uM. classify takes the two cuts independently and the inequality
+    still holds, so a gap is available without a code change -- only the
+    CLI ties them, and --active-below-nm does not exist."""
+    mid = {"qualifiers": {"ec50_nm": 5000.0, "relation": "="}}
+    assert classify(mid, 10_000.0, 1_000.0) == "inactive"
+    weak = {"qualifiers": {"ec50_nm": 900.0, "relation": "="}}
+    assert classify(weak, 10_000.0, 1_000.0) == "active"
+    bound = {"qualifiers": {"ec50_nm": 5000.0, "relation": ">"}}
+    assert classify(bound, 10_000.0, 1_000.0) is None
+
+
+@pytest.mark.skipif(not REAL_RELEASE.exists(), reason="no release on disk")
+def test_the_active_cut_is_not_claimed_to_be_derived():
+    """The two constants are equal today, and the docstring says that is
+    inheritance rather than an argument. If someone later derives the active
+    cut, this test should be replaced by one that checks the derivation --
+    not deleted."""
+    src = (Path(L.__file__)).read_text()
+    assert "ONLY HALF DERIVED" in src
+    assert "no distribution in this corpus answers it" in src

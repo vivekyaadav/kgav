@@ -16,9 +16,75 @@ inferences about why a programme stopped.
 
 THE POTENCY THRESHOLD MATTERS. "EC50 > 100 nM" is not an inactive compound; it
 is a weak lower bound that may sit below the assay's top concentration. Only a
-censored value above `inactive_above_nm` counts as evidence of inactivity, and
-the default (10,000 nM = 10 uM) is the concentration above which a cell-based
-antiviral hit is conventionally not pursued.
+censored value above `inactive_above_nm` counts as evidence of inactivity.
+
+WHERE 10 uM COMES FROM -- the inactive floor is MEASURED, not conventional.
+
+The original justification here was that 10 uM "is the concentration above
+which a cell-based antiviral hit is conventionally not pursued". That is an
+appeal to convention with no citation behind it, and it was the weakest
+sentence in this module. It is not needed, because a censored row states
+the answer: "EC50 > 20000" is a screen reporting where it STOPPED -- it
+tested to 20 uM and saw nothing. The distribution of those bounds is
+therefore a direct measurement of the assay ceilings in this corpus.
+
+censored_bound_census() below computes it. On data/releases/v0.1, over the
+18,074 censored HAS_ANTIVIRAL_ACTIVITY_AGAINST rows:
+
+    bound >= 10 uM    17,734   98.1%
+    bound <  10 uM       340    1.9%   <- the rows the floor must refuse
+    distinct bounds      191
+    mode              20 uM    9,924 rows (54.9%)
+    next              99.5 uM  2,549 | 100 uM 2,276 | 10 uM 1,009
+
+So 10 uM admits 98.1% of the censored evidence while rejecting exactly the
+weak bounds the rule exists to reject. The corpus would support anywhere in
+10-20 uM and 10 is the conservative end of that range. tests/test_labels.py
+re-derives these figures from the release, so they cannot rot into a claim
+with no way back to the data.
+
+THE ACTIVE CUT IS A DIFFERENT QUANTITY, AND ONLY HALF DERIVED.
+
+The two constants are not independent. A censored row "> X" proves
+inactivity only if X >= active_below_nm: below that, the compound's true
+value could lie between X and the active cut, which would make it ACTIVE.
+So `inactive_above_nm >= active_below_nm` is a CONSISTENCY requirement, not
+a convention -- violate it and the two classes overlap, as
+
+    classify({">": 2000}, inactive_above=1000, active_below=10000)
+      -> "inactive", while "= 5000" -> "active"
+
+shows: one compound can be both. Equality is the tightest consistent
+choice, because it admits the most censored evidence without overlap, and
+that is a real argument for the two defaults matching. test_labels.py
+pins the inequality.
+
+What has NO derivation is the VALUE of active_below_nm. The commit that
+introduced both (88074a6, 2026-09-12) reasons only about the censored
+floor. "Above what bound can an inactive call be believed" is a fact about
+assay ceilings and is measured above; "what counts as a hit" is a decision
+about the task, and no distribution in this corpus answers it.
+
+It is also only half of the convention it invokes. Published antiviral
+screening criteria pair the potency cut with a SELECTIVITY requirement --
+EC50 < 10 uM AND SI >= 5 to 10, SI being CC50/EC50 -- and this module
+applies the potency clause alone. Measured on v0.1, of 5,465 positive
+(compound, virus) pairs: 2,167 (39.7%) pass SI >= 5, 392 of the 2,559 that
+have a selectivity index FAIL it, 65 of those have SI < 1 (cytotoxic BELOW
+the effective concentration), and 2,906 (53.2%) have no cytotoxicity data
+at all. scripts/hard_negatives.py --selectivity defaults to "all", so the
+published numbers apply no cytotoxicity control.
+
+Two consequences are left as declared open choices rather than changed
+here, because they move every published figure:
+
+  - the two cuts are TIED by default, so there is no undecided band: 9,999
+    nM is active and 10,001 nM is inactive. classify() takes them as
+    independent parameters and will accept a gap; only the CLI ties them,
+    and --active-below-nm does not exist.
+  - 56.5% of positives at 10 uM are not positive at 1 uM, so the majority
+    of the positive set is weak-potency chemical matter grouped with
+    sub-nanomolar compounds under one label.
 
 AMBIGUOUS COMPOUNDS ARE EXCLUDED, NOT ASSIGNED. A compound with both an active
 and an inactive measurement against the same virus is real -- different cell
@@ -93,6 +159,41 @@ def classify(edge: dict, inactive_above_nm: float = DEFAULT_INACTIVE_ABOVE_NM,
     if relation in ("<", "<="):
         return "active" if value <= active_below_nm else None
     return None
+
+
+def censored_bound_census(release: Path,
+                          predicate: str = ACTIVITY_PREDICATE) -> Counter:
+    """{bound in nM: rows} over the censored ('>' / '>=') activity rows.
+
+    WHAT THIS IS FOR. `inactive_above_nm` is the one threshold in this
+    project that does NOT need a convention, because the data states it. A
+    row reading "EC50 > 20000" is a screen reporting where it stopped: it
+    tested to 20 uM and saw nothing. So the distribution of those bounds is
+    a measurement of the assay ceilings actually present in the corpus, and
+    the floor can be read off it instead of asserted.
+
+    Scoped to the predicate build_labels reads, because that is the
+    population the threshold decides. A census over a wider set would be a
+    true statement about something else.
+
+    Kept here rather than in a script so the docstring's figures can be
+    re-derived by the test that checks them; a number in a comment with no
+    way back to the data is the thing this repository keeps finding.
+    """
+    out: Counter = Counter()
+    for line in (Path(release) / "edges.jsonl").read_text().splitlines():
+        if not line.strip():
+            continue
+        e = json.loads(line)
+        if e["predicate"] != predicate:
+            continue
+        q = e.get("qualifiers") or {}
+        if (q.get("relation") or "=") not in (">", ">="):
+            continue
+        v = _potency(e)
+        if v is not None:
+            out[v] += 1
+    return out
 
 
 def edge_sources(edge: dict) -> set[str]:
