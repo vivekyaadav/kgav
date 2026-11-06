@@ -667,7 +667,7 @@ def main() -> int:
     # Widening the fallback would re-decide every chain that reaches it,
     # and until now nothing said which chains those are.
     by_basis: Counter = Counter(c.catalytic_basis for c in usable)
-    print(f"\n  how each catalytic type was decided: "
+    print("\n  how each catalytic type was decided: "
           + ", ".join(f"{k} {v}" for k, v in by_basis.most_common()))
     fallback = [c for c in usable if c.catalytic_basis == "composition"]
     if fallback:
@@ -764,8 +764,13 @@ def main() -> int:
     # actual output -- the FOLD_SIMILAR_TO edges it would write -- and the
     # one list that must not be abridged.
     print(f"\n  allowed transfers, all {len(allowed)} (strong first):")
+    # r[0]/r[1], NOT a/b. The key referred to the loop variables it was
+    # about to bind, so at sort time they still held the last pair of the
+    # eligible-pairs loop above -- two constants. The rows came out ordered
+    # by strength and then arbitrarily, while the comment below and the
+    # identical sort at line 843 both say label order. Found by ruff B020.
     for a, b, g in sorted(allowed, key=lambda r: (r[2].strength != "strong",
-                                                  a.spec.label, b.spec.label)):
+                                                  r[0].spec.label, r[1].spec.label)):
         # EVERY shared class, not the first two. The row cap was fixed one
         # commit ago and this one was left: all 20 protease rows printed
         # "G3DSA:2.40.10.10, IPR009003" and nothing said whether that was

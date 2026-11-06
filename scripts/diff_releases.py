@@ -89,7 +89,7 @@ def main(argv: list[str]) -> int:
 
     only_a = ca - cb
     only_b = cb - ca
-    print(f"\nDIFFERENT GRAPHS.")
+    print("\nDIFFERENT GRAPHS.")
     print(f"  {sum(only_a.values()):,} edge(s) only in {a.name}")
     print(f"  {sum(only_b.values()):,} edge(s) only in {b.name}")
 

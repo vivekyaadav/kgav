@@ -234,7 +234,7 @@ def main() -> int:
                 unjoinable += 1
 
         n = len(protein_rows)
-        print(f"  resolve_nsp BEFORE (coronavirus table on flavivirus rows):")
+        print("  resolve_nsp BEFORE (coronavirus table on flavivirus rows):")
         for key, c in before.most_common():
             note = ("  -> falls through to the polyprotein" if key == "UNRESOLVED"
                     else "  -> a CORONAVIRUS family name")

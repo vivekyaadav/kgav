@@ -22,15 +22,12 @@ from kgav.baselines import (
     degree_ranking,
     degree_relative,
     dwpc_scores,
-    hits_at_k,
     hits_cell,
     lift_cell,
     lift_row,
     metapath_reach,
-    mrr,
     p_cell,
     vs_degree_cell,
-    rank,
     undetermined_note,
 )
 from kgav.labels import build_labels

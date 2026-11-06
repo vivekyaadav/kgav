@@ -407,7 +407,7 @@ def main() -> int:
         print("=" * 78)
         print(f"  {'virus':<14}{'rows':>7}{'cmpds':>7}{'accs':>6}{'pubs':>6}"
               f"{'top%':>7}{'pre':>7}{'post':>7}  verdict")
-        for name, (taxa, r) in per_virus.items():
+        for name, (_taxa, r) in per_virus.items():
             share = f"{r['top_pmid_share']:.0%}" if r["top_pmid_share"] else "-"
             verdict = ("NO DATA" if r["compounds"] == 0 else
                        "below floor" if r["compounds"] < args.min_compounds

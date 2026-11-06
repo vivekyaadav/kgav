@@ -14,7 +14,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.aliases import AliasIndex
 from kgav.chembl import (
-    EMITTED_COUNTERS,
     DROPPED_COUNTERS,
     accounting,
     build_taxon_family_index,
@@ -82,14 +81,14 @@ def main() -> int:
     # screen saying where the rest went. Comparing counts across entities that
     # should agree is this project's stated primary integrity check (README
     # §2.4); it has to hold inside the ingest that feeds it.
-    EMITTED, DROPPED = EMITTED_COUNTERS, DROPPED_COUNTERS
+    DROPPED = DROPPED_COUNTERS
 
     print(f"\n{s['protein_edges']:,} INHIBITS + "
           f"{s['measured_inactive_edges']:,} MEASURED_INACTIVE_AGAINST + "
           f"{s['organism_edges']:,} HAS_ANTIVIRAL_ACTIVITY_AGAINST")
-    print(f"  the predicate follows labels.classify, so a viral-protein row "
-          f"measured\n  NOT to inhibit becomes MEASURED_INACTIVE_AGAINST "
-          f"rather than INHIBITS")
+    print("  the predicate follows labels.classify, so a viral-protein row "
+          "measured\n  NOT to inhibit becomes MEASURED_INACTIVE_AGAINST "
+          "rather than INHIBITS")
     print(f"  {s['censored']:,} censored values kept with their relation")
     print("\n  target resolution from assay description:")
     for k in sorted(k for k in s if k.startswith("resolved_")):

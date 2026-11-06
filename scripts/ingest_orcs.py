@@ -218,7 +218,7 @@ def main() -> int:
             print(f"    {k:<28} {s[k]:>7,}")
     if em.notes:
         print("\n  sign tripwire:")
-        for k, v in em.notes.most_common():
+        for k, _v in em.notes.most_common():
             print(f"    {k}")
 
     violations = load_schema().validate_batch(index.nodes.values(), em.edges)

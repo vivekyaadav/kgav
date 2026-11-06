@@ -6,12 +6,55 @@ requires-python = ">=3.11"
 dependencies = ["pyyaml>=6", "pandas", "pyarrow"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "pytest-cov", "pytest-xdist", "ruff"]
+dev = ["pytest>=8", "pytest-cov", "pytest-xdist", "ruff==0.16.7"]
 chem = ["rdkit>=2024.3"]
 
 [tool.ruff]
 line-length = 110
 target-version = "py311"
+
+# THE RULE SET IS DECLARED, NOT INHERITED, AND RUFF IS PINNED ABOVE.
+#
+# Why both. `ruff` was unpinned and no rule set was selected, so CI ran
+# whatever ruff was newest against whatever that version's defaults were.
+# The Makefile's comment said 29 findings, nearly all import ordering; by
+# ruff 0.16.7 the same command reported 281, because the default set had
+# grown. CI's Lint step therefore failed on every push for reasons no
+# commit introduced, and a gate that is always red tells you nothing about
+# the commit in front of you. Pinning without selecting would only move
+# the problem to the next upgrade.
+#
+# What is in. F (pyflakes) catches undefined names, unused imports and
+# unused locals. E9 is syntax and IO failure. B0 (bugbear, non-opinionated
+# half) is the reason this list exists at all: it found
+# `scripts/ingest_folds.py:767`, a sort key naming the loop variables it was
+# about to bind, which left the rows sorted by nothing. The E7 comparison
+# rules cost nothing and fire nowhere today, so they stay as a floor.
+#
+# What is deliberately out, with the count each would add today:
+#   E402 (54) -- module-level import after code. Every one is a script
+#                inserting src/ on sys.path before importing kgav, which is
+#                how these scripts are meant to run.
+#   B905 (21) -- zip() without strict=. A real class of bug: a length
+#                mismatch truncates in silence. Not refused on principle,
+#                only deferred -- it needs 21 call sites read one at a time
+#                to say which pairing is guaranteed equal-length, and that
+#                is its own commit, not a lint sweep.
+#   ISC004 (66) -- message strings wrapped across lines inside a list. The
+#                rule catches a forgotten comma; here the concatenation is
+#                the intent. Checked: all 66 are deliberate.
+#   I001 (41) -- import ordering. The previous comment's judgement still
+#                holds: a style backlog in front of a correctness gate is a
+#                gate nobody runs. One wide --fix diff whenever it is worth it.
+#   E741 (16) -- ambiguous names (l, I, O).
+#   SIM115 (3) -- tests that hold a file open on purpose to keep an flock
+#                across a block; a context manager would defeat the test.
+#   RUF100 (41) -- stale `noqa` directives left by earlier rule sets.
+#
+# `make lint` and CI's Lint step both run exactly this, so they cannot
+# disagree. Adding a rule is a commit that also fixes what it reports.
+[tool.ruff.lint]
+select = ["F", "E9", "B0", "E401", "E711", "E712", "E713", "E714", "E721", "E722"]
 
 [build-system]
 requires = ["setuptools>=68"]

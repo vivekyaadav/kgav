@@ -280,7 +280,7 @@ def main() -> int:
           f"the most rows, and what the pair would have been:")
     print(f"    {'identifier':<22} {'rows':>6}  {'own':>8} x {'partner':<8} "
           "verdict")
-    for raw, n in id_rows.most_common(args.samples * 2):
+    for raw, _n in id_rows.most_common(args.samples * 2):
         for (own, other), c in pairs[raw].most_common(3):
             print(f"    {raw.replace('UniProtKB:', ''):<22} {c:>6,}  "
                   f"{own:>8} x {other:<8} {_verdict(own, other)}")

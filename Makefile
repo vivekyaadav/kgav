@@ -15,10 +15,8 @@ install:
 # RUNS, so it was invisible on a machine where the release is absent and those
 # tests skip. `test` depends on this so the combination cannot pass again.
 #
-# Deliberately NOT the full ruff default set: that currently reports 29
-# findings, nearly all import ordering, and a backlog of style warnings in
-# front of a correctness gate is a gate nobody runs. `make lint` still runs
-# everything.
+# Deliberately a two-rule subset, so `make test` pays milliseconds for it.
+# `make lint` runs the whole declared set and is what CI runs.
 lint-fast:
 	ruff check --select F821,F811 src tests scripts
 
@@ -41,15 +39,27 @@ test-serial:
 test-slowest:
 	pytest -q --durations=15
 
+# The rule set lives in pyproject.toml [tool.ruff.lint], with the reason for
+# every rule left out. ruff is pinned in the dev extra: unpinned, the set CI
+# enforced was whatever the newest ruff defaulted to, which is how this
+# command went from 29 findings to 281 with no commit in between. CI runs
+# this target rather than its own copy of the command.
 lint:
 	ruff check src tests scripts
 
+# NEGATIVE CONTROL. data/releases/smoke carries four deliberately planted
+# violations; this proves the validator finds THOSE, by code and by count.
+#
+# It used to be `if validator succeeds then fail else OK`, which accepted any
+# non-zero exit -- an ImportError, a missing directory, a schema that would
+# not load -- as proof the planted errors were caught. The one thing it could
+# not distinguish is a working validator from a broken one.
+#
+# If this target fails after a schema change, read the diff it prints before
+# editing the expectation: a code that stopped firing is the gate working.
 gate:
-	@if python scripts/validate_release.py data/releases/smoke; then \
-		echo "FAIL: validator accepted planted errors"; exit 1; \
-	else \
-		echo "OK: validator rejected planted errors"; \
-	fi
+	python scripts/validate_release.py data/releases/smoke \
+		--expect "CONSTRAINT=1,MISSING_PROVENANCE=1,MISSING_QUALIFIER=2"
 
 release-validate:
 	python scripts/validate_release.py data/releases/$(REL)

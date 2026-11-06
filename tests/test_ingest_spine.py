@@ -744,7 +744,7 @@ def test_west_niles_poly_does_not_merge_with_zikas(tmp_path):
     nodes -- asserted against the builder rather than read off the format."""
     d = tmp_path / "p"
     d.mkdir()
-    for tax, pid, stem in (("11082", "P06935", "UP000008600"),
+    for _tax, pid, stem in (("11082", "P06935", "UP000008600"),
                            ("64320", "Q32ZE1", "UP000054557")):
         entry = _entry(pid, chains=2)
         del entry["genes"]

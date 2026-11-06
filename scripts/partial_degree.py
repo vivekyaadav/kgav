@@ -381,8 +381,8 @@ def verdict(tested: list[Cell]) -> int:
                 and (a.b_c > 0) == (b.b_c > 0)):
             consistent.append((virus, chan, a.b_c, b.b_c))
 
-    print(f"P1  no cell clears corrected alpha under BOTH scorings with the "
-          f"same sign")
+    print("P1  no cell clears corrected alpha under BOTH scorings with the "
+          "same sign")
     if consistent:
         print(f"    REJECTED. {len(consistent)} cell(s) do:")
         for virus, chan, ba, bb in consistent:

@@ -266,7 +266,7 @@ def main(argv=None) -> int:
             pred = first_hop(schema.metapaths[name]["path"])
             layer = {d: mdeg.get((pred, d), 0) for d in set(legacy) | set(pdp)}
             print(channel_table(name, legacy, pdp, degree, layer))
-        print(f"  layer degree is each channel's first hop: "
+        print("  layer degree is each channel's first hop: "
               + ", ".join(f"{n}={first_hop(schema.metapaths[n]['path'])}"
                           for n in sorted(schema.metapaths))[:200])
         print()

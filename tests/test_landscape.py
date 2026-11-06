@@ -1011,8 +1011,10 @@ def test_the_minimum_detectable_ratio_is_the_poisson_tail_it_claims():
         k, ratio, bind = L.minimum_detectable_ratio(m, alpha, 2000)
         assert bind == "poisson"
         assert abs(ratio - k / m) < 1e-12
-        tail = lambda j: 1.0 - sum(_m.exp(-m) * m ** i / _m.factorial(i)
-                                   for i in range(j))
+        # m bound as a default: the lambda is called in this same iteration,
+        # so late binding is harmless here, but binding it says so (ruff B023).
+        tail = lambda j, m=m: 1.0 - sum(_m.exp(-m) * m ** i / _m.factorial(i)
+                                        for i in range(j))
         assert tail(k) < alpha, (m, k)
         assert tail(k - 1) >= alpha, f"{k} is not the SMALLEST for m={m}"
 

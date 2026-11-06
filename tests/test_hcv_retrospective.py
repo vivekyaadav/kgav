@@ -9,7 +9,6 @@ that the shipped code does not actually reproduce.
 from __future__ import annotations
 
 import re
-import sqlite3
 import sys
 from importlib import import_module
 from pathlib import Path

@@ -102,8 +102,8 @@ def run(g: Graph, schema, labels, tag: str,
               f"{labels.stats.get('inactive', 0):,} inactive"
               + (f", {labels.stats['other_source']:,} dropped as another "
                  f"source" if labels.stats.get("other_source") else ""))
-        print(f"    nothing in this column was scored, and that is a fact "
-              f"about the labels, not a failure.")
+        print("    nothing in this column was scored, and that is a fact "
+              "about the labels, not a failure.")
         if notes is not None:
             notes["empty_label_set"] = True
     elif notes is not None:

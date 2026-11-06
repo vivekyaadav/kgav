@@ -62,7 +62,12 @@ from kgav.schema import print_capped
 # proteases -- on the question of whether the SOURCE and the SURVEY agree.
 # They cannot disagree if there is one of them.
 from phase4_survey_chemistry import (  # noqa: E402
-    FAMILIES,
+    # FAMILIES is re-exported, not used here: tests/test_source_scope.py
+    # asserts `D.FAMILIES is P.FAMILIES`, which is the check that there is
+    # ONE definition of the viral-protease families rather than two that
+    # could disagree. ruff's F401 autofix removed it on 2026-11-07 and the
+    # test caught it; noqa so the next autofix cannot.
+    FAMILIES,  # noqa: F401
     load_activities,
     load_targets,
     missing_columns,

@@ -149,7 +149,7 @@ def census(g: Graph) -> dict:
 def drug_targets(g: Graph) -> set[str]:
     """Human proteins reached by at least one TARGETS edge."""
     out = set()
-    for (pred, node), edges in g.out.items():
+    for (pred, _node), edges in g.out.items():
         if pred != TARGETS:
             continue
         for nbr, _e in edges:
@@ -284,7 +284,7 @@ def host_factor_coverage(g: Graph) -> dict[str, Counter]:
     than about the virus.
     """
     out: dict[str, Counter] = defaultdict(Counter)
-    for (pred, node), edges in g.out.items():
+    for (pred, _node), edges in g.out.items():
         if pred != HOST_FACTOR_FOR:
             continue
         for nbr, e in edges:
@@ -623,11 +623,11 @@ def main(argv=None) -> int:
     for k in ("approved", "clinical", "phase 1", "preclinical", "unknown"):
         if ph[k]:
             print(f"      {ph[k]:8,}  {k}")
-    print(f"\n    A curated drug-target source (DrugCentral, IUPHAR,")
-    print(f"    DrugBank) covers approved and clinical-stage drugs, so")
+    print("\n    A curated drug-target source (DrugCentral, IUPHAR,")
+    print("    DrugBank) covers approved and clinical-stage drugs, so")
     print(f"    {reachable:,} is the CEILING on what one could add here,")
     print(f"    not {sum(ph.values()):,}. The preclinical and unknown rest")
-    print(f"    are bulk screening compounds no such source curates.\n")
+    print("    are bulk screening compounds no such source curates.\n")
     print(f"    {c['target_edges']:,} TARGETS edges, of which "
           f"{c['directed_edges']:,} state a direction.")
     print("    The rest are potency without agonist/antagonist, so targeting")
@@ -638,7 +638,7 @@ def main(argv=None) -> int:
     members = pathway_members(g, schema.retrieval_limits.get(
         "max_pathway_members"))
     in_pathways = {p for ms in members.values() for p in ms}
-    print(f"  DRUGGED PROTEOME")
+    print("  DRUGGED PROTEOME")
     print(f"    {len(targets):,} distinct human proteins carry a TARGETS edge")
     print(f"    {len(members):,} pathways at or under the schema's "
           f"{schema.retrieval_limits.get('max_pathway_members')}-member cap")

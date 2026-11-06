@@ -236,13 +236,13 @@ def main(argv=None) -> int:
             grand[key] += c
 
         if targets:
-            print(f"\n  THE TARGETS THOSE ROWS SIT ON (the record that would "
-                  f"have to change):")
+            print("\n  THE TARGETS THOSE ROWS SIT ON (the record that would "
+                  "have to change):")
             for t, c in targets.most_common(args.samples):
                 print(f"    {c:>6,}  {t}")
 
         named_pmid = crosstab[(True, True)]
-        print(f"\n  ATTRIBUTABLE *AND* WITHHOLDABLE (the cell that decides)")
+        print("\n  ATTRIBUTABLE *AND* WITHHOLDABLE (the cell that decides)")
         print(f"    {'':<26}{'has PMID':>10}{'no PMID':>10}")
         for is_named, lab in ((True, "names this virus"),
                               (False, "generic / other / none")):

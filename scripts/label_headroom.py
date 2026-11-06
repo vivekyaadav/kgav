@@ -230,8 +230,8 @@ def main(argv=None) -> int:
     print("acquired, needs its own registration.\n")
     print(f"release {args.release.name} | power target {TARGET_POWER:.0%} | "
           f"{args.trials} trials per point")
-    print(f"statistic: the registered one, imported from partial_degree, "
-          f"negativity defect included\n")
+    print("statistic: the registered one, imported from partial_degree, "
+          "negativity defect included\n")
 
     viruses = [args.virus] if args.virus else sorted(labels.positives)
     rows = []
@@ -253,7 +253,7 @@ def main(argv=None) -> int:
     print(f"  {'virus':<18} {'chan':<4} {'scoring':<20} {'reached':>8} "
           f"{'labelled':>9} {'headroom':>9}")
     seen = set()
-    for virus, chan, scoring, reached, lab, free, *_ in rows:
+    for virus, chan, _scoring, reached, lab, free, *_ in rows:
         if (virus, chan) in seen:
             continue
         seen.add((virus, chan))
@@ -268,7 +268,7 @@ def main(argv=None) -> int:
     correction = sum(1 for *_x, raw, pos, neg, _d in rows
                      if len((pos | neg) & set(raw)) >= 20)
     correction = max(correction, 1)
-    for virus, chan, scoring, reached, lab, free, raw, pos, neg, deg in rows:
+    for virus, chan, scoring, reached, _lab, _free, raw, pos, neg, deg in rows:
         inside = sorted((pos | neg) & set(raw))
         n_pos = sum(1 for d in inside if d in pos)
         if n_pos < 10 or len(inside) - n_pos < 10:
