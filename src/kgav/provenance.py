@@ -484,3 +484,61 @@ def check_layer(layer_dir: Path, script: Path, root: Path) -> tuple[str, str]:
         f"{layer_dir.name} was written by different code "
         f"(stamp {doc.get('source_sha')}, now {now}){detail}; re-run "
         f"{Path(script).name} or delete the directory")
+
+
+# WHICH RELEASE OF THE DATABASE, as opposed to which commit of the code.
+#
+# BUILT_BY.json answers "what code wrote this layer". Nothing answered
+# "what release of the source did it read", so the v0.1 MANIFEST records
+# layer checksums and a commit and names no database version at all --
+# and the audit on 2026-11-07 could not say which GtoPdb, ORCS, NCATS,
+# InterPro or RDKit release any figure in docs/ came from. GtoPdb is the
+# worst case of the set because the answer was in hand: ingest_gtop parses
+# "GtoPdb Version: 2026.3.1 - published: 2026-10-12" out of the file,
+# prints it to the terminal, and drops it.
+SOURCE_STAMP_NAME = "SOURCE.json"
+
+
+def write_source(layer_dir: Path, **sources: Any) -> None:
+    """Record which release of each database this layer was built from.
+
+    Called by the ingest itself, not by the rebuild driver: the version is
+    a fact the reader of the raw file holds and nothing downstream can
+    recover it. One key per database, each value whatever that source
+    actually states -- there is no common shape, because a GtoPdb release
+    string, a ChEMBL directory name and an ORCS query date are not the
+    same kind of fact and flattening them to one would mean inventing the
+    missing parts.
+
+    NO KEY RATHER THAN A PLACEHOLDER. A source whose version this layer
+    could not determine is left out, and read_source reporting it absent
+    is the honest state. "unrecorded" written into a provenance record
+    reads later as a value.
+    """
+    layer_dir = Path(layer_dir)
+    if not layer_dir.exists():
+        return
+    body = {
+        "sources": {k: v for k, v in sources.items() if v is not None},
+        "recorded_by": "kgav.provenance.write_source",
+        "generated_utc": _dt.datetime.now(_dt.UTC).isoformat(
+            timespec="seconds"),
+    }
+    (layer_dir / SOURCE_STAMP_NAME).write_text(json.dumps(body, indent=2,
+                                                          sort_keys=True))
+
+
+def read_source(layer_dir: Path) -> dict[str, Any] | None:
+    """This layer's declared source versions, or None if it declared none.
+
+    None is "this layer does not say", which is the state of every layer
+    but gtop today. Distinguished from `{}` -- a layer that ran the stamp
+    and had nothing to record -- because those want different work.
+    """
+    path = Path(layer_dir) / SOURCE_STAMP_NAME
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text()).get("sources")
+    except (OSError, json.JSONDecodeError):
+        return None

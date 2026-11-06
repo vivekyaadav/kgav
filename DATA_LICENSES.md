@@ -37,6 +37,20 @@ statement on the download page itself — not from this table, and not from a
 paper citing it. Terms change. Record the licence string and the access date in
 that release's MANIFEST.json.
 
+WHERE THE VERSION GOES, as of 2026-11-07. Each ingest writes the release
+it read into its own layer directory (`SOURCE.json`, via
+`kgav.provenance.write_source`) and the assembler collects them into the
+MANIFEST's `sources` block. That block also lists, by name, every layer
+that declared nothing — which is currently all of them but `gtop`, and is
+the gap rather than a formatting detail. The v0.1 MANIFEST on disk
+predates the mechanism and names no source version at all, so no figure
+derived from it can be traced to a database release.
+
+Guide to PHARMACOLOGY is the one source that states its release inside
+the file ("GtoPdb Version: 2026.3.1 - published: 2026-10-12"), and that
+`published` date is the only release date in this project that is not a
+download timestamp.
+
 Guide to PHARMACOLOGY is listed before its files are downloaded, because the
 layer that reads them is already built and a source reaching the graph
 without a row here is the gap this register exists to close. Two things are

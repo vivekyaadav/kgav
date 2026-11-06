@@ -40,7 +40,9 @@ from kgav.gtop import (  # noqa: E402
     ingest_interactions,
     ligand_chembl_ids,
     ligand_inchikeys,
+    parse_version,
 )
+from kgav.provenance import SOURCE_STAMP_NAME, write_source  # noqa: E402
 
 
 def graph_ids(release: Path) -> tuple[set[str], CompoundIndex]:
@@ -86,6 +88,25 @@ def main(argv=None) -> int:
               "https://www.guidetopharmacology.org/download.jsp")
         return 1
 
+    # BOTH FILES, AND THEY MUST AGREE. The layer joins interactions to
+    # ligands, so two downloads from different releases would silently
+    # produce a graph that is neither -- ligand ids are reused across
+    # releases, so the join succeeds and the result is wrong. Only
+    # interactions.csv was ever read for the version, which made the
+    # mismatch undetectable as well as unreported.
+    vers = {f.name: parse_version(file_version(f)) for f in (inter, ligands)}
+    declared = {v["raw"] for v in vers.values()}
+    if len(declared) > 1:
+        print("REFUSED: the two downloads declare different GtoPdb releases, "
+              "and ligand ids are reused across releases, so the join would "
+              "succeed and mean nothing:")
+        for name, v in vers.items():
+            print(f"  {name:<20} {v['raw'] or 'no version declared'}")
+        print("Re-download both from the same release.")
+        return 2
+    version = vers[inter.name]
+    print(version["raw"] or "no GtoPdb version declared in either file")
+
     try:
         rows = _rows(inter, INTERACTION_COLUMNS)
         keys = ligand_inchikeys(ligands)
@@ -94,8 +115,6 @@ def main(argv=None) -> int:
         print(f"REFUSED: {e}")
         return 2
 
-    version = file_version(inter) or "unrecorded"
-    print(f"{version}")
     print(f"{len(rows):,} interactions, {len(keys):,} ligands with an "
           f"InChIKey, {len(chembl):,} with a ChEMBL id\n")
     proteins, compounds = graph_ids(args.release)
@@ -163,7 +182,17 @@ def main(argv=None) -> int:
         "\n".join(json.dumps(n) for n in em.nodes.values()))
     (args.out / "edges.jsonl").write_text(
         "\n".join(json.dumps(e) for e in em.edges))
+    # THE RELEASE, WRITTEN DOWN. Parsed since the quoted-comment fix and
+    # printed to a terminal that nobody kept, so the v0.1 MANIFEST names
+    # no GtoPdb release and no figure derived from this layer can say
+    # which one it came from. `published` is a date the source states
+    # about itself -- the only one in this project that is not a download
+    # mtime. Absent fields are omitted, never written as "unrecorded".
+    write_source(args.out, guidetopharmacology={
+        k: v for k, v in version.items() if v is not None} or None)
     print(f"\nwrote {args.out}  (source {GTOP_SOURCE})")
+    print(f"recorded GtoPdb release "
+          f"{version['release'] or 'unknown'} in {SOURCE_STAMP_NAME}")
     print("`gtop` sits above `hosttargets` in LAYER_PRECEDENCE, so its")
     print("curated action wins a direction conflict with ChEMBL's bulk rows.")
     return 0

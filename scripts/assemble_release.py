@@ -17,7 +17,7 @@ from kgav.assemble import (
     connectivity_report,
     orphan_detail,
 )
-from kgav.provenance import code_commit
+from kgav.provenance import code_commit, read_source
 from kgav.schema import load_schema, print_capped, report_violations
 
 
@@ -66,6 +66,29 @@ def _hash(path: Path) -> str:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()[:16]
+
+
+def source_block(layers: dict[str, Path]) -> dict:
+    """The MANIFEST's `sources` block: which release of which database.
+
+    The MANIFEST recorded a checksum per layer and a code commit and named
+    no source version anywhere, so on 2026-11-07 no figure in docs/ could
+    be traced to a GtoPdb, ORCS, NCATS, InterPro or RDKit release. Each
+    ingest writes what it read into its own layer (provenance.write_source
+    -> SOURCE.json); this collects them.
+
+    THE LAYERS THAT STATE NOTHING ARE LISTED BY NAME. A block holding only
+    the one layer that answers reads as the whole answer -- the absences
+    are the finding, and a reader should not have to diff this against
+    `layers` to find them. Today that list is every layer but gtop.
+    """
+    declared = {name: src for name, p in layers.items()
+                if (src := read_source(p))}
+    return {
+        "declared": declared,
+        "layers_declaring_no_source_version": sorted(
+            set(layers) - set(declared)),
+    }
 
 
 def main() -> int:
@@ -243,9 +266,11 @@ def main() -> int:
     manifest = a.manifest(
         {name: {"path": _rel(p, root),
                 "nodes_sha": _hash(p / "nodes.jsonl") if (p / "nodes.jsonl").exists() else None,
-                "edges_sha": _hash(p / "edges.jsonl") if (p / "edges.jsonl").exists() else None}
+                "edges_sha": _hash(p / "edges.jsonl") if (p / "edges.jsonl").exists() else None,
+                "sources": read_source(p)}
          for name, p in layers.items()},
         schema.version)
+    manifest["sources"] = source_block(layers)
     manifest["release"] = args.version
     manifest["hub_cut_degree"] = cut
     # WHAT BUILT IT. Every results file has carried code_commit since

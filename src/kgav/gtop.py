@@ -48,6 +48,7 @@ shifted field as a direction.
 from __future__ import annotations
 
 import csv
+import re
 from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -289,6 +290,37 @@ def _version_and_body(path: Path) -> tuple[str | None, list[str]]:
 def file_version(path: Path) -> str | None:
     """The GtoPdb release string a download declares, or None."""
     return _version_and_body(path)[0]
+
+
+# "GtoPdb Version: 2026.3.1 - published: 2026-10-12" -> the two facts in it.
+# Both groups optional and matched independently: a future download that
+# drops the date must still yield the release rather than nothing.
+_RELEASE_RE = re.compile(r"Version:\s*([0-9][0-9.]*)", re.I)
+_PUBLISHED_RE = re.compile(r"published:\s*(\d{4}-\d{2}-\d{2})", re.I)
+
+
+def parse_version(decl: str | None) -> dict[str, str | None]:
+    """The declaration split into {raw, release, published}.
+
+    THE PUBLISHED DATE IS THE ONE FIGURE OF ITS KIND IN THIS PROJECT.
+    Every other source's "release date" in the repo is a download mtime --
+    `string_release_date` is literally a file timestamp. GtoPdb states its
+    own publication date in the file, so this is the real thing, and it is
+    kept as a separate field rather than left inside a sentence where only
+    a human reading the MANIFEST could use it.
+
+    NOTHING IS GUESSED. A declaration that states a release and no date
+    gives `published: None`; a file with no declaration at all gives all
+    three None. A fabricated date in a provenance record is worse than an
+    absent one, because a reader cannot tell it from a real one.
+    """
+    if not decl:
+        return {"raw": None, "release": None, "published": None}
+    rel = _RELEASE_RE.search(decl)
+    pub = _PUBLISHED_RE.search(decl)
+    return {"raw": decl,
+            "release": rel.group(1) if rel else None,
+            "published": pub.group(1) if pub else None}
 
 
 def _rows(path: Path, required: tuple[str, ...]) -> list[dict]:
