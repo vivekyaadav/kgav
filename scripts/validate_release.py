@@ -40,6 +40,12 @@ def main() -> int:
     ap.add_argument("release_dir", type=Path)
     ap.add_argument("--schema", type=Path, default=None)
     ap.add_argument("--max-examples", type=int, default=5)
+    ap.add_argument("--expect", default=None, metavar="CODE=N,CODE=N",
+                    help="assert the violation census EXACTLY matches this, "
+                         "and exit 0 when it does. For the negative control: "
+                         "`make gate` plants known errors and has to prove the "
+                         "validator found those errors, not that this process "
+                         "failed somehow.")
     args = ap.parse_args()
 
     schema = load_schema(args.schema)
@@ -68,6 +74,42 @@ def main() -> int:
     # MEASURED_INACTIVE_AGAINST put protein nodes into the temporal negatives.
     violations = (schema.validate_metapaths() + schema.validate_labels()
                   + schema.validate_batch(nodes, edges))
+
+    # THE NEGATIVE CONTROL HAS TO NAME WHAT IT EXPECTS.
+    #
+    # `make gate` used to run this script on a release with planted errors
+    # and read ANY non-zero exit as "the validator rejected them". An
+    # ImportError, a missing smoke directory, a typo in the path, a schema
+    # that failed to load -- every one of those exits non-zero too, and the
+    # gate reported OK. For months the only thing it could prove is that
+    # this file does not exit 0, which is also what a broken file does.
+    #
+    # With --expect the gate makes a positive claim: these codes, these
+    # counts, nothing else. A crash cannot satisfy it, a planted error that
+    # stops being detected fails it, and a NEW violation appearing in the
+    # fixture fails it too rather than hiding behind a total.
+    if args.expect is not None:
+        want: Counter = Counter()
+        for part in args.expect.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            code, _, n = part.partition("=")
+            want[code.strip()] = int(n)
+        got = Counter(v.code for v in violations)
+        if got == want and not register:
+            print(f"\nNEGATIVE CONTROL PASS — found exactly the planted "
+                  f"violations: {dict(sorted(want.items()))}")
+            return 0
+        print("\nNEGATIVE CONTROL FAIL — the planted violations are not what "
+              "this release reports")
+        for code in sorted(set(want) | set(got)):
+            if want[code] != got[code]:
+                print(f"  {code:<28} expected {want[code]:>4}  found {got[code]:>4}")
+        if register:
+            print(f"  plus {len(register)} virus-register violation(s), "
+                  f"which the control does not allow")
+        return 1
 
     if not violations and not register:
         print("\nPASS — no violations")
