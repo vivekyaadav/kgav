@@ -41,6 +41,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 # TargetClass holding a cysteine and a serine protease came to take
 # whichever member was written last.
 from kgav.emit import Emit
+from kgav.mondo import load_labels
 
 PRO_RE = re.compile(r"^PRO_\d+$")
 # nsp11 is a short peptide with no known enzymatic role; kept for completeness.
@@ -252,8 +253,18 @@ def load_proteome(path: Path) -> list[dict]:
     return json.loads(raw).get("results", [])
 
 
-def ingest_virus(em: Emit, cfg: dict, defaults: dict, prov: dict, proteome_dir: Path) -> dict:
-    """Ingest one virus: taxon, genes, proteins, mature peptides, disease."""
+def ingest_virus(em: Emit, cfg: dict, defaults: dict, prov: dict,
+                 proteome_dir: Path,
+                 diseases: dict[str, dict] | None = None) -> dict:
+    """Ingest one virus: taxon, genes, proteins, mature peptides, disease.
+
+    `diseases` maps a MONDO curie to {"label", "causative_taxon"} and is
+    built once by build() from the config plus the MONDO release, because
+    neither fact is knowable from a single virus entry: the label belongs
+    to the disease and the causative taxon is only single-valued when one
+    virus claims the id. Omitted, the disease node is skipped and counted
+    -- an invented label is what this parameter exists to stop.
+    """
     tax, name = cfg["taxon"], cfg["name"]
     taxon_curie = f"NCBITaxon:{tax}"
     stats = Counter()
@@ -446,24 +457,101 @@ def ingest_virus(em: Emit, cfg: dict, defaults: dict, prov: dict, proteome_dir: 
 
     mondo = cfg.get("mondo")
     if mondo:
-        em.node(mondo, "Disease", label=f"{name} disease", is_infectious=True,
-                causative_taxon=taxon_curie)
-        em.edge(taxon_curie, "CAUSES", mondo,
-                source=prov["disease_source"], date="1970-01-01",
-                tier=prov["evidence_tier"], quals={"is_primary_agent": True})
-        stats["diseases"] += 1
+        # THE DISEASE'S OWN NAME, NOT THIS VIRUS'S.
+        #
+        # This was `label=f"{name} disease"`. em.node UPDATES properties on
+        # a repeated id, so for the two MONDO ids four viruses share, the
+        # label and the causative_taxon were whichever virus the config
+        # listed last: MONDO:0005709 came out "HCoV-HKU1 disease" and
+        # MONDO:0005502 "DENV-4 disease". Six of sixteen viruses pointed at
+        # a disease node named after a different virus, and the other four
+        # labels were invented where MONDO had a real one -- "SARS-CoV-2
+        # disease" for what the ontology calls COVID-19.
+        facts = (diseases or {}).get(mondo)
+        if facts is None:
+            em.notes[f"no_mondo_label:{mondo}"] += 1
+            stats["disease_unlabelled"] += 1
+        else:
+            props = {"label": facts["label"], "is_infectious": True}
+            # SINGLE-VALUED OR ABSENT. causative_taxon is one string, and
+            # the common cold has four causative agents in this graph. The
+            # CAUSES edges below record all of them; asserting one here
+            # would contradict the edges on the same node.
+            if facts.get("causative_taxon"):
+                props["causative_taxon"] = facts["causative_taxon"]
+            else:
+                stats["disease_multi_agent"] += 1
+            em.node(mondo, "Disease", **props)
+            em.edge(taxon_curie, "CAUSES", mondo,
+                    source=prov["disease_source"], date="1970-01-01",
+                    tier=prov["evidence_tier"], quals={"is_primary_agent": True})
+            stats["diseases"] += 1
     else:
         em.notes[f"no_mondo_curated:{name}"] += 1
 
     return stats
 
 
-def build(config_path: Path, proteome_dir: Path, out_dir: Path) -> Emit:
+def _default_mondo(config_path: Path) -> Path:
+    """data/raw/mondo/mondo.json, found from the repo root rather than cwd."""
+    return (Path(config_path).resolve().parents[1]
+            / "data" / "raw" / "mondo" / "mondo.json")
+
+
+def disease_facts(viruses: list[dict], mondo_path: Path) -> dict[str, dict]:
+    """{MONDO curie: {"label", "causative_taxon"}} for the configured ids.
+
+    Two facts, neither of which a single virus entry knows:
+
+      label             belongs to the disease. Read from the MONDO release
+                        rather than built from a virus name.
+      causative_taxon   set only when exactly ONE configured virus claims
+                        the id. Four viruses share MONDO:0005709 (common
+                        cold) and four share MONDO:0005502 (dengue
+                        disease), and the property holds one string.
+
+    An id MONDO does not define is left out, so the caller sees the gap.
+    """
+    claims: dict[str, list[str]] = {}
+    for v in viruses:
+        if v.get("mondo"):
+            claims.setdefault(v["mondo"], []).append(f"NCBITaxon:{v['taxon']}")
+    labels = load_labels(mondo_path, set(claims))
+    return {m: {"label": labels[m],
+                "causative_taxon": taxa[0] if len(taxa) == 1 else None}
+            for m, taxa in claims.items() if m in labels}
+
+
+def build(config_path: Path, proteome_dir: Path, out_dir: Path,
+          mondo_path: Path | None = None) -> Emit:
     cfg = yaml.safe_load(config_path.read_text())
     em = Emit()
 
+    # THE ONTOLOGY IS READ, not approximated. data/raw/mondo/mondo.json has
+    # been on disk since 2026-10-28 and the 2026-11-07 audit found no ingest
+    # opened it -- 107 MB carried along while the labels it holds were being
+    # invented from virus names. It parses in about a second.
+    #
+    # ABSENT, THE DISEASE NODES ARE SKIPPED AND NAMED, not labelled from the
+    # virus. That fallback is the defect; a build without the ontology is
+    # missing ten nodes, which is visible, rather than carrying ten wrong
+    # labels, which is not.
+    mondo_path = Path(mondo_path) if mondo_path else _default_mondo(config_path)
+    if mondo_path.exists():
+        diseases = disease_facts(cfg["viruses"], mondo_path)
+        print(f"  MONDO labels: {len(diseases)} of "
+              f"{len({v['mondo'] for v in cfg['viruses'] if v.get('mondo')})} "
+              f"configured id(s) resolved from {mondo_path}")
+    else:
+        diseases = {}
+        print(f"  ! no MONDO release at {mondo_path}: every Disease node will "
+              f"be SKIPPED.\n    Labelling them from the virus name is what "
+              f"made MONDO:0005709 read\n    'HCoV-HKU1 disease' when the "
+              f"ontology calls it 'common cold'.")
+
     for v in cfg["viruses"]:
-        s = ingest_virus(em, v, cfg["defaults"], cfg["provenance"], proteome_dir)
+        s = ingest_virus(em, v, cfg["defaults"], cfg["provenance"], proteome_dir,
+                         diseases)
         print(f"  {v['name']:<12} proteins={s['proteins']:<4} "
               f"mature={s['mature_peptides']:<4} genes={s['genes']:<4} "
               f"disease={s['diseases']}")
@@ -483,10 +571,15 @@ def main() -> int:
     ap.add_argument("--config", type=Path, default=root / "config" / "viruses.yaml")
     ap.add_argument("--proteomes", type=Path, default=root / "data" / "raw" / "proteomes")
     ap.add_argument("--out", type=Path, default=root / "data" / "releases" / "v0.1-spine")
+    ap.add_argument("--mondo", type=Path,
+                    default=root / "data" / "raw" / "mondo" / "mondo.json",
+                    help="MONDO ontology release the Disease labels come "
+                         "from. Absent, Disease nodes are skipped rather "
+                         "than labelled from the virus name.")
     args = ap.parse_args()
 
     print("building spine")
-    em = build(args.config, args.proteomes, args.out)
+    em = build(args.config, args.proteomes, args.out, args.mondo)
 
     print(f"\n{len(em.nodes):,} nodes, {len(em.edges):,} edges -> {args.out}")
     by_class = Counter(n["class"] for n in em.nodes.values())

@@ -178,10 +178,10 @@ DIRECTORY LAYOUT
                       for months and the schema has its own directory.
     schema/           kg_schema.yaml: node classes, predicates,
                       qualifiers, metapaths, held-out predicates
-    src/kgav/         27 modules plus __init__.py: one per source layer,
+    src/kgav/         28 modules plus __init__.py: one per source layer,
                       then assemble, emit, provenance, normalisation,
                       baselines, calibration, temporal, landscape,
-                      labels, channels, pipeline, schema.
+                      labels, channels, pipeline, schema, mondo.
                       There is no spine.py: the spine is built by
                       scripts/ingest_spine.py, so "one per source layer"
                       is true of the SCRIPTS and not of this directory.
