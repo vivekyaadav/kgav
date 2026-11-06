@@ -55,6 +55,23 @@ def main() -> int:
               "direction_unknown"):
         if s[k]:
             print(f"    {k.replace('direction_',''):<12} {s[k]:>7,}")
+    # WHAT KIND OF ASSAY, PER EDGE. "binding" was a constant on all 18,954.
+    print("  assay_type (from ChEMBL's own assay_type column):")
+    for k in sorted(k for k in s if k.startswith("assay_type_")):
+        print(f"    {k.removeprefix('assay_type_'):<12} {s[k]:>7,}")
+    # AND THE LIABILITY PANELS, BY NAME. A and T coded rows are ADMET and
+    # toxicity screens -- CYP3A4, CYP2D6, CYP2C9, hERG -- which become
+    # TARGETS edges indistinguishable from therapeutic target engagement
+    # and feed M2 through M6. Not dropped: inhibiting CYP3A4 at 100 nM is
+    # a true statement, and whether a repurposing route may walk through
+    # it is a judgement for whoever reads this number.
+    liab = s["row_chembl_assay_type_A"] + s["row_chembl_assay_type_T"]
+    if liab:
+        print(f"\n  ! {liab:,} source row(s) are ADMET or toxicity panels "
+              f"(ChEMBL A/T): mostly\n    CYP and hERG liability screens. "
+              f"They are emitted as TARGETS edges and\n    reach M2-M6 like "
+              f"any other. assay_type records which, nothing filters them.")
+
     # PUBLICATION COVERAGE, PRINTED. Every TARGETS edge in v0.1 carried no
     # publication, because the query selected docs.year and not
     # docs.pubmed_id. Nothing reported the absence, so it took an audit of
@@ -66,6 +83,10 @@ def main() -> int:
         if s["duplicate_added_publication"]:
             print(f"    {s['duplicate_added_publication']:,} citation(s) came "
                   f"from a row that collapsed into an existing edge")
+
+    if s["relation_imputed"]:
+        print(f"\n  {s['relation_imputed']:,} row(s) had no usable "
+              f"standard_relation and were recorded as exact")
 
     print("\n  dropped:")
     for k in ("no_inchikey", "target_not_in_graph", "unconvertible_units"):

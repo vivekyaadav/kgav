@@ -34,7 +34,7 @@ def db(tmp_path):
     CREATE TABLE target_dictionary(tid INT, chembl_id TEXT, target_type TEXT, tax_id INT);
     CREATE TABLE target_components(tid INT, component_id INT);
     CREATE TABLE component_sequences(component_id INT, accession TEXT);
-    CREATE TABLE assays(assay_id INT, tid INT, doc_id INT);
+    CREATE TABLE assays(assay_id INT, tid INT, doc_id INT, assay_type TEXT);
     CREATE TABLE docs(doc_id INT, year INT, pubmed_id INT);
     CREATE TABLE activities(activity_id INT, assay_id INT, molregno INT, standard_type TEXT,
       standard_value REAL, standard_units TEXT, standard_relation TEXT, pchembl_value REAL);
@@ -56,8 +56,13 @@ def db(tmp_path):
     # so activities 8 and 9 collapse into the edge activity 1 creates. Doc 1
     # carries no pubmed_id on purpose: an edge whose FIRST row is uncitable
     # must still gain the citations of the rows that collapse into it.
-    con.executemany("INSERT INTO assays VALUES(?,?,?)",
-                    [(1, 10, 1), (2, 11, 1), (3, 10, 2), (4, 10, 3)])
+    # assay_type is ChEMBL's own classification: B binding, F functional,
+    # A ADMET, T toxicity. One of each, because v0.1 wrote "binding" on all
+    # 18,954 edges while the rows behind them are 52,485 B, 4,936 F, 1,301 A
+    # and 95 T -- and a fixture with only B rows cannot see that.
+    con.executemany("INSERT INTO assays VALUES(?,?,?,?)",
+                    [(1, 10, 1, "B"), (2, 11, 1, "B"),
+                     (3, 10, 2, "F"), (4, 10, 3, "A")])
     con.executemany("INSERT INTO docs VALUES(?,?,?)",
                     [(1, 2019, None), (2, 2020, 22222222),
                      (3, 2021, 33333333)])
@@ -70,7 +75,11 @@ def db(tmp_path):
                      (6, 1, 4, "IC50", 5.0, "nM", "=", 8.3),
                      (7, 1, 1, "EC50", 9.0, "nM", "=", 5.1),
                      (8, 3, 1, "IC50", 60.0, "nM", "=", 7.2),
-                     (9, 4, 1, "IC50", 70.0, "nM", "=", 7.1)])
+                     (9, 4, 1, "IC50", 70.0, "nM", "=", 7.1),
+                     # New KEYS, from the F and A assays, so the per-edge
+                     # assay_type census has more than one value in it.
+                     (10, 3, 2, "Kd", 5.0, "nM", "=", 8.1),
+                     (11, 4, 2, "EC50", 3.0, "nM", "=", 8.5)])
     con.executemany("INSERT INTO drug_mechanism VALUES(?,?,?)",
                     [(1, 10, "INHIBITOR"), (2, 10, "AGONIST")])
     con.commit()
@@ -235,7 +244,9 @@ def test_an_uncitable_row_yields_an_edge_with_no_publications_key(built):
     em, stats, _ = built
     e = next(e for e in em.edges if "ki_nm" in e["qualifiers"])
     assert "publications" not in e
-    assert stats["no_publication"] == 1 and stats["with_publication"] == 1
+    # The Ki edge's only row is document 1, which has no pubmed_id.
+    assert stats["no_publication"] == 1
+    assert stats["with_publication"] == stats["edges"] - 1
 
 
 def test_the_counters_add_up_to_the_edges(built):
@@ -257,3 +268,100 @@ def test_the_row_order_the_first_row_wins_by_is_declared(db):
     ids = [r["compound"] for r in rows]
     assert ids == [r["compound"] for r in query_host_activities(db)]
     assert "ORDER BY" in inspect.getsource(query_host_activities)
+
+
+# ----------------------------------------------------------- what assay kind
+# ALL 18,954 EDGES IN v0.1 SAY assay_type: "binding", a constant written at
+# the emit site, while ChEMBL classifies the 58,817 rows behind them as
+# 52,485 B, 4,936 F, 1,301 A and 95 T. src/kgav/chembl.py had found the
+# identical bug in the antiviral layer -- "the ingest wrote 'biochemical' on
+# every protein row regardless" -- and this layer kept it.
+def test_assay_type_comes_from_chembl_not_from_a_constant(built):
+    em, _stats, _ = built
+    kinds = {e["qualifiers"]["assay_type"] for e in em.edges}
+    assert kinds != {"binding"}, "assay_type is still a constant"
+    assert kinds == {"binding", "biochemical", "other"}
+
+
+def test_the_mapping_is_from_chembl_s_code_not_from_standard_type(built):
+    """1,868 EC50 rows are B-coded and 1,426 IC50 rows are F-coded, so the
+    readout name does not determine the assay kind. A mapping from
+    standard_type -- which is what the fix list proposed -- would be wrong
+    in both directions at once."""
+    em, _stats, _ = built
+    # The fixture's EC50 row sits on an ADMET assay and its Kd on a
+    # functional one. Derived from standard_type, those would come out
+    # "binding" and "binding".
+    by_q = {k: e["qualifiers"]["assay_type"]
+            for e in em.edges for k in e["qualifiers"]
+            if k.endswith("_nm")}
+    assert by_q["ec50_nm"] == "other"
+    assert by_q["kd_nm"] == "biochemical"
+
+
+def test_admet_and_toxicity_rows_are_counted_and_not_silent(built):
+    """1,301 ADMET and 95 toxicity rows are CYP3A4, CYP2D6, CYP2C9 and hERG
+    liability panels. They become TARGETS edges indistinguishable from
+    therapeutic target engagement and feed M2-M6. Not dropped -- inhibiting
+    CYP3A4 at 100 nM is a true statement -- but a number nobody can see is
+    not a disclosure."""
+    _em, stats, _ = built
+    assert stats["row_chembl_assay_type_A"] == 2  # activities 9 and 11, on assay 4
+    # A PARTITION OF EVERY ROW THE QUERY RETURNED, counted before any gate
+    # -- the same population the 1,301 figure was measured over.
+    assert sum(v for k, v in stats.items()
+               if k.startswith("row_chembl_assay_type_")) == stats["rows"]
+
+
+def test_an_unknown_future_assay_code_becomes_other_and_is_counted(db, host):
+    """A code this mapping has never seen must not silently inherit the
+    previous row's value or default to 'binding'."""
+    con = sqlite3.connect(db)
+    con.execute("UPDATE assays SET assay_type = 'Z' WHERE assay_id = 1")
+    con.commit()
+    con.close()
+    index = AliasIndex.from_releases(host)
+    em = Emit()
+    stats = ingest_host_targets(em, query_host_activities(db), {},
+                                host_protein_ids(index), "infores:chembl")
+    assert stats["row_chembl_assay_type_Z"] > 0
+    assert all(e["qualifiers"]["assay_type"] in
+               ("binding", "biochemical", "cytotoxicity", "other")
+               for e in em.edges)
+
+
+def test_the_relation_coercion_is_counted(built):
+    """An absent standard_relation became "=" silently and was then
+    indistinguishable from a value ChEMBL stated as exact. Zero rows need
+    it on chembl_37 -- which is the point: a silent 0 and a silent 40,000
+    looked the same from here."""
+    _em, stats, _ = built
+    assert stats["relation_imputed"] == 0
+
+
+def test_a_missing_relation_is_imputed_and_says_so(db, host):
+    con = sqlite3.connect(db)
+    con.execute("UPDATE activities SET standard_relation = NULL "
+                "WHERE activity_id = 1")
+    con.commit()
+    con.close()
+    index = AliasIndex.from_releases(host)
+    em = Emit()
+    stats = ingest_host_targets(em, query_host_activities(db), {},
+                                host_protein_ids(index), "infores:chembl")
+    assert stats["relation_imputed"] == 1
+    assert all(e["qualifiers"]["relation"] in ("=", ">", "<", ">=", "<=", "~")
+               for e in em.edges)
+
+
+def test_every_emitted_assay_type_is_in_the_schema_enum():
+    """The schema's assay_type vocabulary was written around antiviral
+    assays, so its cellular members all say "antiviral" -- which a CYP3A4
+    measurement is not. Checked against the schema rather than a list kept
+    here, so a vocabulary change cannot leave this layer writing a value
+    the release will reject."""
+    from kgav.host_targets import CHEMBL_ASSAY_TYPE
+    from kgav.schema import load_schema
+    allowed = set(load_schema().enums["assay_type"])
+    assert set(CHEMBL_ASSAY_TYPE.values()) <= allowed, (
+        f"{set(CHEMBL_ASSAY_TYPE.values()) - allowed} not in the schema enum")

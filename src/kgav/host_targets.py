@@ -23,6 +23,13 @@ Deliberately NOT restricted to compounds already in the graph. Repurposing
 means proposing drugs nobody tested against the virus; limiting the pool to
 compounds someone already assayed defeats the purpose.
 
+assay_type IS READ, NOT ASSERTED, as of 2026-11-07. All 18,954 edges in
+v0.1 say `assay_type: "binding"` -- a constant at the emit site -- while
+ChEMBL classifies the rows behind them as 52,485 binding, 4,936
+functional, 1,301 ADMET and 95 toxicity. See CHEMBL_ASSAY_TYPE below for
+the mapping and for the 1,301 ADMET rows, which are CYP and hERG
+liability panels that have been feeding M2-M6 as target engagement.
+
 EVERY EDGE CARRIES ITS PUBLICATIONS, as of 2026-11-07. It carried none
 before: `d.year` was selected and `d.pubmed_id` was not, so all 18,954
 TARGETS edges in v0.1 are unciteable -- the only predicate in the graph
@@ -72,6 +79,50 @@ ACTION_TO_DIRECTION = {
 }
 
 QUANT_FIELD = {"IC50": "ic50_nm", "EC50": "ec50_nm", "Ki": "ki_nm", "Kd": "kd_nm"}
+
+# ChEMBL's OWN assay classification -> the schema's assay_type enum.
+#
+# All 18,954 TARGETS edges in v0.1 say `assay_type: "binding"`, a constant
+# written at the emit site. ChEMBL classifies the 58,817 rows behind them
+# as 52,485 B, 4,936 F, 1,301 A and 95 T, so the constant is wrong on
+# 6,332 of them. src/kgav/chembl.py found the identical bug in the
+# antiviral layer -- "the ingest wrote 'biochemical' on every protein row
+# regardless" -- and the fix there was to stop asserting and start
+# reading. Same fix, same reason.
+#
+# NOT DERIVED FROM standard_type, which is what the fix list proposed:
+# 1,868 EC50 rows are B-coded and 1,426 IC50 rows are F-coded, so the
+# readout name does not determine the assay kind and a mapping from it
+# would be wrong in both directions at once.
+#
+# F -> biochemical IS THE ONE JUDGEMENT HERE. ChEMBL's F is a functional
+# (activity) assay, cell-based or enzymatic; `biochemical` is this
+# schema's only in-vitro activity member, because the vocabulary was
+# written around antiviral assays and its cellular members all say
+# "antiviral", which a CYP3A4 measurement is not. `other` would be the
+# alternative and would throw away the 4,936/52,485 split. The gap is
+# real and is recorded in the fix list rather than papered over by
+# picking a wrong-but-specific value.
+#
+# A -> other is NOT a tidy-up, it is a finding. 1,301 of these rows are
+# ADMET liability panels: CYP3A4 (247), CYP2D6 (125), CYP2C9 (92), hERG
+# (64 as T), CYP2C19, CYP2J2, CYP2B6, aldehyde oxidase. Every one became
+# a TARGETS edge indistinguishable from therapeutic target engagement and
+# fed M2-M6. They are counted and named at ingest now, not dropped:
+# inhibiting CYP3A4 at 100 nM is a true statement about the compound, and
+# whether a repurposing route may walk through it is a judgement for the
+# person reading the census, not for this mapping.
+CHEMBL_ASSAY_TYPE = {
+    "B": "binding",
+    "F": "biochemical",
+    "T": "cytotoxicity",
+    "A": "other",
+}
+
+# ChEMBL's letter codes, for the census the driver prints.
+CHEMBL_ASSAY_LABEL = {
+    "B": "binding", "F": "functional", "A": "ADMET", "T": "toxicity",
+}
 VALID_RELATIONS = {"=", ">", "<", ">=", "<=", "~"}
 
 DEFAULT_MIN_PCHEMBL = 6.0
@@ -120,6 +171,7 @@ def query_host_activities(db: Path, min_pchembl: float = DEFAULT_MIN_PCHEMBL,
                cs.accession,
                act.standard_type, act.standard_value, act.standard_units,
                act.standard_relation, act.pchembl_value,
+               a.assay_type AS chembl_assay_type,
                d.year, d.pubmed_id
         FROM activities act
         JOIN assays a            ON act.assay_id = a.assay_id
@@ -170,6 +222,16 @@ def ingest_host_targets(em, rows: list[dict], mechanisms: dict[tuple[str, str], 
 
     for r in rows:
         stats["rows"] += 1
+        # ROW-level, named so: the per-EDGE census is in the emit loop. The
+        # direction counters conflated the two until 2026-11-07 and printed
+        # a census summing to the source rows beneath an edge count.
+        #
+        # Counted BEFORE any gate, so this census covers exactly the
+        # population the ADMET measurement was taken over and
+        # sum(row_chembl_assay_type_*) == rows is an assertable partition.
+        code = (r.get("chembl_assay_type") or "").upper()
+        assay_type = CHEMBL_ASSAY_TYPE.get(code, "other")
+        stats[f"row_chembl_assay_type_{code or 'none'}"] += 1
         inchikey, acc = r.get("inchikey"), r.get("accession")
         if not inchikey:
             stats["no_inchikey"] += 1
@@ -183,10 +245,23 @@ def ingest_host_targets(em, rows: list[dict], mechanisms: dict[tuple[str, str], 
         if nm is None:
             stats["unconvertible_units"] += 1
             continue
-        relation = r["standard_relation"] if r["standard_relation"] in VALID_RELATIONS else "="
+        # THE COERCION IS COUNTED, which it was not. An absent or unexpected
+        # standard_relation became "=" silently and was then indistinguishable
+        # from a value ChEMBL actually stated as exact. Measured on chembl_37:
+        # ZERO of the 58,817 rows need it -- every one states "=" -- so the
+        # count is 0 today and the branch is a guard against a future release,
+        # not a description of this one. Worth the two lines precisely because
+        # a silent 0 and a silent 40,000 looked the same from here.
+        given = r["standard_relation"]
+        if given in VALID_RELATIONS:
+            relation = given
+        else:
+            relation = "="
+            stats["relation_imputed"] += 1
         if relation != "=":
             # pChEMBL >= 6 already excludes most censored rows, but a '<'
             # relation on a potent value is a real lower bound worth keeping.
+            # Also zero on chembl_37, for the same reason.
             stats["censored"] += 1
 
         drug = f"INCHIKEY:{inchikey}"
@@ -228,7 +303,7 @@ def ingest_host_targets(em, rows: list[dict], mechanisms: dict[tuple[str, str], 
             "quals": {QUANT_FIELD[r["standard_type"]]: nm,
                       "relation": relation,
                       "direction": direction,
-                      "assay_type": "binding"},
+                      "assay_type": assay_type},
             "pmids": {cite} if cite else set(),
         }
         stats["edges"] += 1
@@ -241,6 +316,7 @@ def ingest_host_targets(em, rows: list[dict], mechanisms: dict[tuple[str, str], 
         # test_direction_defaults_to_unknown_not_inhibitor only held
         # because its fixture had no duplicates to expose it.
         stats[f"direction_{rec['quals']['direction']}"] += 1
+        stats[f"assay_type_{rec['quals']['assay_type']}"] += 1
         if rec["pmids"]:
             stats["with_publication"] += 1
         else:
