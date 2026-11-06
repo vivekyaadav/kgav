@@ -267,7 +267,20 @@ def measured_reach(results: Path, release: Path) -> dict[str, int] | None:
     was "unknown", when it is known and is zero. One owner now, read by
     the audit and by guards.VirusRoutes alike.
     """
-    path = Path(results) / "metapath_comparison.json"
+    # A DIRECTORY, AND THIS REFUSES ANYTHING ELSE. None means "this cannot
+    # be known", and every branch below returns it for a reason a reader of
+    # the output can act on: the file is absent, stale, or unreadable. A
+    # caller that passed a FILE here -- scripts/kgav_ask.py did, for weeks,
+    # because --results names a results file -- got the same None, so the
+    # miswiring was indistinguishable from an honest absence and the agent
+    # reported every virus's reach as unmeasured. That is a bug in the
+    # caller, not a fact about the data, and it is now loud.
+    results = Path(results)
+    if results.exists() and not results.is_dir():
+        raise ValueError(
+            f"measured_reach wants the results DIRECTORY, not a file in it: "
+            f"got {results}. Pass {results.parent} instead.")
+    path = results / "metapath_comparison.json"
     if not path.exists():
         return None
     status, _msg = check_file(path, release)

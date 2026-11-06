@@ -70,8 +70,16 @@ def render(out: dict, verification=None, brief_only: bool = False) -> str:
     return "\n".join(lines)
 
 
-def main() -> int:
-    root = Path(__file__).resolve().parents[1]
+def build_parser(root: Path) -> argparse.ArgumentParser:
+    """The CLI surface, separate from main() so the DEFAULTS are testable.
+
+    Built inside main() until 2026-11-07, which is why --results could sit
+    for weeks pointing a directory-shaped argument at a file: every unit
+    test of the consumer passed it a directory, because the author of the
+    test knew what it wanted. Nothing could assert what the CLI passes
+    without running the whole agent. tests/test_agent_cli_wiring.py now
+    does, against these defaults rather than against a copy of them.
+    """
     ap = argparse.ArgumentParser(description="Query the kgav graph.")
     ap.add_argument("question", nargs="+")
     ap.add_argument("--release", type=Path, default=root / "data/releases/v0.1")
@@ -101,7 +109,12 @@ def main() -> int:
                          "holds (default). --no-all-viruses loads only "
                          "--virus-label, which is how this behaved when an "
                          "agent asked about Zika could quote SARS-CoV-2's AUC.")
-    args = ap.parse_args()
+    return ap
+
+
+def main() -> int:
+    root = Path(__file__).resolve().parents[1]
+    args = build_parser(root).parse_args()
     question = " ".join(args.question)
 
     if not (args.release / "nodes.jsonl").exists():
@@ -144,7 +157,19 @@ def main() -> int:
     # way: a metapath_comparison.json that is absent, stale or stamped
     # for another release gives None, and the agent then says reach is
     # unmeasured instead of asserting it is zero.
-    reach = measured_reach(args.results, args.release)
+    #
+    # .parent BECAUSE --results IS A FILE AND THIS WANTS THE DIRECTORY.
+    # hard_negatives.json is one run in data/results; metapath_comparison
+    # .json is another, and measured_reach reads the second by name. Passed
+    # args.results, it looked for
+    # data/results/hard_negatives.json/metapath_comparison.json, which
+    # cannot exist -- so the agent reported reach as unmeasured on every
+    # question ever asked of it, including the five viruses whose reach is
+    # measured and is zero, which is the exact caveat measured_reach was
+    # written to stop. Returning None for both "absent" and "you handed me
+    # the wrong kind of path" is what hid it; labels.measured_reach now
+    # refuses the second rather than reporting it as the first.
+    reach = measured_reach(args.results.parent, args.release)
     if reach is None:
         print("note: metapath_comparison.json is absent, stale or stamped "
               "for another release; whether a route reaches a label will be "
