@@ -55,10 +55,27 @@ def main() -> int:
               "direction_unknown"):
         if s[k]:
             print(f"    {k.replace('direction_',''):<12} {s[k]:>7,}")
+    # PUBLICATION COVERAGE, PRINTED. Every TARGETS edge in v0.1 carried no
+    # publication, because the query selected docs.year and not
+    # docs.pubmed_id. Nothing reported the absence, so it took an audit of
+    # the assembled release to find it. A run now states its own coverage.
+    cited, uncited = s["with_publication"], s["no_publication"]
+    if cited or uncited:
+        print(f"\n  publications: {cited:,} of {cited + uncited:,} edges "
+              f"cite at least one PMID ({cited / (cited + uncited):.1%})")
+        if s["duplicate_added_publication"]:
+            print(f"    {s['duplicate_added_publication']:,} citation(s) came "
+                  f"from a row that collapsed into an existing edge")
+
     print("\n  dropped:")
-    for k in ("no_inchikey", "target_not_in_graph", "unconvertible_units", "duplicate"):
+    for k in ("no_inchikey", "target_not_in_graph", "unconvertible_units"):
         if s[k]:
             print(f"    {k:<22} {s[k]:>7,}")
+    # NOT UNDER "dropped" ANY MORE. A duplicate row is collapsed into the
+    # edge the first row created and contributes its PMID to it; calling
+    # that a drop is what made losing its citation look like nothing.
+    if s["duplicate"]:
+        print(f"\n  collapsed into an existing edge: {s['duplicate']:,}")
 
     # How many TARGETS land on a coronavirus dependency factor -- this is the
     # number that decides whether M2 produces paths at all.

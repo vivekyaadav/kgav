@@ -23,6 +23,21 @@ Deliberately NOT restricted to compounds already in the graph. Repurposing
 means proposing drugs nobody tested against the virus; limiting the pool to
 compounds someone already assayed defeats the purpose.
 
+EVERY EDGE CARRIES ITS PUBLICATIONS, as of 2026-11-07. It carried none
+before: `d.year` was selected and `d.pubmed_id` was not, so all 18,954
+TARGETS edges in v0.1 are unciteable -- the only predicate in the graph
+with zero publication coverage, while 86.1% of the rows behind them
+(50,627 of 58,817, over 10,737 distinct documents) name a PMID in the
+same `docs` row the date already came from. An agent asked for evidence
+on a host-directed route could show a potency and no source for it.
+
+THE PMIDS ARE UNIONED ACROSS THE ROWS THAT COLLAPSE INTO ONE EDGE. The
+key is (compound, target, assay type) and about three source rows share
+one, so taking the first row's PMID would report one paper for an edge
+measured in several. Everything else about the edge still comes from the
+first row seen, unchanged: this commit adds publications and moves
+nothing else.
+
 DIRECTION IS 'unknown' BY DEFAULT, and that is not laziness. Inhibiting a
 dependency factor should block infection; ACTIVATING one should not. ChEMBL's
 bulk activity table records potency, not whether the compound is an agonist or
@@ -86,6 +101,17 @@ def load_mechanisms(db: Path) -> dict[tuple[str, str], str]:
 
 def query_host_activities(db: Path, min_pchembl: float = DEFAULT_MIN_PCHEMBL,
                           min_phase: int = DEFAULT_MIN_PHASE) -> list[dict]:
+    """Human single-protein potency rows for compounds at phase >= min_phase.
+
+    ORDER BY IS LOAD BEARING, not tidiness. About three rows share each
+    (compound, target, assay type) key and the first one seen sets the
+    edge's value, relation, direction and date while the rest only add
+    citations. Unordered, which row that is comes from the query planner,
+    so two rebuilds of the same database could give one edge two different
+    potencies and two different dates -- and the second would land in a
+    different half of a temporal split. activity_id is ChEMBL's own
+    insertion order and is stable across its releases for existing rows.
+    """
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     con.row_factory = sqlite3.Row
     rows = con.execute("""
@@ -94,7 +120,7 @@ def query_host_activities(db: Path, min_pchembl: float = DEFAULT_MIN_PCHEMBL,
                cs.accession,
                act.standard_type, act.standard_value, act.standard_units,
                act.standard_relation, act.pchembl_value,
-               d.year
+               d.year, d.pubmed_id
         FROM activities act
         JOIN assays a            ON act.assay_id = a.assay_id
         JOIN target_dictionary t ON a.tid = t.tid
@@ -108,6 +134,7 @@ def query_host_activities(db: Path, min_pchembl: float = DEFAULT_MIN_PCHEMBL,
           AND act.pchembl_value >= ?
           AND md.max_phase >= ?
           AND act.standard_type IN ('IC50','EC50','Ki','Kd')
+        ORDER BY act.activity_id
     """, (min_pchembl, min_phase)).fetchall()
     con.close()
     return [dict(r) for r in rows]
@@ -135,7 +162,11 @@ def ingest_host_targets(em, rows: list[dict], mechanisms: dict[tuple[str, str], 
     this pass has no proteome data for.
     """
     stats: Counter = Counter()
-    seen: set[tuple] = set()
+    # key -> the edge's arguments, with publications accumulated. A set
+    # rather than a counter: two rows citing the same paper are one piece
+    # of evidence, and sorted() below makes the output order stable so a
+    # rebuild that changes nothing produces an identical edges.jsonl.
+    pending: dict[tuple, dict] = {}
 
     for r in rows:
         stats["rows"] += 1
@@ -172,26 +203,52 @@ def ingest_host_targets(em, rows: list[dict], mechanisms: dict[tuple[str, str], 
 
         action = mechanisms.get((r["compound"], acc))
         direction = ACTION_TO_DIRECTION.get((action or "").upper(), "unknown")
-        if direction != "unknown":
-            stats[f"direction_{direction}"] += 1
-        else:
-            stats["direction_unknown"] += 1
+
+        pmid = r.get("pubmed_id")
+        cite = f"PMID:{int(pmid)}" if pmid else None
 
         key = (drug, target, r["standard_type"])
-        if key in seen:
+        prev = pending.get(key)
+        if prev is not None:
+            # NOT `continue`. A duplicate row is a second measurement of the
+            # same pair and it has its own paper; the edge keeps the first
+            # row's value, relation, direction and date, and gains the
+            # citation. Dropping the row outright is what left edges
+            # measured in four papers citing one.
             stats["duplicate"] += 1
+            if cite and cite not in prev["pmids"]:
+                prev["pmids"].add(cite)
+                stats["duplicate_added_publication"] += 1
             continue
-        seen.add(key)
 
-        em.edge(drug, "TARGETS", target,
-                source=source,
-                date=f"{int(r['year'])}-01-01" if r.get("year") else "1970-01-01",
-                tier=1,
-                quals={QUANT_FIELD[r["standard_type"]]: nm,
-                       "relation": relation,
-                       "direction": direction,
-                       "assay_type": "binding"})
+        pending[key] = {
+            "drug": drug, "target": target,
+            "date": (f"{int(r['year'])}-01-01" if r.get("year")
+                     else "1970-01-01"),
+            "quals": {QUANT_FIELD[r["standard_type"]]: nm,
+                      "relation": relation,
+                      "direction": direction,
+                      "assay_type": "binding"},
+            "pmids": {cite} if cite else set(),
+        }
         stats["edges"] += 1
+
+    for rec in pending.values():
+        # PER EDGE, NOT PER ROW. Counted in the row loop until 2026-11-07,
+        # where three rows that collapse into one edge each added one --
+        # so the driver printed a direction census summing to the ~58,000
+        # source rows directly beneath "18,954 TARGETS edges", and
+        # test_direction_defaults_to_unknown_not_inhibitor only held
+        # because its fixture had no duplicates to expose it.
+        stats[f"direction_{rec['quals']['direction']}"] += 1
+        if rec["pmids"]:
+            stats["with_publication"] += 1
+        else:
+            stats["no_publication"] += 1
+        em.edge(rec["drug"], "TARGETS", rec["target"],
+                source=source, date=rec["date"], tier=1,
+                quals=rec["quals"],
+                pmids=sorted(rec["pmids"]) or None)
 
     return stats
 
