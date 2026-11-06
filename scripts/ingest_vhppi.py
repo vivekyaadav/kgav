@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.aliases import AliasIndex
 from kgav.emit import Emit
+from kgav.temporal import PLACEHOLDER_DATE
 from kgav.vhppi import file_source, file_taxon, ingest_mitab, slug
 from kgav.virus_register import declared_taxa, ppi_accession_map
 
@@ -153,8 +154,23 @@ def main() -> int:
     ap.add_argument("--spine", type=Path, default=root / "data" / "releases" / "v0.1-spine")
     ap.add_argument("--host", type=Path, default=root / "data" / "releases" / "v0.1-host")
     ap.add_argument("--out", type=Path, default=root / "data" / "releases" / "v0.1-vhppi")
-    ap.add_argument("--date", default="2024-01-01",
-                    help="fallback first_asserted_date when a row has no PMID year")
+    # IT IS A FALLBACK NOW. It was documented as one and applied to every
+    # row, so all 12,514 edges in this layer were dated 2024-01-01 and 0 of
+    # them survive a 2021 temporal cut -- M3 and M5 had nothing to traverse
+    # in any training graph, and nothing reported it because 2024-01-01 is
+    # a well-formed date. Each edge is now dated by the publication year
+    # the MITAB author field carries, and this is used only for a row that
+    # has none.
+    #
+    # DEFAULTS TO THE PLACEHOLDER, not to a plausible date. 13,092 of the
+    # 38,084 raw rows come from VirHostNet, which writes "-" in that field;
+    # the placeholder routes them through temporal.undated_policy, which
+    # exists to make that choice explicit per run. Any other default makes
+    # the choice here, silently, for a third of the layer.
+    ap.add_argument("--date", default=PLACEHOLDER_DATE, metavar="YYYY-MM-DD",
+                    help="first_asserted_date for a row whose file carries no "
+                         "publication year (default: the 1970 undated "
+                         "placeholder, which temporal.undated_policy handles)")
     args = ap.parse_args()
 
     print("loading spine + host as the resolution index")
@@ -253,7 +269,7 @@ def main() -> int:
         if not fs:
             continue
         part = ingest_mitab(em, fs, index, taxon_map,
-                            source=src, default_date=args.date,
+                            source=src, undated_date=args.date,
                             per_file=per_file, accession_map=acc_map,
                             seen=seen)
         # TWO NUMBERS, BECAUSE ONE OF THEM DEPENDS ON THE ORDER. `new`

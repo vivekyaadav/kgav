@@ -931,3 +931,101 @@ def test_a_source_that_is_merely_covered_is_not_flagged(tmp_path, world):
                       {"vhn_a.tab27": line, "imex_b.tab27": line})
     assert "already seen" in out, out
     assert "NOTHING FROM THIS SOURCE SURVIVED" not in out
+
+
+# ------------------------------------------------------- the publication year
+# EVERY ONE OF THE 20,895 EDGES IN THIS LAYER WAS DATED 2024-01-01, from
+# --date, whose help text called it a "fallback first_asserted_date when a
+# row has no PMID year" while it was applied to every row. The effect was
+# total: 0 of 20,895 survive a 2021 temporal cut, so M3 and M5 -- the only
+# two metapaths that need virus-host interactions -- had nothing to
+# traverse in any training graph. Nothing reported it, because 2024-01-01
+# is a well-formed date and the layer's own counters never mentioned dates.
+#
+# 66 tests in this file passed throughout, every one of them pinning the
+# constant it was handed.
+from kgav.temporal import PLACEHOLDER_DATE  # noqa: E402
+from kgav.vhppi import _pub_year  # noqa: E402
+
+
+@pytest.mark.parametrize("field,year", [
+    ("Le et al. (2010)", 2010),
+    ("Gordon et al. (2020)", 2020),
+    ("-", None),                      # VirHostNet writes this, 13,092 rows
+    ("", None),
+    ("Smith et al.", None),
+    ("Smith et al. (12)", None),      # not a year
+    ("Smith et al. (1799)", None),    # implausible, so not trusted
+    ("Smith et al. (2031)", None),
+    ("von Brunn et al. (2007) and others (2019)", 2007),
+])
+def test_the_year_is_read_from_the_author_field(field, year):
+    assert _pub_year(field) == year
+
+
+@pytest.fixture
+def vhppi_index(world):
+    """The resolution index alone, for rows written by these tests rather
+    than by the `world` fixture's file."""
+    return AliasIndex.from_releases(world / "spine", world / "host")
+
+
+def _mitab(author="Le et al. (2010)", a=ACE2, b=ORF7A):
+    """One row through the same builder the rest of this file uses, with
+    MITAB field 8 -- "Publication 1st author(s)" -- filled in. _row leaves
+    it "-", which is how 66 tests ran without the year path existing."""
+    f = _row(a, b, "MI:0397", 22014111, "9606", "2697049",
+             "MI:0915", 0.37).split("\t")
+    f[7] = author
+    return "\t".join(f)
+
+
+def test_an_edge_is_dated_by_its_publication_not_by_the_fallback(tmp_path,
+                                                                 vhppi_index):
+    p = tmp_path / "imex_x.tab27"
+    p.write_text(_mitab() + "\n")
+    em = Emit()
+    stats = ingest_mitab(em, [p], vhppi_index, {"2697049": "2697049"},
+                         "infores:intact", "2099-01-01")
+    assert stats["edges"] == 1
+    assert em.edges[0]["first_asserted_date"] == "2010-01-01"
+    assert stats["dated_from_publication"] == 1
+    assert stats["undated_no_publication_year"] == 0
+
+
+def test_a_row_the_file_does_not_date_is_undated_not_given_a_date(tmp_path,
+                                                                  vhppi_index):
+    """VirHostNet writes "-" in the author field for all 11,644 of its
+    surviving edges. Asserting any specific date for those is fabrication;
+    the placeholder routes them through temporal.undated_policy, which
+    exists to make that choice explicit per run."""
+    p = tmp_path / "vhn_x.tab27"
+    p.write_text(_mitab(author="-") + "\n")
+    em = Emit()
+    stats = ingest_mitab(em, [p], vhppi_index, {"2697049": "2697049"},
+                         "infores:virhostnet")
+    assert em.edges[0]["first_asserted_date"] == PLACEHOLDER_DATE
+    assert stats["undated_no_publication_year"] == 1
+    assert stats["dated_from_publication"] == 0
+
+
+def test_the_fallback_is_only_used_for_an_undated_row(tmp_path, vhppi_index):
+    """The contract --date always claimed and never had."""
+    p = tmp_path / "mixed.tab27"
+    p.write_text(_mitab() + "\n"
+                 + _mitab(author="-", a=TMPRSS2) + "\n")
+    em = Emit()
+    ingest_mitab(em, [p], vhppi_index, {"2697049": "2697049"},
+                 "infores:intact", "2099-01-01")
+    dates = sorted(e["first_asserted_date"] for e in em.edges)
+    assert dates == ["2010-01-01", "2099-01-01"]
+
+
+def test_the_cli_fallback_defaults_to_the_placeholder():
+    """Any other default makes a temporal decision for a third of the layer
+    silently, which is the bug this item is. Checked at the source so a
+    release built before the change cannot satisfy it."""
+    src = (Path(__file__).resolve().parents[1]
+           / "scripts" / "ingest_vhppi.py").read_text()
+    assert 'default=PLACEHOLDER_DATE' in src
+    assert '"2024-01-01"' not in src

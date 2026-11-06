@@ -72,11 +72,24 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+# ONE DEFINITION OF "UNDATED". temporal.PLACEHOLDER_DATE is what
+# temporal.edge_year and undated_policy test against, so a second copy of
+# the string here is a second definition that could drift out of step with
+# the code that reads it. kgav.temporal does not import this module.
+from kgav.temporal import PLACEHOLDER_DATE
+
 MI_RE = re.compile(r'psi-mi:"?(MI:\d+)"?')
 PRO_RE = re.compile(r"(PRO_\d+)")
 ACC_RE = re.compile(r"uniprotkb:([A-Z0-9]+)(?:-PRO_\d+)?", re.IGNORECASE)
 TAXID_RE = re.compile(r"taxid:(-?\d+)")
 PMID_RE = re.compile(r"pubmed:(\d+)")
+# MITAB field 8 is "Publication 1st author(s)" and IMEx writes it as
+# "Le et al. (2010)". The publication year is in every IMEx row and was
+# not parsed, which is why all 12,514 virus-host edges carried the
+# --date default instead. VirHostNet writes "-" there, so 13,092 of the
+# 38,084 raw rows have no year in the file at all; those become undated
+# rather than being given a date nothing supports.
+PUB_YEAR_RE = re.compile(r"\((\d{4})\)")
 SCORE_RE = re.compile(r"miscore:([0-9.]+)")
 # MITAB column 12, "Source database(s)": psi-mi:"MI:0471"(MINT). The name
 # in parentheses is the curator's own, so the label is DERIVED from the
@@ -111,6 +124,15 @@ def parse_identifier(col: str) -> str | None:
     return f"UniProtKB:{acc}" if acc else None
 
 
+def _pub_year(field: str) -> int | None:
+    """The 4-digit year in a MITAB author field, if there is a plausible one."""
+    m = PUB_YEAR_RE.search(field or "")
+    if not m:
+        return None
+    y = int(m.group(1))
+    return y if 1980 <= y <= 2030 else None
+
+
 def parse_row(line: str) -> dict | None:
     f = line.rstrip("\n").split("\t")
     if len(f) < 15:
@@ -119,6 +141,10 @@ def parse_row(line: str) -> dict | None:
         "a": parse_identifier(f[0]),
         "b": parse_identifier(f[1]),
         "detection_method": _first(MI_RE, f[6]),
+        # The curator's own publication year. Range-checked rather than
+        # trusted: field 8 is free text and a parenthesised number in an
+        # author list is not necessarily a year.
+        "pub_year": _pub_year(f[7]),
         "pmid": _first(PMID_RE, f[8]),
         "taxid_a": _first(TAXID_RE, f[9]),
         "taxid_b": _first(TAXID_RE, f[10]),
@@ -318,7 +344,7 @@ def file_taxon(path, by_stem: dict[str, str],
 
 
 def ingest_mitab(em, paths: list[Path], index, taxon_map: dict[str, str],
-                 source: str, default_date: str,
+                 source: str, undated_date: str = PLACEHOLDER_DATE,
                  per_file: dict | None = None,
                  accession_map: dict[str, str] | None = None,
                  seen: set | None = None) -> Counter:
@@ -420,8 +446,36 @@ def ingest_mitab(em, paths: list[Path], index, taxon_map: dict[str, str],
             fstats[f"src:{curator}"] += 1
             if not r.get("source_db"):
                 stats["source_db_absent"] += 1
+            # THE CURATOR'S PUBLICATION YEAR, NOT A CONSTANT.
+            #
+            # Every one of the 12,514 edges in this layer carried
+            # --date's default of 2024-01-01, whose help text called it a
+            # "fallback first_asserted_date when a row has no PMID year"
+            # while it was applied to every row. The effect on the
+            # evaluation was total: 0 of 12,514 survive a 2021 temporal
+            # cut, so M3 and M5 -- the two metapaths that need
+            # virus-host interactions -- have nothing to traverse in any
+            # training graph, and nothing said so because 2024-01-01 is
+            # a well-formed date.
+            #
+            # A ROW THE FILE DOES NOT DATE IS UNDATED, not 2024. The
+            # placeholder routes it through temporal.undated_policy,
+            # which exists for exactly this and makes the choice
+            # explicit per run; a fabricated 2024 made the choice
+            # silently and in one direction. 13,092 of the 38,084 raw
+            # rows are VirHostNet, which writes "-" in the author field.
+            if r.get("pub_year"):
+                # -01-01 fabricates month and day, as the ChEMBL layers
+                # do. Year resolution is all the source gives and the
+                # temporal split works in years; fix list item C10
+                # covers carrying year-only dates as years.
+                edge_date = f"{int(r['pub_year'])}-01-01"
+                stats["dated_from_publication"] += 1
+            else:
+                edge_date = undated_date
+                stats["undated_no_publication_year"] += 1
             em.edge(host, "PHYSICALLY_INTERACTS_WITH", viral,
-                    source=curator, date=default_date, tier=1, quals=quals,
+                    source=curator, date=edge_date, tier=1, quals=quals,
                     pmids=[f"PMID:{r['pmid']}"] if r["pmid"] else None,
                     score=float(r["score"]) if r["score"] else None)
             stats["edges"] += 1
