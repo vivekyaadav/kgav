@@ -143,6 +143,40 @@ def normalize_chemical(structure: str, *, canonical_tautomer: bool = True) -> Ch
     )
 
 
+#: Length of an InChIKey's first block. The grouping key: salts,
+#: stereoisomers and tautomers of one compound share it, which is what
+#: same_as_rule below says in words. src/kgav/gtop.py has its own
+#: SKELETON_LEN for the same 14; that is a second constant for one fact.
+SKELETON_LEN = 14
+
+
+def skeleton_of_id(node_id: str) -> str | None:
+    """The InChIKey skeleton an `INCHIKEY:` node id carries, or None.
+
+    WHY THIS IS NEEDED AWAY FROM A ChemId. similarity.py compares node ids
+    and has no ChemId to hand, and it treated id inequality as proof that
+    two fingerprints are two compounds. They are not: the graph uses the
+    FULL InChIKey as the id (see the module docstring) precisely so a salt
+    and its parent, or two stereoisomers, stay separate nodes -- and 434
+    of 3,384 CHEMICALLY_SIMILAR_TO edges in v0.1 joined two such keys,
+    reporting a compound as its own neighbour at tanimoto 1.0.
+
+    gtop.py uses the same 14 characters as PROOF two keys are one compound
+    while similarity.py used id inequality as proof they are two. The
+    disagreement is what this closes; one definition is how it stays
+    closed.
+
+    None for an id with no InChIKey in it -- a locally minted `KGAV:` node,
+    for instance -- because nothing can be concluded about its skeleton,
+    and a caller must not read that as "different skeleton".
+    """
+    prefix = "INCHIKEY:"
+    if not node_id.startswith(prefix):
+        return None
+    key = node_id[len(prefix):]
+    return key[:SKELETON_LEN] if len(key) >= SKELETON_LEN else None
+
+
 def same_as_rule(a: ChemId, b: ChemId) -> str | None:
     """Why two ChemIds would be merged, or None if they would not be.
 

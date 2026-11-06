@@ -27,6 +27,8 @@ from __future__ import annotations
 from collections import Counter
 from pathlib import Path
 
+from kgav.normalize_chem import skeleton_of_id
+
 DEFAULT_THRESHOLD = 0.7
 FP_RADIUS = 2
 FP_BITS = 2048
@@ -62,8 +64,30 @@ def fingerprints(smiles_by_id: dict[str, str]) -> tuple[dict[str, object], Count
 
 def similarity_edges(query_fps: dict[str, object], ref_fps: dict[str, object],
                      threshold: float = DEFAULT_THRESHOLD,
-                     top_k: int | None = 10) -> list[tuple[str, str, float]]:
+                     top_k: int | None = 10,
+                     stats: Counter | None = None
+                     ) -> list[tuple[str, str, float]]:
     """(query, reference, tanimoto) above threshold.
+
+    ONE COMPOUND IS NOT ITS OWN NEIGHBOUR. This excluded a pair only when
+    the two node ids were equal, and the graph uses the FULL InChIKey as a
+    node id so that a salt and its parent, or two stereoisomers, remain
+    separate nodes. 434 of the 3,384 CHEMICALLY_SIMILAR_TO edges in v0.1
+    join two keys of ONE molecule -- same 14-character skeleton, different
+    suffix -- almost all at tanimoto 1.0, because they are the same
+    structure.
+
+    That is not a near-miss. normalize_chem.same_as_rule states that a
+    shared skeleton means one compound, and gtop.py uses those same 14
+    characters as PROOF that two keys are one compound when joining
+    ligands to the graph. Only this function read id inequality as proof
+    they were two. A metapath stepping M6 (Drug -CHEM_SIMILAR-> Drug
+    -TARGETS-> ...) across such an edge has not moved to another compound;
+    it has walked in a circle and scored the result as independent
+    evidence.
+
+    `stats`, if given, is filled with the counters this makes -- notably
+    same_skeleton_excluded, which was 434 and silent.
 
     top_k caps how many neighbours a query keeps. Without it a compound in a
     dense scaffold series acquires hundreds of near-identical neighbours, and
@@ -77,11 +101,24 @@ def similarity_edges(query_fps: dict[str, object], ref_fps: dict[str, object],
     if not ref_list:
         return []
 
+    ref_skel = [skeleton_of_id(r) for r in ref_ids]
+
     edges: list[tuple[str, str, float]] = []
     for qid, qfp in query_fps.items():
+        qskel = skeleton_of_id(qid)
         sims = DataStructs.BulkTanimotoSimilarity(qfp, ref_list)
-        hits = [(ref_ids[i], s) for i, s in enumerate(sims)
-                if s >= threshold and ref_ids[i] != qid]
+        hits = []
+        for i, sim in enumerate(sims):
+            if sim < threshold or ref_ids[i] == qid:
+                continue
+            # BOTH must have a skeleton for a match to mean anything. A
+            # minted KGAV: id yields None, and None == None must not read
+            # as "same compound".
+            if qskel is not None and ref_skel[i] == qskel:
+                if stats is not None:
+                    stats["same_skeleton_excluded"] += 1
+                continue
+            hits.append((ref_ids[i], sim))
         # TIE-BREAK ON THE ID, AND IT IS LOAD-BEARING. This sorted on
         # similarity alone. Python's sort is stable, so tied
         # neighbours kept the order of ref_ids -- which is
@@ -156,7 +193,8 @@ def build(em, smiles_by_id: dict[str, str], query_ids: set[str], ref_ids: set[st
     stats["unparseable"] = q_stats["unparseable"] + r_stats["unparseable"]
     stats["no_smiles"] = q_stats["no_smiles"] + r_stats["no_smiles"]
 
-    for qid, rid, sim in similarity_edges(q_fps, r_fps, threshold, top_k):
+    for qid, rid, sim in similarity_edges(q_fps, r_fps, threshold, top_k,
+                                          stats=stats):
         em.edge(qid, "CHEMICALLY_SIMILAR_TO", rid,
                 source=source, date=date, tier=3,
                 quals={"tanimoto_ecfp4": round(sim, 4)})

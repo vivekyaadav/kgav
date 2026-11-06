@@ -130,6 +130,14 @@ def main() -> int:
           f"{args.threshold} (top {args.top_k} per query)")
     print(f"  {s['queries_connected']:,} previously unreachable compounds now "
           f"have a route")
+    # ONE COMPOUND IS NOT ITS OWN NEIGHBOUR. 434 of v0.1's 3,384 edges
+    # joined two InChIKeys of ONE molecule -- same 14-character skeleton,
+    # different salt or stereo suffix -- almost all at tanimoto 1.0. An M6
+    # step across such an edge has not moved to another compound.
+    if s["same_skeleton_excluded"]:
+        print(f"  {s['same_skeleton_excluded']:,} candidate pair(s) excluded "
+              f"as two InChIKeys of one\n  molecule (shared 14-character "
+              f"skeleton), not as neighbours")
 
     # Endpoints all exist in the release, so validate against its nodes.
     nodes = [json.loads(x) for x in (args.release / "nodes.jsonl").read_text().splitlines()

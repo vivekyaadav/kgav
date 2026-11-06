@@ -2,6 +2,7 @@
 threshold cannot drift below what the schema declares.
 """
 import json
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -257,3 +258,99 @@ def test_the_ingest_script_does_not_iterate_a_set_into_the_fingerprints():
     src = (ROOT / "scripts" / "ingest_similarity.py").read_text()
     assert "for i in sorted(query)" in src
     assert "for i in sorted(annotated)" in src
+
+
+# ------------------------------------------ one compound is not its neighbour
+# THE GRAPH USES THE FULL InChIKey AS A NODE ID, deliberately, so a salt and
+# its parent and two stereoisomers stay separate nodes
+# (normalize_chem's module docstring says why). similarity_edges excluded a
+# pair only when the two ids were EQUAL, so those separate nodes paired with
+# each other: 434 of v0.1's 3,384 CHEMICALLY_SIMILAR_TO edges joined two
+# InChIKeys of ONE molecule, 412 of them at tanimoto 1.0 because they are the
+# same structure.
+#
+# normalize_chem.same_as_rule states that a shared skeleton means one
+# compound, and gtop.py uses the same 14 characters as PROOF two keys are one
+# compound. Only this function read id inequality as proof they were two.
+#
+# Measured on the real release: 3,384 -> 3,149 edges, and the compounds the
+# layer connects fall 1,724 -> 1,529. Those 195 compounds had NO real
+# neighbour; their whole M6 route was to another spelling of themselves.
+SKEL = "BSYNRYMUTXBXSQ"
+ASPIRIN_KEY = f"INCHIKEY:{SKEL}-UHFFFAOYSA-N"
+ASPIRIN_SALT = f"INCHIKEY:{SKEL}-UHFFFAOYSA-M"      # same molecule, Na salt
+OTHER_KEY = "INCHIKEY:XEKOWRVHYACXOJ-UHFFFAOYSA-N"  # a different molecule
+
+
+def test_two_keys_of_one_molecule_are_not_neighbours():
+    fps, _ = fingerprints({ASPIRIN_KEY: ASPIRIN, ASPIRIN_SALT: ASPIRIN})
+    stats = Counter()
+    edges = similarity_edges({ASPIRIN_SALT: fps[ASPIRIN_SALT]},
+                             {ASPIRIN_KEY: fps[ASPIRIN_KEY]},
+                             threshold=0.0, stats=stats)
+    assert edges == [], "a compound was paired with another spelling of itself"
+    assert stats["same_skeleton_excluded"] == 1
+
+
+def test_a_genuinely_different_molecule_is_still_a_neighbour():
+    """The exclusion must be the skeleton, not anything coarser."""
+    fps, _ = fingerprints({ASPIRIN_KEY: ASPIRIN, OTHER_KEY: ASPIRIN_ME})
+    edges = similarity_edges({OTHER_KEY: fps[OTHER_KEY]},
+                             {ASPIRIN_KEY: fps[ASPIRIN_KEY]}, threshold=0.0)
+    assert len(edges) == 1
+
+
+def test_an_id_with_no_inchikey_in_it_is_not_excluded():
+    """skeleton_of_id returns None for a minted KGAV: id, and None == None
+    must not read as "same compound" -- that would silently drop every pair
+    between two minted nodes."""
+    fps, _ = fingerprints({"KGAV:a": ASPIRIN, "KGAV:b": ASPIRIN_ME})
+    stats = Counter()
+    edges = similarity_edges({"KGAV:b": fps["KGAV:b"]},
+                             {"KGAV:a": fps["KGAV:a"]},
+                             threshold=0.0, stats=stats)
+    assert len(edges) == 1
+    assert stats["same_skeleton_excluded"] == 0
+
+
+def test_the_exclusion_frees_a_top_k_slot_for_a_real_neighbour():
+    """Why 463 pairs were excluded while the edge count fell by only 235: a
+    same-molecule pair at tanimoto 1.0 sorts FIRST, so it did not merely add
+    a bogus edge, it displaced a real neighbour from the top-k cut."""
+    fps, _ = fingerprints({ASPIRIN_KEY: ASPIRIN, ASPIRIN_SALT: ASPIRIN,
+                           OTHER_KEY: ASPIRIN_ME})
+    got = similarity_edges(
+        {ASPIRIN_SALT: fps[ASPIRIN_SALT]},
+        {ASPIRIN_KEY: fps[ASPIRIN_KEY], OTHER_KEY: fps[OTHER_KEY]},
+        threshold=0.0, top_k=1)
+    assert [r for _, r, _ in got] == [OTHER_KEY]
+
+
+def test_the_build_counter_reaches_the_driver():
+    em = Emit()
+    stats = build(em, {ASPIRIN_KEY: ASPIRIN, ASPIRIN_SALT: ASPIRIN},
+                  {ASPIRIN_SALT}, {ASPIRIN_KEY}, "infores:kgav-computed",
+                  threshold=0.0)
+    assert stats["edges"] == 0
+    assert stats["same_skeleton_excluded"] == 1
+
+
+@pytest.mark.parametrize("nid,skel", [
+    (ASPIRIN_KEY, SKEL),
+    (ASPIRIN_SALT, SKEL),
+    ("INCHIKEY:SHORT", None),
+    ("KGAV:minted-1", None),
+    ("CHEMBL:CHEMBL25", None),
+])
+def test_skeleton_of_id(nid, skel):
+    from kgav.normalize_chem import skeleton_of_id
+    assert skeleton_of_id(nid) == skel
+
+
+def test_one_definition_of_the_skeleton_length():
+    """gtop.py uses these 14 characters as proof two keys are ONE compound
+    while similarity.py used id inequality as proof they were two. Two
+    constants for one fact is how that disagreement survived."""
+    from kgav.gtop import SKELETON_LEN as GTOP_LEN
+    from kgav.normalize_chem import SKELETON_LEN
+    assert SKELETON_LEN == GTOP_LEN == 14
