@@ -668,3 +668,100 @@ def test_a_virus_with_no_usable_screen_at_all_is_counted():
     """Yellow fever: 1 matched, 0 usable, 0 processed."""
     text = "\n".join(screen_funnel({"11089": 1}, {}, {}))
     assert "NCBITaxon:11089" in text
+
+
+# ----------------------------------------------- one sign convention, stated
+# `direction` was sign(SCORE.1 * multiplier); `effect_size` was the raw
+# SCORE.1 with no multiplier. Both went into the same qualifier dict, and
+# nothing compared them. Measured on v0.1-orcs: 1,653 of 11,112 edges
+# (14.9%) carried a direction contradicting the sign of their own
+# effect_size -- 783 dependency with a negative score, 870 restriction with
+# a positive one. A consumer reading the score's sign got the biology
+# backwards on one edge in seven.
+def _signs(em):
+    return [(e["qualifiers"]["direction"],
+             e["qualifiers"].get("effect_size"),
+             e.get("source_score")) for e in em.edges]
+
+
+def test_effect_size_agrees_with_direction_when_positive_is_dependency():
+    """multiplier +1. The easy half, which was already right."""
+    em = Emit()
+    rows = {"1": [_gene("RAB7A", "7879", 11.31), _gene("TBK1", "29110", -3.33)]}
+    ingest_screens(
+        em, [_screen(sid="1",
+                     rationale="Increased/decreased resistance to virus")],
+        rows, {"NCBIGene:7879": ["UniProtKB:P51149"],
+               "NCBIGene:29110": ["UniProtKB:Q9UHD2"]},
+        "infores:biogrid-orcs")
+    for d, es, raw in _signs(em):
+        assert es is not None and raw is not None
+        assert (es > 0) == (d == "dependency")
+        assert es == raw, "multiplier +1 must leave the value alone"
+
+
+def test_a_flipped_screen_has_its_effect_size_calibrated_too():
+    """multiplier -1: the screen scores positive for RESTRICTION. This is
+    where direction and effect_size disagreed on every single edge."""
+    em = Emit()
+    # RAB7A is a dependency anchor scoring NEGATIVE here, so the screen's
+    # convention is "positive means restriction" and multiplier is -1.
+    rows = {"1": [_gene("RAB7A", "7879", -11.31), _gene("TBK1", "29110", 3.33)]}
+    stats = ingest_screens(
+        em, [_screen(sid="1",
+                     rationale="Increased/decreased resistance to virus")],
+        rows, {"NCBIGene:7879": ["UniProtKB:P51149"],
+               "NCBIGene:29110": ["UniProtKB:Q9UHD2"]},
+        "infores:biogrid-orcs")
+    assert stats["positive_is_restriction"] == 1
+    assert stats["effect_size_sign_calibrated"] == 2
+    for d, es, raw in _signs(em):
+        assert (es > 0) == (d == "dependency"), \
+            f"direction {d} contradicts effect_size {es}"
+        assert es == -raw, "the calibrated value must be the raw one flipped"
+
+
+def test_the_published_number_survives_as_source_score():
+    """effect_size is now a calibrated value, so the raw number has to live
+    somewhere or a comparison against BioGRID ORCS becomes impossible."""
+    em = Emit()
+    rows = {"1": [_gene("RAB7A", "7879", -11.31), _gene("TBK1", "29110", 3.33)]}
+    ingest_screens(
+        em, [_screen(sid="1",
+                     rationale="Increased/decreased resistance to virus")],
+        rows, {"NCBIGene:7879": ["UniProtKB:P51149"],
+               "NCBIGene:29110": ["UniProtKB:Q9UHD2"]},
+        "infores:biogrid-orcs")
+    assert sorted(raw for _, _, raw in _signs(em)) == [-11.31, 3.33]
+
+
+def test_a_rationale_contradicting_its_own_score_is_counted_not_reconciled():
+    """The 229 edges that remain. A screen_level rationale asserts one
+    polarity for EVERY hit; an individual gene's score can say otherwise.
+    That is the source disagreeing with itself, not arithmetic here, so it
+    is reported rather than silently fixed in either direction."""
+    em = Emit()
+    # Rationale says decreased resistance -> dependency for all hits. The
+    # dependency anchor scores positive so the anchors agree (+1) and the
+    # screen is not rejected, but ANKRD17's own score is negative.
+    rows = {"1": [_gene("RAB7A", "7879", 5.0),
+                  _gene("ANKRD17", "26057", -4.0)]}
+    stats = ingest_screens(
+        em, [_screen(sid="1", rationale="Decreased resistance to virus")],
+        rows, {"NCBIGene:7879": ["UniProtKB:P51149"],
+               "NCBIGene:26057": ["UniProtKB:O75179"]},
+        "infores:biogrid-orcs")
+    assert stats["rationale_direction_contradicts_score"] == 1
+    bad = [(d, es) for d, es, _ in _signs(em)
+           if (d == "dependency" and es < 0) or (d == "restriction" and es > 0)]
+    assert len(bad) == 1, "the contradiction is kept, and counted"
+
+
+def test_the_schema_states_the_convention():
+    """A signed number whose convention lives only in a commit message is
+    the state this fix is undoing."""
+    from kgav.schema import load_schema
+    ec = next(e for e in load_schema().edge_classes
+              if e.predicate == "HOST_FACTOR_FOR")
+    doc = (ec.qualifiers["effect_size"].get("doc") or "").lower()
+    assert "positive" in doc and "dependency" in doc

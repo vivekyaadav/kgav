@@ -207,6 +207,25 @@ def main() -> int:
               "until then")
         print("    they are skipped rather than emitted as dangling edges.")
 
+    # THE SIGN CONVENTION, AND WHAT IS LEFT DISAGREEING.
+    #
+    # direction was sign(SCORE.1 * multiplier) while effect_size was the raw
+    # SCORE.1, so 1,653 of 11,112 edges (14.9%) carried a direction that
+    # contradicted the sign of their own effect_size. Both numbers sat on the
+    # same edge and nothing compared them.
+    if s["effect_size_sign_calibrated"]:
+        print(f"\n  {s['effect_size_sign_calibrated']:,} effect_size value(s) "
+              f"had their sign calibrated to the\n  convention "
+              f"direction uses (positive means dependency). The raw "
+              f"published\n  number is on every edge as source_score.")
+    if s["rationale_direction_contradicts_score"]:
+        print(f"\n  ! {s['rationale_direction_contradicts_score']:,} edge(s) "
+              f"keep a direction that disagrees with the sign of\n    their "
+              f"own score. These come from screens whose RATIONALE states one "
+              f"polarity\n    for every hit while an individual gene's score "
+              f"says otherwise -- the source\n    disagreeing with itself, "
+              f"not an arithmetic error here. Reported, not reconciled.")
+
     print("\n  skipped:")
     for k in ("not_a_resistance_screen", "taxon_not_built",
               "polarity_unresolvable", "no_gene_data",

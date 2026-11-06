@@ -480,7 +480,14 @@ edge_classes:
     qualifiers:
       direction:    {type: string, enum: host_factor_direction}
       screen_type:  {type: string, enum: screen_type}
-      effect_size:  {type: float}
+      # SIGNED UNDER ONE CONVENTION: positive means dependency, the same
+      # convention `direction` uses. BioGRID ORCS screens do not agree on a
+      # sign convention -- 21 use one and 11 the other -- and this carried
+      # the raw per-screen value while direction carried the calibrated one,
+      # so 1,653 of 11,112 edges (14.9%) had a direction contradicting the
+      # sign of their own effect_size. The number the source published
+      # travels on the edge as source_score.
+      effect_size:  {type: float, doc: "signed; positive means dependency"}
       cell_line:    {type: string}
     required_qualifiers: [direction, screen_type, cell_line]
 

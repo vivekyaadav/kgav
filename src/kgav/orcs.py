@@ -372,10 +372,27 @@ def ingest_screens(em, screens: list[dict], gene_rows: dict[str, list[dict]],
             if not proteins:
                 stats["gene_not_in_graph"] += 1
                 continue
+            # ONE SIGN CONVENTION, STATED. `direction` was computed as
+            # sign(SCORE.1 * multiplier) while `effect_size` was the raw
+            # SCORE.1 with no multiplier, and both went into the same
+            # qualifier dict. Measured on v0.1-orcs: 1,653 edges carry a
+            # direction that contradicts the sign of their own effect_size.
+            # Any consumer reading the score's sign got the biology
+            # backwards, and the two numbers sat side by side on the edge.
+            #
+            # effect_size is now always signed under the convention
+            # POSITIVE MEANS DEPENDENCY -- the same convention `direction`
+            # uses -- so the two cannot disagree by construction in signed
+            # mode. The raw number the source published travels as
+            # source_score, so nothing is lost and a comparison against
+            # BioGRID ORCS is still possible.
             try:
-                effect = float(g.get("SCORE.1"))
+                raw_effect = float(g.get("SCORE.1"))
             except (TypeError, ValueError):
-                effect = None
+                raw_effect = None
+            effect = None if raw_effect is None else raw_effect * multiplier
+            if raw_effect is not None and multiplier < 0:
+                stats["effect_size_sign_calibrated"] += 1
 
             for pid in proteins:
                 key = (pid, taxon, sid, direction)
@@ -387,9 +404,24 @@ def ingest_screens(em, screens: list[dict], gene_rows: dict[str, list[dict]],
                          "cell_line": cell_line}
                 if effect is not None:
                     quals["effect_size"] = effect
+                    # THE RESIDUAL, COUNTED RATHER THAN ASSUMED AWAY. In
+                    # `signed` mode this cannot fire: direction is
+                    # sign(score * multiplier) and effect_size is now
+                    # score * multiplier. It fires only where `fixed` set
+                    # the direction from the screen's own rationale, which
+                    # asserts one polarity for every hit in the screen
+                    # regardless of what an individual score says. That is
+                    # a disagreement between the source's prose and the
+                    # source's numbers, not an arithmetic error here, so it
+                    # is reported and not silently reconciled in either
+                    # direction.
+                    if ((direction == "dependency" and effect < 0)
+                            or (direction == "restriction" and effect > 0)):
+                        stats["rationale_direction_contradicts_score"] += 1
                 em.edge(pid, "HOST_FACTOR_FOR", f"NCBITaxon:{taxon}",
                         source=source, date=screen_date(screen), tier=1, quals=quals,
-                        pmids=[f"PMID:{pmid}"] if pmid.isdigit() else None)
+                        pmids=[f"PMID:{pmid}"] if pmid.isdigit() else None,
+                        score=raw_effect)
                 stats["edges"] += 1
                 stats[direction] += 1
                 stats[f"taxon:{taxon}:{direction}"] += 1
