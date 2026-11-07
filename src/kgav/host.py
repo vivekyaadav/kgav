@@ -116,7 +116,17 @@ def ingest_proteome(em, entries: list[dict], prov: dict) -> Counter:
                 evidence = (props.get("GoEvidenceType") or "").split(":")[0]
                 # UniProt prefixes GO terms with aspect: P: process, F: function,
                 # C: component. Only biological process is a pathway.
+                #
+                # COUNTED PER ASPECT (fix-list E7). This discarded every F:
+                # and C: annotation with nothing recorded, so the share of
+                # the proteome's GO data this layer uses was unknown -- and
+                # a UniProt release that stopped prefixing the aspect at all
+                # would drop 100% of it and look identical in every count.
+                aspect = (term[0] if term[:2] in ("P:", "F:", "C:")
+                          else "unprefixed")
+                stats[f"go_aspect_{aspect}"] += 1
                 if not term.startswith("P:"):
+                    stats["go_dropped_not_a_process"] += 1
                     continue
                 pw = xr["id"] if xr["id"].startswith("GO:") else f"GO:{xr['id']}"
                 em.node(pw, "Pathway", label=term[2:], source_ontology="go")
@@ -126,6 +136,14 @@ def ingest_proteome(em, entries: list[dict], prov: dict) -> Counter:
                         quals={"role": evidence} if evidence else None)
                 stats["go_edges"] += 1
 
+        # NO GENE NODE AND NO ENCODED_BY when either half is missing, which
+        # was silent. The two halves fail for different reasons and the
+        # remedy differs -- a missing xref is an ID-mapping gap, a missing
+        # name is a TrEMBL entry -- so they are counted apart.
+        if not gene_id:
+            stats["no_gene_id_xref"] += 1
+        if not symbol:
+            stats["no_gene_symbol"] += 1
         if gene_id and symbol:
             gcurie = f"NCBIGene:{gene_id}"
             em.node(gcurie, "Gene", symbol=symbol, taxon_id=HUMAN_TAXON, is_viral=False)
@@ -151,11 +169,23 @@ def build_ensp_map(aliases: Path, valid_accessions: set[str], notes: Counter) ->
             if line.startswith("#"):
                 continue
             parts = line.rstrip("\n").split("\t")
-            if len(parts) < 3 or parts[2] != "UniProt_AC":
+            notes["alias_rows"] += 1
+            if len(parts) < 3:
+                notes["alias_dropped_short_row"] += 1
+                continue
+            if parts[2] != "UniProt_AC":
+                # STRING's alias file carries a dozen source namespaces.
+                # Counted by source so "the mapping is small" can be
+                # distinguished from "we are reading the wrong column".
+                notes["alias_dropped_other_source"] += 1
+                notes[f"alias_source:{parts[2]}"] += 1
                 continue
             ensp, acc = parts[0], parts[1]
-            if acc in valid_accessions:
-                candidates[ensp].add(acc)
+            if acc not in valid_accessions:
+                notes["alias_dropped_outside_proteome"] += 1
+                continue
+            notes["alias_kept"] += 1
+            candidates[ensp].add(acc)
 
     mapping: dict[str, str] = {}
     for ensp, accs in candidates.items():
@@ -184,6 +214,12 @@ def ingest_string(em, links: Path, mapping: dict[str, str], prov: dict,
             f = line.split()
             stats["rows"] += 1
             if int(f[i_exp]) < experimental_min:
+                # DERIVABLE AS rows - passed_filter AND NOW STATED. The
+                # cutoff decides whether 141,019 edges exist or ten times
+                # that many, and src/kgav/host.py's own docstring justified
+                # it with four row counts that no code in this repository
+                # computes (fix-list item in section 8 of the data audit).
+                stats["below_experimental_min"] += 1
                 continue
             stats["passed_filter"] += 1
 

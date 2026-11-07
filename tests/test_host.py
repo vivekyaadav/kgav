@@ -165,3 +165,93 @@ def test_real_host_layer_scale(tmp_path):
 
     counts = Counter(n["class"] for n in em.nodes.values())
     assert counts["Pathway"] > 10_000, f"{counts['Pathway']} pathways — GO branch may be silently skipping"
+
+
+# ------------------------------------------------- every gate is countable
+# Fix-list E7: four gates in this layer discarded input and recorded
+# nothing. It produces 157,211 PARTICIPATES_IN and 141,019
+# PHYSICALLY_INTERACTS_WITH -- three quarters of the graph -- so the share
+# of each source it uses was unknown. Measured on the real inputs:
+#
+#   GO aspect      P=109,511 kept; C=82,779 and F=55,179 dropped (55.8%)
+#   Gene node      1,262 proteins with no GeneID xref, 135 with no symbol
+#   STRING alias   3,889,207 rows read, 18,975 kept (0.49%)
+#   experimental   13,715,404 rows, 13,406,216 below the 400 cutoff (97.7%)
+def test_the_go_aspect_filter_is_counted_per_aspect(built):
+    """Only P: is a pathway. C: and F: vanished silently, so a UniProt
+    release that stopped prefixing the aspect would drop 100% of the
+    annotations and look identical in every count this layer printed."""
+    _em, p, _s, _m = built
+    assert p["go_aspect_P"] == 3 and p["go_aspect_C"] == 3
+    assert p["go_dropped_not_a_process"] == 3
+    assert p["go_edges"] == 3
+    assert p["go_aspect_P"] + p["go_aspect_C"] + p["go_aspect_F"] \
+        + p["go_aspect_unprefixed"] == p["go_edges"] + p["go_dropped_not_a_process"]
+
+
+def test_an_unprefixed_go_term_is_named_not_merely_dropped(tmp_path):
+    """The failure the per-aspect census exists to make loud."""
+    entry = {"primaryAccession": "Q9BYF1",
+             "entryType": "UniProtKB reviewed (Swiss-Prot)",
+             "proteinDescription": {"recommendedName": {"fullName": {"value": "x"}}},
+             "genes": [{"geneName": {"value": "ACE2"}}],
+             "sequence": {"value": "MKT"},
+             "entryAudit": {"firstPublicDate": "2000-05-01"},
+             "uniProtKBCrossReferences": [
+                 {"database": "GO", "id": "GO:0006508",
+                  "properties": [{"key": "GoTerm", "value": "proteolysis"}]}]}
+    em = Emit()
+    s = ingest_proteome(em, [entry], PROV)
+    assert s["go_aspect_unprefixed"] == 1
+    assert s["go_edges"] == 0
+
+
+def test_the_gene_gate_counts_its_two_halves_apart(tmp_path):
+    """A missing xref is an ID-mapping gap; a missing name is a TrEMBL
+    entry. Different remedies, so they are not one number."""
+    base = {"entryType": "UniProtKB reviewed (Swiss-Prot)",
+            "proteinDescription": {"recommendedName": {"fullName": {"value": "x"}}},
+            "sequence": {"value": "MKT"},
+            "entryAudit": {"firstPublicDate": "2000-05-01"}}
+    no_xref = {**base, "primaryAccession": "A00001",
+               "genes": [{"geneName": {"value": "AAA"}}],
+               "uniProtKBCrossReferences": []}
+    no_name = {**base, "primaryAccession": "A00002", "genes": [],
+               "uniProtKBCrossReferences": [{"database": "GeneID", "id": "1"}]}
+    em = Emit()
+    s = ingest_proteome(em, [no_xref, no_name], PROV)
+    assert s["no_gene_id_xref"] == 1
+    assert s["no_gene_symbol"] == 1
+    assert s["genes"] == 0
+
+
+def test_the_string_alias_accounting_closes(built):
+    """3,801,052 of 3,889,207 real rows are not UniProt_AC rows. Counted by
+    source, so "the mapping is small" can be told from "we are reading the
+    wrong column"."""
+    em, _p, _s, mapping = built
+    n = em.notes
+    assert n["alias_rows"] == 6
+    assert n["alias_kept"] == 4
+    assert n["alias_dropped_other_source"] == 1
+    assert n["alias_source:UniProt_ID"] == 1
+    assert n["alias_dropped_outside_proteome"] == 1   # ZZZZZZ
+    assert (n["alias_kept"] + n["alias_dropped_other_source"]
+            + n["alias_dropped_outside_proteome"]
+            + n["alias_dropped_short_row"]) == n["alias_rows"]
+
+
+def test_the_experimental_cutoff_is_stated_not_subtracted(built):
+    """It decided whether this layer emits 141,019 edges or ten times that
+    many, and was derivable only as rows - passed_filter."""
+    _em, _p, s, _m = built
+    assert s["below_experimental_min"] == 1       # the 100-score row
+    assert s["below_experimental_min"] == s["rows"] - s["passed_filter"]
+
+
+def test_every_string_link_row_is_accounted_for(built):
+    """E7's demand, which only the ChEMBL layer met."""
+    _em, _p, s, _m = built
+    assert (s["below_experimental_min"] + s["unmapped_endpoint"]
+            + s["self_loop"] + s["reciprocal_duplicate"]
+            + s["edges"]) == s["rows"]
