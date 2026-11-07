@@ -927,8 +927,32 @@ def main() -> int:
     # over it would put that artifact in the graph.
     from kgav.folds import similarity_edges
     for subj, obj, quals in similarity_edges(results, emitted_ids):
+        # THE VERDICT IS THIS PROJECT'S, NOT INTERPRO'S (fix-list C5).
+        #
+        # InterPro asserts that a chain belongs to a class -- those are the
+        # MEMBER_OF_CLASS edges above, correctly infores:interpro. It does
+        # NOT assert that SARS-CoV-2 3CLpro is fold-similar to SARS-CoV
+        # 3CLpro; kgav.folds.gate does, from InterPro's memberships plus a
+        # catalytic-type rule this repository wrote. The edge already
+        # carried tier=3, the computed tier, while naming a source that
+        # made no such claim.
+        #
+        # The consequence was temporal, not cosmetic. temporal.COMPUTED_
+        # SOURCES holds infores:kgav-computed alone, and undated_policy=
+        # "computed_only" keeps an undated edge only from a computed
+        # source -- so all 24 FOLD_SIMILAR_TO edges were dropped under that
+        # policy and M8, the only metapath that walks them, had nothing to
+        # traverse. Widening COMPUTED_SOURCES to include infores:interpro
+        # was the other option and is wrong: it would also mark InterPro's
+        # 158 MEMBER_OF_CLASS assertions as undated-by-nature, and those
+        # are real assertions whose dates this project simply does not
+        # record.
+        #
+        # Same shape as CHEMICALLY_SIMILAR_TO, which has always been
+        # infores:kgav-computed at tier 3 with the 1970 placeholder for
+        # exactly this reason.
         em.edge(subj, "FOLD_SIMILAR_TO", obj,
-                source="infores:interpro", date="1970-01-01", tier=3,
+                source="infores:kgav-computed", date="1970-01-01", tier=3,
                 quals=quals)
     pairs = [(a, b, g) for a, b, g in results
              if a.node_id in emitted_ids and b.node_id in emitted_ids

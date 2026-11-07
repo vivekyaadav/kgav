@@ -1266,3 +1266,49 @@ def test_an_unpaginated_response_is_read_normally(monkeypatch):
     import kgav.folds as F
     monkeypatch.setattr(F, "_get", lambda url: {"next": None, "results": []})
     assert F.fetch_classes("P0DTC1", 1, 100) == []
+
+
+# --------------------------------- whose claim a fold edge is (fix-list C5)
+# InterPro asserts that a chain belongs to a class -- MEMBER_OF_CLASS, and
+# those are correctly infores:interpro. It does NOT assert that SARS-CoV-2
+# 3CLpro is fold-similar to SARS-CoV 3CLpro; kgav.folds.gate does, from
+# InterPro's memberships plus a catalytic-type rule written here. The edge
+# already carried tier=3, the computed tier, while naming a source that
+# made no such claim.
+#
+# The consequence was temporal. COMPUTED_SOURCES holds infores:kgav-computed
+# alone and undated_policy="computed_only" keeps an undated edge only from a
+# computed source, so all 24 FOLD_SIMILAR_TO edges were dropped under that
+# policy and M8 -- the only metapath that walks them -- had nothing to
+# traverse.
+def test_a_fold_edge_is_attributed_to_this_project_not_interpro():
+    src = (Path(__file__).resolve().parents[1]
+           / "scripts" / "ingest_folds.py").read_text()
+    block = src.split('"FOLD_SIMILAR_TO"', 1)[1][:400]
+    assert 'source="infores:kgav-computed"' in block
+    assert 'source="infores:interpro"' not in block
+
+
+def test_class_membership_is_still_interpros_claim():
+    """The other half, and why widening COMPUTED_SOURCES was the wrong
+    option: it would mark InterPro's 158 MEMBER_OF_CLASS assertions as
+    undated-by-nature too, and those are real assertions whose dates this
+    project simply does not record."""
+    src = (Path(__file__).resolve().parents[1]
+           / "scripts" / "ingest_folds.py").read_text()
+    assert 'emit_classes(em, emitted, "infores:interpro")' in src
+
+
+def test_the_fold_edge_survives_computed_only_and_membership_does_not():
+    from kgav.temporal import COMPUTED_SOURCES, _is_computed
+    assert COMPUTED_SOURCES == {"infores:kgav-computed"}, (
+        "COMPUTED_SOURCES was widened; C5 was fixed by attributing the "
+        "verdict correctly, not by loosening what counts as computed")
+    fold = {"primary_knowledge_source": "infores:kgav-computed",
+            "first_asserted_date": "1970-01-01",
+            "predicate": "FOLD_SIMILAR_TO"}
+    member = {"primary_knowledge_source": "infores:interpro",
+              "first_asserted_date": "1970-01-01",
+              "predicate": "MEMBER_OF_CLASS"}
+    assert _is_computed(fold) is True
+    assert _is_computed(member) is False
