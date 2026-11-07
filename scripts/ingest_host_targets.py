@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from kgav.aliases import AliasIndex
 from kgav.emit import Emit
 from kgav.host_targets import (
+    gate_census,
     host_protein_ids,
     ingest_host_targets,
     load_mechanisms,
@@ -30,6 +31,10 @@ def main() -> int:
     ap.add_argument("--out", type=Path, default=root / "data/releases/v0.1-hosttargets")
     ap.add_argument("--min-pchembl", type=float, default=6.0)
     ap.add_argument("--min-phase", type=int, default=2)
+    ap.add_argument("--gate-census", action="store_true",
+                    help="count what each SQL gate discards. A full scan of "
+                         "~24.5M activity rows, about 76s; off by default so "
+                         "a rebuild does not pay for it.")
     args = ap.parse_args()
 
     print("loading host layer")
@@ -40,6 +45,24 @@ def main() -> int:
     print("\nloading drug_mechanism action types")
     mechanisms = load_mechanisms(args.db)
     print(f"  {len(mechanisms):,} (compound, target) pairs with a stated action")
+
+    # WHAT THE FOUR SQL GATES DISCARD (fix-list E7). Behind a flag because
+    # it is a full scan of 24.5M activity rows -- 76s against an 8s ingest
+    # -- and the answer only moves when ChEMBL does. The figures are
+    # recorded in host_targets.gate_census' docstring.
+    if args.gate_census:
+        print("\n  gate census (full scan, ~76s):")
+        c = gate_census(args.db, args.min_pchembl, args.min_phase)
+        total = 0
+        for k in sorted(c):
+            if k.startswith("dropped_") or k == "kept":
+                print(f"    {k:<42} {c[k]:>12,}")
+                total += c[k]
+        if total != c["rows_scanned"]:
+            print(f"    ! ACCOUNTING DOES NOT CLOSE: {c['rows_scanned']:,} "
+                  f"scanned, {total:,} accounted for")
+            return 1
+        print(f"    {'(sums to the scan)':<42} {c['rows_scanned']:>12,}")
 
     print(f"\nquerying activities (pChEMBL >= {args.min_pchembl}, "
           f"max_phase >= {args.min_phase})")

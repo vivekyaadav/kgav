@@ -943,3 +943,55 @@ def test_what_the_table_already_read_it_still_reads(description, nsp, domain):
     Every pre-existing resolution is asserted unchanged."""
     from kgav.chembl import resolve_nsp
     assert resolve_nsp(description) == (nsp, domain)
+
+
+# ------------------------------------------------- the gates inside the WHERE
+# Fix-list E7: query_activities' WHERE clause drops every standard_type
+# outside IC50/EC50/Ki/Kd and every NULL standard_value, and a gate inside a
+# WHERE cannot count itself. On chembl_37 across the declared taxa: 98,104
+# rows, 39,039 kept, 57,678 not a potency type (46,055 of them "Inhibition"),
+# 1,387 with a NULL value.
+def test_the_gate_census_partitions_every_row(fake_db):
+    """The fixture holds 6 activities: 5 are IC50/EC50 with a value, and
+    none is NULL -- so a non-potency row and a NULL row are added here to
+    exercise both gates."""
+    con = sqlite3.connect(fake_db)
+    con.executemany("INSERT INTO activities VALUES(?,?,?,?,?,?,?)",
+                    [(20, 1, 1, "Inhibition", 90.0, "%", "="),
+                     (21, 1, 1, "EC50", None, "nM", "=")])
+    con.commit()
+    con.close()
+    c = chembl_mod.gate_census(fake_db, ["2697049"])
+    assert c["rows_for_these_taxa"] == 8
+    assert c["dropped_standard_type_not_a_potency"] == 1
+    assert c["standard_type:Inhibition"] == 1
+    assert c["dropped_null_standard_value"] == 1
+    assert c["kept"] == 6
+    assert (c["kept"] + c["dropped_standard_type_not_a_potency"]
+            + c["dropped_null_standard_value"]) == c["rows_for_these_taxa"]
+
+
+def test_the_census_counts_activities_and_the_query_counts_pairs(fake_db):
+    """kept counts ACTIVITIES; query_activities returns activity x component
+    pairs, because its LEFT JOIN to target_components fans out on a
+    multi-component target. On chembl_37 that is exactly 60 extra rows, and
+    the driver asserts the identity so the fan-out is a measured number
+    rather than a discrepancy for someone to explain later."""
+    before = len(chembl_mod.query_activities(fake_db, ["2697049"]))
+    con = sqlite3.connect(fake_db)
+    con.execute("INSERT INTO target_components VALUES(10, 101)")
+    con.execute("INSERT INTO component_sequences VALUES(101, 'P0DTC1')")
+    con.commit()
+    con.close()
+    c = chembl_mod.gate_census(fake_db, ["2697049"])
+    after = len(chembl_mod.query_activities(fake_db, ["2697049"]))
+    assert after > before, "the fan-out did not happen; the fixture is wrong"
+    assert after - c["kept"] == after - before
+
+
+def test_an_empty_taxon_list_is_refused():
+    """Same reason query_activities refuses it: `tax_id IN ()` is
+    always-false in SQLite, so the census would report zero rows and every
+    gate as costing nothing."""
+    with pytest.raises(ValueError):
+        chembl_mod.gate_census(Path("unused.db"), [])

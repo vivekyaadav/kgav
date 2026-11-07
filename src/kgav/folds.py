@@ -504,6 +504,22 @@ def fetch_classes(acc: str, lo: int, hi: int) -> list[dict]:
     data = _get(f"{INTERPRO}/entry/all/protein/uniprot/{acc}/?page_size=200")
     if not data:
         return out
+    # THE PAGE CAP IS A GATE (fix-list E7). page_size=200 with no pagination
+    # means an accession with more than 200 InterPro entries is silently
+    # truncated, and which 200 arrive is InterPro's ordering. The API states
+    # `next` when more exist, so the truncation is detectable rather than
+    # something to assume away; it raises instead of counting because this
+    # feeds the catalytic-type verdict for ONE chain -- a partial entry list
+    # can drop the very family the chain is being classified by, and
+    # continuing would write a verdict from data known to be incomplete.
+    if data.get("next"):
+        raise ValueError(
+            f"InterPro returned a paginated response for {acc}: more than "
+            f"200 entries exist and this reader fetches one page. The "
+            f"catalytic type and class list for this chain would be built "
+            f"from an arbitrary 200 of them. Add pagination before "
+            f"refreshing the cache."
+        )
     for item in data.get("results", []):
         md = item.get("metadata", {})
         for prot in item.get("proteins", []):

@@ -2,6 +2,7 @@
 does not license transfer across a different nucleophile.
 """
 
+import pytest
 from dataclasses import dataclass
 from dataclasses import field as dc_field
 from pathlib import Path
@@ -1244,3 +1245,24 @@ def test_the_emitted_edge_validates_against_the_real_schema():
               "properties": {"taxon_id": "NCBITaxon:2", "is_viral": True}}]
     index = {n["id"]: n for n in nodes}
     assert load_schema().validate_edge(edge, index) == []
+
+
+# ---------------------------------------------- the page cap is a gate (E7)
+def test_a_paginated_interpro_response_is_refused_not_truncated(monkeypatch):
+    """page_size=200 with no pagination means an accession with more than
+    200 entries is silently cut to an arbitrary 200 of them, in InterPro's
+    order. This feeds the catalytic-type verdict for ONE chain, so a
+    partial entry list can drop the very family the chain is classified by.
+    The API says `next` when more exist, so it is detectable."""
+    import kgav.folds as F
+    monkeypatch.setattr(F, "_get", lambda url: {
+        "next": "https://www.ebi.ac.uk/interpro/api/...page=2",
+        "results": []})
+    with pytest.raises(ValueError, match="paginated"):
+        F.fetch_classes("P0DTC1", 1, 100)
+
+
+def test_an_unpaginated_response_is_read_normally(monkeypatch):
+    import kgav.folds as F
+    monkeypatch.setattr(F, "_get", lambda url: {"next": None, "results": []})
+    assert F.fetch_classes("P0DTC1", 1, 100) == []

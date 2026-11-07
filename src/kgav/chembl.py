@@ -338,6 +338,58 @@ def build_taxon_family_index(index, taxon_map: dict[str, str]) -> dict[str, str]
     return out
 
 
+def gate_census(db: Path, taxa: list[str]) -> Counter:
+    """What query_activities' WHERE clause discards, by reason.
+
+    A GATE INSIDE A WHERE CLAUSE CANNOT BE COUNTED (fix-list E7), and this
+    one drops every standard_type outside IC50/EC50/Ki/Kd and every NULL
+    standard_value with nothing recorded. Rather than restructure a query
+    whose shape is load bearing -- the LEFT JOINs to docs and
+    component_sequences are what make an undated or target-less row
+    survive -- this measures the same population at the same boundary and
+    the driver reports it. One extra scan over the same taxa.
+
+    Deliberately NOT a reimplementation of the gate: it counts rows ON
+    EACH SIDE of the identical predicate, so the two cannot disagree about
+    what the predicate means without this census failing to add up.
+
+    `kept` COUNTS ACTIVITIES, and query_activities returns activity x
+    component pairs -- its LEFT JOIN to target_components fans out for a
+    multi-component target. On chembl_37 that is 60 activities on protein
+    complexes, each yielding 2 rows, so 38,925 kept + 60 = the 38,985 rows
+    returned. The driver asserts exactly that, which is why the fan-out is
+    a measured number here rather than a discrepancy someone has to
+    explain later.
+    """
+    if not taxa:
+        raise ValueError("gate_census needs at least one taxon")
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    placeholders = ",".join("?" * len(taxa))
+    out: Counter = Counter()
+    rows = con.execute(f"""
+        SELECT act.standard_type AS st,
+               act.standard_value IS NULL AS no_value,
+               COUNT(*) AS n
+        FROM activities act
+        JOIN assays a          ON act.assay_id = a.assay_id
+        JOIN target_dictionary t ON a.tid = t.tid
+        WHERE t.tax_id IN ({placeholders})
+        GROUP BY 1, 2
+    """, taxa).fetchall()
+    con.close()
+    keep = ("IC50", "EC50", "Ki", "Kd")
+    for st, no_value, n in rows:
+        out["rows_for_these_taxa"] += n
+        if st not in keep:
+            out["dropped_standard_type_not_a_potency"] += n
+            out[f"standard_type:{st}"] += n
+        elif no_value:
+            out["dropped_null_standard_value"] += n
+        else:
+            out["kept"] += n
+    return out
+
+
 def query_activities(db: Path, taxa: list[str]) -> list[dict]:
     """Every usable activity for these taxa, with its assay description.
 

@@ -365,3 +365,45 @@ def test_every_emitted_assay_type_is_in_the_schema_enum():
     allowed = set(load_schema().enums["assay_type"])
     assert set(CHEMBL_ASSAY_TYPE.values()) <= allowed, (
         f"{set(CHEMBL_ASSAY_TYPE.values()) - allowed} not in the schema enum")
+
+
+# ------------------------------------------- the four gates inside the WHERE
+# Fix-list E7. query_host_activities' WHERE clause applies four gates --
+# non-human target, target not a SINGLE PROTEIN, pChEMBL below the floor,
+# max_phase below the floor -- and none can count itself from inside a WHERE.
+# The last is fix-list B1's subject, a proposal to drop it, and nothing in
+# this repository could say what it withholds.
+#
+# Measured on chembl_37 (a 76s full scan, so the driver runs it behind
+# --gate-census): 24,527,044 rows scanned, 10,573,458 not human, 5,654,400
+# target not a single protein, 5,530,961 not a potency type, 1,404,641
+# pChEMBL below 6, 1,304,767 max_phase below 2, 58,817 kept -- which is
+# exactly what the query returns.
+def test_the_gate_census_partitions_every_row_scanned(db):
+    from kgav.host_targets import gate_census
+    c = gate_census(db)
+    total = sum(v for k, v in c.items()
+                if k.startswith("dropped_") or k == "kept")
+    assert total == c["rows_scanned"], (
+        f"{c['rows_scanned']} scanned but {total} accounted for; a gate is "
+        f"rejecting rows that no counter claims")
+    assert c["kept"] == len(query_host_activities(db))
+
+
+def test_the_census_attributes_each_row_to_one_gate(db):
+    """A row failing two gates is attributed to the first, which is what
+    makes the six numbers add up rather than double-count."""
+    from kgav.host_targets import gate_census
+    c = gate_census(db)
+    # The fixture's tid 11 is human but NOTINGRAPH; mol 4 is phase 1.
+    assert c["dropped_max_phase_below_2"] >= 1
+    assert c["kept"] >= 1
+
+
+def test_the_phase_filter_cost_is_a_number_now(db):
+    """B1 asks whether to drop `max_phase >= 2`. This is what it costs."""
+    from kgav.host_targets import gate_census
+    strict = gate_census(db, min_phase=2)
+    loose = gate_census(db, min_phase=0)
+    assert loose["kept"] > strict["kept"]
+    assert loose["kept"] - strict["kept"] == strict["dropped_max_phase_below_2"]

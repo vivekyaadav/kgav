@@ -150,6 +150,75 @@ def load_mechanisms(db: Path) -> dict[tuple[str, str], str]:
     return {(c, a): act for c, a, act in rows}
 
 
+def gate_census(db: Path, min_pchembl: float = DEFAULT_MIN_PCHEMBL,
+                min_phase: int = DEFAULT_MIN_PHASE) -> Counter:
+    """What query_host_activities' WHERE clause discards, by reason.
+
+    FOUR GATES IN ONE WHERE CLAUSE, none countable from inside it
+    (fix-list E7): non-human target, target not a SINGLE PROTEIN, pChEMBL
+    below the floor, and max_phase below the floor. The last is fix-list
+    B1's subject -- a proposal to drop it entirely -- and nothing in this
+    repository could say what it costs.
+
+    The gates are counted in the order the WHERE clause applies them
+    conceptually, so each number is "rows this gate was the FIRST to
+    reject". A row failing two gates is attributed to one of them, which
+    is what makes the four add up to the total.
+
+    MEASURED ON chembl_37, 2026-11-07, and recorded here because this is a
+    full scan of 24.5 million activity rows and takes 76 seconds against
+    an 8-second ingest -- so the driver runs it behind --gate-census
+    rather than on every rebuild:
+
+        rows scanned                       24,527,044
+        dropped: not human                 10,573,458
+        dropped: target not SINGLE PROTEIN  5,654,400
+        dropped: standard_type not a potency 5,530,961
+        dropped: pchembl below 6            1,404,641
+        dropped: max_phase below 2          1,304,767   <- fix-list B1
+        kept                                   58,817
+
+    `kept` is exactly what query_host_activities returns, and the six
+    numbers sum to the scan, so the census and the WHERE clause cannot
+    disagree about what the gates mean without this failing to add up.
+    """
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    out: Counter = Counter()
+    rows = con.execute("""
+        SELECT t.tax_id = 9606                        AS human,
+               t.target_type = 'SINGLE PROTEIN'       AS single,
+               act.standard_type IN ('IC50','EC50','Ki','Kd') AS potency,
+               act.pchembl_value IS NOT NULL AND act.pchembl_value >= ?
+                                                      AS pchembl_ok,
+               md.max_phase IS NOT NULL AND md.max_phase >= ?
+                                                      AS phase_ok,
+               COUNT(*) AS n
+        FROM activities act
+        JOIN assays a            ON act.assay_id = a.assay_id
+        JOIN target_dictionary t ON a.tid = t.tid
+        JOIN molecule_dictionary md ON act.molregno = md.molregno
+        GROUP BY 1, 2, 3, 4, 5
+    """, (min_pchembl, min_phase)).fetchall()
+    con.close()
+    for human, single, potency, pchembl_ok, phase_ok, n in rows:
+        out["rows_scanned"] += n
+        if not human:
+            out["dropped_not_human"] += n
+        elif not single:
+            out["dropped_target_not_single_protein"] += n
+        elif not potency:
+            out["dropped_standard_type_not_a_potency"] += n
+        elif not pchembl_ok:
+            out[f"dropped_pchembl_below_{min_pchembl:g}"] += n
+        elif not phase_ok:
+            # FIX-LIST B1'S NUMBER. The proposal is to drop this filter;
+            # this is what it currently withholds.
+            out[f"dropped_max_phase_below_{min_phase:g}"] += n
+        else:
+            out["kept"] += n
+    return out
+
+
 def query_host_activities(db: Path, min_pchembl: float = DEFAULT_MIN_PCHEMBL,
                           min_phase: int = DEFAULT_MIN_PHASE) -> list[dict]:
     """Human single-protein potency rows for compounds at phase >= min_phase.

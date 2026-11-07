@@ -227,7 +227,7 @@ def main() -> int:
               f"not an arithmetic error here. Reported, not reconciled.")
 
     print("\n  skipped:")
-    for k in ("not_a_resistance_screen", "taxon_not_built",
+    for k in ("no_virus_match", "not_a_resistance_screen", "taxon_not_built",
               "polarity_unresolvable", "no_gene_data",
               "no_hits", "uncalibrated_sign", "gene_not_in_graph",
               "no_direction", "duplicate", "override_applied",

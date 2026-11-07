@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.aliases import AliasIndex
 from kgav.chembl import (
+    gate_census,
     DROPPED_COUNTERS,
     accounting,
     build_taxon_family_index,
@@ -22,7 +23,7 @@ from kgav.chembl import (
     query_activities,
 )
 from kgav.emit import Emit
-from kgav.schema import load_schema, report_violations
+from kgav.schema import print_capped, load_schema, report_violations
 from kgav.units import CONCENTRATION_FACTORS
 from kgav.virus_register import declared_taxa
 
@@ -70,6 +71,42 @@ def main() -> int:
     print(f"\nquerying {args.db.name}")
     rows = query_activities(args.db, sorted(taxon_map))
     print(f"  {len(rows):,} activities")
+
+    # WHAT THE WHERE CLAUSE DISCARDS (fix-list E7). Two gates lived inside
+    # it -- every standard_type outside IC50/EC50/Ki/Kd and every NULL
+    # standard_value -- and a gate inside a WHERE cannot count itself.
+    # Cheap here because the census is already restricted to these taxa.
+    gc = gate_census(args.db, sorted(taxon_map))
+    print(f"  of {gc['rows_for_these_taxa']:,} activity rows for these taxa:")
+    print(f"    {gc['kept']:>8,}  kept")
+    print(f"    {gc['dropped_standard_type_not_a_potency']:>8,}  dropped: "
+          f"standard_type is not a potency")
+    print(f"    {gc['dropped_null_standard_value']:>8,}  dropped: "
+          f"standard_value is NULL")
+    # print_capped, not a [:5] slice: the remainder is counted. The guard in
+    # tests/test_no_duplicate_logic.py caught the slice, which is the same
+    # rule that stopped a truncated year table deciding a conclusion in
+    # four earlier reports.
+    print_capped([(k.removeprefix("standard_type:"), gc[k])
+                  for k in sorted((k for k in gc
+                                   if k.startswith("standard_type:")),
+                                  key=lambda k: -gc[k])],
+                 5, lambda kv: f"{kv[1]:>6,}  {kv[0]}",
+                 indent="        ", unit="more standard_type(s)")
+    # kept COUNTS ACTIVITIES; the query returns activity x component pairs,
+    # because its LEFT JOIN to target_components fans out on a
+    # multi-component target. Asserting the identity makes the fan-out a
+    # measured number rather than a discrepancy to explain later.
+    fanout = len(rows) - gc["kept"]
+    census_total = (gc["kept"] + gc["dropped_standard_type_not_a_potency"]
+                    + gc["dropped_null_standard_value"])
+    if census_total != gc["rows_for_these_taxa"] or fanout < 0:
+        print(f"    ! ACCOUNTING DOES NOT CLOSE: "
+              f"{gc['rows_for_these_taxa']:,} rows, {census_total:,} "
+              f"accounted for, {len(rows):,} returned")
+        return 1
+    print(f"    {fanout:>8,}  extra row(s) from the target_components "
+          f"fan-out ({gc['kept']:,} + {fanout:,} = {len(rows):,})")
 
     em = Emit()
     s = ingest_activities(em, rows, viral_targets, taxon_map,
