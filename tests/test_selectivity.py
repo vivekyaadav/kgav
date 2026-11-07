@@ -1,6 +1,7 @@
 """Gate for the selectivity layer: the ratio is only computed where it means
 something, and the worst measurement wins.
 """
+from collections import Counter
 from pathlib import Path
 import json
 import sqlite3
@@ -12,6 +13,7 @@ from kgav.schema import load_schema
 from kgav.selectivity import (
     SI_THRESHOLD,
     TOX_TYPES,
+    extract_cell_line,
     ingest_selectivity,
     query_pairs,
     selectivity_index,
@@ -39,12 +41,12 @@ def test_gi50_is_not_treated_as_cytotoxicity():
 
 def _row(inchikey, ec50, cc50, tax=2697049, doc=1, year=2021, exact=True,
          tox_text="cytotoxicity in Vero E6 cells"):
-    """all_exact follows the SQL convention: 0 means every CC50 in the document
-    was an exact measurement, 1 means at least one was censored."""
+    """cc50_exact is a bool: True when the retained CC50 is an exact
+    measurement, False when it is a censored lower bound."""
     return {"molregno": 1, "doc_id": doc, "tax_id": tax, "ec50_nm": ec50,
             "n_activity": 1, "cc50_nm": cc50, "n_tox": 1, "compound": "CHEMBL1",
             "inchikey": inchikey, "year": year, "pubmed_id": 33333333,
-            "all_exact": 0 if exact else 1,
+            "cc50_exact": exact,
             "assay_text": "assay in Vero E6 cells",
             # THE COUNTERSCREEN'S OWN DESCRIPTION. selectivity_verified means
             # EC50 and CC50 come from one experimental context, so the two
@@ -105,7 +107,7 @@ def test_row_without_a_relation_flag_is_dropped(tmap):
     """Defaulting a missing direction-bearing field is the error that produced
     SI 1.8 for nirmatrelvir."""
     row = _row(KEY_A, 100.0, 5000.0)
-    del row["all_exact"]
+    del row["cc50_exact"]
     em = Emit()
     stats = ingest_selectivity(em, [row], tmap, "infores:chembl")
     assert stats["missing_relation_flag"] == 1 and stats["edges"] == 0
@@ -243,7 +245,6 @@ def test_no_comment_in_this_module_still_claims_the_worst_is_kept():
     from it as an inherited rule, citing it verbatim, and fix 3 of
     docs/prereg_m1_potency.md was designed on that citation.
     """
-    from pathlib import Path
     src = (Path(__file__).resolve().parents[1]
            / "src/kgav/selectivity.py").read_text()
     # The phrase may appear only where it is explicitly marked as superseded.
@@ -302,25 +303,139 @@ def test_an_unnamed_cell_line_cannot_be_verified(tmap):
     assert stats["context_cell_line_unnamed"] == 1
 
 
-def test_the_cell_line_is_the_potency_s_own_row():
-    """L11. The query took MIN(description) beside MIN(standard_value) --
-    two INDEPENDENT aggregates, so SQLite minimised each column separately
-    and the description came from whichever row sorted first by TEXT. In
-    1,249 of 2,771 multi-row groups they were different rows, and 794 of
-    those named a different cell line than the potency.
+def _chembl(tmp_path, assays, activities, docs=((100, 2021, 1),)):
+    """A minimal ChEMBL with whatever rows a test needs."""
+    db = tmp_path / "c.db"
+    con = sqlite3.connect(db)
+    con.executescript("""
+    CREATE TABLE molecule_dictionary(molregno INT, chembl_id TEXT);
+    CREATE TABLE compound_structures(molregno INT, standard_inchi_key TEXT);
+    CREATE TABLE target_dictionary(tid INT, tax_id INT);
+    CREATE TABLE assays(assay_id INT, tid INT, doc_id INT, description TEXT);
+    CREATE TABLE docs(doc_id INT, year INT, pubmed_id INT);
+    CREATE TABLE activities(activity_id INT, assay_id INT, molregno INT,
+      standard_type TEXT, standard_value REAL, standard_units TEXT,
+      standard_relation TEXT);
+    """)
+    con.execute("INSERT INTO molecule_dictionary VALUES(1, 'CHEMBL1')")
+    con.execute("INSERT INTO compound_structures VALUES(1, ?)", (KEY_A,))
+    con.executemany("INSERT INTO target_dictionary VALUES(?,?)",
+                    [(10, 2697049), (11, 9606)])
+    con.executemany("INSERT INTO assays VALUES(?,?,?,?)", assays)
+    con.executemany("INSERT INTO docs VALUES(?,?,?)", docs)
+    con.executemany("INSERT INTO activities VALUES(?,?,?,?,?,?,?)", activities)
+    con.commit()
+    con.close()
+    return db
 
-    Checked at the source, because reproducing it needs a real multi-row
-    group and the fix is structural: one row per group via ROW_NUMBER,
-    every field taken from it.
+
+def test_the_cell_line_is_the_potency_s_own_row(tmp_path):
+    """L11. MIN(description) sat beside MIN(standard_value) as two
+    INDEPENDENT aggregates, so SQLite minimised each column separately: the
+    potency came from whichever row sorted first by VALUE and the
+    description from whichever sorted first by TEXT. Measured on chembl_37,
+    they are different rows in 1,249 of 2,771 multi-row groups (45.1%), and
+    794 of those name a DIFFERENT CELL LINE than the potency.
+
+    The fixture below is that shape exactly: the cheaper EC50 is in Calu-3
+    and the dearer one in "A549", which sorts first alphabetically.
     """
-    src = (Path(__file__).resolve().parents[1]
-           / "src" / "kgav" / "selectivity.py").read_text()
-    assert "ROW_NUMBER() OVER" in src
-    # The exact bug form, not the bare phrase -- the comment in that file
-    # explains the defect and names it, and a looser pattern matches the
-    # explanation rather than the code.
-    assert "MIN(a.description) AS descr" not in src, (
-        "the description is a separate aggregate again; it will not be the "
-        "retained row's")
-    # Deterministic: two runs over one database must pick the same row.
-    assert "ORDER BY act.standard_value," in src
+    db = _chembl(
+        tmp_path,
+        assays=[(1, 10, 100, "Antiviral activity in Calu-3 cells"),
+                (2, 10, 100, "A549 antiviral activity"),
+                (3, 11, 100, "Cytotoxicity against Calu-3 cells")],
+        activities=[(1, 1, 1, "EC50", 100.0, "nM", "="),    # the minimum
+                    (2, 2, 1, "EC50", 900.0, "nM", "="),    # sorts first by text
+                    (3, 3, 1, "CC50", 5000.0, "nM", "=")])
+    rows = query_pairs(db, ["2697049"])
+    assert len(rows) == 1
+    assert rows[0]["ec50_nm"] == 100.0
+    assert extract_cell_line(rows[0]["assay_text"]) == "Calu-3", (
+        "the cell line came from a row other than the retained potency's")
+    assert rows[0]["n_activity"] == 2
+
+
+def test_a_convertible_unit_is_converted_not_dropped(tmp_path):
+    """E7. The SQL demanded units be literally 'nM', so anything else
+    vanished with nothing recorded. On the toxicity side that was 4,327 uM
+    and 116 mM rows, worth 72 extra (compound, document) pairs."""
+    db = _chembl(
+        tmp_path,
+        assays=[(1, 10, 100, "Antiviral activity in Vero E6 cells"),
+                (2, 11, 100, "Cytotoxicity against Vero E6 cells")],
+        activities=[(1, 1, 1, "EC50", 100.0, "nM", "="),
+                    (2, 2, 1, "CC50", 5.0, "uM", "=")])
+    stats = Counter()
+    rows = query_pairs(db, ["2697049"], stats=stats)
+    assert len(rows) == 1, "a uM counterscreen was dropped"
+    assert rows[0]["cc50_nm"] == 5000.0
+    assert stats["tox_converted"] == 1
+
+
+def test_an_unconvertible_unit_is_dropped_and_counted(tmp_path):
+    """ug.mL-1 needs a molecular weight. 240 of the 247 non-nM antiviral
+    rows are this, so the gate is right -- it just has to be visible."""
+    db = _chembl(
+        tmp_path,
+        assays=[(1, 10, 100, "Antiviral activity in Vero E6 cells"),
+                (2, 11, 100, "Cytotoxicity against Vero E6 cells")],
+        activities=[(1, 1, 1, "EC50", 1.0, "ug.mL-1", "="),
+                    (2, 2, 1, "CC50", 5000.0, "nM", "=")])
+    stats = Counter()
+    assert query_pairs(db, ["2697049"], stats=stats) == []
+    assert stats["av_dropped_unconvertible_units"] == 1
+    assert stats["av_unit:ug.mL-1"] == 1
+
+
+def test_an_exact_cc50_wins_over_a_censored_one(tmp_path):
+    """The flag was MIN(CASE relation='=' THEN 0 ELSE 1) -- a minimum, so
+    it meant "at least one row is exact" while being named all_exact -- and
+    cc50_nm was MIN over every row, censored included. 51 of the 3,388
+    SI-contributing groups reported an exact CC50 taken from a censored
+    row, and in all 51 the real exact value is HIGHER, so the index was
+    understated and the compound looked more cytotoxic than its own exact
+    measurement says."""
+    db = _chembl(
+        tmp_path,
+        assays=[(1, 10, 100, "Antiviral activity in Vero E6 cells"),
+                (2, 11, 100, "Cytotoxicity against Vero E6 cells")],
+        activities=[(1, 1, 1, "EC50", 100.0, "nM", "="),
+                    (2, 2, 1, "CC50", 1000.0, "nM", ">"),   # the lower minimum
+                    (3, 2, 1, "CC50", 8000.0, "nM", "=")])  # the exact one
+    stats = Counter()
+    rows = query_pairs(db, ["2697049"], stats=stats)
+    assert rows[0]["cc50_nm"] == 8000.0, "the censored bound won the minimum"
+    assert rows[0]["cc50_exact"] is True
+    assert stats["tox_mixed_group_exact_preferred"] == 1
+
+
+def test_an_all_censored_group_keeps_its_bound_and_says_so(tmp_path):
+    db = _chembl(
+        tmp_path,
+        assays=[(1, 10, 100, "Antiviral activity in Vero E6 cells"),
+                (2, 11, 100, "Cytotoxicity against Vero E6 cells")],
+        activities=[(1, 1, 1, "EC50", 100.0, "nM", "="),
+                    (2, 2, 1, "CC50", 50000.0, "nM", ">")])
+    rows = query_pairs(db, ["2697049"])
+    assert rows[0]["cc50_nm"] == 50000.0
+    assert rows[0]["cc50_exact"] is False
+
+
+def test_every_antiviral_row_is_accounted_for(tmp_path):
+    """E7's actual demand: emitted + dropped == rows, which only the ChEMBL
+    layer had. A gate inside a WHERE clause cannot be given a counter."""
+    db = _chembl(
+        tmp_path,
+        assays=[(1, 10, 100, "Antiviral activity in Vero E6 cells"),
+                (2, 11, 100, "Cytotoxicity against Vero E6 cells")],
+        activities=[(1, 1, 1, "EC50", 100.0, "nM", "="),
+                    (2, 1, 1, "EC50", 900.0, "nM", ">"),        # censored
+                    (3, 1, 1, "EC50", 1.0, "ug.mL-1", "="),     # unconvertible
+                    (4, 2, 1, "CC50", 5000.0, "nM", "=")])
+    stats = Counter()
+    query_pairs(db, ["2697049"], stats=stats)
+    assert stats["av_rows"] == 3
+    assert (stats["av_dropped_censored_or_null_relation"]
+            + stats["av_dropped_unconvertible_units"]
+            + stats["av_groups"]) == stats["av_rows"]

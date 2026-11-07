@@ -38,6 +38,13 @@ import sqlite3
 from collections import Counter
 from pathlib import Path
 
+# ONE UNIT IMPLEMENTATION AND ONE ALLOW-SET. units.py:17 names this file as
+# a place the conversion was missing entirely -- the SQL demanded literal
+# 'nM' -- and warns that a second copy is the worst-placed instance of a
+# pattern this project has found ten times.
+from kgav.chembl import CHEMBL_UNITS
+from kgav.units import to_nm
+
 # Conventional cut below which a cell-based antiviral hit is not pursued.
 SI_THRESHOLD = 10.0
 
@@ -48,110 +55,164 @@ TOX_TYPES = ("CC50", "TC50")
 ACTIVITY_TYPES = ("EC50", "IC50")
 
 
-def query_pairs(db: Path, taxa: list[str]) -> list[dict]:
+#: Units this layer will convert, the same frozen set chembl and
+#: host_targets use. units.py says why pinning it matters: adding a unit to
+#: CONCENTRATION_FACTORS must not silently change what an existing ingest
+#: accepts.
+SELECTIVITY_UNITS = CHEMBL_UNITS
+
+
+def query_pairs(db: Path, taxa: list[str],
+                stats: Counter | None = None) -> list[dict]:
     """Matched (compound, document) antiviral/cytotoxicity measurements.
 
-    Both sides take the MINIMUM value within a document, since a paper may
-    report several concentrations or cell lines. Taking the minimum EC50 and
-    the minimum CC50 is the conservative choice for selectivity: it maximises
-    apparent potency and minimises apparent tolerability, so a compound
-    clearing the threshold under this rule clears it under any.
+    EVERY GATE IS COUNTED, which is why the grouping is here rather than in
+    SQL. The previous version did it in four CTE WHERE clauses, so a row
+    outside IC50/EC50, a censored EC50, and -- the one that mattered -- any
+    row whose units were not LITERALLY 'nM' vanished with nothing recorded.
+    Fix-list item E7 is that this layer, hosttargets and ncats have no
+    `emitted + dropped == rows` accounting, which only ChEMBL has; a gate
+    inside a WHERE clause cannot be given one without moving it out.
+
+    UNITS GO THROUGH kgav.units.to_nm. They were not converted at all: the
+    SQL demanded 'nM'. On the antiviral side that costs almost nothing --
+    ChEMBL normalises potencies, so 37,776 of 38,023 rows are already nM
+    and 240 of the remaining 247 are ug.mL-1, which needs a molecular
+    weight and is genuinely unconvertible. On the TOXICITY side it dropped
+    4,327 uM and 116 mM rows, worth 72 extra (compound, document) pairs.
+    A CASE expression in SQL would have been a fourth implementation of the
+    conversion, and units.py calls that "the worst placed instance of a
+    pattern this project has now found ten times".
+
+    THE RETAINED CC50 AND ITS exact FLAG DESCRIBE THE SAME ROW. The flag
+    was MIN(CASE WHEN relation = '=' THEN 0 ELSE 1 END) -- a minimum, so it
+    read "at least one row is exact" while being named `all_exact` -- and
+    cc50_nm was MIN over every row including censored ones. 51 of the 3,388
+    SI-contributing groups therefore reported an exact CC50 taken from a
+    censored row, and in all 51 the real exact value is HIGHER, so the
+    index was understated and the compound looked more cytotoxic than its
+    own exact measurement says. When any exact row exists the CC50 is now
+    the minimum over the exact rows only.
     """
+    counts: Counter = stats if stats is not None else Counter()
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     con.row_factory = sqlite3.Row
     placeholders = ",".join("?" * len(taxa))
     act_types = ",".join(f"'{t}'" for t in ACTIVITY_TYPES)
     tox_types = ",".join(f"'{t}'" for t in TOX_TYPES)
 
-    rows = con.execute(f"""
-        -- THE DESCRIPTION OF THE RETAINED ROW, not the alphabetically
-        -- smallest one. This was MIN(a.description) beside
-        -- MIN(act.standard_value), two INDEPENDENT aggregates: SQLite
-        -- minimises each column separately, so the description came from
-        -- whichever row sorted first by text while the potency came from
-        -- whichever sorted first by value. Measured on chembl_37: in 1,249
-        -- of 2,771 multi-row groups (45.1%) they are different rows, and in
-        -- 794 of those the description names a DIFFERENT CELL LINE -- so the
-        -- edge reported a potency measured in one cell line and labelled it
-        -- with another. The same compound's EC50 varies thirtyfold across
-        -- cell lines in this data, which is why the qualifier exists.
-        --
-        -- ROW_NUMBER keeps one row per group and takes every field from it.
-        -- The ORDER BY tie-breaks on description so two runs over the same
-        -- database cannot disagree about which row that is.
-        WITH antiviral AS (
-            SELECT molregno, doc_id, tax_id, ec50_nm, n_activity, descr
-            FROM (
-                SELECT act.molregno AS molregno, a.doc_id AS doc_id,
-                       t.tax_id AS tax_id,
-                       act.standard_value AS ec50_nm,
-                       a.description AS descr,
-                       COUNT(*) OVER (PARTITION BY act.molregno, a.doc_id,
-                                                   t.tax_id) AS n_activity,
-                       ROW_NUMBER() OVER (PARTITION BY act.molregno, a.doc_id,
-                                                       t.tax_id
-                                          ORDER BY act.standard_value,
-                                                   a.description) AS rn
-                FROM activities act
-                JOIN assays a ON act.assay_id = a.assay_id
-                JOIN target_dictionary t ON a.tid = t.tid
-                WHERE t.tax_id IN ({placeholders})
-                  AND act.standard_type IN ({act_types})
-                  AND act.standard_relation = '='
-                  AND act.standard_units = 'nM'
-                  AND act.standard_value > 0
-            ) WHERE rn = 1
-        ),
-        toxicity AS (
-            SELECT act.molregno, a.doc_id,
-                   MIN(act.standard_value) AS cc50_nm,
-                   COUNT(*) AS n_tox,
-                   -- The counterscreen's OWN description, taken from the row
-                   -- the CC50 comes from, so the cell lines of the two halves
-                   -- of the ratio can be compared. Without it `verified` meant
-                   -- only "same document", and a paper routinely measures
-                   -- antiviral activity in one cell line and cytotoxicity in
-                   -- another: 323 of the 2,573 pairs where both are named
-                   -- (12.6%) mix two cell lines while claiming to be verified.
-                   (SELECT a2.description
-                      FROM activities act2
-                      JOIN assays a2 ON act2.assay_id = a2.assay_id
-                     WHERE act2.molregno = act.molregno
-                       AND a2.doc_id = a.doc_id
-                       AND act2.standard_type IN ({tox_types})
-                       AND act2.standard_units = 'nM'
-                       AND act2.standard_relation IN ('=', '>')
-                       AND act2.standard_value > 0
-                     ORDER BY act2.standard_value, a2.description
-                     LIMIT 1) AS tox_descr,
-                   -- A censored CC50 ("> 50000 nM") means the compound was NOT
-                   -- toxic up to that concentration, so the true value is
-                   -- HIGHER and the resulting ratio is a LOWER BOUND on
-                   -- selectivity. Treating it as a point value manufactures
-                   -- cytotoxicity: it produced SI 1.0 for nirmatrelvir and 0.0
-                   -- for remdesivir, both licensed antivirals.
-                   MIN(CASE WHEN act.standard_relation = '=' THEN 0 ELSE 1 END) AS all_exact
-            FROM activities act
-            JOIN assays a ON act.assay_id = a.assay_id
-            WHERE act.standard_type IN ({tox_types})
-              AND act.standard_units = 'nM'
-              AND act.standard_relation IN ('=', '>')
-              AND act.standard_value > 0
-            GROUP BY act.molregno, a.doc_id
-        )
-        SELECT av.molregno, av.doc_id, av.tax_id, av.ec50_nm, av.n_activity,
-               tx.cc50_nm, tx.n_tox, tx.all_exact, tx.tox_descr,
-               md.chembl_id AS compound,
-               cs.standard_inchi_key AS inchikey,
-               d.year, d.pubmed_id, av.descr AS assay_text
-        FROM antiviral av
-        JOIN toxicity tx ON av.molregno = tx.molregno AND av.doc_id = tx.doc_id
-        JOIN molecule_dictionary md ON av.molregno = md.molregno
-        LEFT JOIN compound_structures cs ON av.molregno = cs.molregno
-        LEFT JOIN docs d ON av.doc_id = d.doc_id
+    # ---------------------------------------------------- antiviral side
+    av_rows = con.execute(f"""
+        SELECT act.molregno, a.doc_id, t.tax_id,
+               act.standard_value AS value, act.standard_units AS units,
+               act.standard_relation AS relation, a.description AS descr
+        FROM activities act
+        JOIN assays a ON act.assay_id = a.assay_id
+        JOIN target_dictionary t ON a.tid = t.tid
+        WHERE t.tax_id IN ({placeholders})
+          AND act.standard_type IN ({act_types})
     """, taxa).fetchall()
+
+    antiviral: dict[tuple, dict] = {}
+    for r in av_rows:
+        counts["av_rows"] += 1
+        if r["relation"] != "=":
+            counts["av_dropped_censored_or_null_relation"] += 1
+            continue
+        nm = to_nm(r["value"], r["units"], allow=SELECTIVITY_UNITS)
+        if nm is None or nm <= 0:
+            counts["av_dropped_unconvertible_units"] += 1
+            counts[f"av_unit:{r['units']}"] += 1
+            continue
+        if r["units"] != "nM":
+            counts["av_converted"] += 1
+        # ROWS KEPT, separately from the groups they collapse into. The
+        # accounting identity is dropped + kept == read; groups are fewer
+        # than kept rows by construction, and using them closed nothing.
+        counts["av_kept"] += 1
+        key = (r["molregno"], r["doc_id"], r["tax_id"])
+        cur = antiviral.get(key)
+        # Tie-break on the description so two runs over one database cannot
+        # disagree about which row was retained.
+        cand = (nm, r["descr"] or "")
+        if cur is None:
+            antiviral[key] = {"ec50_nm": nm, "descr": r["descr"],
+                              "n_activity": 1, "_k": cand}
+        else:
+            cur["n_activity"] += 1
+            if cand < cur["_k"]:
+                cur.update(ec50_nm=nm, descr=r["descr"], _k=cand)
+    counts["av_groups"] = len(antiviral)
+
+    # ---------------------------------------------------- toxicity side
+    tox_rows = con.execute(f"""
+        SELECT act.molregno, a.doc_id,
+               act.standard_value AS value, act.standard_units AS units,
+               act.standard_relation AS relation, a.description AS descr
+        FROM activities act
+        JOIN assays a ON act.assay_id = a.assay_id
+        WHERE act.standard_type IN ({tox_types})
+    """).fetchall()
+
+    toxicity: dict[tuple, dict] = {}
+    for r in tox_rows:
+        counts["tox_rows"] += 1
+        if r["relation"] not in ("=", ">"):
+            counts["tox_dropped_relation"] += 1
+            continue
+        nm = to_nm(r["value"], r["units"], allow=SELECTIVITY_UNITS)
+        if nm is None or nm <= 0:
+            counts["tox_dropped_unconvertible_units"] += 1
+            counts[f"tox_unit:{r['units']}"] += 1
+            continue
+        if r["units"] != "nM":
+            counts["tox_converted"] += 1
+        counts["tox_kept"] += 1
+        key = (r["molregno"], r["doc_id"])
+        exact = r["relation"] == "="
+        rec = toxicity.setdefault(key, {"n_tox": 0, "exact": [], "bound": []})
+        rec["n_tox"] += 1
+        rec["exact" if exact else "bound"].append((nm, r["descr"] or ""))
+    counts["tox_groups"] = len(toxicity)
+
+    # ---------------------------------------------------- the join
+    meta = {}
+    for row in con.execute("""
+        SELECT md.molregno, md.chembl_id AS compound,
+               cs.standard_inchi_key AS inchikey
+        FROM molecule_dictionary md
+        LEFT JOIN compound_structures cs ON md.molregno = cs.molregno
+    """):
+        meta[row["molregno"]] = (row["compound"], row["inchikey"])
+    docs = {row["doc_id"]: (row["year"], row["pubmed_id"])
+            for row in con.execute("SELECT doc_id, year, pubmed_id FROM docs")}
     con.close()
-    return [dict(r) for r in rows]
+
+    out: list[dict] = []
+    for (mol, doc, tax), av in antiviral.items():
+        tx = toxicity.get((mol, doc))
+        if tx is None:
+            counts["no_matched_counterscreen"] += 1
+            continue
+        # THE CC50 AND ITS FLAG FROM ONE ROW. Exact rows win outright: a
+        # censored bound and an exact measurement are different claims and
+        # the minimum across both belongs to neither.
+        pool = tx["exact"] or tx["bound"]
+        cc50_nm, tox_descr = min(pool)
+        cc50_exact = bool(tx["exact"])
+        if tx["exact"] and tx["bound"]:
+            counts["tox_mixed_group_exact_preferred"] += 1
+        compound, inchikey = meta.get(mol, (None, None))
+        year, pubmed_id = docs.get(doc, (None, None))
+        out.append({"molregno": mol, "doc_id": doc, "tax_id": tax,
+                    "ec50_nm": av["ec50_nm"], "n_activity": av["n_activity"],
+                    "cc50_nm": cc50_nm, "n_tox": tx["n_tox"],
+                    "cc50_exact": cc50_exact, "tox_descr": tox_descr,
+                    "compound": compound, "inchikey": inchikey,
+                    "year": year, "pubmed_id": pubmed_id,
+                    "assay_text": av["descr"]})
+    counts["pairs"] = len(out)
+    return out
 
 
 # Cell lines appearing in coronavirus assays, longest patterns first so
@@ -258,15 +319,15 @@ def ingest_selectivity(em, rows: list[dict], taxon_map: dict[str, str],
         # CITED as authority elsewhere -- baselines.potency_tiebreak took
         # "keep the worst" from it -- and a comment that outlived its code
         # does its damage by being quoted.
-        # all_exact must be present. Defaulting a missing value to "censored"
+        # cc50_exact must be present. Defaulting a missing value to "censored"
         # silently discards the row; defaulting to "exact" silently trusts a
         # bound as a measurement. Both are the same class of error that
         # produced SI 1.8 for nirmatrelvir, so an absent field is counted and
         # dropped rather than interpreted.
-        if r.get("all_exact") is None:
+        if r.get("cc50_exact") is None:
             stats["missing_relation_flag"] += 1
             continue
-        exact = r["all_exact"] == 0
+        exact = bool(r["cc50_exact"])
         if not exact and si < threshold:
             stats["censored_uninformative"] += 1
             continue

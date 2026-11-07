@@ -46,8 +46,54 @@ def main() -> int:
     taxon_map = declared_taxa(cfg)
 
     print("pairing antiviral EC50/IC50 with CC50/TC50 within the same document")
-    rows = query_pairs(args.db, sorted(taxon_map))
+    # EVERY GATE REPORTED. Four of them lived in SQL WHERE clauses and
+    # discarded input with nothing recorded, which is fix-list item E7:
+    # only the ChEMBL layer asserts `emitted + dropped == rows`.
+    q: Counter = Counter()
+    rows = query_pairs(args.db, sorted(taxon_map), stats=q)
     print(f"  {len(rows):,} matched (compound, document, virus) rows")
+    print(f"\n  antiviral rows read {q['av_rows']:,} -> "
+          f"{q['av_groups']:,} (compound, doc, virus) group(s)")
+    for k, label in (("av_dropped_censored_or_null_relation",
+                      "dropped: relation is not '=' (censored or absent)"),
+                     ("av_dropped_unconvertible_units",
+                      "dropped: units not convertible to nM"),
+                     ("av_converted", "converted from a non-nM unit")):
+        if q[k]:
+            print(f"    {q[k]:>8,}  {label}")
+    print(f"  toxicity rows read {q['tox_rows']:,} -> "
+          f"{q['tox_groups']:,} group(s)")
+    for k, label in (("tox_dropped_relation",
+                      "dropped: relation is neither '=' nor '>'"),
+                     ("tox_dropped_unconvertible_units",
+                      "dropped: units not convertible to nM"),
+                     ("tox_converted", "converted from a non-nM unit"),
+                     ("tox_mixed_group_exact_preferred",
+                      "group holds both exact and censored CC50s; the "
+                      "exact minimum is used")):
+        if q[k]:
+            print(f"    {q[k]:>8,}  {label}")
+    if q["no_matched_counterscreen"]:
+        print(f"    {q['no_matched_counterscreen']:>8,}  antiviral group(s) "
+              f"with no counterscreen in the same document")
+    # THE ACCOUNTING CLOSES, or the run says so rather than being believed.
+    for side in ("av", "tox"):
+        dropped = sum(v for k, v in q.items()
+                      if k.startswith(f"{side}_dropped_"))
+        accounted = dropped + q[f"{side}_kept"]
+        if accounted != q[f"{side}_rows"]:
+            print(f"\n  ! ACCOUNTING DOES NOT CLOSE on the {side} side: "
+                  f"{q[f'{side}_rows']:,} rows read, {accounted:,} accounted "
+                  f"for ({dropped:,} dropped + {q[f'{side}_kept']:,} kept). "
+                  f"A row is being discarded by a gate with no counter.")
+            return 1
+    print(f"\n  accounting closes: "
+          f"{q['av_rows']:,} antiviral and {q['tox_rows']:,} toxicity rows "
+          f"read, every one either dropped by a named gate or kept")
+    # The units actually seen, so a new one shows up as a line rather than
+    # as a silently smaller number.
+    for k in sorted(k for k in q if k.startswith(("av_unit:", "tox_unit:"))):
+        print(f"    {q[k]:>8,}  {k}")
 
     em = Emit()
     s = ingest_selectivity(em, rows, taxon_map, "infores:chembl", args.threshold)
