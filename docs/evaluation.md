@@ -26,16 +26,19 @@ the one this document carried on 2026-10-31, not a weaker one.
      once and stopped being true -- it reaches 82 drugs and one labelled
      active -- which is also why the first count is eight, not seven. -->
 
-    evaluated   M4  0.551 [0.489, 0.613]   reaches 32 of 89 actives
-                M5  0.550 [0.488, 0.612]   reaches 27 of 89
+    evaluated   M4  0.546 [0.484, 0.608]   reaches 31 of 89 actives
+                M5  0.546 [0.484, 0.607]   reaches 26 of 89
                 M3  0.541 [0.479, 0.602]   reaches 16 of 89
                 M2  0.507 [0.447, 0.568]   reaches 11 of 89
 
-    not         M6  reaches  7    M1 reaches 3
+    not         M6  reaches  5    M1 reaches 3
     evaluated   M8  reaches  1    M7 reaches 0
 
-    baseline    degree 0.624 [0.561, 0.686] — the only scorer clear of 0.5,
-                and it is the null hypothesis, not a reasoning channel
+    baseline    degree   0.616 [0.553, 0.678]   clear of 0.5, and it is the
+                                                null hypothesis, not a
+                                                reasoning channel
+    ensemble    COMBINED 0.575 [0.512, 0.637]   reaches 39 of 89. Also clear
+                                                of 0.5, and BELOW degree
 
 So a calibrated ranking returns nothing, and that is the correct output. The
 graph can report evidence for a compound it is asked about; it has no measured
@@ -52,9 +55,28 @@ containing chance. The section below reports all three numbers.
 
 The one-line version of every table here:
 
-> **No channel, on any protocol, on any virus, has an AUC whose interval
-> excludes chance. The only scorer that ever did is degree, the null
-> hypothesis, and only cross-sectionally.**
+> **No individual reasoning channel, on any protocol, on any virus, has an
+> AUC whose interval excludes chance. Two scorers do, both only
+> cross-sectionally and both on SARS-CoV-2: degree 0.616 [0.553, 0.678],
+> the null hypothesis, and the COMBINED ensemble 0.575 [0.512, 0.637],
+> which sits BELOW it.**
+>
+> That second scorer was missing from this claim until 2026-11-07, and the
+> claim was wrong without it: it read "the only scorer that ever did is
+> degree". COMBINED's cross-sectional interval excluded chance on the
+> shipped graph too -- 0.581 [0.518, 0.643] -- at 46% coverage of the
+> positives, so it was neither a new result nor a degenerate cell. It was
+> simply never printed anywhere in this document, and the rule here is
+> that an unprinted figure is unchecked: five test files re-derive every
+> table in this document from the results, and none of them could assert a
+> number the document does not contain.
+>
+> It does not rescue the conclusion, and it sharpens it. An ensemble of
+> eight channels clears chance and still loses to counting a compound's
+> edges. Degree and COMBINED are not distinguishable from each other --
+> their intervals overlap across most of their width -- so what the graph
+> separates is well-studied chemical matter from obscure chemical matter,
+> which is what degree measures directly.
 >
 > In every cross-sectional virus where a reasoning channel cleared p<0.05,
 > the degree baseline cleared it too -- 4 of 4, no exception. Exactly one
@@ -236,19 +258,21 @@ So p-values make the *uncontrolled* protocol look full of discoveries.
 
 | virus | best readable channel | lift | p | significant | degree | p | baseline verdict |
 |---|---|---|---|---|---|---|---|
-| SARS-CoV-2 | M4 | 1.53 | 0.2630 | M7 0.0004 | 0.50 | 0.9624 | BASELINE NOT DETERMINED |
-| DENV-2 | — | — | — | — | 0.97 | 0.5947 | BASELINE NOT DETERMINED |
+| SARS-CoV-2 | M4 | 1.53 | 0.2630 | M7 0.0017 | 0.75 | 0.8167 | BASELINE AT CHANCE |
+| DENV-2 | — | — | — | — | 0.73 | 0.7858 | — |
 | Zika | — | — | — | — | 0.99 | 0.5909 | — |
 | West Nile | — | — | — | — | 0.97 | 0.6464 | — |
-| DENV-3 | — | — | — | — | 3.58 | 0.0521 | BASELINE NOT DETERMINED |
-| DENV-1 | — | — | — | — | 3.91 | 0.0420 | BASELINE NOT DETERMINED |
+| DENV-3 | — | — | — | — | 2.38 | 0.2050 | — |
+| DENV-1 | — | — | — | — | 2.60 | 0.1793 | — |
 | HCoV-OC43 | — | — | — | — | 3.10 | 0.1367 | — |
-| DENV-4 | — | — | — | — | 4.98 | 0.0227 | BASELINE NOT DETERMINED |
+| DENV-4 | — | — | — | — | 3.32 | 0.1222 | — |
 | SARS-CoV | M3 | 2.37 | 0.0766 | — | 11.69 | <.0001 | CONFOUNDED |
 | Yellow fever | — | — | — | — | 1.88 | 0.4139 | — |
 | MERS-CoV | M2 | 1.39 | 0.4374 | — | 15.27 | <.0001 | CONFOUNDED |
 | HCoV-229E | — | — | — | — | 6.29 | 0.0122 | CONFOUNDED |
 | TBEV | — | — | — | — | 3.53 | 0.2477 | — |
+| JEV | — | — | — | — | 0.00 | 1.0000 | — |
+| HCoV-NL63 | — | — | — | — | 50.77 | 0.0195 | CONFOUNDED |
 | JEV | — | — | — | — | 0.00 | 1.0000 | — |
 | HCoV-NL63 | — | — | — | — | 50.77 | 0.0195 | CONFOUNDED |
 
@@ -299,14 +323,26 @@ what that guard reads, and edge counts cannot see this.
 
 ### The one readable cell that is nominally significant, and whether it survives correction
 
-Across all fifteen viruses and eight metapaths, **eleven cells are both
+Across all fifteen viruses and eight metapaths, **ten cells are both
 `trustworthy` and `hits_determined`** -- readable, in the sense the rest of
 this document means. One of them is nominally significant at p<0.05:
 
-**SARS-CoV-2 M7, lift 1.34, p=0.000379**, reaching 234 positives in a pool
-of 515, against a degree baseline at 0.50 (p=0.9624) that is itself
+**SARS-CoV-2 M7, lift 1.28, p=0.001655**, reaching 226 positives in a pool
+of 476, against a degree baseline at 0.75 (p=0.8167) that is itself
 indistinguishable from random. It is the only cell in this table that
 clears any threshold while being readable.
+
+**IT CLEARS ONE CORRECTION FAMILY OF FOUR, DOWN FROM THREE.** On the
+release of 2026-10-28 this cell read p=0.000379 and cleared every family
+but the strictest. The rebuild of 2026-11-07 -- which re-dated 12,514
+virus-host edges from a constant to their publication year, calibrated the
+ORCS effect-size sign, and removed 434 similarity edges joining two keys
+of one molecule -- moved it to p=0.001655, and at that value it clears
+only the most permissive family. Nothing about M7 changed; the graph it is
+measured on became more accurate, and the cell got weaker. That is the
+expected direction when a confound is removed, and it is recorded here
+rather than in a commit message because it is the project's one
+nominally-significant result.
 
 **DENV-2 M4 was the second such cell on 2026-10-30 and is no longer one,
 and the way it left is the more instructive half of this section.** It now
@@ -334,11 +370,11 @@ strictest. This document has never declared one for this table, which is
 itself the defect; the sensitivity is given rather than a choice made after
 seeing the number:
 
-| family | n | alpha | M7 at p=0.000379 |
+| family | n | alpha | M7 at p=0.001655 |
 |---|---|---|---|
-| readable cells only | 11 | 0.00455 | clears, by a factor of 12 |
-| every cell computed | 61 | 0.00082 | clears, by a factor of 2 |
-| every cell planned (15 viruses x 8 metapaths) | 120 | 0.00042 | clears narrowly |
+| readable cells only | 10 | 0.00500 | clears, by a factor of 3 |
+| every cell computed | 61 | 0.00082 | **fails** |
+| every cell planned (15 viruses x 8 metapaths) | 120 | 0.00042 | **fails** |
 | planned, plus COMBINED and degree | 150 | 0.00033 | **fails** |
 
 Correcting over cells that could be read is the defensible choice -- an
@@ -373,21 +409,32 @@ does. `confound_warning()` prints the verdict under every table, both ways:
                           MERS-CoV, HCoV-229E and HCoV-NL63
                           cross-sectionally, and MERS-CoV, SARS-CoV and
                           Zika temporally (both the computed_only and
-                          include policies)
+                          include policies). Ten (run, virus) pairs, the
+                          largest verdict class in both tables
     BASELINE AT CHANCE    degree is indistinguishable from random AND a
                           TRUSTWORTHY, DETERMINED channel is significant --
-                          two (run, virus) pairs, both temporal, and both
-                          for SARS-CoV-2: under computed_only, degree lift
-                          1.08 (p=0.4693) against COMBINED's 2.87
-                          (p=0.0170); under include, degree lift 0.63
-                          (p=0.8885) against COMBINED's 2.82 (p=0.0314)
+                          ONE (run, virus) pair after the 2026-11-07
+                          rebuild, and it has moved table: cross-sectional
+                          SARS-CoV-2, degree lift 0.75 (p=0.8167) against
+                          M7's 1.28 (p=0.0017). Before the rebuild it was
+                          two pairs, both temporal and both carried by
+                          COMBINED; both are now NOT DETERMINED or
+                          CONFOUNDED instead. This verdict has moved
+                          between the two tables three times, which is why
+                          the document derives which pair holds it rather
+                          than naming one
     BASELINE NOT          the degree row's own Hits@k is an interval, so no
     DETERMINED            comparison against it can be read -- including
                           every ratio in the vs-deg column, which divides
-                          by it. Five pairs, all cross-sectional:
-                          SARS-CoV-2, DENV-2, DENV-3, DENV-1 and DENV-4,
-                          each a tie block of 10 compounds straddling the
-                          cut
+                          by it. Three pairs, all temporal: SARS-CoV-2
+                          under computed_only and under include, and
+                          DENV-2 under include. The five cross-sectional
+                          pairs that read this before the rebuild --
+                          SARS-CoV-2, DENV-2, DENV-3, DENV-1, DENV-4, each
+                          a tie block of 10 compounds straddling the cut --
+                          now report nothing, because re-dating the
+                          virus-host edges moved their degree hit counts
+                          off the tie
     (nothing)             neither, so there is nothing to report
 
 **The whole AT CHANCE column moved on 2026-11-02, and not because any
@@ -469,12 +516,21 @@ the table says when an interval spans 1.00. The M6-vs-M7 verdict refuses
 rather than comparing two draws.
 
 Both tables also carry a `vs deg` column, with `(~)` marking a ratio whose
-denominator is itself at chance. SARS-CoV-2 cross-sectional is why, and as
-of 2026-11-02 it is why twice over: **there is no ratio to print at all.**
-M4 reads lift 1.53 at p=0.2630 against a degree lift of **0.50**, and
-`lift_vs_degree` is `None` -- not a number marked unreliable, but no number.
-Degree's own Hits@k on this run is an interval, 4 to 5, so the denominator
-is not a measurement and the division is refused rather than annotated.
+denominator is itself at chance. SARS-CoV-2 cross-sectional is why. M4
+reads lift 1.53 at p=0.2630 against a degree lift of **0.75**, which is
+**2.04x a degree** baseline that is itself indistinguishable from random
+(p=0.8167) -- so `vs_degree_readable` is `False` and the ratio is printed
+only with that mark against it. A ratio over a denominator at chance is
+not evidence of a channel; it is a statement about how little degree
+achieved on this virus.
+
+Between 2026-11-02 and the rebuild of 2026-11-07 there was no ratio to
+print at all: degree's own Hits@k was the interval 4 to 5, so
+`lift_vs_degree` was `None` -- not a number marked unreliable, but no
+number -- and this paragraph said so. The rebuild returned degree's hit
+count to a determined 6, so the division is defined again. The figure has
+now been quotable, withdrawn and quotable again across three releases,
+which is the reason it is derived by a test rather than typed.
 
 An earlier version of this paragraph quoted that ratio as 2.37x. It was
 computable then because degree's hit count was determined; the Guide to
@@ -823,34 +879,34 @@ depletion, so `n_tests = 44` over 22 rows and the Bonferroni threshold is
 
 | channel | virus | dependency factors | observed | expected | p enriched | p depleted | verdict |
 |---|---|---|---|---|---|---|---|
-| taxa | SARS-CoV-2 | 3,460 | 384 | 358.98 | 0.0610 | 0.9475 | — |
-| taxa | DENV-2 | 50 | 2 | 6.22 | 0.9925 | 0.0455 | — |
-| taxa | West Nile | 18 | 0 | 2.53 | 1.0000 | 0.0520 | — |
-| taxa | HCoV-NL63 | 57 | 10 | 7.43 | 0.1974 | 0.8861 | — |
-| taxa | Zika | 815 | 76 | 79.83 | 0.7001 | 0.3483 | — |
-| taxa | HCoV-OC43 | 657 | 62 | 65.07 | 0.6882 | 0.3618 | — |
-| taxa | MERS-CoV | 678 | 60 | 66.54 | 0.8251 | 0.2059 | — |
-| taxa | HCoV-229E | 1,367 | 128 | 135.34 | 0.7581 | 0.2709 | — |
-| interactome | West Nile | 6 | 4 | 0.88 | 0.0065 | 0.9985 | — |
-| interactome | HCoV-229E | 397 | 34 | 50.36 | 0.9945 | 0.0075 | — |
-| interactome | HCoV-HKU1 | 279 | 25 | 36.49 | 0.9885 | 0.0200 | — |
-| interactome | MERS-CoV | 622 | 64 | 79.86 | 0.9790 | 0.0275 | — |
-| interactome | HCoV-OC43 | 289 | 28 | 38.19 | 0.9785 | 0.0320 | — |
-| interactome | SARS-CoV | 1,238 | 167 | 148.88 | 0.0560 | 0.9550 | — |
-| interactome | DENV-1 | 53 | 11 | 7.09 | 0.0880 | 0.9560 | — |
-| interactome | HCoV-NL63 | 311 | 32 | 40.96 | 0.9520 | 0.0695 | — |
-| interactome | SARS-CoV-2 | 3,494 | 438 | 425.14 | 0.2174 | 0.8006 | — |
-| interactome | DENV-2 | 271 | 40 | 35.33 | 0.2179 | 0.8361 | — |
-| interactome | TBEV | 35 | 3 | 4.60 | 0.8391 | 0.3088 | — |
-| interactome | DENV-3 | 33 | 6 | 4.44 | 0.2799 | 0.8501 | — |
-| interactome | Zika | 353 | 47 | 44.78 | 0.3768 | 0.6787 | — |
-| interactome | JEV | 7 | 1 | 0.84 | 0.6017 | 0.8061 | — |
+| taxa | SARS-CoV-2 | 3,460 | 384 | 359.19 | 0.0710 | 0.9390 | — |
+| taxa | DENV-2 | 50 | 2 | 6.40 | 0.9890 | 0.0365 | — |
+| taxa | West Nile | 18 | 0 | 2.55 | 1.0000 | 0.0610 | — |
+| taxa | HCoV-NL63 | 57 | 10 | 7.34 | 0.1869 | 0.8911 | — |
+| taxa | Zika | 815 | 76 | 80.37 | 0.7241 | 0.3168 | — |
+| taxa | HCoV-OC43 | 657 | 62 | 65.29 | 0.6887 | 0.3568 | — |
+| taxa | MERS-CoV | 678 | 60 | 66.39 | 0.8256 | 0.2164 | — |
+| taxa | HCoV-229E | 1,367 | 128 | 134.91 | 0.7596 | 0.2694 | — |
+| interactome | West Nile | 6 | 4 | 0.87 | 0.0055 | 1.0000 | — |
+| interactome | HCoV-229E | 397 | 34 | 49.94 | 0.9990 | 0.0040 | — |
+| interactome | HCoV-HKU1 | 279 | 25 | 36.71 | 0.9910 | 0.0165 | — |
+| interactome | MERS-CoV | 622 | 64 | 79.69 | 0.9775 | 0.0310 | — |
+| interactome | HCoV-OC43 | 289 | 28 | 38.25 | 0.9765 | 0.0365 | — |
+| interactome | SARS-CoV | 1,238 | 167 | 149.51 | 0.0605 | 0.9500 | — |
+| interactome | DENV-1 | 53 | 11 | 7.15 | 0.0860 | 0.9555 | — |
+| interactome | HCoV-NL63 | 311 | 32 | 40.73 | 0.9440 | 0.0815 | — |
+| interactome | SARS-CoV-2 | 3,494 | 438 | 426.23 | 0.2354 | 0.7796 | — |
+| interactome | DENV-2 | 271 | 40 | 35.27 | 0.2154 | 0.8361 | — |
+| interactome | TBEV | 35 | 3 | 4.59 | 0.8641 | 0.3063 | — |
+| interactome | DENV-3 | 33 | 6 | 4.41 | 0.2814 | 0.8701 | — |
+| interactome | Zika | 353 | 47 | 45.09 | 0.3938 | 0.6672 | — |
+| interactome | JEV | 7 | 1 | 0.83 | 0.5937 | 0.8186 | — |
 
 **0 of 22** rows clear the threshold, in either direction.
 
 **The uncorrected view is where the discoveries live.** DENV-1's interactome
-overlap is `0.0102 naive` and `0.0880 matched`; DENV-2's is `0.0036 naive`
-and `0.2179 matched`. Neither gap opens because the data changed. The
+overlap is `0.0102 naive` and `0.0860 matched`; DENV-2's is `0.0036 naive`
+and `0.2154 matched`. Neither gap opens because the data changed. The
 naive p-value asks whether these proteins are over-represented in pathways;
 the matched one asks whether they are over-represented *compared with
 proteins as well-connected as they are*. A third-of-a-percent result becomes

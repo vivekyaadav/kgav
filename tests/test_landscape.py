@@ -1166,15 +1166,36 @@ def test_it_says_plainly_that_it_is_not_a_registration_yet(prereg):
 
 
 def test_the_quoted_release_matches_the_census(prereg):
+    """DERIVED FROM THE CENSUS, not typed beside it.
+
+    This hard-coded "392,907 edges" and the two content hashes of the
+    2026-10-28 release. Its whole purpose is to catch the registration
+    quoting a release that no longer exists -- and when the 2026-11-07
+    rebuild moved all four figures, the test failed because ITS copy was
+    stale, not because it had detected anything. A check written with the
+    same literals it is checking cannot survive the event it exists for.
+
+    The census is generated from the release by scripts/write_kg_report.py
+    and audited by `make kg-report-check`, so it is the right source.
+    """
+    import re
     census = _ROOT / "docs" / "kg_release_census.txt"
     if not census.exists():
         pytest.skip("census absent")
     body = census.read_text()
-    for token in ("78,789 nodes", "392,907 edges"):
-        assert token.replace(" nodes", "").replace(" edges", "") in body
-        assert token in prereg, f"the registration does not quote {token}"
-    for sha in ("cb0496762795fb79", "3863a5452838dc40"):
-        assert sha in body and sha in prereg
+
+    m = re.search(r"([\d,]+) nodes[^\d]*([\d,]+) edges", body)
+    assert m, "the census no longer states a node and edge count"
+    for token in (f"{m.group(1)} nodes", f"{m.group(2)} edges"):
+        assert token in prereg, (
+            f"the census says {token} and the registration does not quote "
+            f"it; the registration names a release that no longer exists")
+
+    shas = sorted(set(re.findall(r"\b[0-9a-f]{16}\b", body)))
+    assert len(shas) >= 2, f"the census states {len(shas)} content hash(es)"
+    for sha in shas:
+        assert sha in prereg, (
+            f"the census carries {sha} and the registration does not")
 
 
 def test_the_declared_alpha_is_the_one_the_module_computes(prereg):

@@ -822,12 +822,12 @@ Three distinct capabilities, in increasing order of what they claim.
     channel takes the host partners of viral proteins, which is a larger
     and much softer set.
 
-    RESULT ON RELEASE v0.1, run 2026-11-02, degree_basis=study, 2,000
+    RESULT ON RELEASE v0.1, run 2026-11-07, degree_basis=study, 2,000
     permutations, seed 0: 22 rows tested, 44 tests with both directions,
     Bonferroni alpha 0.00114. ZERO rows clear it. The uncorrected version
     of the same test would have reported six. DENV-1's interactome
-    overlap is p=0.0102 naive and 0.0880 degree-matched; DENV-2's is
-    0.0036 and 0.2179. Neither gap opens because the data changed.
+    overlap is p=0.0102 naive and 0.0860 degree-matched; DENV-2's is
+    0.0036 and 0.2154. Neither gap opens because the data changed.
     docs/evaluation.md holds the full table, machine-checked against the
     results file.
 

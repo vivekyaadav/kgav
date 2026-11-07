@@ -81,7 +81,7 @@ species is a claim about one isolate of it.
 
 ### Most drug–target edges do not say which direction
 
-10,395 of 17,982 `TARGETS` edges state `direction: unknown` — **57.8%**
+10,376 of 17,982 `TARGETS` edges state `direction: unknown` — **57.7%**
 on the assembled v0.1. It was 12,155 of 14,381 — **84.5%** — before the
 gtop layer landed, and that pre-gtop figure was quoted here, and in six
 other places, as though it described v0.1.
@@ -150,28 +150,28 @@ degree-matched expectation.
 
 | channel | virus | expected | observed | min. detectable | depletion |
 |---|---|---:|---:|---:|---|
-| interactome | JEV | 0.84 | 1 | 6 hits = **7.11x** | **no rejection region** |
-| interactome | West Nile | 0.88 | 4 | 6 hits = **6.85x** | **no rejection region** |
-| pathway | West Nile | 2.53 | 0 | 10 hits = **3.95x** | **no rejection region** |
-| interactome | DENV-3 | 4.44 | 6 | 13 hits = **2.93x** | **no rejection region** |
-| interactome | TBEV | 4.60 | 3 | 13 hits = **2.83x** | **no rejection region** |
-| pathway | DENV-2 | 6.22 | 2 | 16 hits = **2.57x** | **no rejection region** |
-| pathway | HCoV-NL63 | 7.43 | 10 | 18 hits = **2.42x** | testable |
-| interactome | DENV-1 | 7.09 | 11 | 17 hits = **2.40x** | testable |
-| interactome | DENV-2 | 35.33 | 40 | 56 hits = **1.58x** | testable |
-| interactome | HCoV-HKU1 | 36.49 | 25 | 57 hits = **1.56x** | testable |
-| interactome | HCoV-OC43 | 38.19 | 28 | 59 hits = **1.54x** | testable |
-| interactome | HCoV-NL63 | 40.96 | 32 | 63 hits = **1.54x** | testable |
-| interactome | Zika | 44.78 | 47 | 68 hits = **1.52x** | testable |
-| interactome | HCoV-229E | 50.36 | 34 | 74 hits = **1.47x** | testable |
-| pathway | HCoV-OC43 | 65.07 | 62 | 92 hits = **1.41x** | testable |
-| pathway | MERS-CoV | 66.54 | 60 | 94 hits = **1.41x** | testable |
-| pathway | Zika | 79.83 | 76 | 109 hits = **1.37x** | testable |
-| interactome | MERS-CoV | 79.86 | 64 | 109 hits = **1.36x** | testable |
-| pathway | HCoV-229E | 135.34 | 128 | 173 hits = **1.28x** | testable |
-| interactome | SARS-CoV | 148.88 | 167 | 188 hits = **1.26x** | testable |
-| pathway | SARS-CoV-2 | 358.98 | 384 | 419 hits = **1.17x** | testable |
-| interactome | SARS-CoV-2 | 425.14 | 438 | 490 hits = **1.15x** | testable |
+| interactome | JEV | 0.83 | 1 | 6 hits = **7.26x** | **no rejection region** |
+| interactome | West Nile | 0.87 | 4 | 6 hits = **6.91x** | **no rejection region** |
+| pathway | West Nile | 2.55 | 0 | 10 hits = **3.92x** | **no rejection region** |
+| interactome | DENV-3 | 4.41 | 6 | 13 hits = **2.95x** | **no rejection region** |
+| interactome | TBEV | 4.59 | 3 | 13 hits = **2.83x** | **no rejection region** |
+| pathway | DENV-2 | 6.40 | 2 | 16 hits = **2.50x** | **no rejection region** |
+| pathway | HCoV-NL63 | 7.34 | 10 | 18 hits = **2.45x** | testable |
+| interactome | DENV-1 | 7.15 | 11 | 18 hits = **2.52x** | testable |
+| interactome | DENV-2 | 35.27 | 40 | 56 hits = **1.59x** | testable |
+| interactome | HCoV-HKU1 | 36.71 | 25 | 58 hits = **1.58x** | testable |
+| interactome | HCoV-OC43 | 38.25 | 28 | 59 hits = **1.54x** | testable |
+| interactome | HCoV-NL63 | 40.73 | 32 | 63 hits = **1.55x** | testable |
+| interactome | Zika | 45.09 | 47 | 68 hits = **1.51x** | testable |
+| interactome | HCoV-229E | 49.94 | 34 | 74 hits = **1.48x** | testable |
+| pathway | HCoV-OC43 | 65.29 | 62 | 92 hits = **1.41x** | testable |
+| pathway | MERS-CoV | 66.39 | 60 | 94 hits = **1.42x** | testable |
+| pathway | Zika | 80.37 | 76 | 110 hits = **1.37x** | testable |
+| interactome | MERS-CoV | 79.69 | 64 | 109 hits = **1.37x** | testable |
+| pathway | HCoV-229E | 134.91 | 128 | 173 hits = **1.28x** | testable |
+| interactome | SARS-CoV | 149.51 | 167 | 189 hits = **1.26x** | testable |
+| pathway | SARS-CoV-2 | 359.19 | 384 | 419 hits = **1.17x** | testable |
+| interactome | SARS-CoV-2 | 426.23 | 438 | 492 hits = **1.15x** | testable |
 
 **Six of the twenty-two downward tests have no rejection region at all.**
 Under a Poisson background with mean *m* the most extreme downward

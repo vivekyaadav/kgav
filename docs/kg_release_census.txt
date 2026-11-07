@@ -8,11 +8,11 @@ docs/kg_audit_report.txt.
 ==============================================================================
 
     release          v0.1
-    nodes_sha        cb0496762795fb79
-    edges_sha        3863a5452838dc40
+    nodes_sha        3356fae68afdf18d
+    edges_sha        6148f080fb56418d
 
     78,789 nodes
-    392,907 edges
+    392,672 edges
 
     NODES BY CLASS   (0 = declared in the schema, absent from this release)
       SmallMolecule                  25,383
@@ -37,7 +37,7 @@ docs/kg_audit_report.txt.
       TARGETS                                    17,982
       HOST_FACTOR_FOR                             8,263
       INHIBITS                                    3,943
-      CHEMICALLY_SIMILAR_TO                       3,384
+      CHEMICALLY_SIMILAR_TO                       3,149
       MEASURED_INACTIVE_AGAINST          L        2,421
       MEMBER_OF_CLASS                               158
       SAME_AS                                       119
@@ -77,7 +77,7 @@ docs/kg_audit_report.txt.
       infores:ncats-opendata                    7,432
       infores:guidetopharmacology               6,765
       infores:intact                            6,617
-      infores:kgav-computed                     3,384
+      infores:kgav-computed                     3,149
       infores:mint                                878
       infores:interpro                            182
       infores:mondo                                16

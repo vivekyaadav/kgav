@@ -10,8 +10,8 @@ the correction family. A third candidate -- whether `auc_ceiling` replaces
 hard-negatives analysis and not to this one, and is left out rather than
 listed here for completeness.
 
-Date drafted: 2026-11-02. Release: v0.1 (78,789 nodes / 392,907 edges,
-`nodes_sha` cb0496762795fb79, `edges_sha` 3863a5452838dc40). Scripts:
+Date drafted: 2026-11-02. Release: v0.1 (78,789 nodes / 392,672 edges,
+`nodes_sha` 3356fae68afdf18d, `edges_sha` 6148f080fb56418d). Scripts:
 `scripts/pathway_landscape.py`, read by `src/kgav/landscape.py`.
 
 ## Why this is a re-registration, and what that costs
@@ -94,26 +94,26 @@ expectation. Both tails from the same null.
   extreme downward value is zero hits with probability exp(-m), and where
   that exceeds alpha -- m < 6.78 -- no observation clears the bar.
 
-      interactome  JEV          0.84 expected
-      interactome  West Nile    0.88
-      pathway      West Nile    2.53
-      interactome  DENV-3       4.44
-      interactome  TBEV         4.60
-      pathway      DENV-2       6.22
+      interactome  JEV          0.83 expected
+      interactome  West Nile    0.87
+      pathway      West Nile    2.55
+      interactome  DENV-3       4.41
+      interactome  TBEV         4.59
+      pathway      DENV-2       6.40
 
   Dropping them would give 0.05/38 = 0.001316 and is defensible: emptiness
   depends on the matched expectation, which the degree-matched design fixes
   before any outcome is looked at, so it is not choosing tests after seeing
   them. The proposal is to KEEP them, for two reasons. The threshold moves
   16%, from 0.001136 to 0.001316, and the smallest p in the family is
-  0.006497 -- 4.9x the looser bar -- so nothing turns on it. And a family
+  0.003998 -- 3.0x the looser bar -- so nothing turns on it. And a family
   defined as "the tests that could have rejected" has to be recomputed
   whenever an expectation moves, which makes the correction depend on the
   release in a way a reader cannot check by counting.
 
 - **Both procedures reported: Bonferroni and Benjamini-Hochberg at
-  q = 0.05.** On the 2026-10-28 figures both reject nothing, and the
-  smallest p is 0.006497 against a Bonferroni bar of 0.001136 and a BH
+  q = 0.05.** On the 2026-11-07 figures both reject nothing, and the
+  smallest p is 0.003998 against a Bonferroni bar of 0.001136 and a BH
   critical value of 0.001136 at k=1. Bonferroni over 22 correlated rows is
   over-conservative and that objection is worth answering with a number
   rather than a sentence. Primary is Bonferroni; BH is reported beside it.
@@ -156,7 +156,7 @@ The null this document points at, stated so that failing to reject it is a
 result rather than an absence.
 
 **P2. Raising the permutation count will not produce a rejection.** The
-smallest p in the 2026-10-28 family is 0.006497, which is 5.7x the
+smallest p in the 2026-11-07 family is 0.003998, which is 3.5x the
 Bonferroni threshold. Resolution was never what blocked a finding, and this
 prediction says so in advance: if a rejection appears at 100,000
 permutations it did not come from finer resolution and something else

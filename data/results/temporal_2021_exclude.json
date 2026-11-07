@@ -4,12 +4,12 @@
   "overlap_policy": "drop-from-test",
   "reachability_floor": 10,
   "stats": {
-    "edge_train": 195518,
-    "edge_dropped_future": 159749,
+    "edge_train": 202040,
+    "edge_dropped_future": 148005,
     "label_train_active": 2477,
     "held_out_not_a_label": 2421,
     "label_test_inactive": 6816,
-    "undated_dropped": 8943,
+    "undated_dropped": 13930,
     "label_train_inactive": 13481,
     "label_undecidable": 342,
     "label_test_active": 3160,
@@ -102,6 +102,38 @@
         "auc_evaluable": false,
         "beats_degree": false,
         "lift_vs_degree": 0.7937654830718415,
+        "vs_degree_readable": false
+      },
+      "M3": {
+        "pool": 693,
+        "pos": 4,
+        "hits": 1,
+        "expected": 0.5772005772005772,
+        "lift": 1.7325000000000002,
+        "mrr": 0.0125,
+        "hits_lo": 1,
+        "hits_hi": 1,
+        "hits_expected": 1.0,
+        "lift_expected": 1.7325000000000002,
+        "hits_determined": true,
+        "tied_at_cut": 0,
+        "tied_at_cut_positives": 0,
+        "lift_lo": 1.7325000000000002,
+        "lift_hi": 1.7325000000000002,
+        "trustworthy": false,
+        "lift_is_pool_artifact": false,
+        "p_value": 0.46463567791165733,
+        "auc": 0.5012698412698413,
+        "auc_ci_lo": 0.47827867525247986,
+        "auc_ci_hi": 0.5242610072872027,
+        "auc_n_pos": 1575,
+        "auc_n_neg": 984,
+        "auc_reached_pos": 4,
+        "auc_coverage_pos": 0.0025396825396825397,
+        "auc_coverage_neg": 0.0,
+        "auc_evaluable": false,
+        "beats_degree": false,
+        "lift_vs_degree": 0.6259031791907516,
         "vs_degree_readable": false
       },
       "M4": {
@@ -303,14 +335,14 @@
   "provenance": {
     "release": {
       "id": "v0.1",
-      "nodes_sha": "cb0496762795fb79",
-      "edges_sha": "3863a5452838dc40"
+      "nodes_sha": "3356fae68afdf18d",
+      "edges_sha": "6148f080fb56418d"
     },
     "code": {
-      "commit": "e87809eaf12f07bb8ee823c912488e80288911b0",
-      "dirty": false
+      "commit": "66379a0a851d0562ebb7f51398fbe0f73300ab0a",
+      "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-01T21:50:13+00:00"
+    "generated_utc": "2026-11-07T00:34:27+00:00"
   }
 }
