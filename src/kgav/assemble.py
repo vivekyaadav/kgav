@@ -245,6 +245,27 @@ def resolve_qualifier(name: str, hi: Any, lo: Any,
     """
     ladder = QUALIFIER_LADDER.get(name)
     if ladder is None or lo is None or hi == lo:
+        # A QUALIFIER WITH NO LADDER AND TWO DIFFERENT CLAIMS IS SETTLED BY
+        # LAYER_PRECEDENCE, SILENTLY (fix-list E6). `direction` is the only
+        # name with a ladder, so every measurement qualifier -- ic50_nm,
+        # cell_line, relation, assay_type, effect_size -- takes the higher
+        # layer's value and the other witness disappears with no record.
+        #
+        # Precedence is a declared order, not row order, so the OUTCOME is
+        # reproducible. What was missing is the fact that a choice was made
+        # at all: two layers measuring one pair and disagreeing about the
+        # potency is a real disagreement, and a reader of the MANIFEST
+        # could not see that any had occurred.
+        #
+        # NOT reconciled here. A ladder over ic50_nm would have to rank two
+        # numbers, and "which assay is better" is not something this
+        # function can know -- the same reason the direction ladder refuses
+        # two specific contradicting claims rather than picking one.
+        # Counted, so the size of the problem is visible before anyone
+        # decides what to do about it.
+        if (ladder is None and stats is not None
+                and lo is not None and hi is not None and hi != lo):
+            stats[f"qualifier_precedence_decided:{name}"] += 1
         return hi if hi is not None else lo
     if hi is None:
         return lo

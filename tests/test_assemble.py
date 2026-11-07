@@ -1,5 +1,6 @@
 """Day 8 gate: cross-layer problems are caught, not merged away."""
 import json
+from collections import Counter
 import subprocess
 import sys
 from pathlib import Path
@@ -7,15 +8,17 @@ from pathlib import Path
 import pytest
 
 from kgav.assemble import (
-    LAYER_PRECEDENCE,
     Assembly,
+    CONTESTED,
+    LAYER_PRECEDENCE,
     assemble,
+    connectivity_report,
     edge_key,
     fact_id,
-    connectivity_report,
     merge_edges,
     orphan_detail,
     orphan_nodes,
+    resolve_qualifier,
 )
 from kgav.schema import load_schema
 
@@ -850,3 +853,71 @@ def test_the_source_list_is_stable_across_hash_seeds():
         f"the merged source list differs across hash seeds: {seen}")
     assert seen.pop() == ("infores:alpha|infores:beta|infores:intact|"
                           "infores:mint|infores:virhostnet|infores:zeta")
+
+
+# ------------------------- a qualifier settled by precedence, counted (E6)
+# resolve_qualifier has a ladder for ONE name, `direction`. Every other
+# qualifier with two different non-None witnesses took the higher layer's
+# value and the other disappeared with no record.
+#
+# Measured by reassembling the shipped layers, from the MANIFEST's merges
+# block: 17,254 such decisions, against 14 counted irreconcilable
+# directions and 47 kept-more-specific. The ladder was recording 61
+# conflicts while 283 times as many went unseen.
+#
+#   detection_method  4,676      relation       1,236
+#   ic50_nm           3,799      cell_line      1,224
+#   ec50_nm           2,178      ki_nm            446
+#   effect_size       1,816      kd_nm             88
+#   assay_type        1,719      screen_type       63
+#
+# ic50_nm is the one that matters most: two layers measured one pair and
+# reported different potencies, 3,799 times, and nothing said so.
+def test_a_precedence_decision_on_an_unladdered_qualifier_is_counted():
+    stats = Counter()
+    assert resolve_qualifier("ic50_nm", 50.0, 900.0, stats) == 50.0
+    assert stats["qualifier_precedence_decided:ic50_nm"] == 1
+
+
+def test_agreement_is_not_a_decision():
+    stats = Counter()
+    assert resolve_qualifier("ic50_nm", 50.0, 50.0, stats) == 50.0
+    assert not [k for k in stats if k.startswith("qualifier_precedence")]
+
+
+def test_filling_an_absence_is_not_a_decision():
+    """A claim beating no claim is the first rule of the ladder and is not
+    a conflict; counting it would bury the real ones."""
+    stats = Counter()
+    assert resolve_qualifier("cell_line", None, "Vero E6", stats) == "Vero E6"
+    assert resolve_qualifier("cell_line", "Vero E6", None, stats) == "Vero E6"
+    assert not [k for k in stats if k.startswith("qualifier_precedence")]
+
+
+def test_a_laddered_qualifier_keeps_its_own_counters():
+    """`direction` must not start reporting under the new name -- its
+    ladder makes a real decision and already says which."""
+    stats = Counter()
+    assert resolve_qualifier("direction", "inhibitor", "agonist", stats) \
+        == CONTESTED
+    assert stats["qualifier_irreconcilable:direction"] == 1
+    assert not [k for k in stats if k.startswith("qualifier_precedence")]
+
+
+def test_the_decision_is_still_order_independent():
+    """The outcome depends on LAYER_PRECEDENCE, which is declared, not on
+    arrival order. Counting it must not change that: the same release
+    built twice has to state the same potency."""
+    a, b = Counter(), Counter()
+    assert resolve_qualifier("ic50_nm", 50.0, 900.0, a) == 50.0
+    assert resolve_qualifier("ic50_nm", 50.0, 900.0, b) == 50.0
+    assert a == b
+
+
+def test_it_reconciles_nothing_it_cannot_know():
+    """A ladder over ic50_nm would have to rank two numbers, and which
+    assay is better is not something this function can know -- the same
+    reason the direction ladder refuses two contradicting specific claims
+    rather than picking one. The higher layer still wins; the point is
+    that the choice is now visible."""
+    assert resolve_qualifier("ic50_nm", 900.0, 50.0) == 900.0
