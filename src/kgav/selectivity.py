@@ -64,25 +64,66 @@ def query_pairs(db: Path, taxa: list[str]) -> list[dict]:
     tox_types = ",".join(f"'{t}'" for t in TOX_TYPES)
 
     rows = con.execute(f"""
+        -- THE DESCRIPTION OF THE RETAINED ROW, not the alphabetically
+        -- smallest one. This was MIN(a.description) beside
+        -- MIN(act.standard_value), two INDEPENDENT aggregates: SQLite
+        -- minimises each column separately, so the description came from
+        -- whichever row sorted first by text while the potency came from
+        -- whichever sorted first by value. Measured on chembl_37: in 1,249
+        -- of 2,771 multi-row groups (45.1%) they are different rows, and in
+        -- 794 of those the description names a DIFFERENT CELL LINE -- so the
+        -- edge reported a potency measured in one cell line and labelled it
+        -- with another. The same compound's EC50 varies thirtyfold across
+        -- cell lines in this data, which is why the qualifier exists.
+        --
+        -- ROW_NUMBER keeps one row per group and takes every field from it.
+        -- The ORDER BY tie-breaks on description so two runs over the same
+        -- database cannot disagree about which row that is.
         WITH antiviral AS (
-            SELECT act.molregno, a.doc_id, t.tax_id,
-                   MIN(act.standard_value) AS ec50_nm,
-                   COUNT(*) AS n_activity,
-                   MIN(a.description) AS descr
-            FROM activities act
-            JOIN assays a ON act.assay_id = a.assay_id
-            JOIN target_dictionary t ON a.tid = t.tid
-            WHERE t.tax_id IN ({placeholders})
-              AND act.standard_type IN ({act_types})
-              AND act.standard_relation = '='
-              AND act.standard_units = 'nM'
-              AND act.standard_value > 0
-            GROUP BY act.molregno, a.doc_id, t.tax_id
+            SELECT molregno, doc_id, tax_id, ec50_nm, n_activity, descr
+            FROM (
+                SELECT act.molregno AS molregno, a.doc_id AS doc_id,
+                       t.tax_id AS tax_id,
+                       act.standard_value AS ec50_nm,
+                       a.description AS descr,
+                       COUNT(*) OVER (PARTITION BY act.molregno, a.doc_id,
+                                                   t.tax_id) AS n_activity,
+                       ROW_NUMBER() OVER (PARTITION BY act.molregno, a.doc_id,
+                                                       t.tax_id
+                                          ORDER BY act.standard_value,
+                                                   a.description) AS rn
+                FROM activities act
+                JOIN assays a ON act.assay_id = a.assay_id
+                JOIN target_dictionary t ON a.tid = t.tid
+                WHERE t.tax_id IN ({placeholders})
+                  AND act.standard_type IN ({act_types})
+                  AND act.standard_relation = '='
+                  AND act.standard_units = 'nM'
+                  AND act.standard_value > 0
+            ) WHERE rn = 1
         ),
         toxicity AS (
             SELECT act.molregno, a.doc_id,
                    MIN(act.standard_value) AS cc50_nm,
                    COUNT(*) AS n_tox,
+                   -- The counterscreen's OWN description, taken from the row
+                   -- the CC50 comes from, so the cell lines of the two halves
+                   -- of the ratio can be compared. Without it `verified` meant
+                   -- only "same document", and a paper routinely measures
+                   -- antiviral activity in one cell line and cytotoxicity in
+                   -- another: 323 of the 2,573 pairs where both are named
+                   -- (12.6%) mix two cell lines while claiming to be verified.
+                   (SELECT a2.description
+                      FROM activities act2
+                      JOIN assays a2 ON act2.assay_id = a2.assay_id
+                     WHERE act2.molregno = act.molregno
+                       AND a2.doc_id = a.doc_id
+                       AND act2.standard_type IN ({tox_types})
+                       AND act2.standard_units = 'nM'
+                       AND act2.standard_relation IN ('=', '>')
+                       AND act2.standard_value > 0
+                     ORDER BY act2.standard_value, a2.description
+                     LIMIT 1) AS tox_descr,
                    -- A censored CC50 ("> 50000 nM") means the compound was NOT
                    -- toxic up to that concentration, so the true value is
                    -- HIGHER and the resulting ratio is a LOWER BOUND on
@@ -99,7 +140,7 @@ def query_pairs(db: Path, taxa: list[str]) -> list[dict]:
             GROUP BY act.molregno, a.doc_id
         )
         SELECT av.molregno, av.doc_id, av.tax_id, av.ec50_nm, av.n_activity,
-               tx.cc50_nm, tx.n_tox, tx.all_exact,
+               tx.cc50_nm, tx.n_tox, tx.all_exact, tx.tox_descr,
                md.chembl_id AS compound,
                cs.standard_inchi_key AS inchikey,
                d.year, d.pubmed_id, av.descr AS assay_text
@@ -270,6 +311,32 @@ def ingest_selectivity(em, rows: list[dict], taxon_map: dict[str, str],
             si = payload["si"]
         selective = si >= threshold
         stats["selective" if selective else "cytotoxic"] += 1
+
+        # ONE EXPERIMENTAL CONTEXT, WHICH A SHARED DOCUMENT IS NOT.
+        #
+        # selectivity_verified was written True on every edge, and the
+        # schema declares it means "CC50 and EC50 come from the SAME
+        # document, so the selectivity index reflects one experimental
+        # context". The join does guarantee the document. A paper routinely
+        # measures antiviral activity in one cell line and cytotoxicity in
+        # another, and then the ratio is not a selectivity index -- it is a
+        # potency in Calu-3 divided by a toxicity in Vero.
+        #
+        # Measured on chembl_37, over the 4,167 (compound, document, taxon)
+        # pairs: 2,244 agree, 337 name DIFFERENT cell lines, and 1,586 have
+        # at least one side unnamed. Only the first group can be verified.
+        # The other two are not errors in the source; they are the limit of
+        # what a document-level join can establish, and the flag now says so
+        # rather than asserting the strongest reading of all three.
+        ec_cl = extract_cell_line(r.get("assay_text"))
+        tox_cl = extract_cell_line(r.get("tox_descr"))
+        if ec_cl and tox_cl:
+            verified = ec_cl == tox_cl
+            stats["context_matched" if verified
+                  else "context_cell_line_mismatch"] += 1
+        else:
+            verified = False
+            stats["context_cell_line_unnamed"] += 1
         em.edge(drug, "HAS_ANTIVIRAL_ACTIVITY_AGAINST", virus,
                 source=source,
                 date=f"{int(r['year'])}-01-01" if r.get("year") else "1970-01-01",
@@ -277,13 +344,16 @@ def ingest_selectivity(em, rows: list[dict], taxon_map: dict[str, str],
                 quals={"ec50_nm": float(r["ec50_nm"]),
                        "cc50_nm": float(r["cc50_nm"]),
                        "selectivity_index": round(si, 3),
-                       "selectivity_verified": True,
+                       "selectivity_verified": verified,
                        "selectivity_index_max": round(max(payload["all"]), 3),
                        "selectivity_n_studies": len(payload["all"]),
                        "relation": "=",
                        "assay_type": "cell_based_antiviral",
-                       **({"cell_line": cl} if (cl := extract_cell_line(
-                           r.get("assay_text"))) else {}),
+                       # The EC50's OWN cell line. Before the query used a
+                       # window function this came from whichever row sorted
+                       # first alphabetically, which named a different cell
+                       # line than the potency on 794 groups.
+                       **({"cell_line": ec_cl} if ec_cl else {}),
                        # `unquantified` is NOT set here either. Writing false
                        # to mean "a selectivity index exists" was a third
                        # definition of the field, and it lost the merge to

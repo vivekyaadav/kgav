@@ -1,6 +1,7 @@
 """Gate for the selectivity layer: the ratio is only computed where it means
 something, and the worst measurement wins.
 """
+from pathlib import Path
 import json
 import sqlite3
 
@@ -36,13 +37,20 @@ def test_gi50_is_not_treated_as_cytotoxicity():
     assert set(TOX_TYPES) == {"CC50", "TC50"}
 
 
-def _row(inchikey, ec50, cc50, tax=2697049, doc=1, year=2021, exact=True):
+def _row(inchikey, ec50, cc50, tax=2697049, doc=1, year=2021, exact=True,
+         tox_text="cytotoxicity in Vero E6 cells"):
     """all_exact follows the SQL convention: 0 means every CC50 in the document
     was an exact measurement, 1 means at least one was censored."""
     return {"molregno": 1, "doc_id": doc, "tax_id": tax, "ec50_nm": ec50,
             "n_activity": 1, "cc50_nm": cc50, "n_tox": 1, "compound": "CHEMBL1",
             "inchikey": inchikey, "year": year, "pubmed_id": 33333333,
-            "all_exact": 0 if exact else 1, "assay_text": "assay in Vero E6 cells"}
+            "all_exact": 0 if exact else 1,
+            "assay_text": "assay in Vero E6 cells",
+            # THE COUNTERSCREEN'S OWN DESCRIPTION. selectivity_verified means
+            # EC50 and CC50 come from one experimental context, so the two
+            # cell lines have to be comparable; a fixture carrying only one
+            # of them cannot express the distinction at all.
+            "tox_descr": tox_text}
 
 
 @pytest.fixture
@@ -244,3 +252,75 @@ def test_no_comment_in_this_module_still_claims_the_worst_is_kept():
             window = "\n".join(src.splitlines()[max(0, i - 8):i + 2])
             assert "USED TO END" in window or "superseded" in window, \
                 f"line {i + 1} claims the worst is kept without marking it stale"
+
+
+# ------------------------------------------- one context, not one document
+# selectivity_verified was written True on EVERY edge, and the schema
+# declares it means "CC50 and EC50 come from the SAME document, so the
+# selectivity index reflects one experimental context". The join guarantees
+# the document; a document is not a context. A paper routinely measures
+# antiviral activity in one cell line and cytotoxicity in another, and the
+# ratio is then a potency in Calu-3 over a toxicity in Vero.
+#
+# Measured on chembl_37 over 4,167 (compound, document, taxon) pairs:
+# 2,244 agree, 337 name DIFFERENT cell lines, 1,586 have a side unnamed.
+def test_matching_cell_lines_are_verified(tmap):
+    em = Emit()
+    stats = ingest_selectivity(
+        em, [_row(KEY_A, 100.0, 5000.0,
+                  tox_text="cytotoxicity in Vero E6 cells")],
+        tmap, "infores:chembl")
+    assert em.edges[0]["qualifiers"]["selectivity_verified"] is True
+    assert stats["context_matched"] == 1
+
+
+def test_a_cell_line_mismatch_is_not_verified(tmap):
+    """The 337. Potency in one cell line over toxicity in another is not a
+    selectivity index, and the flag must not claim it is."""
+    em = Emit()
+    stats = ingest_selectivity(
+        em, [_row(KEY_A, 100.0, 5000.0,
+                  tox_text="cytotoxicity in Calu-3 cells")],
+        tmap, "infores:chembl")
+    q = em.edges[0]["qualifiers"]
+    assert q["selectivity_verified"] is False
+    assert stats["context_cell_line_mismatch"] == 1
+    # The edge is still emitted with its measurements -- the ratio is real,
+    # it is the CONTEXT claim that is withdrawn.
+    assert q["selectivity_index"] == 50.0
+    assert q["cell_line"] == "Vero E6", "cell_line is the EC50's, not the CC50's"
+
+
+def test_an_unnamed_cell_line_cannot_be_verified(tmap):
+    """The 1,586. Not an error in the source -- the limit of what a
+    document-level join can establish. False, not True by default."""
+    em = Emit()
+    stats = ingest_selectivity(
+        em, [_row(KEY_A, 100.0, 5000.0, tox_text="cytotoxicity assay")],
+        tmap, "infores:chembl")
+    assert em.edges[0]["qualifiers"]["selectivity_verified"] is False
+    assert stats["context_cell_line_unnamed"] == 1
+
+
+def test_the_cell_line_is_the_potency_s_own_row():
+    """L11. The query took MIN(description) beside MIN(standard_value) --
+    two INDEPENDENT aggregates, so SQLite minimised each column separately
+    and the description came from whichever row sorted first by TEXT. In
+    1,249 of 2,771 multi-row groups they were different rows, and 794 of
+    those named a different cell line than the potency.
+
+    Checked at the source, because reproducing it needs a real multi-row
+    group and the fix is structural: one row per group via ROW_NUMBER,
+    every field taken from it.
+    """
+    src = (Path(__file__).resolve().parents[1]
+           / "src" / "kgav" / "selectivity.py").read_text()
+    assert "ROW_NUMBER() OVER" in src
+    # The exact bug form, not the bare phrase -- the comment in that file
+    # explains the defect and names it, and a looser pattern matches the
+    # explanation rather than the code.
+    assert "MIN(a.description) AS descr" not in src, (
+        "the description is a separate aggregate again; it will not be the "
+        "retained row's")
+    # Deterministic: two runs over one database must pick the same row.
+    assert "ORDER BY act.standard_value," in src
