@@ -354,3 +354,29 @@ def test_one_definition_of_the_skeleton_length():
     from kgav.gtop import SKELETON_LEN as GTOP_LEN
     from kgav.normalize_chem import SKELETON_LEN
     assert SKELETON_LEN == GTOP_LEN == 14
+
+
+def test_the_top_k_cut_is_counted():
+    """Fix-list E7 and E8: an above-threshold neighbour that falls outside
+    top_k is a real similarity the graph does not carry, and the cap's cost
+    was never measured. On the real release it discards 156 neighbours
+    across 34 query compounds that hit the cap."""
+    fps, _ = fingerprints({f"INCHIKEY:{c}{'X'*13}-UHFFFAOYSA-N": ASPIRIN
+                           for c in "ABCDE"} | {"q": ASPIRIN_ME})
+    refs = {k: v for k, v in fps.items() if k != "q"}
+    stats = Counter()
+    got = similarity_edges({"q": fps["q"]}, refs, threshold=0.0, top_k=2,
+                           stats=stats)
+    assert len(got) == 2
+    assert stats["above_threshold_beyond_top_k"] == 3
+    assert stats["queries_truncated_by_top_k"] == 1
+
+
+def test_a_query_under_the_cap_is_not_counted_as_truncated():
+    fps, _ = fingerprints({"INCHIKEY:AAAAAAAAAAAAAA-UHFFFAOYSA-N": ASPIRIN,
+                           "q": ASPIRIN_ME})
+    stats = Counter()
+    similarity_edges({"q": fps["q"]},
+                     {k: v for k, v in fps.items() if k != "q"},
+                     threshold=0.0, top_k=10, stats=stats)
+    assert stats["queries_truncated_by_top_k"] == 0

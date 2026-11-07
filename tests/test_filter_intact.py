@@ -458,3 +458,37 @@ def test_the_real_tree_is_searched_not_a_fixed_list():
     # neither raw file and false the moment it grew the legacy-prefix
     # table. Membership is a property of what a file says, so locking a
     # particular file out of the set tests a coincidence.
+
+
+# ------------------------------------------------- the two drops, told apart
+# Fix-list E7. taxids() returns an empty set BOTH for a row with fewer than
+# MIN_COLUMNS and for a row whose taxon columns name nothing declared, and
+# one `if not hit: continue` discarded both with no counter. A truncated
+# download and a file about other organisms are opposite problems: the first
+# is corrupt input, the second is the filter working. On the real 1.35 GB
+# release: 1,787,426 rows, 1 header, 1,774,929 no declared taxon, 12,496
+# kept, and ZERO short rows -- so "the download is not truncated" is now a
+# statement rather than an absence.
+def test_a_short_row_and_a_foreign_taxon_are_counted_apart(tmp_path, capsys):
+    cfg = tmp_path / "viruses.yaml"
+    cfg.write_text("viruses:\n  - taxon: '2697049'\n    name: SARS-CoV-2\n")
+    hdr = b"#ID(s) interactor A\tID(s) interactor B" + b"\tx" * 40
+    good = b"\t".join([b"uniprotkb:P0DTC2", b"uniprotkb:Q9BYF1"]
+                      + [b"-"] * 7
+                      + [b"taxid:9606(human)", b"taxid:2697049(sars2)"]
+                      + [b"-"] * 32)
+    foreign = good.replace(b"taxid:2697049(sars2)", b"taxid:11320(flu)")
+    short = b"uniprotkb:P0DTC2\tuniprotkb:Q9BYF1\t-"
+    z = tmp_path / "intact.zip"
+    with zipfile.ZipFile(z, "w") as zf:
+        zf.writestr("intact.txt",
+                    b"\n".join([hdr, good, foreign, short]).decode("latin-1"))
+    rc = fi.main(["--zip", str(z), "--member", "intact.txt",
+                  "--config", str(cfg),
+                  "--out", str(tmp_path / "o.tab27")])
+    out = capsys.readouterr().out
+    assert rc == 0, out
+    assert "1 kept" in out or "1,0" not in out
+    assert "fewer than" in out, "the short row was not reported"
+    assert "nothing in the register" in out
+    assert "ACCOUNTING DOES NOT CLOSE" not in out

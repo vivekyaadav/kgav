@@ -335,6 +335,15 @@ def ingest_virus(em: Emit, cfg: dict, defaults: dict, prov: dict,
         # Curated entries REPLACE the proteome rather than augmenting it.
         # Accession-level merging leaves both copies, since the TrEMBL and
         # Swiss-Prot entries for the same protein have different accessions.
+        # HOW MANY ENTRIES THE SUBSTITUTION DISCARDS. This counted what
+        # replaced the proteome and not what was thrown away, so a curated
+        # list of three accessions standing in for a 400-entry proteome
+        # read the same as one standing in for an empty file.
+        if pfile.exists():
+            replaced = len(load_proteome(pfile))
+            if replaced:
+                em.notes[f"proteome_entries_replaced_by_curated:{name}"] += \
+                    replaced
         entries = curated
         em.notes[f"curated_accessions_substituted:{name}"] += len(curated)
         if not pfile.exists():
@@ -392,6 +401,15 @@ def ingest_virus(em: Emit, cfg: dict, defaults: dict, prov: dict,
             for feat in chains:
                 cid = _chain_id(feat)
                 if not cid:
+                    # COUNTED, like the multi-chain branch already does at
+                    # the identical condition below. A chain feature with
+                    # no PRO_ id cannot be given a stable node key (see
+                    # this module's docstring), so it is dropped either
+                    # way -- but one branch said so and the other did not,
+                    # which is how the same fact had two different
+                    # visibilities depending on how many chains the entry
+                    # happened to have.
+                    em.notes[f"single_chain_without_pro_id:{name}"] += 1
                     continue
                 em.node(f"UniProtKB:{cid}", "Protein",
                         taxon_id=taxon_curie,

@@ -843,3 +843,34 @@ def test_a_typed_potency_still_validates_against_the_schema():
               "properties": {"taxon_id": "NCBITaxon:9606", "is_viral": False,
                              "sequence_hash": "ab", "reviewed": True}}]
     assert load_schema().validate_batch(nodes, em.edges) == []
+
+
+# ------------------------------------------- the unmapped affinity unit
+# Fix-list E7. The edge STILL SHIPS when the affinity unit is not in
+# AFFINITY_UNIT_TO_QUALIFIER -- with a direction and no number -- so it is
+# indistinguishable from an edge where GtoPdb reported no affinity at all,
+# and those are different facts. On release 2026.3.1, 50 of 24,968 rows
+# carry a value whose unit is unmapped: 43 KB (the antagonist dissociation
+# constant from a functional assay, a real measure this schema has no
+# qualifier for), 6 "-", 1 blank.
+def test_an_unmapped_affinity_unit_is_named_not_merely_counted():
+    em = Emit()
+    row = _inter(**{"Original Affinity Median nm": "42",
+                    "Original Affinity Units": "KB"})
+    stats = ingest_interactions(em, [row], KEYS, PROTS, IDX)
+    assert stats["affinity_unit_unmapped"] == 1
+    assert stats["affinity_unit:KB"] == 1
+    # The edge ships, and carries no potency -- which is why the counter
+    # has to exist for anyone to know.
+    assert stats["edges"] == 1
+    q = em.edges[0]["qualifiers"]
+    assert not any(k.endswith("_nm") for k in q)
+
+
+def test_no_affinity_reported_is_distinguished_from_unreadable():
+    em = Emit()
+    row = _inter(**{"Original Affinity Median nm": "",
+                    "Original Affinity Units": ""})
+    stats = ingest_interactions(em, [row], KEYS, PROTS, IDX)
+    assert stats["no_affinity_reported"] == 1
+    assert stats["affinity_unit_unmapped"] == 0

@@ -146,6 +146,17 @@ def similarity_edges(query_fps: dict[str, object], ref_fps: dict[str, object],
         # edges anywhere.
         hits.sort(key=lambda kv: (-kv[1], kv[0]))
         if top_k:
+            # THE CUT IS COUNTED (fix-list E7, and E8 asks for exactly
+            # this). A neighbour above the threshold that falls outside
+            # top_k is a real similarity the graph does not carry, and
+            # discarding it silently means the cap's cost is unknown --
+            # the docstring argues for the cap on principle and had no
+            # number behind it.
+            if stats is not None:
+                over = len(hits) - top_k
+                if over > 0:
+                    stats["above_threshold_beyond_top_k"] += over
+                    stats["queries_truncated_by_top_k"] += 1
             hits = hits[:top_k]
         edges.extend((qid, rid, float(s)) for rid, s in hits)
     return edges

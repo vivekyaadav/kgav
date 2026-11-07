@@ -159,9 +159,16 @@ def main(argv=None) -> int:
                       "pairs where GtoP's own rows contradict each other")):
         if s[k]:
             print(f"  {s[k]:7,} {label}")
+    print(f"\n  {s['no_affinity_reported']:7,} row(s) report no affinity at "
+          f"all, which is not the same as\n          an affinity this reader "
+          f"could not express")
     if s["affinity_unit_unmapped"]:
-        print(f"  {s['affinity_unit_unmapped']:7,} potency values dropped: "
-              f"their affinity unit is not in AFFINITY_UNIT_TO_QUALIFIER")
+        print(f"  {s['affinity_unit_unmapped']:7,} potency value(s) dropped: "
+              f"their affinity unit is not in AFFINITY_UNIT_TO_QUALIFIER.")
+        print("          The edge still ships, with a direction and no "
+              "number. By unit:")
+        for k in sorted(k for k in s if k.startswith("affinity_unit:")):
+            print(f"            {s[k]:>5,}  {k.removeprefix('affinity_unit:')}")
     print("\n  dropped:")
     for k in ("not_human", "no_uniprot", "multi_accession",
               "protein_not_in_graph", "ligand_without_inchikey",

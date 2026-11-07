@@ -143,8 +143,19 @@ def scan(path: Path, wanted: set[bytes], member: str | None,
             if line.startswith(b"#"):
                 stats["header"] += 1
                 continue
+            # TWO GATES, TOLD APART (fix-list E7). taxids() returns an
+            # empty set both for a row with fewer than MIN_COLUMNS and for
+            # a row whose taxon columns name nothing we declared, and the
+            # single `if not hit` below discarded both with no counter. A
+            # truncated file and a file about other organisms are opposite
+            # problems: the first is a corrupt download, the second is the
+            # filter working.
+            if len(line.split(b"\t")) < MIN_COLUMNS:
+                stats["short_row"] += 1
+                continue
             hit = taxids(line) & wanted
             if not hit:
+                stats["no_declared_taxon"] += 1
                 continue
             stats["kept"] += 1
             for t in sorted(hit):
@@ -209,7 +220,21 @@ def main(argv=None) -> int:
                  allow_negative=args.allow_negative)
 
     print(f"{stats['rows']:,} rows read, {stats['header']} header, "
-          f"{stats['kept']:,} kept\n")
+          f"{stats['kept']:,} kept")
+    # EVERY DROP NAMED, AND THE ACCOUNTING CLOSES. A truncated download and
+    # a file about other organisms both arrived here as "not kept".
+    for k, label in (("short_row", f"fewer than {MIN_COLUMNS} columns"),
+                     ("no_declared_taxon",
+                      "taxon columns name nothing in the register")):
+        if stats[k]:
+            print(f"  {stats[k]:>9,}  dropped: {label}")
+    acc = (stats["header"] + stats["short_row"] + stats["no_declared_taxon"]
+           + stats["kept"])
+    if acc != stats["rows"]:
+        print(f"  ! ACCOUNTING DOES NOT CLOSE: {stats['rows']:,} read, "
+              f"{acc:,} accounted for")
+        return 1
+    print()
     rows = sorted(((k.split(":", 1)[1], v) for k, v in stats.items()
                    if k.startswith("taxon:")), key=lambda r: -r[1])
     if rows:

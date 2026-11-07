@@ -465,11 +465,28 @@ def ingest_interactions(em, rows: list[dict], inchikeys: dict[str, str],
         # whichever row's relation won would be a line-number claim again.
         potency: dict[str, float] = {}
         raw_affinity = (r.get(C_AFFINITY) or "").strip()
+        if not raw_affinity:
+            # 10,852 of 24,968 rows report no affinity. Counted so that
+            # "this edge has no potency" can be told from "this edge had
+            # one and it could not be read" -- the distinction the
+            # unmapped-unit counter above exists for.
+            stats["no_affinity_reported"] += 1
         if raw_affinity:
             qual = AFFINITY_UNIT_TO_QUALIFIER.get(
                 (r.get(C_AFF_UNITS) or "").strip().upper())
             if qual is None:
+                # NAMED, NOT JUST COUNTED. The edge still ships -- with a
+                # direction and no number -- so it is indistinguishable
+                # from one where GtoPdb reported no affinity at all, and
+                # those are different facts. 50 rows on release 2026.3.1:
+                # 43 are KB (the antagonist dissociation constant from a
+                # functional assay, a real measure the schema has no
+                # qualifier for), 6 are "-" and 1 is blank. Counting the
+                # unit means a release that introduces a type shows up as
+                # a new line rather than as a slightly smaller number.
                 stats["affinity_unit_unmapped"] += 1
+                unit = (r.get(C_AFF_UNITS) or "").strip().upper() or "(blank)"
+                stats[f"affinity_unit:{unit}"] += 1
             else:
                 try:
                     potency[qual] = float(raw_affinity)

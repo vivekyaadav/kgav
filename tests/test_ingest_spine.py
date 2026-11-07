@@ -759,3 +759,80 @@ def test_west_niles_poly_does_not_merge_with_zikas(tmp_path):
                      DEFAULTS, PROV, d)
     genes = sorted(n for n in em.nodes if n.startswith("KGAV:GENE_"))
     assert genes == ["KGAV:GENE_11082_POLY", "KGAV:GENE_64320_POLY"]
+
+
+# --------------------------------------------- the two gates that said nothing
+# Fix-list E7.
+def test_a_single_chain_without_a_pro_id_is_counted(tmp_path):
+    """The multi-chain branch counted the identical condition; the
+    single-chain branch just skipped. The same fact had two different
+    visibilities depending on how many chains the entry happened to have."""
+    em = Emit()
+    ingest_virus(
+        em,
+        {"taxon": "2697049", "name": "SARS-CoV-2", "family": "Coronaviridae",
+         "baltimore_class": "IV", "is_enveloped": True,
+         "proteome_id": "UPX", "accessions": ["P0DTC2"]},
+        {"family": "Coronaviridae"},
+        {"proteome_source": "infores:uniprot", "disease_source": "infores:mondo",
+         "evidence_tier": 1},
+        _proteome_with_one_unnamed_chain(tmp_path))
+    assert any("single_chain_without_pro_id" in k for k in em.notes), (
+        f"no counter for the dropped chain; notes were {dict(em.notes)}")
+
+
+def _proteome_with_one_unnamed_chain(tmp_path):
+    """A reviewed entry with exactly one Chain feature carrying no PRO_ id."""
+    import gzip
+    entry = {
+        "primaryAccession": "P0DTC2",
+        "entryType": "UniProtKB reviewed (Swiss-Prot)",
+        "proteinDescription": {"recommendedName": {"fullName": {"value": "S"}}},
+        "sequence": {"value": "MFVFLV"},
+        "entryAudit": {"firstPublicDate": "2020-04-22"},
+        "genes": [{"geneName": {"value": "S"}}],
+        "features": [{"type": "Chain",
+                      "description": "Spike protein S1",
+                      "location": {"start": {"value": 1},
+                                   "end": {"value": 6}}}],
+        "uniProtKBCrossReferences": [],
+    }
+    with gzip.open(tmp_path / "UPX.json.gz", "wt") as fh:
+        json.dump({"results": [entry]}, fh)
+    return tmp_path
+
+
+def test_the_curated_substitution_says_what_it_discards(tmp_path):
+    """It counted what REPLACED the proteome and not what was thrown away,
+    so a curated list of three accessions standing in for a 400-entry
+    proteome read the same as one standing in for an empty file. On the real
+    inputs, MERS-CoV's 10 curated accessions replace an 11-entry proteome."""
+    import gzip
+    entries = [{"primaryAccession": f"A{i:05d}",
+                "entryType": "UniProtKB reviewed (Swiss-Prot)",
+                "proteinDescription": {"recommendedName":
+                                       {"fullName": {"value": "x"}}},
+                "sequence": {"value": "MKT"},
+                "entryAudit": {"firstPublicDate": "2000-05-01"},
+                "genes": [], "uniProtKBCrossReferences": []}
+               for i in range(4)]
+    with gzip.open(tmp_path / "UPY.json.gz", "wt") as fh:
+        json.dump({"results": entries}, fh)
+    with gzip.open(tmp_path / "EXTRA_2697049.json.gz", "wt") as fh:
+        json.dump({"results": entries[:1]}, fh)
+    em = Emit()
+    ingest_virus(
+        em,
+        {"taxon": "2697049", "name": "SARS-CoV-2", "family": "Coronaviridae",
+         "baltimore_class": "IV", "is_enveloped": True, "proteome_id": "UPY",
+         # extra_accessions is the key that triggers the substitution, and
+         # the EXTRA file must actually hold the pinned accession.
+         "extra_accessions": ["A00000"]},
+        {"family": "Coronaviridae"},
+        {"proteome_source": "infores:uniprot", "disease_source": "infores:mondo",
+         "evidence_tier": 1},
+        tmp_path)
+    key = "proteome_entries_replaced_by_curated:SARS-CoV-2"
+    assert em.notes[key] == 4, (
+        f"the discarded proteome entries were not counted; "
+        f"notes were {dict(em.notes)}")

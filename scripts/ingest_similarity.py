@@ -134,6 +134,13 @@ def main() -> int:
     # joined two InChIKeys of ONE molecule -- same 14-character skeleton,
     # different salt or stereo suffix -- almost all at tanimoto 1.0. An M6
     # step across such an edge has not moved to another compound.
+    if s["above_threshold_beyond_top_k"]:
+        print(f"  {s['above_threshold_beyond_top_k']:,} above-threshold "
+              f"neighbour(s) discarded by the top-{args.top_k} cut, across "
+              f"\n  {s['queries_truncated_by_top_k']:,} query compound(s) "
+              f"that hit the cap. The cap is deliberate -- a dense\n  "
+              f"scaffold series would otherwise read as overwhelming "
+              f"evidence -- but its cost\n  was never counted.")
     if s["same_skeleton_excluded"]:
         print(f"  {s['same_skeleton_excluded']:,} candidate pair(s) excluded "
               f"as two InChIKeys of one\n  molecule (shared 14-character "
