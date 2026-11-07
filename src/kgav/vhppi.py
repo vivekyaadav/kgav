@@ -465,11 +465,11 @@ def ingest_mitab(em, paths: list[Path], index, taxon_map: dict[str, str],
             # silently and in one direction. 13,092 of the 38,084 raw
             # rows are VirHostNet, which writes "-" in the author field.
             if r.get("pub_year"):
-                # -01-01 fabricates month and day, as the ChEMBL layers
-                # do. Year resolution is all the source gives and the
-                # temporal split works in years; fix list item C10
-                # covers carrying year-only dates as years.
-                edge_date = f"{int(r['pub_year'])}-01-01"
+                # A YEAR IS WRITTEN AS A YEAR (fix-list C10). This was
+                # f"{year}-01-01": year resolution is all the source
+                # gives, and -01-01 made it indistinguishable from a real
+                # 1 January.
+                edge_date = str(int(r["pub_year"]))
                 stats["dated_from_publication"] += 1
             else:
                 edge_date = undated_date

@@ -65,6 +65,8 @@ import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from kgav.temporal import PLACEHOLDER_DATE
+
 # Type-I interferon induction and signalling. A knockout of any of these makes
 # viral infection WORSE; none can legitimately be a dependency factor for a
 # coronavirus in a survival screen.
@@ -252,9 +254,13 @@ def screen_date(screen: dict) -> str:
     depends on this being real rather than a constant. A screen with no
     parseable year is dated 1970 so it sorts before any split point and can be
     found by query, rather than being given a plausible-looking guess.
+
+    A YEAR IS WRITTEN AS A YEAR (fix-list C10). This returned
+    f"{year}-01-01", indistinguishable from a real 1 January -- and 2,757
+    UniProt entry dates in this graph genuinely are one.
     """
     m = AUTHOR_YEAR_RE.search(str(screen.get("AUTHOR", "")))
-    return f"{m.group(1)}-01-01" if m else "1970-01-01"
+    return m.group(1) if m else PLACEHOLDER_DATE
 
 
 def build_gene_to_proteins(edges_paths) -> dict[str, list[str]]:
@@ -418,6 +424,12 @@ def ingest_screens(em, screens: list[dict], gene_rows: dict[str, list[dict]],
                     if ((direction == "dependency" and effect < 0)
                             or (direction == "restriction" and effect > 0)):
                         stats["rationale_direction_contradicts_score"] += 1
+                # THE PLACEHOLDER, COUNTED (fix-list C10). ORCS exposes
+                # no publication date field; a screen whose AUTHOR string
+                # carries no parseable year is undated rather than guessed.
+                stats["undated_placeholder"
+                      if screen_date(screen) == PLACEHOLDER_DATE
+                      else "dated_year_only"] += 1
                 em.edge(pid, "HOST_FACTOR_FOR", f"NCBITaxon:{taxon}",
                         source=source, date=screen_date(screen), tier=1, quals=quals,
                         pmids=[f"PMID:{pmid}"] if pmid.isdigit() else None,

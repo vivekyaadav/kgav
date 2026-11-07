@@ -100,8 +100,24 @@ _TYPE_CHECKS = {
 
 
 def _is_iso_date(v: Any) -> bool:
+    """An ISO date, or an ISO YEAR (fix-list C10).
+
+    A BARE YEAR IS A DATE AT YEAR PRECISION, and the graph needs to say so.
+    Four ingests had only a publication year and wrote `f"{year}-01-01"`,
+    which is indistinguishable from a real 1 January: 55,183 edges claimed
+    that date and 2,757 of them -- UniProt entry dates -- genuinely fell on
+    it. A reader could not tell which.
+
+    Nothing downstream is affected by the shorter form. temporal.edge_year,
+    labels.build_labels and agent/tools all read `date[:4]`, and
+    assemble._earliest compares ISO strings with min(), where "2024" sorts
+    before "2024-06-01" because it is a prefix -- which is the correct
+    answer for "earliest point in that year".
+    """
     if not isinstance(v, str):
         return False
+    if len(v) == 4 and v.isdigit():
+        return 1 <= int(v) <= 9999
     try:
         _dt.date.fromisoformat(v[:10])
         return True

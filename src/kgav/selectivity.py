@@ -43,6 +43,7 @@ from pathlib import Path
 # 'nM' -- and warns that a second copy is the worst-placed instance of a
 # pattern this project has found ten times.
 from kgav.chembl import CHEMBL_UNITS
+from kgav.temporal import PLACEHOLDER_DATE
 from kgav.units import to_nm
 
 # Conventional cut below which a cell-based antiviral hit is not pursued.
@@ -372,6 +373,9 @@ def ingest_selectivity(em, rows: list[dict], taxon_map: dict[str, str],
             si = payload["si"]
         selective = si >= threshold
         stats["selective" if selective else "cytotoxic"] += 1
+        # THE PLACEHOLDER, COUNTED (fix-list C10).
+        stats["dated_year_only" if r.get("year")
+              else "undated_placeholder"] += 1
 
         # ONE EXPERIMENTAL CONTEXT, WHICH A SHARED DOCUMENT IS NOT.
         #
@@ -400,7 +404,9 @@ def ingest_selectivity(em, rows: list[dict], taxon_map: dict[str, str],
             stats["context_cell_line_unnamed"] += 1
         em.edge(drug, "HAS_ANTIVIRAL_ACTIVITY_AGAINST", virus,
                 source=source,
-                date=f"{int(r['year'])}-01-01" if r.get("year") else "1970-01-01",
+                # A YEAR IS WRITTEN AS A YEAR (fix-list C10).
+                date=(str(int(r["year"])) if r.get("year")
+                      else PLACEHOLDER_DATE),
                 tier=1,
                 quals={"ec50_nm": float(r["ec50_nm"]),
                        "cc50_nm": float(r["cc50_nm"]),

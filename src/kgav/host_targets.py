@@ -60,6 +60,7 @@ from collections import Counter
 from pathlib import Path
 
 from kgav.chembl import CHEMBL_UNITS
+from kgav.temporal import PLACEHOLDER_DATE
 from kgav.units import to_nm as _to_nm
 
 # ChEMBL action_type -> the schema's target_direction enum.
@@ -367,8 +368,9 @@ def ingest_host_targets(em, rows: list[dict], mechanisms: dict[tuple[str, str], 
 
         pending[key] = {
             "drug": drug, "target": target,
-            "date": (f"{int(r['year'])}-01-01" if r.get("year")
-                     else "1970-01-01"),
+            # A YEAR IS WRITTEN AS A YEAR (fix-list C10).
+            "date": (str(int(r["year"])) if r.get("year")
+                     else PLACEHOLDER_DATE),
             "quals": {QUANT_FIELD[r["standard_type"]]: nm,
                       "relation": relation,
                       "direction": direction,
@@ -386,6 +388,11 @@ def ingest_host_targets(em, rows: list[dict], mechanisms: dict[tuple[str, str], 
         # because its fixture had no duplicates to expose it.
         stats[f"direction_{rec['quals']['direction']}"] += 1
         stats[f"assay_type_{rec['quals']['assay_type']}"] += 1
+        # THE PLACEHOLDER, COUNTED (fix-list C10). "undated" is not one
+        # fact: 14,888 edges across seven sources carry it, and each is a
+        # different gap with a different remedy.
+        stats["undated_placeholder" if rec["date"] == PLACEHOLDER_DATE
+              else "dated_year_only"] += 1
         if rec["pmids"]:
             stats["with_publication"] += 1
         else:

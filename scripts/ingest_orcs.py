@@ -244,6 +244,15 @@ def main() -> int:
     if report_violations(violations):
         return 1
 
+    # DATE PRECISION, REPORTED (fix-list C10). A year-only date is written
+    # as a year; the placeholder is counted apart, because "undated" spread
+    # across seven sources is seven gaps with seven remedies.
+    if s["dated_year_only"] or s["undated_placeholder"]:
+        tot = s["dated_year_only"] + s["undated_placeholder"]
+        print(f"\n  dates: {s['dated_year_only']:,} at YEAR precision, "
+              f"{s['undated_placeholder']:,} undated "
+              f"({s['undated_placeholder'] / tot:.1%})")
+
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "nodes.jsonl").write_text("")
     (args.out / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in em.edges))

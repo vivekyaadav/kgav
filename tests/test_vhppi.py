@@ -988,7 +988,7 @@ def test_an_edge_is_dated_by_its_publication_not_by_the_fallback(tmp_path,
     stats = ingest_mitab(em, [p], vhppi_index, {"2697049": "2697049"},
                          "infores:intact", "2099-01-01")
     assert stats["edges"] == 1
-    assert em.edges[0]["first_asserted_date"] == "2010-01-01"
+    assert em.edges[0]["first_asserted_date"] == "2010"
     assert stats["dated_from_publication"] == 1
     assert stats["undated_no_publication_year"] == 0
 
@@ -1018,7 +1018,7 @@ def test_the_fallback_is_only_used_for_an_undated_row(tmp_path, vhppi_index):
     ingest_mitab(em, [p], vhppi_index, {"2697049": "2697049"},
                  "infores:intact", "2099-01-01")
     dates = sorted(e["first_asserted_date"] for e in em.edges)
-    assert dates == ["2010-01-01", "2099-01-01"]
+    assert dates == ["2010", "2099-01-01"]
 
 
 def test_the_cli_fallback_defaults_to_the_placeholder():

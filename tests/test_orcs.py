@@ -137,7 +137,7 @@ def test_screen_type_mapping():
 
 
 def test_screen_date_from_author_field():
-    assert screen_date({"AUTHOR": "Hoffmann HH (2020)"}) == "2020-01-01"
+    assert screen_date({"AUTHOR": "Hoffmann HH (2020)"}) == "2020"
     # No plausible-looking guess: 1970 sorts before any split point and is
     # findable by query.
     assert screen_date({"AUTHOR": "no year here"}) == "1970-01-01"
@@ -237,7 +237,7 @@ def test_required_qualifiers_present(ingested):
         q = e["qualifiers"]
         assert q["direction"] and q["screen_type"] and q["cell_line"]
         assert e["publications"][0].startswith("PMID:")
-        assert e["first_asserted_date"] == "2020-01-01"
+        assert e["first_asserted_date"] == "2020"
 
 
 def test_output_validates_against_schema(ingested):

@@ -55,6 +55,7 @@ from collections import Counter
 from pathlib import Path
 
 from kgav.labels import classify
+from kgav.temporal import PLACEHOLDER_DATE
 from kgav.units import to_nm as _to_nm
 
 # Description patterns -> (nsp family, domain). Order matters: the macrodomain
@@ -560,7 +561,14 @@ DROPPED_COUNTERS = ("no_inchikey", "unmapped_taxon", "unconvertible_units",
                     "no_target_node", "duplicate", "multicomponent_target",
                     "binding_constant_on_organism",
                     "undecidable_protein_measurement")
-BREAKDOWN_COUNTERS = ("rows", "censored", "unresolved")
+#: dated_year_only and undated_placeholder partition the EMITTED rows by
+#: date precision (fix-list C10), so they are a breakdown rather than a
+#: fate: every row they count is already counted by an emitted counter,
+#: and adding them to that tally would double it. The guard that caught
+#: this -- every counter must have a declared fate -- is the same one that
+#: found 1,433 pairs asserting inhibition they had no measurement for.
+BREAKDOWN_COUNTERS = ("rows", "censored", "unresolved",
+                      "dated_year_only", "undated_placeholder")
 #: unit_ breaks `unconvertible_units` down by the unit string itself,
 #: because the total cannot answer the question it raises: ChEMBL
 #: standard_units is an open set, and whether it ever holds "M" --
@@ -626,7 +634,12 @@ def ingest_activities(em, rows: list[dict], viral_targets: dict[str, dict[str, s
                 is_approved=bool(r.get("max_phase") == 4),
                 salt_collapsed=False, stereo_collapsed=False)
 
-        date = f"{int(r['year'])}-01-01" if r.get("year") else "1970-01-01"
+        # A YEAR IS WRITTEN AS A YEAR (fix-list C10). This was
+        # f"{year}-01-01", indistinguishable from a real 1 January -- and
+        # 2,757 UniProt entry dates in this graph genuinely are one, so the
+        # fabricated ones could not be told from the real.
+        date = str(int(r["year"])) if r.get("year") else PLACEHOLDER_DATE
+        stats["dated_year_only" if r.get("year") else "undated_placeholder"] += 1
         pmids = [f"PMID:{r['pubmed_id']}"] if r.get("pubmed_id") else None
         # `unquantified` is NOT set here. This layer once wrote true on every
         # edge, reasoning that CC50 is absent from ChEMBL's coronavirus
