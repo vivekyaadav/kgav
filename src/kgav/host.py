@@ -244,7 +244,7 @@ def ingest_string(em, links: Path, mapping: dict[str, str], prov: dict,
                      "string_score": float(f[i_comb]),
                      "channel": ",".join(f"{c}={f[col[c]]}" for c in channels if int(f[col[c]]) > 0)}
             em.edge(f"UniProtKB:{key[0]}", "PHYSICALLY_INTERACTS_WITH", f"UniProtKB:{key[1]}",
-                    source=prov["ppi_source"], date=prov["string_release_date"],
+                    source=prov["ppi_source"], date=prov["string_file_mtime"],
                     tier=1, quals=quals)
             stats["edges"] += 1
 

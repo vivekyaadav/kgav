@@ -17,7 +17,9 @@ HOST = ROOT / "data" / "raw" / "host"
 needs_data = pytest.mark.skipif(not HOST.exists(), reason="host sources not downloaded")
 
 PROV = {"proteome_source": "infores:uniprot", "pathway_source": "infores:uniprot",
-        "ppi_source": "infores:string", "string_release_date": "2023-08-28"}
+        # NAMED AS A MTIME (fix-list V4). It was `string_release_date`,
+        # which by ingest_host's own comment is a download timestamp.
+        "ppi_source": "infores:string", "string_file_mtime": "2023-08-28"}
 
 HDR = ("protein1 protein2 neighborhood fusion cooccurence coexpression "
        "experimental database textmining combined_score")

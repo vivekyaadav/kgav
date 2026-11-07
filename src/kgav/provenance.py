@@ -25,6 +25,7 @@ from __future__ import annotations
 import datetime as _dt
 import hashlib
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -542,3 +543,51 @@ def read_source(layer_dir: Path) -> dict[str, Any] | None:
         return json.loads(path.read_text()).get("sources")
     except (OSError, json.JSONDecodeError):
         return None
+
+
+#: Sources whose version is a FACT ABOUT A FILE ON DISK, read from the path
+#: or the filename rather than from a register someone maintains by hand.
+#: record_raw_provenance.VERSION_PATTERNS does the same for its sidecars and
+#: for the same reason: a release named in a filename is evidence, a release
+#: typed into a config is a claim.
+_CHEMBL_DIR = re.compile(r"\b(chembl_\d+)\b")
+_STRING_VER = re.compile(r"\b(v\d+\.\d+)\b")
+
+
+def chembl_release(db_path: Path) -> str | None:
+    """"chembl_37" from anywhere in a ChEMBL database path, or None.
+
+    THIS BUILD HAS NO VERSION TABLE -- checked: `SELECT name, label FROM
+    version` raises OperationalError on chembl_37's SQLite distribution --
+    so the directory name is the only statement of the release that
+    travels with the file. It is still a fact about the file rather than a
+    guess, which is the test every entry in a `sources` block has to pass.
+    """
+    m = _CHEMBL_DIR.search(str(db_path))
+    return m.group(1) if m else None
+
+
+def string_release(filename: str) -> str | None:
+    """"v12.0" from a STRING download's filename, or None.
+
+    STRING names its release in the file: 9606.protein.links.detailed.
+    v12.0.txt.gz. Not to be confused with `string_release_date`, which is a
+    download mtime (fix-list V4) and is NOT a release.
+    """
+    m = _STRING_VER.search(filename)
+    return m.group(1) if m else None
+
+
+def rdkit_release() -> str | None:
+    """The RDKit actually imported, or None when it is absent.
+
+    rdkit is an optional extra and the similarity layer cannot run without
+    it, so by the time this is called it is present -- but returning None
+    rather than raising keeps the function callable from a layer that only
+    might use chemistry.
+    """
+    try:
+        import rdkit
+    except ImportError:
+        return None
+    return getattr(rdkit, "__version__", None)

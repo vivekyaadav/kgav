@@ -14,6 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.emit import Emit
+from kgav.provenance import rdkit_release, write_source
 from kgav.schema import load_schema, report_violations
 from kgav.similarity import (
     build,
@@ -156,6 +157,10 @@ def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "nodes.jsonl").write_text("")
     (args.out / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in em.edges))
+    # WHICH RELEASE OF THE SOURCE (fix-list V2/V3/V5). Read from the
+    # file on disk, never from a register kept by hand: a release named in
+    # a path or a filename is evidence, one typed into a config is a claim.
+    write_source(args.out, rdkit=rdkit_release())
     print(f"{len(em.edges):,} edges -> {args.out}")
     return 0
 

@@ -23,6 +23,7 @@ from kgav.chembl import (
     query_activities,
 )
 from kgav.emit import Emit
+from kgav.provenance import chembl_release, write_source
 from kgav.schema import print_capped, load_schema, report_violations
 from kgav.units import CONCENTRATION_FACTORS
 from kgav.virus_register import declared_taxa
@@ -181,6 +182,10 @@ def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in em.nodes.values()))
     (args.out / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in em.edges))
+    # WHICH RELEASE OF THE SOURCE (fix-list V2/V3/V5). Read from the
+    # file on disk, never from a register kept by hand: a release named in
+    # a path or a filename is evidence, one typed into a config is a claim.
+    write_source(args.out, chembl=chembl_release(args.db))
     print(f"{len(em.nodes):,} compounds, {len(em.edges):,} edges -> {args.out}")
 
     per_virus: Counter = Counter()

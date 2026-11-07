@@ -17,11 +17,14 @@ to a terminal, and dropped it.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
 from kgav.gtop import parse_version
 from kgav.provenance import SOURCE_STAMP_NAME, read_source, write_source
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 # --------------------------------------------------------------- the parser
@@ -188,3 +191,95 @@ def test_an_empty_declaration_counts_as_no_declaration(tmp_path):
     block = source_block(layers)
     assert block["declared"] == {}
     assert block["layers_declaring_no_source_version"] == ["gtop"]
+
+
+# ------------------------------------------ the version is read, not declared
+# Fix-list V2/V3/V5. Three sources state their release somewhere a reader
+# can find it; the rest genuinely do not, and are left out rather than given
+# a plausible value.
+#
+#   ChEMBL   "chembl_37" from the database PATH. This build has no version
+#            table -- SELECT name, label FROM version raises
+#            OperationalError on the chembl_37 SQLite distribution -- so
+#            the directory name is the only statement that travels with
+#            the file.
+#   STRING   "v12.0" from the download's FILENAME.
+#   RDKit    rdkit.__version__, the library actually imported.
+#
+#   UniProt  carries the release in a REST response header that
+#            fetch_raw.py does not capture. Its 17 proteome sidecars hold
+#            a retrieval date and a URL and no version. A retrieval date
+#            is not a release, and writing one into a version field is
+#            exactly fix-list V4 -- string_release_date was a download
+#            mtime called a release date.
+#   ORCS     no sidecars at all; screens_all.json is a bare list of 1,952.
+#   NCATS    three CSV/TSV files, no sidecars.
+#   InterPro the folds cache has no date field.
+@pytest.mark.parametrize("path,want", [
+    ("data/raw/chembl/chembl_37/chembl_37_sqlite/chembl_37.db", "chembl_37"),
+    ("/elsewhere/chembl_35/x.db", "chembl_35"),
+    ("/no/version/here.db", None),
+])
+def test_chembl_release_is_read_from_the_path(path, want):
+    from kgav.provenance import chembl_release
+    assert chembl_release(Path(path)) == want
+
+
+@pytest.mark.parametrize("name,want", [
+    ("9606.protein.links.detailed.v12.0.txt.gz", "v12.0"),
+    ("9606.protein.aliases.v11.5.txt.gz", "v11.5"),
+    ("links.txt.gz", None),
+])
+def test_string_release_is_read_from_the_filename(name, want):
+    from kgav.provenance import string_release
+    assert string_release(name) == want
+
+
+def test_rdkit_release_is_the_library_actually_imported():
+    from kgav.provenance import rdkit_release
+    v = rdkit_release()
+    if v is None:
+        pytest.skip("rdkit is an optional extra and is not installed")
+    import rdkit
+    assert v == rdkit.__version__
+
+
+def test_the_mtime_field_is_no_longer_called_a_release_date():
+    """V4. ingest_host's own comment said string_release_date came "from
+    the download timestamp", and that value dates all 141,019 STRING
+    edges. The VALUE is unchanged on purpose -- the alternatives are
+    STRING's real release date, which nothing on disk states, or the
+    undated placeholder, which would move every one of those edges across
+    the 2021 temporal cut and is the whole of fix-list C2."""
+    host = (ROOT / "src" / "kgav" / "host.py").read_text()
+    driver = (ROOT / "scripts" / "ingest_host.py").read_text()
+    assert 'prov["string_file_mtime"]' in host
+    assert '"string_release_date":' not in driver, (
+        "the PROV key still claims to be a release date")
+    assert '"string_file_mtime": "2023-08-28"' in driver
+
+
+def test_every_layer_that_can_declare_a_version_does():
+    """Checked at the source: these five drivers read a file whose release
+    is discoverable, so each must stamp it. A layer that quietly stops
+    calling write_source would otherwise reappear in the MANIFEST's
+    absence list with nothing to explain why."""
+    for script, token in (("ingest_chembl.py", "chembl_release"),
+                          ("ingest_host_targets.py", "chembl_release"),
+                          ("ingest_selectivity.py", "chembl_release"),
+                          ("ingest_similarity.py", "rdkit_release"),
+                          ("ingest_host.py", "string_release")):
+        src = (ROOT / "scripts" / script).read_text()
+        assert "write_source(" in src, f"{script} stamps no source version"
+        assert token in src, f"{script} does not read its source's release"
+
+
+def test_a_source_with_nothing_to_declare_is_not_given_a_date(tmp_path):
+    """The V4 error, generalised: a retrieval date or a file mtime must
+    never be written where a reader expects a release."""
+    for script in ("ingest_orcs.py", "ingest_ncats.py", "ingest_folds.py"):
+        src = (ROOT / "scripts" / script).read_text()
+        assert "write_source(" not in src, (
+            f"{script} stamps a source version, but none of ORCS, NCATS or "
+            f"InterPro states a release anywhere on disk -- check it is not "
+            f"recording an mtime or a retrieval date as a version")

@@ -11,6 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.emit import Emit
+from kgav.provenance import string_release, write_source
 from kgav.host import (
     EXPERIMENTAL_MIN,
     build_ensp_map,
@@ -23,8 +24,22 @@ PROV = {
     "proteome_source": "infores:uniprot",
     "pathway_source": "infores:uniprot",
     "ppi_source": "infores:string",
-    # STRING v12.0 human links file release date, from the download timestamp.
-    "string_release_date": "2023-08-28",
+    # A DOWNLOAD TIMESTAMP, AND NAMED AS ONE (fix-list V4). This was
+    # `string_release_date`, "the STRING v12.0 human links file release
+    # date, from the download timestamp" -- by its own comment a file
+    # mtime, presented as the date 141,019 interactions were first
+    # asserted. STRING's actual v12.0 release date is not in any file here
+    # and is not guessed.
+    #
+    # THE VALUE IS UNCHANGED, deliberately. The honest alternatives are
+    # STRING's real release date, which nothing on disk states, or the
+    # undated placeholder -- and the placeholder would move all 141,019
+    # edges from one side of the 2021 temporal cut to "undated", which is
+    # the whole of fix-list C2 and a decision rather than a correction.
+    # Renaming it stops the code asserting something it cannot support;
+    # the version itself now travels in SOURCE.json, read from the
+    # filename, where it is a fact.
+    "string_file_mtime": "2023-08-28",
 }
 
 
@@ -114,6 +129,19 @@ def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in em.nodes.values()))
     (args.out / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in em.edges))
+    # WHICH RELEASE OF THE SOURCE (fix-list V2/V3/V5).
+    #
+    # STRING names its release in the filename, so that is a fact about the
+    # file. UniProt does NOT: its REST response carries the release in a
+    # header that fetch_raw.py does not capture, and the proteome sidecars
+    # hold a retrieval date and a URL and no version. A retrieval date is
+    # not a release, and writing one into a `version` field would be the
+    # exact error fix-list V4 is about -- `string_release_date` is a
+    # download mtime called a release date -- so UniProt is left out and
+    # the MANIFEST's absence list names it.
+    links_name = (args.host_dir /
+                  "9606.protein.links.detailed.v12.0.txt.gz").name
+    write_source(args.out, string=string_release(links_name))
 
     print(f"\n{len(em.nodes):,} nodes, {len(em.edges):,} edges -> {args.out}")
     for c, n in Counter(x["class"] for x in em.nodes.values()).most_common():
