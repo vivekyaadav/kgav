@@ -56,11 +56,19 @@ def norm(s):
 
 
 # The real assay/ export's header, lowercased as NCATS ships it.
+#
+# THE CONC COLUMNS NAME THEIR UNIT, as the real cpe.tsv does: CONC0(M)
+# through CONC14(M). They read "conc0" here until 2026-11-07, which is a
+# fixture that does not match the file -- and top_concentration_nm was
+# hardcoding `* 1e9` on the strength of a docstring claim, so the fixture
+# and the code agreed with each other and neither agreed with the export.
+# Reading the unit from the header made the mismatch fail loudly, which is
+# the only way a fixture drift like this gets found.
 HEADER = ["sample_id", "sample_name", "pubchem_sid", "primary_moa", "assay_name",
           "library", "cas", "alias", "ac50", "log_ac50", "auc", "curve_class2",
           "drug_name", "efficacy", "max_response", "p_hill", "r2", "gene_id",
           "gene_symbol", "smiles", "supplier", "supplier_id",
-          "conc0", "conc1", "conc2", "conc3"]
+          "conc0(M)", "conc1(M)", "conc2(M)", "conc3(M)"]
 COLS = resolve_columns(HEADER)
 
 
@@ -71,7 +79,7 @@ def _row(smiles="CCO", sid="NCGC1", assay=CANONICAL_ASSAY, ac50="",
               "ac50": ac50, "curve_class2": curve, "efficacy": eff,
               "library": "Approved Drugs Collection (NPC)"})
     for i, c in enumerate(concs):
-        r[f"conc{i}"] = c
+        r[f"conc{i}(M)"] = c
     return r
 
 
@@ -87,7 +95,8 @@ def test_the_real_header_resolves():
     assert COLS["curve"] == "curve_class2"
     assert COLS["efficacy"] == "efficacy"
     assert COLS["sample"] == "sample_id"        # the stable id, not sample_name
-    assert COLS["conc_cols"] == ["conc0", "conc1", "conc2", "conc3"]
+    assert COLS["conc_cols"] == ["conc0(M)", "conc1(M)",
+                                 "conc2(M)", "conc3(M)"]
 
 
 def test_uppercase_tsv_header_also_resolves():
@@ -593,3 +602,122 @@ def test_the_label_set_is_deliberately_unchanged():
     assert "replicate_disagreement" not in src, (
         "labels.py now reads the flag, which moves the label set; update "
         "the protocol documents and this test together")
+
+
+# ------------------------------------- the concentration unit is read (P7)
+# top_concentration_nm was `nm = v * 1e9`, hardcoding molar on the strength
+# of a docstring. The export states the unit in the column name -- CONC0(M)
+# through CONC14(M), values 3.2e-10 to 4e-05 -- and unit_for() in the same
+# module already parses exactly that, so the assumption was unnecessary.
+#
+# It also contradicted unit_for, which defaults an unlabelled column to
+# "uM" while the multiplier assumed "M": one column, two readings, a
+# factor of a million apart. This value is the censoring point every
+# inactive label is compared against, so that factor would move every
+# negative in the panel.
+def test_the_unit_comes_from_the_column_name():
+    assert top_concentration_nm({"conc0(M)": "1.0E-05"},
+                                {"conc_cols": ["conc0(M)"]}) == 10_000.0
+
+
+def test_a_micromolar_column_is_converted_not_assumed_molar():
+    """The regression the hardcoded multiplier could not survive: the same
+    number in a uM column is a million times smaller in molar."""
+    assert top_concentration_nm({"conc0(uM)": "10"},
+                                {"conc_cols": ["conc0(uM)"]}) == 10_000.0
+
+
+def test_an_unlabelled_concentration_column_is_refused():
+    """Not defaulted. unit_for says uM, the old multiplier said M, and the
+    censoring point of every inactive label sits between them."""
+    with pytest.raises(ValueError, match="states no unit"):
+        top_concentration_nm({"conc0": "1.0E-05"},
+                             {"conc_cols": ["conc0"]})
+
+
+@pytest.mark.parametrize("value,unit", [
+    ("1.0E-05", "uM"),   # molar read as micromolar -> 0.01 nM
+    ("20", "M"),         # micromolar read as molar -> 2e10 nM
+])
+def test_an_implausible_top_concentration_is_refused(value, unit):
+    """The tripwire for a unit error the header cannot catch: both of the
+    readings a bare `conc0` invites land far outside the range, not
+    slightly off."""
+    with pytest.raises(ValueError, match="plausible range"):
+        top_concentration_nm({f"conc0({unit})": value},
+                             {"conc_cols": [f"conc0({unit})"]})
+
+
+def test_the_bottom_of_a_dose_series_is_not_bounded():
+    """The first version of this bound checked EVERY conc column and the
+    real panel rejected it on row one: conc0 is 4e-10 M, 0.4 nM, the
+    bottom of a series running to 40 uM -- which is what a dose-response
+    series is supposed to look like. Only the top leaves this function,
+    so only the top has a plausible range."""
+    cols = {"conc_cols": ["conc0(M)", "conc1(M)", "conc2(M)"]}
+    row = {"conc0(M)": "4.0E-10", "conc1(M)": "2.0E-08",
+           "conc2(M)": "4.0E-05"}
+    assert top_concentration_nm(row, cols) == 40_000.0
+
+
+def test_the_real_export_header_names_its_unit():
+    """The fixture drifted from the file once; this reads the file."""
+    import csv
+    path = (Path(__file__).resolve().parents[1]
+            / "data" / "raw" / "ncats" / "cpe.tsv")
+    if not path.exists():
+        pytest.skip("no NCATS export on disk")
+    with open(path, newline="") as fh:
+        header = next(csv.reader(fh, delimiter="\t"))
+    conc = [h for h in header if h.lower().startswith("conc")]
+    assert conc, "no concentration columns in the export"
+    for c in conc:
+        assert unit_for(c, default="") == "M", (
+            f"{c} does not state a unit this reader recognises")
+
+
+def test_the_header_overrides_the_declared_unit():
+    """A file that names its own unit is believed over the flag, so
+    cpe.tsv's CONC0(M) reads correctly even if --conc-units says uM."""
+    assert top_concentration_nm({"conc0(M)": "1.0E-05"},
+                                {"conc_cols": ["conc0(M)"]},
+                                conc_units="uM") == 10_000.0
+
+
+def test_an_unlabelled_column_uses_the_declared_unit():
+    """cpe_assay.csv and cpe_tox.csv -- the two files this layer actually
+    reads -- use a bare `conc0`. The driver declares M, with the evidence
+    in its own help text."""
+    assert top_concentration_nm({"conc0": "1.0E-05"},
+                                {"conc_cols": ["conc0"]},
+                                conc_units="M") == 10_000.0
+    assert top_concentration_nm({"conc0": "10"},
+                                {"conc_cols": ["conc0"]},
+                                conc_units="uM") == 10_000.0
+
+
+def test_the_driver_declares_a_unit_rather_than_assuming_one():
+    src = (Path(__file__).resolve().parents[1]
+           / "scripts" / "ingest_ncats.py").read_text()
+    assert '"--conc-units"' in src
+    assert "conc_units=args.conc_units" in src
+    # The evidence for the default travels with it.
+    assert "4e-08" in src and "2e-05" in src
+
+
+def test_the_two_files_this_layer_reads_do_not_state_a_unit():
+    """The premise of the flag. If a future export starts labelling these
+    columns, the header path takes over and this test should be updated to
+    say so rather than deleted."""
+    import csv
+    raw = Path(__file__).resolve().parents[1] / "data" / "raw" / "ncats"
+    if not (raw / "cpe_assay.csv").exists():
+        pytest.skip("no NCATS export on disk")
+    for name, delim in (("cpe_assay.csv", ","), ("cpe_tox.csv", ",")):
+        with open(raw / name, newline="") as fh:
+            header = next(csv.reader(fh, delimiter=delim))
+        conc = [h for h in header if h.lower().startswith("conc")]
+        assert conc, f"{name} has no concentration columns"
+        assert all(unit_for(c, default="") == "" for c in conc), (
+            f"{name} now names its concentration unit; the header path "
+            f"handles it and --conc-units is no longer load bearing there")

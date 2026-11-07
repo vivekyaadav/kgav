@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from kgav.assemble import LAYER_PRECEDENCE
 from kgav.emit import Emit
 from kgav.ncats import (
+    NCATS_UNITS,
     CANONICAL_ASSAY,
     COLUMN_CANDIDATES,
     COUNTERSCREEN_ASSAY,
@@ -104,6 +105,19 @@ def main() -> int:
     ap.add_argument("--min-efficacy-pct", type=float, default=MIN_EFFICACY_PCT,
                     help=f"minimum POSITIVE efficacy for an active (default "
                          f"{MIN_EFFICACY_PCT}; Chen et al. selected hits at 55)")
+    # THE CONCENTRATION UNIT, DECLARED WITH ITS EVIDENCE (fix-list P7).
+    # cpe.tsv names it -- CONC0(M) -- and the two files this layer reads,
+    # cpe_assay.csv and cpe_tox.csv, use a bare `conc0`. Measured across
+    # them: cpe_assay.csv's conc3 runs 4e-08 to 2e-04 with median 2e-05 and
+    # cpe.tsv's CONC3(M) runs 4e-08 to 6e-05 with the same median, so the
+    # unlabelled columns are molar by evidence. A header that states its
+    # own unit overrides this.
+    ap.add_argument("--conc-units", default="M", choices=sorted(NCATS_UNITS),
+                    help="unit of the conc* columns WHEN THE HEADER DOES NOT "
+                         "STATE ONE. cpe.tsv says CONC0(M); cpe_assay.csv "
+                         "and cpe_tox.csv do not, and their value "
+                         "distributions match cpe.tsv's, which is the "
+                         "evidence for the default.")
     ap.add_argument("--assay", default=CANONICAL_ASSAY,
                     help="assay_name to keep; 'all' disables the filter")
     ap.add_argument("--inspect", action="store_true")
@@ -149,7 +163,9 @@ def main() -> int:
 
     # top concentration actually present, so the censoring point is reported
     # rather than assumed
-    tops = [t for r in rows if (t := top_concentration_nm(r, cols)) is not None]
+    tops = [t for r in rows
+            if (t := top_concentration_nm(r, cols, args.conc_units))
+            is not None]
     if tops:
         print(f"top concentration across rows: min {min(tops):,.0f} nM, "
               f"max {max(tops):,.0f} nM")
@@ -165,7 +181,12 @@ def main() -> int:
             counts["other_assay"] += 1
             continue
         sid = (r.get(cols["sample"]) or "").strip() if "sample" in cols else ""
+        # conc_units HERE TOO. This call-breakdown loop is the THIRD site
+        # that needs it and the one I missed: the refusal fired on it after
+        # the other two were wired, which is the counter catching its own
+        # author for the third time today.
         v, _, why = classify_row(r, cols, ac50_units=ac50_units,
+                                 conc_units=args.conc_units,
                                  tox_row=tox_index.get(sid), tox_cols=tox_cols,
                                  tox_ac50_units=tox_units,
                                  min_efficacy_pct=args.min_efficacy_pct)
@@ -234,6 +255,7 @@ def main() -> int:
                        existing_compounds=existing,
                        taxon=SARS_COV_2, source=SOURCE, date=args.date,
                        ac50_units=ac50_units, tox_ac50_units=tox_units,
+                       conc_units=args.conc_units,
                        assay_filter=assay_filter,
                        min_efficacy_pct=args.min_efficacy_pct)
 

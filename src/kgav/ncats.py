@@ -220,23 +220,104 @@ def unit_for(column_name: str, default: str = "uM") -> str:
     return default
 
 
-def top_concentration_nm(row: dict, cols: dict) -> float | None:
+#: Bounds on the TOP of a dose series, which is what this function returns.
+#:
+#: MEASURED, not guessed. Over the 10,707 rows of cpe_assay.csv that carry
+#: any concentration, the per-row maximum runs 50 nM to 200,000 nM with a
+#: median of 20,000 nM (20 uM, the 4-point primary); 8,424 rows sit exactly
+#: at 20,000 and only 48 fall below 1,000, the lowest being 50. So 10 nM
+#: to 1 M clears every real row by at least 5x.
+#:
+#: It still catches both unit errors a bare `conc0` column invites, because
+#: a factor of a million does not land near a bound: micromolar read as
+#: molar sends 20 to 2e10 nM, above the ceiling, and molar read as
+#: micromolar sends 2e-5 to 0.02 nM, below the floor.
+#:
+#: TWO EARLIER VERSIONS OF THIS BOUND WERE WRONG, both rejected by the real
+#: panel on its first row, and both for the same reason this fix exists --
+#: a plausible-sounding range written without looking at the file:
+#:
+#:   every conc column, 1 nM - 1 M   conc0 is 4e-10 M = 0.4 nM, the BOTTOM
+#:                                   of a series running to 40 uM. A
+#:                                   dose-response series is meant to start
+#:                                   below the active range; only the top
+#:                                   has a plausible range, and only the
+#:                                   top leaves this function.
+#:   the top, 100 nM - 1 M           48 rows top out below 1,000 nM and one
+#:                                   at 50 nM.
+PLAUSIBLE_TOP_NM = (10.0, 1e9)
+
+
+def top_concentration_nm(row: dict, cols: dict,
+                         conc_units: str | None = None) -> float | None:
     """The highest concentration this row was actually tested at.
 
-    Read from the row's own conc columns, which are in molar. The alternative
-    -- a single --max-conc flag -- writes one censoring point across libraries
-    that were screened over different ranges, and every negative then carries
-    a concentration it was never tested at. The real export tops out at 2.0E-5
-    (20 uM) on the 4-point primary and lower on some plates.
+    Read from the row's own conc columns. The alternative -- a single
+    --max-conc flag -- writes one censoring point across libraries that
+    were screened over different ranges, and every negative then carries a
+    concentration it was never tested at. The real export tops out at
+    2.0E-5 (20 uM) on the 4-point primary and lower on some plates.
+
+    THE UNIT IS READ, NOT ASSUMED (fix-list P7). This was `nm = v * 1e9`,
+    hardcoding molar on the strength of a docstring.
+
+    Three of the portal's files, three answers. cpe.tsv names the unit --
+    CONC0(M) through CONC14(M) -- and unit_for() in this module already
+    parses exactly that. The two files this layer ACTUALLY reads,
+    cpe_assay.csv and cpe_tox.csv, use a bare `conc0`, so the header
+    cannot answer it there and the assumption really was load bearing.
+
+    WHAT THE UNIT IS, AND HOW THAT IS KNOWN. Measured across the files:
+    cpe_assay.csv's conc3 runs 4e-08 to 2e-04 with median 2e-05, and
+    cpe.tsv's CONC3(M) runs 4e-08 to 6e-05 with the same median. Identical
+    magnitudes, and one of the two states molar -- so the unlabelled
+    columns are molar by evidence rather than by assertion. The driver
+    passes that as `--conc-units M` so the claim is declared at the call
+    site next to the measurement supporting it, instead of being a
+    multiplier nobody can question.
+
+    IT WAS ALSO INCONSISTENT WITH unit_for. That function defaults to "uM"
+    for a column whose name carries no unit, while this multiplier assumed
+    M: the same unlabelled column would have been read two ways by two
+    functions in one file, differing by a factor of a million. A conc
+    column with no stated unit is now REFUSED rather than defaulted,
+    because this value is the censoring point for every inactive label the
+    layer emits -- `inactive_at_nm` compares against it -- so a silent
+    factor of 1e6 would move every negative in the panel.
     """
     best: float | None = None
+    best_col = best_raw = best_unit = None
     for c in cols.get("conc_cols", ()):
         v = _f(row.get(c))
         if v is None or v <= 0:
             continue
-        nm = v * 1e9
+        # THE HEADER FIRST, THE CALLER SECOND, NEVER A SILENT DEFAULT.
+        unit = unit_for(c, default="") or (conc_units or "")
+        if not unit:
+            raise ValueError(
+                f"concentration column {c!r} states no unit in its name and "
+                f"no conc_units was given. unit_for would default it to uM "
+                f"and the previous hardcoded multiplier assumed M -- a "
+                f"factor of a million on the censoring point of every "
+                f"inactive label. Either name the unit in the header, as "
+                f"cpe.tsv's CONC0(M) does, or pass conc_units with evidence "
+                f"for it.")
+        nm = to_nm(v, unit)
+        if nm is None:
+            continue
         if best is None or nm > best:
             best = nm
+            best_col, best_raw, best_unit = c, v, unit
+    # THE TOP, ONCE, not every point of the series.
+    if best is not None:
+        lo, hi = PLAUSIBLE_TOP_NM
+        if not lo <= best <= hi:
+            raise ValueError(
+                f"top concentration {best_col} = {best_raw} {best_unit} is "
+                f"{best:.3g} nM, outside the plausible range "
+                f"{lo:.0f}-{hi:.0g} nM for the top of a dose series. A unit "
+                f"error lands here rather than slightly off; check the "
+                f"column header and --conc-units before relaxing this.")
     return best
 
 
@@ -257,6 +338,7 @@ def curve_class(row: dict, cols: dict) -> tuple[str, int]:
 
 
 def classify_row(row: dict, cols: dict, *, ac50_units: str,
+                 conc_units: str | None = None,
                  tox_row: dict | None = None, tox_cols: dict | None = None,
                  tox_ac50_units: str = "uM",
                  min_efficacy_pct: float = MIN_EFFICACY_PCT,
@@ -275,7 +357,7 @@ def classify_row(row: dict, cols: dict, *, ac50_units: str,
     cls, sign = curve_class(row, cols)
     eff = _f(row.get(cols["efficacy"]))
     ac50 = to_nm(row.get(cols["ac50"]), ac50_units) if "ac50" in cols else None
-    top = top_concentration_nm(row, cols)
+    top = top_concentration_nm(row, cols, conc_units)
     if cls:
         quals["source_curve_class"] = f"{'-' if sign < 0 else ''}{cls}"
     if eff is not None:
@@ -345,6 +427,7 @@ def ingest_cpe(em, rows: list[dict], cols: dict, normalizer, *,
                taxon: str = SARS_COV_2, source: str = SOURCE,
                date: str = DEFAULT_DATE, ac50_units: str = "uM",
                tox_ac50_units: str = "uM",
+               conc_units: str | None = None,
                assay_filter: str | None = CANONICAL_ASSAY,
                min_efficacy_pct: float = MIN_EFFICACY_PCT,
                inactive_at_nm: float = DEFAULT_INACTIVE_AT_NM) -> Counter:
@@ -391,7 +474,8 @@ def ingest_cpe(em, rows: list[dict], cols: dict, normalizer, *,
             stats["paired_with_counterscreen"] += 1
 
         verdict, quals, reason = classify_row(
-            row, cols, ac50_units=ac50_units, tox_row=tox_row,
+            row, cols, ac50_units=ac50_units, conc_units=conc_units,
+            tox_row=tox_row,
             tox_cols=tox_cols, tox_ac50_units=tox_ac50_units,
             min_efficacy_pct=min_efficacy_pct, inactive_at_nm=inactive_at_nm)
         stats[f"reason_{reason}"] += 1
