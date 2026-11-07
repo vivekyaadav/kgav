@@ -103,6 +103,11 @@ class Graph:
         self.out: dict[tuple[str, str], list[tuple[str, dict]]] = defaultdict(list)
         self.inv: dict[tuple[str, str], list[tuple[str, dict]]] = defaultdict(list)
         self.degree: Counter = Counter()
+        #: Degree over the TRAVERSABLE graph only -- every predicate except
+        #: the held-out ones. Read by degree_ranking, the null hypothesis,
+        #: which must not see the answer sheet. See the long note in
+        #: from_release for why this is separate from `degree`.
+        self.degree_unlabelled: Counter = Counter()
         # predicate -> symmetric, straight from the schema. A predicate absent
         # here has no declared symmetry and MUST NOT be traversed: see
         # neighbours().
@@ -172,15 +177,41 @@ class Graph:
                 continue
             e = json.loads(line)
             p = e["predicate"]
-            # Degree counts ALL edges, including held-out ones: degree is a
-            # property of the graph, and excluding label edges from it would
-            # make the degree baseline easier to beat than it really is.
+            # TWO DEGREES, FOR TWO DIFFERENT JOBS (fix-list L7).
+            #
+            # g.degree counts edges of EVERY predicate, held-out included,
+            # and that is correct for what reads it: DWPC step weights, hub
+            # exclusion and degree-matched binning all want degree as a
+            # structural property of the whole graph. The note at the top of
+            # the SCORING section depends on it.
+            #
+            # The degree BASELINE is a different question. It is the null
+            # hypothesis -- "can a compound's activity be predicted from how
+            # well studied it is" -- and a null that counts the held-out
+            # label edges is reading the answer sheet. Measured on v0.1:
+            # 57.6% of labelled compounds' degree IS label edges, and 15,982
+            # of 21,589 (74.0%) have NO other degree at all, so the baseline
+            # ranked three quarters of the compounds purely by how often
+            # they appear in the answer sheet.
+            #
+            # THE OLD COMMENT HERE HAD THE DIRECTION BACKWARDS, and so did
+            # the fix list. It said excluding label edges "would make the
+            # degree baseline easier to beat than it really is". Measured on
+            # SARS-CoV-2, 2,020 positives against 10,956 measured negatives:
+            # degree AUC is 0.598 counting label edges and 0.613 without
+            # them. Removing them makes the baseline STRONGER -- both
+            # positives and negatives carry label edges, so they added
+            # shared noise. Fixing this therefore raises the bar every
+            # channel is measured against, which is the conservative
+            # direction.
             g.degree[e["subject"]] += 1
             g.degree[e["object"]] += 1
             g.stats["edges_seen"] += 1
             if p in skip:
                 g.stats["skipped_held_out"] += 1
                 continue
+            g.degree_unlabelled[e["subject"]] += 1
+            g.degree_unlabelled[e["object"]] += 1
             label_pubs = shared.get(e["subject"])
             if label_pubs and label_pubs & {q for q in (e.get("publications") or []) if q}:
                 g.stats["dropped_publication_coincident"] += 1
@@ -911,16 +942,37 @@ def degree_relative(per: dict[str, dict], degree_key: str = DEGREE_KEY) -> None:
         #             is marked unreadable rather than shown bare.
         m["beats_degree"] = m["lift"] > base
         m["lift_vs_degree"] = (m["lift"] / base) if base else None
-        # Readable means the DENOMINATOR is a real effect. When degree is
-        # itself at chance the ratio divides by noise, so it describes rather
-        # than tests -- SARS-CoV-2 cross-sectional reads M4 at 3.71x a degree
-        # lift of 0.54 (p=0.9622), which is M4 lift 1.99 at p=0.1401. My
-        # first threshold here was `base >= 1.0`, which wrongly flagged the
-        # SARS-CoV-2 temporal `include` row where degree sits at 0.97,
-        # p=0.5909: that is degree AT CHANCE, which is the condition a real
-        # result needs, not a defect in it. (Under `computed_only` the same
-        # baseline is 1.15, p=0.4262, and clears `base >= 1.0` anyway -- it
-        # is the `include` policy that the old threshold mis-flagged.)
+        # READABLE IS ABOUT THE RATIO, NOT ABOUT THE CHANNEL. Two different
+        # questions share the words "degree at chance" and this comment used
+        # to answer both at once, which is what made fix-list item E3 read
+        # the flag as inverted. It is not; the two questions are:
+        #
+        #   can this RATIO be read?      No, when the denominator is at
+        #                                chance: the quotient is large
+        #                                because the divisor is small.
+        #                                SARS-CoV-2 cross-sectional reads
+        #                                M4 at 2.04x a degree lift of 0.75
+        #                                (p=0.8167) -- and M4's own lift is
+        #                                1.53 at p=0.2630, which is nothing.
+        #                                That is this flag.
+        #   is the CHANNEL's result      Degree at chance is the condition a
+        #   trustworthy?                 real finding needs, because a
+        #                                significant degree means the virus
+        #                                is confounded. That is
+        #                                confound_warning's BASELINE AT
+        #                                CHANCE verdict, NOT this flag.
+        #
+        # So readable iff the denominator is a measured effect. Against a
+        # real baseline the quotient is a fair comparison: SARS-CoV sees M3
+        # at 0.20x a degree lift of 11.69 (p<0.0001), which says plainly
+        # that the channel is five times worse than counting edges.
+        #
+        # My first threshold was `base >= 1.0`, which flagged the SARS-CoV-2
+        # temporal `include` row where degree sits at 0.97, p=0.5909 -- a
+        # magnitude test where the question is significance. (Under
+        # `computed_only` the same baseline is 1.15, p=0.4262, and clears
+        # `base >= 1.0` anyway, so it was the `include` policy the old
+        # threshold mis-flagged.)
         dp = (deg or {}).get("p_value")
         m["vs_degree_readable"] = dp is not None and dp < SIGNIFICANCE
 
@@ -1244,8 +1296,20 @@ def undetermined_note(per: dict[str, dict]) -> str:
 
 
 def degree_ranking(g: Graph) -> dict[str, float]:
-    """The null hypothesis: rank drugs by degree, ignoring the virus entirely."""
-    return {d: float(g.degree.get(d, 0)) for d in g.drugs()}
+    """The null hypothesis: rank drugs by degree, ignoring the virus entirely.
+
+    OVER THE TRAVERSABLE GRAPH, NOT THE WHOLE ONE (fix-list L7). This read
+    g.degree, which counts held-out label edges -- so the null hypothesis
+    was ranking compounds partly by how many times they appear in the
+    answer sheet it is being scored against. 57.6% of labelled compounds'
+    g.degree is label edges and 74.0% have no other degree at all.
+
+    It makes the baseline harder to beat, not easier: degree AUC on
+    SARS-CoV-2 is 0.598 over g.degree and 0.613 over this one, because
+    positives and negatives both carry label edges and those added shared
+    noise. Every channel is now measured against a stronger null.
+    """
+    return {d: float(g.degree_unlabelled.get(d, 0)) for d in g.drugs()}
 
 
 def _bfs_distances(g: Graph, sources: set[str], predicate: str,

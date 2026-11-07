@@ -818,7 +818,36 @@ def test_ties_are_merged_only_when_exactly_equal():
 def test_degree_ranking_ignores_the_virus(g):
     scores = degree_ranking(g)
     assert set(scores) == {D1, D2, D3}
-    assert scores[D1] == float(g.degree[D1])
+    # OVER degree_unlabelled, NOT degree (fix-list L7). The null hypothesis
+    # must not count the held-out label edges it is being scored against.
+    assert scores[D1] == float(g.degree_unlabelled[D1])
+
+
+def test_the_baseline_does_not_count_the_answer_sheet(g):
+    """L7. g.degree counts every predicate including the held-out ones, so
+    the null hypothesis was ranking compounds partly by how many times
+    they appear in the answer sheet. On v0.1, 57.6% of labelled compounds'
+    g.degree is label edges and 15,982 of 21,589 (74.0%) have no other
+    degree at all.
+
+    It makes the baseline HARDER to beat, not easier -- the direction both
+    the old comment here and the fix list got wrong. Degree AUC on
+    SARS-CoV-2 is 0.598 over g.degree and 0.613 over this one, because
+    positives and negatives both carry label edges and those were shared
+    noise."""
+    assert g.degree[D1] > g.degree_unlabelled[D1], (
+        "the fixture has no held-out edge on D1, so this test cannot see "
+        "the difference it exists for")
+    assert degree_ranking(g)[D1] == float(g.degree_unlabelled[D1])
+
+
+def test_the_structural_degree_still_counts_everything(g):
+    """g.degree is read by DWPC step weights, hub exclusion and
+    degree-matched binning, all of which want degree as a property of the
+    WHOLE graph. Narrowing it would have moved every channel's score, not
+    just the baseline's."""
+    assert g.degree[D1] >= g.degree_unlabelled[D1]
+    assert sum(g.degree.values()) > sum(g.degree_unlabelled.values())
 
 
 def test_degree_ranking_covers_drugs_only_and_g_degree_covers_proteins(g):
@@ -1639,3 +1668,56 @@ def test_dwpc_scores_passes_the_scoring_through(tmp_path):
     pdp = dwpc_scores(g, mps, {}, scoring=SCORING_PDP)["M"]
     assert set(leg) == set(pdp) == {"A", "B"}
     assert leg["B"]["VIRUS"] != pdp["B"]["VIRUS"]
+
+
+# ------------------------- what `vs_degree_readable` means (fix-list E3)
+# E3 reports this flag as "True exactly when degree is significant
+# (inverted)". It IS true exactly then, and that is correct -- the fix list
+# conflates two questions that share the words "degree at chance":
+#
+#   can the RATIO be read?   No, when the denominator is at chance: the
+#                            quotient is large because the divisor is
+#                            small. SARS-CoV-2 cross-sectional reads M4 at
+#                            2.04x a degree lift of 0.75 (p=0.8167), while
+#                            M4's own lift is 1.53 at p=0.2630 -- nothing.
+#                            That is this flag.
+#   is the CHANNEL's result  Degree at chance is the condition a real
+#   trustworthy?             finding NEEDS. That is confound_warning's
+#                            BASELINE AT CHANCE verdict, a different thing.
+#
+# No code changed for E3. These tests pin the semantics so the question is
+# settled rather than re-litigated, and so that "fixing" it by flipping the
+# comparison fails here.
+def test_the_ratio_is_unreadable_when_the_denominator_is_at_chance():
+    per = {"degree": {"lift": 0.75, "p_value": 0.8167, "hits_determined": True},
+           "M4": {"lift": 1.53, "p_value": 0.2630, "hits_determined": True}}
+    degree_relative(per)
+    assert per["M4"]["lift_vs_degree"] == pytest.approx(2.04, abs=0.01)
+    assert per["M4"]["vs_degree_readable"] is False, (
+        "a quotient over a denominator at chance is large because the "
+        "divisor is small, not because the channel is good")
+
+
+def test_the_ratio_is_readable_against_a_measured_baseline():
+    per = {"degree": {"lift": 11.69, "p_value": 1e-6, "hits_determined": True},
+           "M3": {"lift": 2.37, "p_value": 0.0766, "hits_determined": True}}
+    degree_relative(per)
+    assert per["M3"]["lift_vs_degree"] == pytest.approx(0.20, abs=0.01)
+    assert per["M3"]["vs_degree_readable"] is True, (
+        "0.20x against a real baseline says the channel is five times "
+        "worse than counting edges, which is a fair comparison")
+
+
+def test_readability_is_not_the_confound_verdict():
+    """The two questions must not be collapsed. Degree at chance makes the
+    RATIO unreadable and is simultaneously the condition a real channel
+    finding requires -- confound_warning says so, this flag does not."""
+    per = {"degree": {"lift": 0.75, "p_value": 0.8167, "hits_determined": True},
+           "M7": {"lift": 1.28, "p_value": 0.0017, "hits_determined": True,
+                  "trustworthy": True}}
+    degree_relative(per)
+    assert per["M7"]["vs_degree_readable"] is False
+    warning = confound_warning(per)
+    assert warning and warning.startswith("BASELINE AT CHANCE"), (
+        f"degree at chance with a significant channel is the clean "
+        f"condition and confound_warning must say so; got {warning!r}")

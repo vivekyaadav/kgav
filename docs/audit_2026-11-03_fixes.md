@@ -61,7 +61,7 @@ The rest are screening compounds with no known target; no data source fixes them
 |---|---|---|
 | E1 | No multiple-testing correction across ~150 tests in `compare_metapaths.py` / `temporal_split.py` | Bonferroni or BH, as `landscape.py` already does |
 | E2 | `baselines_*.json` Hits@k/MRR depend on tie order; no range flag | Use `hits_at_k_range` there too |
-| E3 | `vs_degree_readable` is True exactly when degree is significant (inverted) | `baselines.py:924-925` |
+| E3 | ~~`vs_degree_readable` is True exactly when degree is significant (inverted)~~ **NOT A DEFECT, checked 2026-11-07.** It is true exactly then and that is correct: the flag asks whether the RATIO can be read, and a quotient over a denominator at chance is large because the divisor is small (SARS-CoV-2 M4 reads 2.04x a degree lift of 0.75, p=0.8167, while M4's own lift is 1.53 at p=0.2630). Whether the CHANNEL's result is trustworthy is a different question and is `confound_warning`'s BASELINE AT CHANCE verdict. The two share the words "degree at chance" and one comment in `baselines.py` answered both at once, which is what this item read as an inversion; that comment is now split and three tests pin the semantics. | `baselines.py:924-925` |
 | E4 | `pathway_landscape.json` predates the per-row seeding fix; `check_results` still calls it current | Re-run; make `check_results` compare the code commit too |
 | E5 | `network_proximity` averages observed vs null over different denominators *(suspected)* | Penalise unreachable targets symmetrically |
 
