@@ -242,6 +242,7 @@ def query_host_activities(db: Path, min_pchembl: float = DEFAULT_MIN_PCHEMBL,
                act.standard_type, act.standard_value, act.standard_units,
                act.standard_relation, act.pchembl_value,
                a.assay_type AS chembl_assay_type,
+               a.chembl_id AS assay,
                d.year, d.pubmed_id
         FROM activities act
         JOIN assays a            ON act.assay_id = a.assay_id
@@ -374,7 +375,11 @@ def ingest_host_targets(em, rows: list[dict], mechanisms: dict[tuple[str, str], 
             "quals": {QUANT_FIELD[r["standard_type"]]: nm,
                       "relation": relation,
                       "direction": direction,
-                      "assay_type": assay_type},
+                      "assay_type": assay_type,
+                      # WHICH ASSAY (fix-list V6). Already in the dedup
+                      # key's sibling fields and on no edge.
+                      **({"assay_id": str(r["assay"])}
+                         if r.get("assay") else {})},
             "pmids": {cite} if cite else set(),
         }
         stats["edges"] += 1

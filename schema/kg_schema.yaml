@@ -310,6 +310,10 @@ edge_classes:
         type: bool
         derived_from_absence_of: [ec50_nm, cc50_nm, ic50_nm, ki_nm, kd_nm]
         doc: "true when activity is asserted with no measured value; derived at assembly"
+      # WHICH ASSAY (fix-list V6). chembl emits this predicate from the
+      # same rows as the others and had no identifier on any of them.
+      assay_id: {type: string, doc: "the source's own assay identifier"}
+      document_id: {type: string, doc: "the source's own document identifier"}
     required_qualifiers: [assay_type]
 
   # ---- direct-acting channel -------------------------------------------
@@ -361,6 +365,10 @@ edge_classes:
     # this repo keeps finding. Required here, the release refuses to validate
     # instead. chembl.py is the only emitter and sets it on both branches, so
     # this pins behaviour that already holds rather than asking for new work.
+      # WHICH ASSAY (fix-list V6). chembl emits this predicate from the
+      # same rows as the others and had no identifier on any of them.
+      assay_id: {type: string, doc: "the source's own assay identifier"}
+      document_id: {type: string, doc: "the source's own document identifier"}
     required_qualifiers: [assay_type, target_resolution]
 
   - predicate: MEMBER_OF_CLASS
@@ -461,6 +469,9 @@ edge_classes:
       relation:   {type: string, enum: activity_relation}
       direction:  {type: string, enum: target_direction}
       assay_type: {type: string, enum: assay_type}
+      # WHICH ASSAY (fix-list V6). ChEMBL's assay CHEMBL id is already in
+      # the hosttargets dedup key and reached no edge.
+      assay_id:   {type: string, doc: "the source's own assay identifier"}
     required_qualifiers: [direction]
 
   - predicate: HOST_FACTOR_FOR
@@ -489,6 +500,11 @@ edge_classes:
       # travels on the edge as source_score.
       effect_size:  {type: float, doc: "signed; positive means dependency"}
       cell_line:    {type: string}
+      # BioGRID's SCREEN_ID, which was the ingest's loop variable and
+      # reached no edge (fix-list V6). 320 (protein, virus) pairs are
+      # contested ACROSS screens -- ACE2 is 34 dependency to 5 restriction
+      # -- and until now an edge could not say which screen it came from.
+      screen_id: {type: string, doc: "the source's own screen identifier"}
     required_qualifiers: [direction, screen_type, cell_line]
 
   - predicate: PHYSICALLY_INTERACTS_WITH
@@ -565,6 +581,7 @@ edge_classes:
       ic50_nm:           {type: float, min: 0}
       relation:          {type: string, enum: activity_relation}
       assay_type:        {type: string, enum: assay_type}
+      assay_id: {type: string, doc: "the source's own assay identifier"}
       # Derived at assembly from the absence of every measured value; see the
       # long note on INHIBITS.unquantified for the three definitions this
       # replaces and the 1,264 self-contradicting edges they produced.
@@ -627,6 +644,23 @@ edge_classes:
       replicate_disagreement:
         type: bool
         doc: "the source's own replicates disagreed; the active record was kept"
+      # WHICH EXPERIMENT THIS EDGE CAME FROM (fix-list V6). No edge
+      # carried one, though every layer has it at emit time: ChEMBL's
+      # assay CHEMBL id is already in this ingest's own dedup key, and
+      # BioGRID ORCS's SCREEN_ID is the loop variable.
+      #
+      # Three things need it. A reader cannot get from an edge back to the
+      # experiment without it. assemble's qualifier merge settles 17,254
+      # measurement conflicts by layer precedence (fix-list E6) and cannot
+      # say whether two disagreeing potencies came from two assays or one.
+      # And fix-list L2 -- keep each measurement as its own edge, keyed on
+      # the assay -- is not expressible at all until the assay is on the
+      # edge.
+      #
+      # NOT an identity qualifier. Making it one is exactly L2's decision
+      # and would split every merged edge; this carries the fact so that
+      # decision can be made with the data in front of it.
+      document_id: {type: string, doc: "the source's own document identifier"}
     required_qualifiers: [assay_type]
     # TWO SCREENS ARE TWO EXPERIMENTS. Without this, an NCATS panel inactive
     # and a ChEMBL-sourced active for the same compound collapse into one edge

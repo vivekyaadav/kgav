@@ -406,8 +406,12 @@ def ingest_screens(em, screens: list[dict], gene_rows: dict[str, list[dict]],
                     stats["duplicate"] += 1
                     continue
                 seen.add(key)
+                # WHICH SCREEN (fix-list V6). sid is the loop variable
+                # and reached no edge, so an edge could not say which of
+                # BioGRID's screens asserted it -- while 320 (protein,
+                # virus) pairs are contested ACROSS screens.
                 quals = {"direction": direction, "screen_type": stype,
-                         "cell_line": cell_line}
+                         "cell_line": cell_line, "screen_id": sid}
                 if effect is not None:
                     quals["effect_size"] = effect
                     # THE RESIDUAL, COUNTED RATHER THAN ASSUMED AWAY. In

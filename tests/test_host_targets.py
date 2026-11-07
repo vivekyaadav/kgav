@@ -34,7 +34,8 @@ def db(tmp_path):
     CREATE TABLE target_dictionary(tid INT, chembl_id TEXT, target_type TEXT, tax_id INT);
     CREATE TABLE target_components(tid INT, component_id INT);
     CREATE TABLE component_sequences(component_id INT, accession TEXT);
-    CREATE TABLE assays(assay_id INT, tid INT, doc_id INT, assay_type TEXT);
+    CREATE TABLE assays(assay_id INT, tid INT, doc_id INT, assay_type TEXT,
+                        chembl_id TEXT);
     CREATE TABLE docs(doc_id INT, year INT, pubmed_id INT);
     CREATE TABLE activities(activity_id INT, assay_id INT, molregno INT, standard_type TEXT,
       standard_value REAL, standard_units TEXT, standard_relation TEXT, pchembl_value REAL);
@@ -60,9 +61,9 @@ def db(tmp_path):
     # A ADMET, T toxicity. One of each, because v0.1 wrote "binding" on all
     # 18,954 edges while the rows behind them are 52,485 B, 4,936 F, 1,301 A
     # and 95 T -- and a fixture with only B rows cannot see that.
-    con.executemany("INSERT INTO assays VALUES(?,?,?,?)",
-                    [(1, 10, 1, "B"), (2, 11, 1, "B"),
-                     (3, 10, 2, "F"), (4, 10, 3, "A")])
+    con.executemany("INSERT INTO assays VALUES(?,?,?,?,?)",
+                    [(1, 10, 1, "B", "CHEMBL_A1"), (2, 11, 1, "B", "CHEMBL_A2"),
+                     (3, 10, 2, "F", "CHEMBL_A3"), (4, 10, 3, "A", "CHEMBL_A4")])
     con.executemany("INSERT INTO docs VALUES(?,?,?)",
                     [(1, 2019, None), (2, 2020, 22222222),
                      (3, 2021, 33333333)])

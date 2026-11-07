@@ -430,6 +430,7 @@ def query_activities(db: Path, taxa: list[str]) -> list[dict]:
                act.standard_type, act.standard_value, act.standard_units,
                act.standard_relation,
                a.description, a.assay_type, a.chembl_id AS assay,
+               a.doc_id,
                d.year, d.pubmed_id
         FROM activities act
         JOIN assays a          ON act.assay_id = a.assay_id
@@ -551,9 +552,16 @@ def assay_readout(description: str, assay_type_code: str | None = None) -> tuple
 # protein-resolution fields on the organism predicate to keep a detail is the
 # widening this module already refuses elsewhere, on the grounds that it lets
 # a real error through unnoticed later.
+#
+# assay_id AND document_id ARE NOT PROTEIN-RESOLUTION FIELDS (fix-list V6),
+# which is what the paragraph above excludes. They identify the EXPERIMENT,
+# and that is as true of an organism edge as of a protein one -- more so:
+# the organism edges are the held-out labels, so which assay produced a
+# label is the question V6 exists to answer. Both are declared on
+# HAS_ANTIVIRAL_ACTIVITY_AGAINST, so admitting them widens nothing.
 ORGANISM_QUALIFIERS = ("ec50_nm", "ic50_nm", "cc50_nm", "relation",
                        "assay_type", "cell_line", "selectivity_index",
-                       "nominal_protein_target")
+                       "nominal_protein_target", "assay_id", "document_id")
 
 EMITTED_COUNTERS = ("protein_edges", "measured_inactive_edges",
                     "organism_edges", "reattributed_to_organism")
@@ -648,6 +656,14 @@ def ingest_activities(em, rows: list[dict], viral_targets: dict[str, dict[str, s
         # the assembled edge, and the selectivity layer later supplied the
         # CC50 that made the claim false. Derived at assembly instead.
         quals = {qual_field: nm, "relation": relation}
+        # WHICH EXPERIMENT (fix-list V6), set on the SHARED dict before the
+        # branch so every path gets it. Setting it inside the protein branch
+        # reached only 39% of the HAS_ANTIVIRAL edges -- the direct-organism
+        # rows emit from the branch above and never saw it.
+        if r.get("assay"):
+            quals["assay_id"] = str(r["assay"])
+        if r.get("doc_id") is not None:
+            quals["document_id"] = str(r["doc_id"])
 
         if r["target_type"] == "ORGANISM":
             # Ki and Kd are binding constants against a purified enzyme; they
