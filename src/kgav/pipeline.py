@@ -59,6 +59,25 @@ class Layer:
     any_globs: tuple[tuple[str, ...], ...] = ()
     env: tuple[str, ...] = ()       # environment variables that must be set
     env_len: int = 0                # exact length required, 0 for any
+    # ARGUMENTS THE REBUILD MUST PASS. Empty for every layer that reads
+    # data/raw and writes a layer directory, which is all of them but one.
+    #
+    # folds is the exception and it cost a rebuild to find out. It fetches
+    # from InterPro's live REST API at INGEST time, so `make rebuild` is
+    # the only pipeline step that depends on a third-party service being
+    # up: on 2026-11-07 a transient `HTTP Error 408: Request Timeout` from
+    # InterPro killed the run 6m31s in, after seven layers had already
+    # been rewritten. ingest_folds.py has had an --offline flag replaying
+    # its cache the whole time, and this file already declares that cache
+    # as the layer's input -- there was simply no way to pass the flag.
+    #
+    # Offline is the RIGHT default for a rebuild, not a workaround. Every
+    # other ingest reads what fetch_raw put on disk, which is what makes
+    # it reproducible; an ingest that fetches is unversioned either way
+    # (fix list V3: no InterPro version is recorded anywhere), so the
+    # online path gives an irreproducible result AND can fail. Refreshing
+    # the cache stays available as an explicit run without this flag.
+    args: tuple[str, ...] = ()
 
 
 LAYERS: tuple[Layer, ...] = (
@@ -91,6 +110,7 @@ LAYERS: tuple[Layer, ...] = (
     Layer("ncats", "ingest_ncats.py", 1,
           files=("data/raw/ncats/cpe_assay.csv", "data/raw/ncats/cpe_tox.csv")),
     Layer("folds", "ingest_folds.py", 1,
+          args=("--offline",),
           files=("data/raw/folds/phase2_chains.json",)),
     # ---------------------------------------------------------- phase 3
     # These three read data/releases/v0.1, the ASSEMBLED release.
@@ -177,6 +197,7 @@ def plan(root: Path, env: dict | None = None) -> list[dict]:
                                             root)
             steps.append({"kind": "layer", "name": layer.name,
                           "script": layer.script, "phase": phase,
+                          "args": list(layer.args),
                           "run": ok, "reason": why,
                           "required": layer.required,
                           "existing": d.exists(),
@@ -185,6 +206,7 @@ def plan(root: Path, env: dict | None = None) -> list[dict]:
                                       else None)})
         steps.append({"kind": "assemble", "name": "assemble",
                       "script": ASSEMBLE, "phase": phase + 1,
+                      "args": [],
                       "run": True, "reason": "", "required": True,
                       "existing": False, "code": "n/a", "code_reason": "",
                       "written": None})

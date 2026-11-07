@@ -51,7 +51,12 @@ def main(argv=None) -> int:
         if s["kind"] == "assemble":
             print(f"  phase {s['phase']}  ASSEMBLE   {s['script']}")
         elif s["run"]:
-            print(f"  phase {s['phase']}  run        {s['name']}")
+            # THE FLAGS, IN THE PLAN. A plan that does not show them cannot
+            # be used to check what the rebuild will do, and the one flag
+            # that exists is the difference between reading a cache and
+            # calling a third-party API mid-rebuild.
+            flags = f"  {' '.join(s['args'])}" if s.get("args") else ""
+            print(f"  phase {s['phase']}  run        {s['name']}{flags}")
         elif s["required"]:
             print(f"  phase {s['phase']}  REQUIRED   {s['name']}"
                   f"  -- {s['reason']}")
@@ -158,11 +163,18 @@ def main(argv=None) -> int:
         if s["kind"] == "layer" and not s["run"]:
             continue
         label = s["script"]
-        print(f"\n{'=' * 70}\nphase {s['phase']}  {label}\n{'=' * 70}",
+        # THE FLAGS THE LAYER DECLARES, from pipeline.LAYERS. Only folds
+        # has any (--offline), and until 2026-11-07 there was no way to
+        # pass them: this called every script bare, so the one layer that
+        # fetches from a live third-party API did so on every rebuild and
+        # an InterPro 408 ended the run after seven layers.
+        extra = list(s.get("args") or ())
+        shown = f"{label} {' '.join(extra)}".strip()
+        print(f"\n{'=' * 70}\nphase {s['phase']}  {shown}\n{'=' * 70}",
               flush=True)
         started = time.time()
         rc = subprocess.call([sys.executable,
-                              str(args.root / "scripts" / label)])
+                              str(args.root / "scripts" / label), *extra])
         took = time.time() - started
         if rc != 0:
             print(f"\nFAILED after {took:.0f}s: {label} exited {rc}.")

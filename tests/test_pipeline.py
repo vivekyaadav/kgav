@@ -352,3 +352,43 @@ def test_the_declared_alternatives_match_what_the_scripts_glob():
     gt = (ROOT / "scripts" / "ingest_gtop.py").read_text()
     for name in ("interactions.csv", "ligands.csv", "ligand_id_mapping.csv"):
         assert name in gt, f"{name} is declared but ingest_gtop never names it"
+
+
+# ------------------------------------------------- the one layer that fetches
+# A REBUILD MUST NOT DEPEND ON A THIRD-PARTY API BEING UP. Every ingest but
+# one reads what fetch_raw put under data/raw, which is what makes a rebuild
+# reproducible. ingest_folds.py fetches from InterPro's live REST API at
+# INGEST time, and on 2026-11-07 a transient "HTTP Error 408: Request
+# Timeout" from InterPro ended `make rebuild` 6m31s in, after seven layers
+# had been rewritten -- stopping before the assemble, so the release stayed
+# consistent, which is the one part that worked.
+#
+# ingest_folds.py has had an --offline flag replaying its cache since it was
+# written, and pipeline.py already declared that cache as the layer's input.
+# There was simply no way to pass a flag: Layer had no field for one and
+# rebuild_release called every script bare.
+def test_only_the_folds_layer_declares_arguments():
+    """If a second layer ever needs a flag, this should be read and changed
+    deliberately rather than silently widened."""
+    withargs = {ly.name: ly.args for ly in LAYERS if ly.args}
+    assert withargs == {"folds": ("--offline",)}
+
+
+def test_the_folds_layer_is_rebuilt_from_its_cache():
+    folds = next(ly for ly in LAYERS if ly.name == "folds")
+    assert "--offline" in folds.args, (
+        "the rebuild would fetch from InterPro's live API; a 408 from it "
+        "has already cost one rebuild")
+    # The flag's own default cache IS the file this layer declares as input,
+    # so the declaration and the behaviour cannot disagree.
+    assert "data/raw/folds/phase2_chains.json" in folds.files
+
+
+def test_the_plan_carries_each_layer_s_arguments(tmp_path):
+    """A plan that hides the flags cannot be used to check what will run."""
+    steps = plan(ROOT)
+    folds = next(s for s in steps
+                 if s["kind"] == "layer" and s["name"] == "folds")
+    assert folds["args"] == ["--offline"]
+    assert all("args" in s for s in steps), \
+        "a step with no args key makes rebuild_release's lookup silent"
