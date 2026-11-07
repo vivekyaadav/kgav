@@ -405,9 +405,26 @@ def ingest_cpe(em, rows: list[dict], cols: dict, normalizer, *,
             # active beats an inactive: a compound that worked on any plate is
             # not evidence of inactivity.
             if seen[drug] == "inactive" and verdict == "active":
+                # THE DISAGREEMENT SURVIVES THE OVERWRITE (fix-list L14).
+                # This replaced the inactive edge's qualifiers in place and
+                # the only trace was a counter, so an edge that the panel
+                # itself contradicted was indistinguishable downstream from
+                # one measured active on every plate. labels.py's stated
+                # policy is that an ambiguous compound is EXCLUDED rather
+                # than assigned, and build_labels implements it -- but it
+                # cannot see a disagreement the ingest already settled,
+                # and identity_includes_source cannot separate two records
+                # from one source.
+                #
+                # Marking it is what makes that decision reachable. Whether
+                # build_labels should then drop these compounds is a
+                # protocol question, so it is NOT changed here: the label
+                # set is untouched and the fact is now on the edge.
                 for i, e in enumerate(em.edges):
                     if e["subject"] == drug and e["predicate"] == ANTIVIRAL_PREDICATE:
-                        em.edges[i] = dict(e, qualifiers=quals)
+                        em.edges[i] = dict(
+                            e, qualifiers={**quals,
+                                           "replicate_disagreement": True})
                         break
                 seen[drug] = "active"
                 stats["upgraded_inactive_to_active"] += 1

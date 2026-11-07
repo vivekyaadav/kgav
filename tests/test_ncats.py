@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -529,3 +530,66 @@ def test_peer_layers_overlap_so_the_node_set_must_be_deduped(tmp_path):
         n = json.loads(r)
         by_id.setdefault(n["id"], n)
     assert load_schema().validate_batch(list(by_id.values()), []) == []
+
+
+# ------------------------------------- the panel disagreeing with itself (L14)
+# The layer dedups on the structure -- keeping both records would double a
+# compound's DWPC weight and let it vote twice in the AUC -- and when one
+# record is active and the other inactive it keeps the active one,
+# OVERWRITING the inactive edge's qualifiers in place. The only trace was a
+# counter, so an edge the panel itself contradicted was indistinguishable
+# downstream from one measured active on every plate. 10 of this layer's 89
+# actives are such compounds, all SARS-CoV-2.
+#
+# labels.py states that an ambiguous compound is EXCLUDED rather than
+# assigned, and build_labels implements that -- but it cannot see a
+# disagreement the ingest already settled, and the schema's
+# identity_includes_source cannot separate two records from ONE source.
+def test_an_overwritten_inactive_is_recorded_on_the_edge():
+    """S1 is inactive on its first plate record and active on its second,
+    which is the shape the real panel shows on 10 compounds."""
+    em = Emit()
+    rows = [_row(smiles="CCO", sid="S1", curve="4"),                # inactive
+            _row(smiles="CCO", sid="S2", ac50="1.0", curve="1.1", eff="80")]
+    stats = ingest_cpe(em, rows, COLS, norm)
+    assert stats["upgraded_inactive_to_active"] == 1
+    assert len(em.edges) == 1
+    assert em.edges[0]["qualifiers"]["replicate_disagreement"] is True
+    assert classify(em.edges[0]) == "active"
+
+
+def test_an_ordinary_active_is_not_marked():
+    """A bool that is absent means "the replicates did not disagree", not
+    "nobody checked" -- so it must not appear on an ordinary edge."""
+    from kgav.schema import load_schema
+    ec = next(e for e in load_schema().edge_classes
+              if e.predicate == "HAS_ANTIVIRAL_ACTIVITY_AGAINST")
+    assert "replicate_disagreement" in ec.qualifiers
+    em = Emit()
+    ingest_cpe(em, [_row(smiles="CCO", sid="S1", ac50="1.0",
+                         curve="1.1", eff="80")], COLS, norm)
+    assert "replicate_disagreement" not in em.edges[0]["qualifiers"]
+
+
+def test_a_second_inactive_record_is_not_a_disagreement():
+    """Two inactive plate records agree. Only the mixed pair is marked."""
+    em = Emit()
+    rows = [_row(smiles="CCO", sid="S1", curve="4"),
+            _row(smiles="CCO", sid="S2", curve="4")]
+    stats = ingest_cpe(em, rows, COLS, norm)
+    assert stats["duplicate_structure"] == 1
+    assert stats["upgraded_inactive_to_active"] == 0
+    assert "replicate_disagreement" not in em.edges[0]["qualifiers"]
+
+
+def test_the_label_set_is_deliberately_unchanged():
+    """Whether build_labels should DROP a compound its own panel
+    contradicted is a protocol question with a label-set consequence, so
+    this commit records the fact and does not act on it. If that changes,
+    this test should be replaced by one asserting the new behaviour --
+    not deleted."""
+    src = (Path(__file__).resolve().parents[1]
+           / "src" / "kgav" / "labels.py").read_text()
+    assert "replicate_disagreement" not in src, (
+        "labels.py now reads the flag, which moves the label set; update "
+        "the protocol documents and this test together")

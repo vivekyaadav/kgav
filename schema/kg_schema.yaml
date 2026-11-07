@@ -609,6 +609,24 @@ edge_classes:
       # records which protein the source named so the move is auditable
       # rather than silent. 1,884 of 7,677 coronavirus protein-target rows.
       nominal_protein_target: {type: string, doc: "CURIE the source filed this under"}
+      # ONE PANEL, TWO PLATE RECORDS THAT DISAGREE. The NCATS layer dedups
+      # on the structure -- keeping both would double a compound's DWPC
+      # weight and let it vote twice in the AUC -- and when one record is
+      # active and the other inactive it keeps the active one, overwriting
+      # the inactive edge's qualifiers in place. 10 of its 89 actives are
+      # such compounds.
+      #
+      # `identity_includes_source` separates an NCATS inactive from a
+      # ChEMBL active so build_labels can see THAT disagreement and drop
+      # the compound as ambiguous. It cannot separate two records from the
+      # same source, so this disagreement was resolved inside the ingest
+      # and build_labels never saw it -- the opposite of the policy
+      # labels.py states, that an ambiguous compound is excluded rather
+      # than assigned. This carries the fact to where that decision can
+      # be made.
+      replicate_disagreement:
+        type: bool
+        doc: "the source's own replicates disagreed; the active record was kept"
     required_qualifiers: [assay_type]
     # TWO SCREENS ARE TWO EXPERIMENTS. Without this, an NCATS panel inactive
     # and a ChEMBL-sourced active for the same compound collapse into one edge
