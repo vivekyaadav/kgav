@@ -30,8 +30,8 @@ from kgav.baselines import qualifier_ok
 
 # THE VERDICT COMES FROM ONE PLACE (fix-list L1). The agent used to
 # render every HAS_ANTIVIRAL_ACTIVITY_AGAINST edge as "shows activity
-# against", dropping `relation` entirely -- and 20,238 of the 26,278
-# edges carrying that predicate, 77.0%, are measurements of INACTIVITY.
+# against", dropping `relation` entirely -- and 20,239 of the 26,017
+# edges carrying that predicate, 77.8%, are measurements of INACTIVITY.
 # A second copy of the threshold logic here would be the two-
 # implementations failure this repository keeps finding, so classify()
 # is imported and the predicate name is not trusted.
@@ -462,7 +462,7 @@ class GraphTools:
         L1). On release v0.1, `classify` over the 26,278 edges carrying
         it reads:
 
-            inactive    20,238   77.0%
+            inactive    20,239   77.8%
             active       5,525   21.0%
             undecidable    515    2.0%
 

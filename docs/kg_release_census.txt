@@ -9,10 +9,10 @@ docs/kg_audit_report.txt.
 
     release          v0.1
     nodes_sha        3356fae68afdf18d
-    edges_sha        a3232767b2964139
+    edges_sha        8597824ec26a3090
 
     78,789 nodes
-    392,624 edges
+    392,363 edges
 
     NODES BY CLASS   (0 = declared in the schema, absent from this release)
       SmallMolecule                  25,383
@@ -32,7 +32,7 @@ docs/kg_audit_report.txt.
     EDGES BY PREDICATE   (L = held out of every metapath, 0 = declared, absent)
       PARTICIPATES_IN                           157,211
       PHYSICALLY_INTERACTS_WITH                 153,533
-      HAS_ANTIVIRAL_ACTIVITY_AGAINST     L       26,278
+      HAS_ANTIVIRAL_ACTIVITY_AGAINST     L       26,017
       ENCODED_BY                                 19,498
       TARGETS                                    17,982
       HOST_FACTOR_FOR                             8,263
@@ -71,7 +71,7 @@ docs/kg_audit_report.txt.
     EDGES BY CURATOR   (an edge with several curators counts once for each)
       infores:uniprot                         176,907
       infores:string                          141,019
-      infores:chembl                           39,536
+      infores:chembl                           39,275
       infores:virhostnet                       10,163
       infores:biogrid-orcs                      8,263
       infores:ncats-opendata                    7,432

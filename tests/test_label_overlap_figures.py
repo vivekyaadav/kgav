@@ -1,10 +1,9 @@
 """The shared-PMID confound, held to the file it comes from.
 
-WHAT THIS IS FOR. "92.0% of labelled compounds share a publication between
-the evidence edge and the label it was supposed to predict" -- 1,020 of
-1,109 on the release of 2026-11-09, and derived below rather than typed
-here, which is the only reason this docstring may state it at all -- is the
-single
+WHAT THIS IS FOR. "89.3% of labelled compounds share a publication between
+the evidence edge and the label it was supposed to predict" -- 787 of 881 on
+the release of 2026-11-09, and derived below rather than typed here, which is
+the only reason this docstring may state it at all -- is the single
 most load-bearing figure in docs/evaluation.md: it is the reason that
 document calls its own M1 result partly self-scoring, and the reason
 kg_audit_report.txt splits its two questions the way it does.

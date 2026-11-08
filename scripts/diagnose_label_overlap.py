@@ -14,8 +14,9 @@ Read-only by default. Run from the repo root:
     python diagnose_label_overlap.py [RELEASE_DIR]
     python diagnose_label_overlap.py --out data/results/label_overlap.json
 
-WHY IT NOW WRITES A FILE. The shared-PMID figure -- 92.0% on the release
-of 2026-11-09, and 92.2% when this paragraph was written -- is the single most
+WHY IT NOW WRITES A FILE. The shared-PMID figure -- 89.3% on the release of
+2026-11-09, and quoted here with a date because this docstring has now been
+one release stale twice -- is the single most
 load-bearing number in docs/evaluation.md -- it is why that document calls
 its own M1 result partly self-scoring -- and until 2026-11-02 it existed
 nowhere but this script's console output. It had been copied into six

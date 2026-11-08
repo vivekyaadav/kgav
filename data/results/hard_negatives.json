@@ -7,7 +7,7 @@
     "infores:ncats-opendata"
   ],
   "label_stats": {
-    "other_source": 18846,
+    "other_source": 18585,
     "inactive": 7343,
     "active": 89
   },
@@ -22,7 +22,7 @@
     "labels": {
       "active": 89,
       "inactive": 7343,
-      "other_source": 18846
+      "other_source": 18585
     },
     "unscored": {},
     "empty_label_set": false
@@ -34,7 +34,7 @@
     "labels": {
       "active": 0,
       "inactive": 0,
-      "other_source": 18846
+      "other_source": 18585
     },
     "unscored": {},
     "empty_label_set": true
@@ -59,62 +59,62 @@
       "M2": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5074495774466854,
+        "auc": 0.5074511076053476,
         "evaluable": true,
-        "auc_ci_lo": 0.44682457345321125,
-        "auc_ci_hi": 0.5680745814401595,
+        "auc_ci_lo": 0.4468260472028308,
+        "auc_ci_hi": 0.5680761680078644,
         "imputed": true,
         "coverage_pos": 0.12359550561797752,
         "coverage_neg": 0.112351899768487,
         "auc_ceiling": 0.5125648978542585,
         "auc_headroom": 0.012564897854258517,
         "auc_floor": 0.5056218029247452,
-        "auc_skill": 0.26325068870523
+        "auc_skill": 0.26347107438017126
       },
       "M3": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5405430839123708,
+        "auc": 0.5405423188330398,
         "evaluable": true,
-        "auc_ci_lo": 0.4788760060760464,
-        "auc_ci_hi": 0.6022101617486952,
+        "auc_ci_lo": 0.4788752609371726,
+        "auc_ci_hi": 0.6022093767289071,
         "imputed": true,
         "coverage_pos": 0.1797752808988764,
         "coverage_neg": 0.10104861773117255,
         "auc_ceiling": 0.5484463534023843,
         "auc_headroom": 0.048446353402384346,
         "auc_floor": 0.539363331583852,
-        "auc_skill": 0.12988544474392555
+        "auc_skill": 0.12980121293800398
       },
       "M4": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.546255166198183,
+        "auc": 0.5462566963568453,
         "evaluable": true,
-        "auc_ci_lo": 0.4844446253894974,
-        "auc_ci_hi": 0.6080657070068687,
+        "auc_ci_lo": 0.48444611856992936,
+        "auc_ci_hi": 0.6080672741437612,
         "imputed": true,
         "coverage_pos": 0.34831460674157305,
         "coverage_neg": 0.27672613373280674,
         "auc_ceiling": 0.5839881137275124,
         "auc_headroom": 0.08398811372751236,
         "auc_floor": 0.5357942365043832,
-        "auc_skill": 0.21705930911861673
+        "auc_skill": 0.21709105918211832
       },
       "M5": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5455818963868363,
+        "auc": 0.5455826614661674,
         "evaluable": true,
-        "auc_ci_lo": 0.48378770161891915,
-        "auc_ci_hi": 0.6073760911547534,
+        "auc_ci_lo": 0.48378844803758414,
+        "auc_ci_hi": 0.6073768748947507,
         "imputed": true,
         "coverage_pos": 0.29213483146067415,
         "coverage_neg": 0.20972354623450906,
         "auc_ceiling": 0.5718394190293592,
         "auc_headroom": 0.0718394190293592,
         "auc_floor": 0.5412056426130826,
-        "auc_skill": 0.14285714285714027
+        "auc_skill": 0.14288211788211644
       },
       "M6": {
         "n_pos": 89,
@@ -164,17 +164,17 @@
       "COMBINED": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5725302856653206,
+        "auc": 0.5725853713771581,
         "evaluable": true,
-        "auc_ci_lo": 0.5102007635528742,
-        "auc_ci_hi": 0.634859807777767,
+        "auc_ci_lo": 0.5102550072851435,
+        "auc_ci_hi": 0.6349157354691728,
         "imputed": true,
         "coverage_pos": 0.43820224719101125,
         "coverage_neg": 0.3092741386354351,
         "auc_ceiling": 0.6322263655518441,
         "auc_headroom": 0.13222636555184408,
         "auc_floor": 0.5644640542777881,
-        "auc_skill": 0.11903713488918122
+        "auc_skill": 0.11985006040488208
       },
       "degree": {
         "n_pos": 89,
@@ -197,7 +197,7 @@
   "metapath_reach": {
     "cross_sectional": {
       "M1": {
-        "drugs_reached": 2561,
+        "drugs_reached": 2783,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11082",
@@ -315,7 +315,7 @@
         "missing_predicates": []
       },
       "M7": {
-        "drugs_reached": 392,
+        "drugs_reached": 399,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11082",
@@ -352,7 +352,7 @@
     },
     "temporal": {
       "M1": {
-        "drugs_reached": 635,
+        "drugs_reached": 678,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11082",
@@ -460,7 +460,7 @@
         "missing_predicates": []
       },
       "M7": {
-        "drugs_reached": 76,
+        "drugs_reached": 78,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11082",
@@ -497,13 +497,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "3356fae68afdf18d",
-      "edges_sha": "a3232767b2964139"
+      "edges_sha": "8597824ec26a3090"
     },
     "code": {
-      "commit": "305947cd6c6f52861debc57e6d90a790df4419a1",
+      "commit": "fc652b65184f16b7312b571ad7f6148e08223b5e",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-08T16:06:25+00:00"
+    "generated_utc": "2026-11-08T17:07:05+00:00"
   }
 }

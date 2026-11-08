@@ -10,20 +10,22 @@ the correction family. A third candidate -- whether `auc_ceiling` replaces
 hard-negatives analysis and not to this one, and is left out rather than
 listed here for completeness.
 
-Date drafted: 2026-11-02. Release: v0.1 (78,789 nodes / 392,624 edges,
-`nodes_sha` 3356fae68afdf18d, `edges_sha` a3232767b2964139). Scripts:
+Date drafted: 2026-11-02. Release: v0.1 (78,789 nodes / 392,363 edges,
+`nodes_sha` 3356fae68afdf18d, `edges_sha` 8597824ec26a3090). Scripts:
 `scripts/pathway_landscape.py`, read by `src/kgav/landscape.py`.
 
-**The release identification was updated on 2026-11-08 and again on
-2026-11-09, and the analysis was not re-registered either time**, because
-neither rebuild touched it.
-`data/results/pathway_landscape.json` was regenerated against the new
-release and differs from the committed version in **four fields, all
-provenance**: the code commit, the dirty flag, the timestamp and
-`edges_sha`. Every measured figure -- every p-value, every overlap ratio,
-every degree-matched null -- is byte-identical. The two edges this rebuild
-added are `HAS_ANTIVIRAL_ACTIVITY_AGAINST`, which this analysis does not
-read. A registration that quoted a release no longer on disk would be
+**The release identification has now been updated three times -- 2026-11-08,
+and twice on 2026-11-09 -- and the analysis was not re-registered any of
+them**, because no rebuild has touched it.
+`data/results/pathway_landscape.json` was regenerated against each new
+release and differs from the previously committed version in **three
+fields, all provenance**: the code commit, the timestamp and `edges_sha`.
+Every measured figure -- every p-value, every overlap ratio, every
+degree-matched null -- is byte-identical, checked field by field rather
+than asserted. Each rebuild moved only
+`HAS_ANTIVIRAL_ACTIVITY_AGAINST` (two edges added by L4, 261 removed by
+L5), and this analysis does not read that predicate: it reads `TARGETS`,
+`HOST_FACTOR_FOR` and `PARTICIPATES_IN`, none of which moved. A registration that quoted a release no longer on disk would be
 unverifiable, which is what `tests/test_landscape.py::
 test_the_quoted_release_matches_the_census` exists to prevent; it caught
 this.

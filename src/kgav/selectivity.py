@@ -19,11 +19,30 @@ Cross-document pairing would yield far more pairs and would be much weaker. It
 is not done here; compounds without a same-document pair are marked
 `selectivity_verified: false` rather than being given a fabricated ratio.
 
-WHAT THE PAIRING FOUND. 1,634 compounds with matched data across 1,819
-(compound, document) pairs. Of those pairs, 691 -- 38% -- have a selectivity
-index below 10, the conventional threshold below which a cell-based antiviral
-hit is not pursued. Roughly two in five compounds that look active in a
-coronavirus cell assay are cytotoxic enough that the activity is suspect.
+WHAT THE PAIRING FOUND. 3,672 matched (compound, document, virus) rows, which
+collapse to 2,758 (compound, virus) edges carrying a selectivity index. Of
+those, 1,028 -- 37% -- fall below 10, the conventional threshold under which a
+cell-based antiviral hit is not pursued. Roughly two in five compounds that
+look active in a coronavirus cell assay are cytotoxic enough that the activity
+is suspect.
+
+AND THE ANTIVIRAL SIDE HAS TO BE CELL-BASED, which until 2026-11-09 it was
+not (fix-list L5). This paragraph read "1,634 compounds across 1,819 pairs ...
+691 -- 38% -- below 10" and the figures were stale besides. The real defect
+was upstream of them: any EC50 or IC50 filed against one of these taxa
+counted, biochemical assays included, and the retained row was the MINIMUM --
+which systematically prefers the biochemical one, because an isolated enzyme
+reads lower than a cell. 861 of the 4,241 pairs took their "selectivity index"
+from a SINGLE PROTEIN assay; 569 of those sat in documents holding no
+cell-based antiviral row at all; and every one was emitted with
+`assay_type: "cell_based_antiviral"`. molregno 2846010 is the shape of it: a
+1 nM protease IC50 over a 70,500 nM cell CC50 published SI 100,714 where the
+same document's cell-based EC50 of 40,100 nM gives 1.8.
+
+Correcting it moved the layer from 3,226 edges to 2,758 and the selective
+share from 69% to 63%: 482 (compound, virus) pairs are no longer called
+selective, and 113 more carry a cell line that can actually be verified. The
+median index fell from 27.50 to 18.59.
 
 CONSEQUENCE FOR THE EVALUATION. The positive set used in every earlier
 evaluation treats those compounds as actives. Re-running the hard-negative
@@ -54,6 +73,22 @@ SI_THRESHOLD = 10.0
 # panels, and mixing it with CC50 would conflate two different endpoints.
 TOX_TYPES = ("CC50", "TC50")
 ACTIVITY_TYPES = ("EC50", "IC50")
+
+# A SELECTIVITY INDEX NEEDS A CELL-BASED POTENCY, and this is the column that
+# says so (fix-list L5). CC50 is a cytotoxicity in a cell system; dividing it
+# by an enzyme inhibition constant measured on isolated protein is arithmetic
+# on two different experiments. ChEMBL files a whole-cell antiviral readout
+# against the virus ORGANISM and a biochemical one against the protein, so
+# target_type is the discriminator.
+#
+# NOT assay_type. 'F' (functional) looks like the obvious test and is wrong
+# here: 4,603 of these rows are SINGLE PROTEIN/F -- a FRET protease assay is
+# functional and is not cell-based -- so assay_type 'F' and target_type
+# ORGANISM disagree on 4,605 rows, every one of them a protein assay that
+# assay_type would have let through. Measured before choosing, because the
+# two criteria agreed on the rows the old code happened to retain and would
+# have looked interchangeable.
+CELL_BASED_TARGET_TYPE = "ORGANISM"
 
 
 #: Units this layer will convert, the same frozen set chembl and
@@ -94,6 +129,35 @@ def query_pairs(db: Path, taxa: list[str],
     index was understated and the compound looked more cytotoxic than its
     own exact measurement says. When any exact row exists the CC50 is now
     the minimum over the exact rows only.
+
+    AND THE EC50 IS CHOSEN AGAINST THE CC50 (fix-list L5). Two gates and one
+    aggregate, in this order:
+
+      1. the antiviral row must be cell-based -- see CELL_BASED_TARGET_TYPE,
+         which says why the test is target_type and not assay_type. 10,018
+         of 39,467 rows read are biochemical and leave here;
+      2. among the group's cell-based rows, those sharing the CC50's cell
+         line win outright. 2,395 of 3,672 pairs can be matched this way;
+         1,277 cannot, because one side names no line or the document's
+         EC50s are all from another system;
+      3. of the candidates, the LARGEST EC50 is used, on 406 pairs where
+         there is a choice.
+
+    (3) IS THE CONSERVATIVE DIRECTION AND THAT IS THE WHOLE ARGUMENT FOR IT.
+    CC50 is minimised and EC50 was minimised too, so the ratio took the most
+    cytotoxic numerator and the most potent denominator -- one pessimistic
+    and one optimistic choice, netting to neither. A selectivity index that
+    overstates selectivity cannot exclude cytotoxic hits, which is the only
+    thing this layer is for, so where the rows disagree the index states the
+    weaker claim. The EC50 spread inside a group is not small: median 4.77x
+    over the 776 groups that disagree, 100x at the 90th percentile.
+
+    WHY EVERY ROW REACHES THE JOIN. Which EC50 belongs in the ratio depends
+    on the CC50's cell line, and the antiviral loop has not read the
+    toxicity side yet. Collapsing each group to a minimum there is how the
+    retained row came to be chosen by its VALUE alone, and it is why 313
+    pairs paired a potency against a toxicity from a different cell line
+    while the same document held a matching row.
     """
     counts: Counter = stats if stats is not None else Counter()
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
@@ -106,7 +170,9 @@ def query_pairs(db: Path, taxa: list[str],
     av_rows = con.execute(f"""
         SELECT act.molregno, a.doc_id, t.tax_id,
                act.standard_value AS value, act.standard_units AS units,
-               act.standard_relation AS relation, a.description AS descr
+               act.standard_relation AS relation, a.description AS descr,
+               act.standard_type AS stype, a.assay_type AS atype,
+               t.target_type AS ttype
         FROM activities act
         JOIN assays a ON act.assay_id = a.assay_id
         JOIN target_dictionary t ON a.tid = t.tid
@@ -114,11 +180,15 @@ def query_pairs(db: Path, taxa: list[str],
           AND act.standard_type IN ({act_types})
     """, taxa).fetchall()
 
-    antiviral: dict[tuple, dict] = {}
+    antiviral: dict[tuple, list[tuple[float, str]]] = {}
     for r in av_rows:
         counts["av_rows"] += 1
         if r["relation"] != "=":
             counts["av_dropped_censored_or_null_relation"] += 1
+            continue
+        if r["ttype"] != CELL_BASED_TARGET_TYPE:
+            counts["av_dropped_not_cell_based"] += 1
+            counts[f"av_not_cell_based:{r['ttype']}/{r['atype']}/{r['stype']}"] += 1
             continue
         nm = to_nm(r["value"], r["units"], allow=SELECTIVITY_UNITS)
         if nm is None or nm <= 0:
@@ -131,18 +201,15 @@ def query_pairs(db: Path, taxa: list[str],
         # accounting identity is dropped + kept == read; groups are fewer
         # than kept rows by construction, and using them closed nothing.
         counts["av_kept"] += 1
-        key = (r["molregno"], r["doc_id"], r["tax_id"])
-        cur = antiviral.get(key)
-        # Tie-break on the description so two runs over one database cannot
-        # disagree about which row was retained.
-        cand = (nm, r["descr"] or "")
-        if cur is None:
-            antiviral[key] = {"ec50_nm": nm, "descr": r["descr"],
-                              "n_activity": 1, "_k": cand}
-        else:
-            cur["n_activity"] += 1
-            if cand < cur["_k"]:
-                cur.update(ec50_nm=nm, descr=r["descr"], _k=cand)
+        # EVERY ROW IS CARRIED TO THE JOIN, not collapsed here. Which EC50
+        # belongs in the ratio depends on the CC50's cell line, which this
+        # loop has not read yet; collapsing to a minimum first is how the
+        # retained row came to be chosen by its VALUE alone.
+        antiviral.setdefault(
+            (r["molregno"], r["doc_id"], r["tax_id"]),
+            # Tie-break on the description so two runs over one database
+            # cannot disagree about which row was retained.
+            []).append((nm, r["descr"] or ""))
     counts["av_groups"] = len(antiviral)
 
     # ---------------------------------------------------- toxicity side
@@ -190,7 +257,7 @@ def query_pairs(db: Path, taxa: list[str],
     con.close()
 
     out: list[dict] = []
-    for (mol, doc, tax), av in antiviral.items():
+    for (mol, doc, tax), rows in antiviral.items():
         tx = toxicity.get((mol, doc))
         if tx is None:
             counts["no_matched_counterscreen"] += 1
@@ -203,15 +270,30 @@ def query_pairs(db: Path, taxa: list[str],
         cc50_exact = bool(tx["exact"])
         if tx["exact"] and tx["bound"]:
             counts["tox_mixed_group_exact_preferred"] += 1
+        # THE EC50 IS CHOSEN AGAINST THE CC50, not on its own (fix-list L5).
+        # First on the cell line, because a ratio across two cell systems is
+        # not a selectivity index whatever the arithmetic says; then the
+        # LARGEST of the candidates, because a selectivity index that over-
+        # states selectivity cannot be used to exclude cytotoxic hits, which
+        # is the only thing this layer is for.
+        tox_cl = extract_cell_line(tox_descr)
+        matched = [r for r in rows
+                   if tox_cl and extract_cell_line(r[1]) == tox_cl]
+        candidates = matched or rows
+        counts["ec50_paired_on_the_cc50s_cell_line" if matched
+               else "ec50_not_pairable_on_a_cell_line"] += 1
+        if len(candidates) > 1:
+            counts["ec50_conservative_over_several_rows"] += 1
+        ec50_nm, av_descr = max(candidates)
         compound, inchikey = meta.get(mol, (None, None))
         year, pubmed_id = docs.get(doc, (None, None))
         out.append({"molregno": mol, "doc_id": doc, "tax_id": tax,
-                    "ec50_nm": av["ec50_nm"], "n_activity": av["n_activity"],
+                    "ec50_nm": ec50_nm, "n_activity": len(rows),
                     "cc50_nm": cc50_nm, "n_tox": tx["n_tox"],
                     "cc50_exact": cc50_exact, "tox_descr": tox_descr,
                     "compound": compound, "inchikey": inchikey,
                     "year": year, "pubmed_id": pubmed_id,
-                    "assay_text": av["descr"]})
+                    "assay_text": av_descr})
     counts["pairs"] = len(out)
     return out
 
@@ -387,9 +469,13 @@ def ingest_selectivity(em, rows: list[dict], taxon_map: dict[str, str],
         # another, and then the ratio is not a selectivity index -- it is a
         # potency in Calu-3 divided by a toxicity in Vero.
         #
-        # Measured on chembl_37, over the 4,167 (compound, document, taxon)
-        # pairs: 2,244 agree, 337 name DIFFERENT cell lines, and 1,586 have
-        # at least one side unnamed. Only the first group can be verified.
+        # Measured on the release of 2026-11-09, over the 2,758 emitted
+        # edges: 1,694 agree, 253 name DIFFERENT cell lines, and 811 have at
+        # least one side unnamed. Only the first group can be verified.
+        # (The figures were 2,244 / 337 / 1,586 over 4,167 and were two
+        # releases stale. They now print on every run as the context_*
+        # counters, and tests/test_selectivity.py derives the verified share
+        # from the layer -- an edge records that much and no more.)
         # The other two are not errors in the source; they are the limit of
         # what a document-level join can establish, and the flag now says so
         # rather than asserting the strongest reading of all three.
@@ -416,6 +502,11 @@ def ingest_selectivity(em, rows: list[dict], taxon_map: dict[str, str],
                        "selectivity_index_max": round(max(payload["all"]), 3),
                        "selectivity_n_studies": len(payload["all"]),
                        "relation": "=",
+                       # TRUE SINCE 2026-11-09 AND NOT BEFORE (fix-list
+                       # L5). This string was written onto every edge while
+                       # 861 of them carried a biochemical IC50 as their
+                       # potency; query_pairs now refuses those rows, so the
+                       # qualifier describes the measurement it sits on.
                        "assay_type": "cell_based_antiviral",
                        # The EC50's OWN cell line. Before the query used a
                        # window function this came from whichever row sorted

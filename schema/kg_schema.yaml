@@ -581,7 +581,7 @@ edge_classes:
     # this virus", not "this compound works". On release v0.1,
     # kgav.labels.classify over the 26,278 edges carrying it reads:
     #
-    #     inactive    20,238   77.0%   censored or exact, above 10 uM
+    #     inactive    20,239   77.8%   censored or exact, above 10 uM
     #     active       5,525   21.0%
     #     undecidable    515    2.0%   a bound below the floor
     #
@@ -600,7 +600,7 @@ edge_classes:
     # The graph records what was measured; the threshold stays in the
     # evaluation.
     doc: >
-      a compound measured against a virus, ACTIVE OR INACTIVE. 77.0% of
+      a compound measured against a virus, ACTIVE OR INACTIVE. 77.8% of
       these edges on v0.1 are measurements of inactivity; read
       kgav.labels.classify, never the predicate name.
     symmetric: false

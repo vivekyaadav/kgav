@@ -57,6 +57,14 @@ def main() -> int:
           f"{q['av_groups']:,} (compound, doc, virus) group(s)")
     for k, label in (("av_dropped_censored_or_null_relation",
                       "dropped: relation is not '=' (censored or absent)"),
+                     # THE GATE WAS IN THE ACCOUNTING AND NOT IN THE REPORT.
+                     # The loop below sums every av_dropped_* key, so the
+                     # total closed from the day this gate was added while
+                     # the breakdown a reader sees did not mention it --
+                     # which is E7's defect with the counter present.
+                     ("av_dropped_not_cell_based",
+                      "dropped: not a cell-based antiviral readout "
+                      "(biochemical target_type)"),
                      ("av_dropped_unconvertible_units",
                       "dropped: units not convertible to nM"),
                      ("av_converted", "converted from a non-nM unit")):
@@ -77,6 +85,18 @@ def main() -> int:
     if q["no_matched_counterscreen"]:
         print(f"    {q['no_matched_counterscreen']:>8,}  antiviral group(s) "
               f"with no counterscreen in the same document")
+    # HOW THE RATIO WAS PAIRED, per pair, because "same document" is not
+    # "same cell system" and the difference is the whole meaning of the
+    # number. selectivity.query_pairs says what each one is.
+    for k, label in (("ec50_paired_on_the_cc50s_cell_line",
+                      "EC50 taken from the CC50's own cell line"),
+                     ("ec50_not_pairable_on_a_cell_line",
+                      "no EC50 in the CC50's cell line (or either unnamed): "
+                      "the conservative row is used"),
+                     ("ec50_conservative_over_several_rows",
+                      "several candidate EC50s; the largest is used")):
+        if q[k]:
+            print(f"    {q[k]:>8,}  {label}")
     # THE ACCOUNTING CLOSES, or the run says so rather than being believed.
     for side in ("av", "tox"):
         dropped = sum(v for k, v in q.items()
@@ -109,6 +129,15 @@ def main() -> int:
     for k in ("no_inchikey", "unmapped_taxon", "si_uncomputable"):
         if s[k]:
             print(f"  dropped {k}: {s[k]:,}")
+    # WHAT selectivity_verified MEANS ON THIS RUN, which until now was
+    # computed, written onto every edge and never reported.
+    for k, label in (("context_matched", "EC50 and CC50 name the SAME cell line"),
+                     ("context_cell_line_mismatch",
+                      "they name DIFFERENT cell lines (not verifiable)"),
+                     ("context_cell_line_unnamed",
+                      "at least one side names no cell line (not verifiable)")):
+        if s[k]:
+            print(f"  {s[k]:>7,}  {label}")
 
     per_virus: Counter = Counter()
     for e in em.edges:

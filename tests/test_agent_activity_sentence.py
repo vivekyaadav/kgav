@@ -1,8 +1,8 @@
 """What the agent says about a HAS_ANTIVIRAL_ACTIVITY_AGAINST edge (L1).
 
 THE PREDICATE NAME IS WRONG FOR MOST OF ITS INSTANCES. On release v0.1,
-`labels.classify` over the 26,278 edges carrying it reads 20,238 inactive
-(77.0%), 5,525 active (21.0%) and 515 undecidable (2.0%) -- and the agent
+`labels.classify` over the 26,017 edges carrying it reads 20,239 inactive
+(77.8%), 5,232 active (20.1%) and 546 undecidable (2.1%) -- and the agent
 rendered every one of them as "{s} shows activity against {o} (EC50 ... nM)",
 dropping `relation` entirely. An edge reading "EC50 > 50000 nM" -- a screen
 reporting that it tested to 50 uM and saw nothing -- was presented as
@@ -22,6 +22,7 @@ actually contains the case that matters rather than trusting the fixture.
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -181,12 +182,24 @@ def test_the_release_contains_the_case_this_file_is_about():
         f"most edges carrying {PRED} are no longer inactive: {counts}. The "
         f"agent's renderer and its docstring are written for a graph where "
         f"they are")
-    # The figures the docstring and docs/evaluation.md quote.
+    # THE SHARE IS READ OUT OF THE FILES THAT QUOTE IT, not written here.
+    # This assertion was `f"{share:.1%}" == "77.0%"`, which is the defect
+    # it was built to catch: a literal in the check, so the rebuild of
+    # 2026-11-09 moved the graph to 77.8% and the test failed on its own
+    # copy of the number rather than on tools.py's. The figure now has one
+    # home per file and this compares them with the release.
     share = counts["inactive"] / total
-    assert f"{share:.1%}" == "77.0%", (
-        f"{counts['inactive']:,} of {total:,} ({share:.1%}) edges carrying "
-        f"{PRED} are inactive; the 77.0% quoted in tools.py and the fix "
-        f"list is stale")
+    rendered = f"{share:.1%}"
+    for path in (ROOT / "src/kgav/agent/tools.py",
+                 ROOT / "schema/kg_schema.yaml"):
+        quoted = set(re.findall(r"\b(\d\d\.\d)% of\b|inactive\s+[\d,]+\s+(\d\d\.\d)%",
+                                path.read_text()))
+        stated = {g for pair in quoted for g in pair if g}
+        assert stated, f"{path.name} no longer quotes an inactive share"
+        assert stated == {rendered.rstrip('%')}, (
+            f"{counts['inactive']:,} of {total:,} ({rendered}) edges "
+            f"carrying {PRED} are inactive and {path.name} states "
+            f"{sorted(stated)}")
 
 
 def test_the_schema_documents_what_the_predicate_means():

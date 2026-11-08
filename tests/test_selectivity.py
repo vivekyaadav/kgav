@@ -4,6 +4,7 @@ something, and the worst measurement wins.
 from collections import Counter
 from pathlib import Path
 import json
+import re
 import sqlite3
 
 import pytest
@@ -179,8 +180,9 @@ def test_query_pairs_requires_same_document(tmp_path):
     con.executescript("""
     CREATE TABLE molecule_dictionary(molregno INT, chembl_id TEXT);
     CREATE TABLE compound_structures(molregno INT, standard_inchi_key TEXT);
-    CREATE TABLE target_dictionary(tid INT, tax_id INT);
-    CREATE TABLE assays(assay_id INT, tid INT, doc_id INT, description TEXT);
+    CREATE TABLE target_dictionary(tid INT, tax_id INT, target_type TEXT);
+    CREATE TABLE assays(assay_id INT, tid INT, doc_id INT, description TEXT,
+      assay_type TEXT);
     CREATE TABLE docs(doc_id INT, year INT, pubmed_id INT);
     CREATE TABLE activities(activity_id INT, assay_id INT, molregno INT,
       standard_type TEXT, standard_value REAL, standard_units TEXT,
@@ -188,11 +190,12 @@ def test_query_pairs_requires_same_document(tmp_path):
     """)
     con.executemany("INSERT INTO molecule_dictionary VALUES(?,?)", [(1, "CHEMBL1")])
     con.executemany("INSERT INTO compound_structures VALUES(?,?)", [(1, KEY_A)])
-    con.executemany("INSERT INTO target_dictionary VALUES(?,?)", [(10, 2697049), (11, 9606)])
-    con.executemany("INSERT INTO assays VALUES(?,?,?,?)",
-                    [(1, 10, 100, "Antiviral activity in Vero E6 cells"),
-                     (2, 11, 100, "Cytotoxicity against Vero E6 cells"),
-                     (3, 11, 200, "Cytotoxicity against HeLa cells")])
+    con.executemany("INSERT INTO target_dictionary VALUES(?,?,?)",
+                    [(10, 2697049, "ORGANISM"), (11, 9606, "CELL-LINE")])
+    con.executemany("INSERT INTO assays VALUES(?,?,?,?,?)",
+                    [(1, 10, 100, "Antiviral activity in Vero E6 cells", "F"),
+                     (2, 11, 100, "Cytotoxicity against Vero E6 cells", "F"),
+                     (3, 11, 200, "Cytotoxicity against HeLa cells", "F")])
     con.executemany("INSERT INTO docs VALUES(?,?,?)", [(100, 2021, 1), (200, 2022, 2)])
     con.executemany("INSERT INTO activities VALUES(?,?,?,?,?,?,?)",
                     [(1, 1, 1, "EC50", 100.0, "nM", "="),
@@ -224,13 +227,64 @@ def test_cell_line_extraction_prefers_the_specific_line(text, expected):
 
 
 def test_vero_lines_are_the_dominant_evidence_base():
-    """Not a code test: a recorded measurement. 668 of 1,144 selectivity edges
-    with a named cell line come from Vero lines, against 54 from Calu-3 and 43
-    from A549 -- roughly twelve times more evidence from the system that
-    misled the field in 2020 than from the systems where results transfer."""
+    """A RECORDED MEASUREMENT, NOW DERIVED FROM THE LAYER IT DESCRIBES.
+
+    1,149 of 2,277 selectivity edges naming a cell line come from Vero
+    lines, against 55 from Calu-3 and 207 from A549: 4.4 times more evidence
+    from the system that misled the field in 2020 than from the two where
+    results transfer.
+
+    This docstring read "668 of 1,144 ... 54 from Calu-3 and 43 from A549 --
+    roughly twelve times more" and asserted nothing about any of it; the two
+    assertions underneath were about string matching. So the paragraph was a
+    figure with no derivation, which is the defect D5 was filed for, inside
+    a test file. Every number in it is now parsed out of this docstring and
+    recomputed from the release, so a rebuild that moves them fails here.
+
+    The ratio fell from twelve to 4.4 mostly through A549, which went 43 ->
+    207. The qualitative claim survives and is the one asserted below: Vero
+    lines are still the plurality, and still outnumber Calu-3 and A549
+    together.
+    """
     from kgav.selectivity import extract_cell_line
     assert extract_cell_line("Vero E6") == "Vero E6"
     assert extract_cell_line("Calu-3") == "Calu-3"
+
+    layer = (Path(__file__).resolve().parents[1]
+             / "data/releases/v0.1-selectivity/edges.jsonl")
+    if not layer.exists():
+        pytest.skip("the selectivity layer is not built in this checkout")
+    counts: Counter = Counter()
+    for line in layer.read_text().splitlines():
+        if not line.strip():
+            continue
+        q = json.loads(line).get("qualifiers") or {}
+        if q.get("selectivity_index") is None:
+            continue
+        if q.get("cell_line"):
+            counts[q["cell_line"]] += 1
+    named = sum(counts.values())
+    vero = sum(v for k, v in counts.items() if k.startswith("Vero"))
+    # Flattened: the sentence wraps over three lines, so a regex against
+    # the raw docstring reads as "the claim was removed".
+    doc = " ".join(test_vero_lines_are_the_dominant_evidence_base.__doc__.split())
+    m = re.search(r"([\d,]+) of ([\d,]+) selectivity edges naming a cell "
+                  r"line come from Vero lines, against ([\d,]+) from Calu-3 "
+                  r"and ([\d,]+) from A549: ([\d.]+) times", doc)
+    assert m, "the docstring no longer states the census in the form read here"
+    n = [int(g.replace(",", "")) for g in m.groups()[:4]]
+    assert (vero, named, counts["Calu-3"], counts["A549"]) == tuple(n), (
+        f"the docstring states Vero {n[0]:,} of {n[1]:,}, Calu-3 {n[2]:,}, "
+        f"A549 {n[3]:,}; the layer gives {vero:,} of {named:,}, "
+        f"{counts['Calu-3']:,}, {counts['A549']:,}")
+    ratio = vero / (counts["Calu-3"] + counts["A549"])
+    assert abs(ratio - float(m.group(5))) < 0.05, (
+        f"the docstring says {m.group(5)}x and the layer gives {ratio:.1f}x")
+    # THE CLAIM, not the figures: a release may move every count above and
+    # this has to keep holding, or the sentence is no longer true.
+    assert vero > counts["Calu-3"] + counts["A549"], (
+        "Vero lines no longer outnumber Calu-3 and A549 together, and this "
+        "project's evaluation rests on saying they do")
 
 
 def test_no_comment_in_this_module_still_claims_the_worst_is_kept():
@@ -263,8 +317,11 @@ def test_no_comment_in_this_module_still_claims_the_worst_is_kept():
 # antiviral activity in one cell line and cytotoxicity in another, and the
 # ratio is then a potency in Calu-3 over a toxicity in Vero.
 #
-# Measured on chembl_37 over 4,167 (compound, document, taxon) pairs:
-# 2,244 agree, 337 name DIFFERENT cell lines, 1,586 have a side unnamed.
+# Measured on the release of 2026-11-09, over the 2,758 emitted edges:
+# 1,694 agree, 253 name DIFFERENT cell lines, 811 have a side unnamed. The
+# figures were 2,244 / 337 / 1,586 over 4,167 and were two releases stale;
+# test_the_verified_share_is_the_layers_own derives the first of them, which
+# is the only one an edge records.
 def test_matching_cell_lines_are_verified(tmap):
     em = Emit()
     stats = ingest_selectivity(
@@ -293,7 +350,7 @@ def test_a_cell_line_mismatch_is_not_verified(tmap):
 
 
 def test_an_unnamed_cell_line_cannot_be_verified(tmap):
-    """The 1,586. Not an error in the source -- the limit of what a
+    """The 811. Not an error in the source -- the limit of what a
     document-level join can establish. False, not True by default."""
     em = Emit()
     stats = ingest_selectivity(
@@ -310,8 +367,9 @@ def _chembl(tmp_path, assays, activities, docs=((100, 2021, 1),)):
     con.executescript("""
     CREATE TABLE molecule_dictionary(molregno INT, chembl_id TEXT);
     CREATE TABLE compound_structures(molregno INT, standard_inchi_key TEXT);
-    CREATE TABLE target_dictionary(tid INT, tax_id INT);
-    CREATE TABLE assays(assay_id INT, tid INT, doc_id INT, description TEXT);
+    CREATE TABLE target_dictionary(tid INT, tax_id INT, target_type TEXT);
+    CREATE TABLE assays(assay_id INT, tid INT, doc_id INT, description TEXT,
+      assay_type TEXT);
     CREATE TABLE docs(doc_id INT, year INT, pubmed_id INT);
     CREATE TABLE activities(activity_id INT, assay_id INT, molregno INT,
       standard_type TEXT, standard_value REAL, standard_units TEXT,
@@ -319,9 +377,16 @@ def _chembl(tmp_path, assays, activities, docs=((100, 2021, 1),)):
     """)
     con.execute("INSERT INTO molecule_dictionary VALUES(1, 'CHEMBL1')")
     con.execute("INSERT INTO compound_structures VALUES(1, ?)", (KEY_A,))
-    con.executemany("INSERT INTO target_dictionary VALUES(?,?)",
-                    [(10, 2697049), (11, 9606)])
-    con.executemany("INSERT INTO assays VALUES(?,?,?,?)", assays)
+    con.executemany("INSERT INTO target_dictionary VALUES(?,?,?)",
+                    [(10, 2697049, "ORGANISM"),          # cell-based antiviral
+                     (11, 9606, "CELL-LINE"),            # the counter-screen
+                     (12, 2697049, "SINGLE PROTEIN")])   # biochemical, same virus
+    # assay_type is carried so a fixture can say "this row is biochemical";
+    # the default is the functional cell-based shape every existing test
+    # meant. query_pairs gates on target_type, not on this column -- see
+    # CELL_BASED_TARGET_TYPE for the measurement behind that choice.
+    con.executemany("INSERT INTO assays VALUES(?,?,?,?,?)",
+                    [(a + ("F",) if len(a) == 4 else a) for a in assays])
     con.executemany("INSERT INTO docs VALUES(?,?,?)", docs)
     con.executemany("INSERT INTO activities VALUES(?,?,?,?,?,?,?)", activities)
     con.commit()
@@ -439,3 +504,179 @@ def test_every_antiviral_row_is_accounted_for(tmp_path):
     assert (stats["av_dropped_censored_or_null_relation"]
             + stats["av_dropped_unconvertible_units"]
             + stats["av_groups"]) == stats["av_rows"]
+
+
+# --------------------------------------------------- L5: what the ratio is of
+#
+# A SELECTIVITY INDEX IS CC50 / EC50 IN ONE CELL SYSTEM. The antiviral side
+# was any EC50 or IC50 filed against one of these taxa, biochemical assays
+# included, and the retained row was the MINIMUM -- which prefers the
+# biochemical one, since an isolated enzyme reads lower than a cell. Measured
+# on chembl_37: 861 of 4,241 pairs (20.3%) took their "selectivity index"
+# from a SINGLE PROTEIN assay, 569 of them in documents holding no cell-based
+# antiviral row at all, and every one of those edges was emitted with
+# assay_type "cell_based_antiviral". The extreme case is molregno 2846010:
+# a 1 nM protease IC50 over a 70,500 nM cell CC50 published an SI of
+# 100,714 where the same document's cell-based EC50 of 40,100 nM gives 1.8.
+
+
+def test_a_biochemical_row_is_not_the_antiviral_side(tmp_path):
+    """The enzyme assay is dropped and the cell assay used, though the
+    enzyme number is four hundred times smaller."""
+    stats = Counter()
+    rows = query_pairs(_chembl(
+        tmp_path,
+        assays=[(1, 10, 100, "Antiviral activity in Vero E6 cells", "F"),
+                (2, 12, 100, "SARS-CoV-2 3CL-Pro inhibition by FRET", "F"),
+                (3, 11, 100, "Cytotoxicity against Vero E6 cells", "F")],
+        activities=[(1, 1, 1, "EC50", 40000.0, "nM", "="),
+                    (2, 2, 1, "IC50", 100.0, "nM", "="),
+                    (3, 3, 1, "CC50", 70000.0, "nM", "=")]),
+        ["2697049"], stats=stats)
+    assert len(rows) == 1
+    assert rows[0]["ec50_nm"] == 40000.0, (
+        "the biochemical IC50 was used as the antiviral potency")
+    assert stats["av_dropped_not_cell_based"] == 1
+    assert stats["av_not_cell_based:SINGLE PROTEIN/F/IC50"] == 1
+    si = selectivity_index(rows[0]["ec50_nm"], rows[0]["cc50_nm"])
+    assert si < SI_THRESHOLD, (
+        f"SI {si:.1f}: the cell-based pair is not selective and the "
+        f"biochemical pair would have read 700")
+
+
+def test_a_document_with_only_biochemical_activity_yields_no_pair(tmp_path):
+    """Not a pair with a caveat: no pair. A CC50 over an enzyme IC50 has no
+    interpretation, so there is nothing to emit and the loss is counted."""
+    stats = Counter()
+    rows = query_pairs(_chembl(
+        tmp_path,
+        assays=[(1, 12, 100, "SARS-CoV-2 Mpro inhibition", "F"),
+                (2, 11, 100, "Cytotoxicity against Vero E6 cells", "F")],
+        activities=[(1, 1, 1, "IC50", 50.0, "nM", "="),
+                    (2, 2, 1, "CC50", 5000.0, "nM", "=")]),
+        ["2697049"], stats=stats)
+    assert rows == []
+    assert stats["av_dropped_not_cell_based"] == 1
+    assert stats["av_groups"] == 0
+
+
+def test_the_ec50_is_paired_on_the_cc50s_cell_line(tmp_path):
+    """A cheaper EC50 in another cell line does not win. The ratio has to
+    come from one cell system or it is a potency in Calu-3 over a toxicity
+    in Vero."""
+    stats = Counter()
+    rows = query_pairs(_chembl(
+        tmp_path,
+        assays=[(1, 10, 100, "Antiviral activity in Calu-3 cells", "F"),
+                (2, 10, 100, "Antiviral activity in Vero E6 cells", "F"),
+                (3, 11, 100, "Cytotoxicity against Vero E6 cells", "F")],
+        activities=[(1, 1, 1, "EC50", 100.0, "nM", "="),     # cheaper, wrong line
+                    (2, 2, 1, "EC50", 2000.0, "nM", "="),    # the CC50's line
+                    (3, 3, 1, "CC50", 5000.0, "nM", "=")]),
+        ["2697049"], stats=stats)
+    assert len(rows) == 1
+    assert rows[0]["ec50_nm"] == 2000.0
+    assert "Vero E6" in rows[0]["assay_text"]
+    assert stats["ec50_paired_on_the_cc50s_cell_line"] == 1
+
+
+def test_the_conservative_ec50_is_taken_within_the_matched_line(tmp_path):
+    """Among rows from the SAME cell line the largest EC50 is used. An
+    index that overstates selectivity cannot exclude cytotoxic hits, which
+    is the only thing this layer is for."""
+    rows = query_pairs(_chembl(
+        tmp_path,
+        assays=[(1, 10, 100, "Antiviral activity in Vero E6 cells", "F"),
+                (2, 10, 100, "Vero E6 antiviral activity, second isolate", "F"),
+                (3, 11, 100, "Cytotoxicity against Vero E6 cells", "F")],
+        activities=[(1, 1, 1, "EC50", 100.0, "nM", "="),
+                    (2, 2, 1, "EC50", 900.0, "nM", "="),
+                    (3, 3, 1, "CC50", 5000.0, "nM", "=")]),
+        ["2697049"])
+    assert len(rows) == 1
+    assert rows[0]["ec50_nm"] == 900.0, (
+        "the minimum EC50 was kept, which overstates selectivity 9-fold here")
+    assert rows[0]["n_activity"] == 2
+
+
+def test_an_unnamed_cell_line_falls_back_to_the_conservative_row(tmp_path):
+    """With no cell line to pair on, the choice is still the conservative
+    one rather than the flattering one, and the fallback is counted so a
+    release where most pairs cannot be matched is visible."""
+    stats = Counter()
+    rows = query_pairs(_chembl(
+        tmp_path,
+        assays=[(1, 10, 100, "Antiviral activity, cell line not stated", "F"),
+                (2, 10, 100, "Antiviral activity, second run", "F"),
+                (3, 11, 100, "Cytotoxicity, cell line not stated", "F")],
+        activities=[(1, 1, 1, "EC50", 100.0, "nM", "="),
+                    (2, 2, 1, "EC50", 900.0, "nM", "="),
+                    (3, 3, 1, "CC50", 5000.0, "nM", "=")]),
+        ["2697049"], stats=stats)
+    assert rows[0]["ec50_nm"] == 900.0
+    assert stats["ec50_not_pairable_on_a_cell_line"] == 1
+
+
+def test_the_new_gate_is_in_the_accounting_identity(tmp_path):
+    """E7 again: a row dropped for not being cell-based is still a row
+    read, so the identity has to hold with the new counter in it."""
+    stats = Counter()
+    query_pairs(_chembl(
+        tmp_path,
+        assays=[(1, 10, 100, "Antiviral activity in Vero E6 cells", "F"),
+                (2, 12, 100, "Mpro inhibition", "F"),
+                (3, 11, 100, "Cytotoxicity against Vero E6 cells", "F")],
+        activities=[(1, 1, 1, "EC50", 100.0, "nM", "="),
+                    (2, 1, 1, "EC50", 900.0, "nM", ">"),
+                    (3, 2, 1, "IC50", 5.0, "nM", "="),
+                    (4, 1, 1, "EC50", 1.0, "ug.mL-1", "="),
+                    (5, 3, 1, "CC50", 5000.0, "nM", "=")]),
+        ["2697049"], stats=stats)
+    assert stats["av_rows"] == 4
+    assert (stats["av_dropped_censored_or_null_relation"]
+            + stats["av_dropped_not_cell_based"]
+            + stats["av_dropped_unconvertible_units"]
+            + stats["av_kept"]) == stats["av_rows"]
+
+
+def test_the_verified_share_is_the_layers_own():
+    """`selectivity_verified` is the flag the whole "one context, not one
+    document" block is about, and nothing counted it on the real layer.
+
+    Only the verified/not-verified split is derivable from an edge: the
+    mismatch-versus-unnamed breakdown needs the CC50's assay text, which is
+    not carried onto the edge. Those two come from the ingest's own
+    `context_*` counters, which print on every run as of 2026-11-09 -- they
+    were computed, written onto every edge and never reported.
+    """
+    layer = (Path(__file__).resolve().parents[1]
+             / "data/releases/v0.1-selectivity/edges.jsonl")
+    if not layer.exists():
+        pytest.skip("the selectivity layer is not built in this checkout")
+    total = verified = 0
+    for line in layer.read_text().splitlines():
+        if not line.strip():
+            continue
+        q = json.loads(line).get("qualifiers") or {}
+        if q.get("selectivity_index") is None:
+            continue
+        total += 1
+        verified += bool(q.get("selectivity_verified"))
+    # Comment markers stripped first: a claim spanning two `#` lines
+    # flattens to "edges: # 1,694 agree" otherwise, and the regex then
+    # reports the claim as deleted.
+    src = " ".join(" ".join(
+        re.sub(r"^\s*#\s?", "", ln) for ln in
+        Path(__file__).read_text().splitlines()).split())
+    m = re.search(r"over the ([\d,]+) emitted edges: ([\d,]+) agree", src)
+    assert m, "the census comment above no longer states these two figures"
+    stated = tuple(int(g.replace(",", "")) for g in m.groups())
+    assert (total, verified) == stated, (
+        f"the comment states {stated[0]:,} edges with {stated[1]:,} verified "
+        f"and the layer holds {total:,} with {verified:,}")
+    # THE FLAG MUST STILL BE A MINORITY CLAIM. If it ever reads true on
+    # every edge the derivation has regressed to what it was before: a
+    # constant written onto everything.
+    assert 0 < verified < total, (
+        "selectivity_verified is uniform across the layer, which is the "
+        "defect this block exists for")

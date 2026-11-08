@@ -923,9 +923,9 @@ def degree_relative(per: dict[str, dict], degree_key: str = DEGREE_KEY) -> None:
     WHY A P-VALUE IS NOT ENOUGH. lift_pvalue's null is RANDOM RANKING, so it
     answers "could this ordering have arisen by chance" and nothing else. It
     cannot see a confound that inflates the scorer and the labels together --
-    which is the confound this project spent its whole evaluation on: 92.0%
+    which is the confound this project spent its whole evaluation on: 89.3%
     of compounds with evidence on both sides share a PMID between their
-    INHIBITS edge and their antiviral label (1,020 of 1,109; the figure was
+    INHIBITS edge and their antiviral label (787 of 881; the figure was
     94.9% on an earlier release and nothing re-derived it here), and degree
     IS study volume.
 

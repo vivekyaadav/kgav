@@ -13,7 +13,7 @@ scoring method for drug repurposing comes after, not in this release.
 
 ## Where the graph stands
 
-Release v0.1: 78,789 nodes, 392,624 edges, schema 0.13.0, `schema: PASS`.
+Release v0.1: 78,789 nodes, 392,363 edges, schema 0.13.0, `schema: PASS`.
 Sixteen viruses — seven coronaviruses and nine flaviviruses — after the
 2026-10-23 promotion took the built set from eight.
 

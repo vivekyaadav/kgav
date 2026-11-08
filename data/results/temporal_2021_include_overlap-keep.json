@@ -5,34 +5,34 @@
   "stats": {
     "edge_train": 203492,
     "edge_dropped_future": 149417,
-    "label_train_active": 2375,
+    "label_train_active": 2317,
     "held_out_not_a_label": 2421,
-    "label_test_inactive": 6771,
+    "label_test_inactive": 6772,
     "undated_kept": 10702,
     "label_train_inactive": 13467,
-    "label_undecidable": 560,
-    "label_test_active": 3105,
+    "label_undecidable": 546,
+    "label_test_active": 2915,
     "computed_dated_from_endpoints": 2864,
     "computed_dropped_future_endpoint": 1412,
     "undated_kept_computed": 314,
-    "train_ambiguous_dropped": 86
+    "train_ambiguous_dropped": 85
   },
   "audits": [
     "ceiling: 69/71 test compounds for NCBITaxon:11053 have no pre-2021 evidence",
-    "ceiling: 187/193 test compounds for NCBITaxon:11060 have no pre-2021 evidence",
+    "ceiling: 181/187 test compounds for NCBITaxon:11060 have no pre-2021 evidence",
     "ceiling: 68/70 test compounds for NCBITaxon:11069 have no pre-2021 evidence",
     "ceiling: 65/67 test compounds for NCBITaxon:11070 have no pre-2021 evidence",
     "ceiling: 15/16 test compounds for NCBITaxon:11072 have no pre-2021 evidence",
     "ceiling: 179/181 test compounds for NCBITaxon:11082 have no pre-2021 evidence",
     "ceiling: 8/11 test compounds for NCBITaxon:11084 have no pre-2021 evidence",
     "ceiling: 27/30 test compounds for NCBITaxon:11089 have no pre-2021 evidence",
-    "ceiling: 70/78 test compounds for NCBITaxon:11137 have no pre-2021 evidence",
+    "ceiling: 69/77 test compounds for NCBITaxon:11137 have no pre-2021 evidence",
     "ceiling: 36/50 test compounds for NCBITaxon:1335626 have no pre-2021 evidence",
-    "ceiling: 1,510/1,576 test compounds for NCBITaxon:2697049 have no pre-2021 evidence",
+    "ceiling: 1,337/1,396 test compounds for NCBITaxon:2697049 have no pre-2021 evidence",
     "ceiling: 4/5 test compounds for NCBITaxon:277944 have no pre-2021 evidence",
     "ceiling: 145/148 test compounds for NCBITaxon:31631 have no pre-2021 evidence",
-    "ceiling: 560/566 test compounds for NCBITaxon:64320 have no pre-2021 evidence",
-    "ceiling: 32/43 test compounds for NCBITaxon:694009 have no pre-2021 evidence",
+    "ceiling: 560/567 test compounds for NCBITaxon:64320 have no pre-2021 evidence",
+    "ceiling: 28/39 test compounds for NCBITaxon:694009 have no pre-2021 evidence",
     "L5 label overlap: 5 positive compounds for NCBITaxon:2697049 appear in BOTH train and test labels",
     "L5 label overlap: 13 negative compounds for NCBITaxon:2697049 appear in BOTH train and test labels"
   ],
@@ -44,13 +44,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "3356fae68afdf18d",
-      "edges_sha": "a3232767b2964139"
+      "edges_sha": "8597824ec26a3090"
     },
     "code": {
-      "commit": "eb8d56d532c7223645482c169cc56b4151b4eba9",
+      "commit": "fc652b65184f16b7312b571ad7f6148e08223b5e",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-08T13:08:35+00:00"
+    "generated_utc": "2026-11-08T16:54:33+00:00"
   }
 }

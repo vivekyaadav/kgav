@@ -1,7 +1,7 @@
 """The AUC decomposition table in docs/evaluation.md, re-derived.
 
 WHY THIS TABLE EXISTS AT ALL. The claim block prints degree at 0.5767 and
-the COMBINED ensemble at 0.5725 and called them indistinguishable, four
+the COMBINED ensemble at 0.5726 and called them indistinguishable, four
 thousandths apart. They are not comparable: every AUC on that page is
 imputed, so a scorer reaching a larger share of the positives than of the
 negatives scores above chance with no ranking ability, and degree reaches

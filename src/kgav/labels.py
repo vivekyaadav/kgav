@@ -165,16 +165,21 @@ def contested_potency(edge: dict, inactive_above_nm: float,
     been written `("ic50_nm", "ec50_nm", ...)` it would have classified
     INACTIVE. The verdict came from the declaration order of a constant.
 
-    MEASURED on data/releases/v0.1, over 26,278
+    MEASURED on data/releases/v0.1 of 2026-11-09, over 26,017
     HAS_ANTIVIRAL_ACTIVITY_AGAINST edges:
 
-        edges carrying 2+ potency fields     1,578
-        of those, fields DISAGREE              173
-          currently called active              118
-          currently called inactive             55
+        edges carrying 2+ potency fields     1,512
+        of those, fields DISAGREE              165
+          currently called active              106
+          currently called inactive             59
         distinct field pairs involved            1   (ec50_nm + ic50_nm)
 
-    So 173 label verdicts were decided by a tuple's order, 118 of them
+    (1,578 / 173 / 118 / 55 over 26,278 edges before the L5 rebuild, which
+    removed the biochemical IC50s this layer had been pairing against a
+    cell CC50 -- so the field pair that disagrees is rarer now for the
+    same reason the disagreement existed.)
+
+    So 165 label verdicts were decided by a tuple's order, 106 of them
     becoming positives. The module's own rule settles what to do with
     them: "a compound with both an active and an inactive measurement
     against the same virus is real -- different cell lines, different
@@ -389,7 +394,7 @@ def build_labels(release: Path, year_from: int | None = None,
             # fields DISAGREE needs a judgement about which assay the
             # label means, and until that judgement is made it is the
             # same ambiguity this module already drops one level up.
-            # 173 label edges on v0.1, 118 of them former positives.
+            # 165 label edges on v0.1, 106 of them former positives.
             if contested_potency(e, inactive_above_nm, active_below_nm):
                 out.stats["contested_potency"] += 1
             continue
@@ -487,7 +492,7 @@ def auc_floor(reached_pos: int, reached_neg: int,
     imputed AUC that reflects the ranking.
 
     WHY IT IS NEEDED. On release v0.1, SARS-CoV-2, the cross-sectional
-    protocol reads degree 0.5767 and the COMBINED ensemble 0.5725 -- four
+    protocol reads degree 0.5767 and the COMBINED ensemble 0.5726 -- four
     thousandths apart, which reads as "the graph ties with counting
     edges". It is not a comparison. degree reaches every compound in both
     classes, so its floor is exactly 0.5 and all 0.0767 of its margin is
@@ -495,7 +500,7 @@ def auc_floor(reached_pos: int, reached_neg: int,
     negatives, and that gap ALONE scores 0.5645: 89% of its margin above
     chance is the imputation, not the paths. Normalised by what each had
     available -- (auc - floor) / (ceiling - floor) -- they read 15.3% and
-    11.9%, which is the defensible version of "indistinguishable".
+    12.0%, which is the defensible version of "indistinguishable".
 
     THE MODEL, spelled out, because the formula is only obvious once:
     every reached compound outranks every unreached one; the reached

@@ -3,7 +3,7 @@
 
 WHY THIS IS A DIFFERENT QUESTION FROM THE ONE THAT FAILED. Every protocol in
 docs/evaluation.md asked which drug works against a virus. That needs the
-antiviral labels, 92.0% of which share a publication with the evidence edge
+antiviral labels, most of which share a publication with the evidence edge
 that was supposed to predict them, and no channel survived the control.
 
 This asks what the drugged human proteome overlaps with what each virus

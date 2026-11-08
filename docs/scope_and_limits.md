@@ -23,33 +23,33 @@ Seven coronaviruses and nine flaviviruses, built from
 
 | virus        | taxon | family | dependency | restriction | antiviral | chain source | in overlap table |
 |--------------|------:|--------|-----------:|------------:|----------:|--------------|------------------|
-| SARS-CoV-2   | 2697049 | Coronaviridae | 3,460 | 1,122 | 14,998 | species | yes |
-| HCoV-229E    | 11137 | Coronaviridae | 1,367 | 9 | 212 | species | yes |
-| Zika         | 64320 | Flaviviridae | 815 | 0 | 3,414 | species | yes |
+| SARS-CoV-2   | 2697049 | Coronaviridae | 3,460 | 1,122 | 14,772 | species | yes |
+| HCoV-229E    | 11137 | Coronaviridae | 1,367 | 9 | 211 | species | yes |
+| Zika         | 64320 | Flaviviridae | 815 | 0 | 3,401 | species | yes |
 | MERS-CoV     | 1335626 | Coronaviridae | 678 | 0 | 183 | strain 1263720 | yes |
 | HCoV-OC43    | 31631 | Coronaviridae | 657 | 6 | 257 | species | yes |
 | HCoV-NL63    | 277944 | Coronaviridae | 57 | 24 | 12 | species | yes |
-| DENV-2       | 11060 | Flaviviridae | 50 | 0 | 4,173 | strain 31634 | yes |
-| West Nile    | 11082 | Flaviviridae | 18 | 0 | 594 | species | yes |
+| DENV-2       | 11060 | Flaviviridae | 50 | 0 | 4,163 | strain 31634 | yes |
+| West Nile    | 11082 | Flaviviridae | 18 | 0 | 591 | species | yes |
 | Yellow fever | 11089 | Flaviviridae | 0 | 0 | 1,030 | strain 11090 | **no** |
 | DENV-1       | 11053 | Flaviviridae | 0 | 0 | 349 | strain 408685 | **no** |
 | DENV-4       | 11070 | Flaviviridae | 0 | 0 | 312 | strain 408689 | **no** |
 | DENV-3       | 11069 | Flaviviridae | 0 | 0 | 311 | strain 408870 | **no** |
-| SARS-CoV     | 694009 | Coronaviridae | 0 | 0 | 250 | species | **no** |
+| SARS-CoV     | 694009 | Coronaviridae | 0 | 0 | 242 | species | **no** |
 | TBEV         | 11084 | Flaviviridae | 0 | 0 | 137 | strain 70733 | **no** |
 | JEV          | 11072 | Flaviviridae | 0 | 0 | 46 | strain 11073 | **no** |
 | HCoV-HKU1    | 290028 | Coronaviridae | 0 | 0 | 0 | strain 443239 | **no** |
 
 <!-- END TABLE: scope_by_virus -->
 
-7,102 dependency and 1,161 restriction factors, 26,278 antiviral activity
+7,102 dependency and 1,161 restriction factors, 26,017 antiviral activity
 edges. **8 of the 16 viruses have no dependency factor at all** and are
 therefore absent from the overlap analysis entirely.
 
 **"Antiviral activity edges" is the predicate's name, not a description of
 its contents.** `HAS_ANTIVIRAL_ACTIVITY_AGAINST` means "this compound was
-measured against this virus", and `kgav.labels.classify` over those 26,278
-edges reads **20,238 inactive (77.0%)**, 5,525 active (21.0%) and 515 that
+measured against this virus", and `kgav.labels.classify` over those 26,017
+edges reads **20,239 inactive (77.8%)**, 5,232 active (20.1%) and 546 that
 decide nothing. Three quarters of this predicate is evidence that a compound
 does NOT work -- which is the most valuable part of it, because measured
 inactives are the negatives every evaluation here depends on, and they are
