@@ -74,3 +74,78 @@ def test_refusal_is_rendered_without_evidence():
     out = _out("This graph cannot support that.", [], [], [], allowed=False)
     text = render(out, None)
     assert "REFUSED" in text and "EVIDENCE" not in text
+
+
+# ------------------------------------- A6: the two surfaces must agree
+# `render` withheld a failing answer; the --json branch printed `out`
+# whole, answer included. The exit code was 1 either way, which protects a
+# shell `&&` and nothing that reads the JSON: `jq -r .answer` returned
+# model text that had failed verification, with the failure in a sibling
+# key. The file docstring above says "a failing answer is withheld, not
+# annotated" and had only ever been true of one of the two surfaces.
+
+
+def _surfaces():
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from kgav_ask import json_payload, render
+    return render, json_payload
+
+
+def test_the_json_surface_withholds_what_the_text_surface_withholds():
+    """Asked of BOTH surfaces for one case, so neither can be fixed alone.
+
+    The hallucinated citation is the same fixture
+    test_failed_verification_withholds_the_answer uses, which is the point:
+    that test passed throughout while this one would have failed.
+    """
+    from kgav.agent.verify import verify_response
+    render, json_payload = _surfaces()
+
+    out = _out("Compound X inhibits nsp5 [E999].",
+               ["real fact [E1]"], ["E1"], [])
+    v = verify_response(out)
+    assert not v.passed, "the fixture no longer fails verification"
+
+    text = render(out, v)
+    payload = json_payload(out, v)
+    assert "Compound X inhibits nsp5" not in text
+    assert payload["answer"] is None, (
+        "the JSON surface still carries an answer that failed verification")
+    assert "Compound X inhibits nsp5" not in json_dumps(payload), (
+        "the unverified text survives somewhere else in the payload")
+    assert payload["answer_withheld"]
+    # The graph's own output is NOT withheld: the facts are what it
+    # contains and the failure is the model's.
+    assert payload["facts"] == ["real fact [E1]"]
+    assert payload["verification"]["passed"] is False
+    assert payload["verification"]["findings"], "the diagnosis is gone too"
+
+
+def test_the_json_surface_shows_an_answer_that_passes():
+    """The other half: a check that withholds everything is a switch that
+    is always off."""
+    from kgav.agent.verify import verify_response
+    _render, json_payload = _surfaces()
+
+    out = _out("Real fact [E1].", ["real fact [E1]"], ["E1"], [])
+    v = verify_response(out)
+    assert v.passed, v.findings
+    payload = json_payload(out, v)
+    assert payload["answer"] == "Real fact [E1]."
+    assert "answer_withheld" not in payload
+
+
+def test_the_payload_carries_no_prompt():
+    """It never did, and it is the one key that would leak the model's
+    instructions into a machine-readable surface."""
+    _render, json_payload = _surfaces()
+    out = _out("x", [], [], [])
+    out["prompt"] = "SYSTEM PROMPT"
+    assert "prompt" not in json_payload(out, None)
+
+
+def json_dumps(obj) -> str:
+    import json
+    return json.dumps(obj, default=str)

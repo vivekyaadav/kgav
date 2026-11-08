@@ -199,7 +199,8 @@ class Brief:
                 + "; ".join(labels) + ".",
                 "",
                 "Write the answer again and include each of them verbatim as "
-                "a labelled sentence. An answer missing any of these labels "
+                "a labelled sentence: the label in capitals, then a COLON, "
+                "then the warning. An answer missing any of these labels "
                 "is discarded, so a shorter answer is not a better one.",
                 "",
             ]
@@ -226,7 +227,15 @@ class Brief:
         ]
         parts += [f"  {f}" for f in self.facts] or ["  (none retrieved)"]
         if self.warnings:
-            parts += ["", "WARNINGS THAT MUST APPEAR IN YOUR ANSWER:"]
+            # THE COLON IS SAID OUT LOUD because it is enforced (fix-list
+            # A5). verify._label_is_present requires "LABEL:", not the bare
+            # word, so an answer that works the label into a sentence --
+            # "the evidence here is thin" for EVIDENCE -- is discarded. The
+            # warnings below are already in that form, so copying one is
+            # enough; asking for it explicitly costs a line and saves a
+            # retry, which is the same reason dropped_warnings exists.
+            parts += ["", "WARNINGS THAT MUST APPEAR IN YOUR ANSWER, each as "
+                          "its LABEL then a colon then the text:"]
             parts += [f"  - {w}" for w in self.warnings]
         if self.citable_edge_ids:
             parts += ["", f"CITABLE EDGE IDS: {', '.join(self.citable_edge_ids)}"]

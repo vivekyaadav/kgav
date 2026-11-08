@@ -705,3 +705,84 @@ def test_the_shown_set_comes_from_the_facts_not_the_allowed_list():
     v = verify("This compound is curative in all recorded human cases "
                "of infection [E1].", facts, ["E1"])
     assert any(f.code == "uncited_claim" for f in v.findings), v.findings
+
+
+# ------------------------------------------- A5: a label, not a word
+# `dropped_warnings` was `marker not in low` -- a bare substring search over
+# the lowercased answer -- so a caveat was satisfied by its label appearing
+# as an ordinary English word. The paragraph below states none of the
+# nineteen declared caveats and satisfied SEVEN of them.
+
+_PROSE_USING_THE_WORDS = (
+    "The evidence for this compound is a single binding assay. Its "
+    "selectivity is unknown and the ranking below is calibration-free. "
+    "This cytotoxic effect was contradicted in a second cell line. The "
+    "pathway route is thin."
+)
+
+
+def test_no_declared_caveat_is_satisfied_by_prose_using_its_words():
+    """EVERY label, derived from CAVEAT_LABELS rather than listed.
+
+    The seven that used to pass -- CELL LINE, CYTOTOXIC, EVIDENCE,
+    CALIBRATION, CONTRADICTED, RANKING, PATHWAY ROUTE -- are the caveats
+    most likely to be REQUIRED, because they are the ones whose subject
+    matter the answer is about. The enforcement failed hardest exactly
+    where it mattered.
+    """
+    from kgav.agent.guards import CAVEAT_LABELS, caveat
+    from kgav.agent.verify import dropped_warnings
+
+    satisfied = [CAVEAT_LABELS[k] for k in CAVEAT_LABELS
+                 if not dropped_warnings(_PROSE_USING_THE_WORDS,
+                                         [caveat(k, "the real warning text")])]
+    assert satisfied == [], (
+        f"{satisfied} are satisfied by a paragraph that states none of them")
+
+
+def test_every_declared_caveat_is_satisfied_by_its_labelled_sentence():
+    """The other half, and not a formality: a check nothing can satisfy
+    withholds every answer, which is how a verifier becomes a switch that
+    is always off. Each caveat renders as "LABEL: text", so its own
+    rendering must pass."""
+    from kgav.agent.guards import CAVEAT_LABELS, caveat
+    from kgav.agent.verify import dropped_warnings
+
+    for key in CAVEAT_LABELS:
+        c = caveat(key, "the real warning text")
+        assert not dropped_warnings(f"Some prose first. {c} And after.", [c]), (
+            f"{CAVEAT_LABELS[key]} cannot be satisfied by its own rendering")
+
+
+def test_a_longer_label_cannot_answer_for_the_one_it_contains():
+    """"EVIDENCE" is a substring of "PROXIMITY EVIDENCE", so an answer
+    carrying the proximity caveat satisfied the evidence-tier one for free
+    -- enforcement that can never bite, which guards.py already calls
+    decoration in its comment on `held_out_label`. The pairs are derived,
+    so a new label that swallows an existing one is covered here the day it
+    is added rather than the day it is noticed."""
+    from kgav.agent.guards import CAVEAT_LABELS, caveat
+    from kgav.agent.verify import _LABEL_CONTAINERS, dropped_warnings
+
+    by_label = {v.lower(): k for k, v in CAVEAT_LABELS.items()}
+    pairs = [(inner, outer) for inner, outers in _LABEL_CONTAINERS.items()
+             for outer in outers]
+    assert pairs, (
+        "no label contains another any more; delete this test rather than "
+        "letting it pass vacuously")
+    for inner, outer in pairs:
+        outer_caveat = caveat(by_label[outer], "the outer warning")
+        inner_caveat = caveat(by_label[inner], "the inner warning")
+        assert dropped_warnings(str(outer_caveat), [inner_caveat]), (
+            f"an answer carrying {outer.upper()!r} satisfies "
+            f"{inner.upper()!r}, which can then never be required on its own")
+
+
+def test_a_word_ending_in_a_label_is_not_that_label():
+    from kgav.agent.guards import caveat
+    from kgav.agent.verify import dropped_warnings
+
+    c = caveat("evidence_tier", "tier 3 only")
+    assert dropped_warnings("nonevidence: nothing here", [c])
+    assert dropped_warnings("cross-evidence: nothing here", [c])
+    assert not dropped_warnings("EVIDENCE: tier 3 only", [c])

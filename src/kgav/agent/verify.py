@@ -255,6 +255,67 @@ def caveat_labels(warnings: list) -> list[str]:
     return out
 
 
+#: For each declared label, the other declared labels that CONTAIN it.
+#: Built from CAVEAT_LABELS rather than listed, so adding a label that
+#: swallows an existing one cannot go unnoticed.
+_LABEL_CONTAINERS: dict[str, tuple[str, ...]] = {
+    low: tuple(sorted(
+        (other for other in {v.lower() for v in CAVEAT_LABELS.values()}
+         if other != low and low in other),
+        key=len, reverse=True))
+    for low in {v.lower() for v in CAVEAT_LABELS.values()}
+}
+
+
+def _label_is_present(answer_low: str, label_low: str) -> bool:
+    r"""Does the answer carry this caveat's label AS A LABEL?
+
+    THE CHECK WAS `marker not in low` (fix-list A5), a bare substring
+    search over the lowercased answer, so an answer satisfied a caveat by
+    using its label as an ordinary English word. Measured against this
+    four-sentence paragraph, which states none of the nineteen caveats:
+
+        "The evidence for this compound is a single binding assay. Its
+        selectivity is unknown and the ranking below is calibration-free.
+        This cytotoxic effect was contradicted in a second cell line. The
+        pathway route is thin."
+
+    it satisfied SEVEN of them -- CELL LINE, CYTOTOXIC, EVIDENCE,
+    CALIBRATION, CONTRADICTED, RANKING and PATHWAY ROUTE. Those are the
+    caveats most likely to be required, because they are the ones whose
+    subject matter the answer is about, so the enforcement failed hardest
+    exactly where it mattered.
+
+    AND ONE LABEL COULD NEVER BE ENFORCED INDEPENDENTLY AT ALL: "EVIDENCE"
+    is a substring of "PROXIMITY EVIDENCE", so any answer carrying the
+    proximity caveat satisfied the evidence-tier one for free. guards.py
+    already names this failure in the comment on `held_out_label` -- "a
+    model that merely copied a marked fact line would satisfy this caveat
+    without ever stating what it means -- enforcement that can never bite,
+    which is decoration" -- and chose two distinct strings there to avoid
+    it. The same collision existed between two of the labels themselves.
+
+    Two requirements now, and each defeats one of those:
+
+      1. The label must be followed by a COLON. That is how Caveat renders
+         itself (`f"{label}: {text}"`), how the warning is shown to the
+         model in the prompt, and what the retry instruction asks for, so
+         requiring it asks for nothing new -- it only stops ordinary prose
+         from counting. None of the seven prose cases survives it.
+      2. Longer labels containing this one are blanked out of the answer
+         first, so "proximity evidence:" cannot answer for "evidence:".
+         Derived from CAVEAT_LABELS, so a new label that swallows an old
+         one is handled rather than discovered later.
+
+    The left-hand `(?<![\w-])` stops a word ENDING in the label, so
+    "nonevidence:" is not evidence and "cross-ranking:" is not ranking.
+    """
+    masked = answer_low
+    for container in _LABEL_CONTAINERS.get(label_low, ()):
+        masked = masked.replace(container, " " * len(container))
+    return re.search(rf"(?<![\w-]){re.escape(label_low)}\s*:", masked) is not None
+
+
 def dropped_warnings(answer: str, required: list) -> list:
     """Required caveats whose label is missing from `answer`.
 
@@ -262,12 +323,16 @@ def dropped_warnings(answer: str, required: list) -> list:
     will, and retry before an answer is thrown away. A 7B model drops a
     caveat for brevity reliably enough that one withheld answer per
     host-directed question was the normal outcome.
+
+    "Missing" means `_label_is_present` says no; it used to mean a bare
+    substring search, which seven of the nineteen labels passed on prose
+    alone.
     """
     low = (answer or "").lower()
     out = []
     for w in required or []:
         marker = _caveat_marker(w)
-        if marker and marker not in low:
+        if marker and not _label_is_present(low, marker):
             out.append(w)
     return out
 

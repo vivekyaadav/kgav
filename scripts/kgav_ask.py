@@ -70,6 +70,42 @@ def render(out: dict, verification=None, brief_only: bool = False) -> str:
     return "\n".join(lines)
 
 
+def json_payload(out: dict, verification=None) -> dict:
+    """The --json surface, as a value, so it can be compared with `render`.
+
+    THE TWO SURFACES DISAGREED ABOUT WHETHER AN UNVERIFIED ANSWER MAY BE
+    SHOWN (fix-list A6). `render` withholds it outright -- "ANSWER WITHHELD
+    -- FAILED VERIFICATION", the findings, and a line saying the evidence
+    is what the graph actually contains -- while the --json branch printed
+    `out` whole, answer included. The exit code was 1 either way, which
+    protects a shell `&&` and nothing that reads the JSON: `jq -r .answer`
+    returned model text that had failed verification, with the failure in a
+    sibling key.
+
+    The answer is withheld here too, on the same condition. The findings
+    stay -- they are the diagnostic value of the failure -- and so do the
+    facts and warnings, because those are the graph's and not the model's.
+
+    Extracted to module level for the same reason `render` is: the test
+    that matters asks BOTH for the same case and fails if they disagree,
+    and it could not reach this code while it lived inside main().
+    """
+    payload = {k: v for k, v in out.items() if k != "prompt"}
+    if verification is not None and not verification.passed:
+        payload["answer"] = None
+        payload["answer_withheld"] = (
+            "failed verification; see verification.findings. The model "
+            "produced text that is not supported by the retrieved "
+            "evidence, and `facts` is what the graph actually contains.")
+    payload["verification"] = None if verification is None else {
+        "passed": verification.passed,
+        "findings": [{"severity": f.severity, "code": f.code,
+                      "detail": f.detail}
+                     for f in verification.findings],
+        "cited": verification.cited}
+    return payload
+
+
 def build_parser(root: Path) -> argparse.ArgumentParser:
     """The CLI surface, separate from main() so the DEFAULTS are testable.
 
@@ -213,15 +249,7 @@ def main() -> int:
         verification = verify_response(out)
 
     if args.json:
-        print(json.dumps({
-            **{k: v for k, v in out.items() if k != "prompt"},
-            "verification": None if verification is None else {
-                "passed": verification.passed,
-                "findings": [{"severity": f.severity, "code": f.code,
-                              "detail": f.detail}
-                             for f in verification.findings],
-                "cited": verification.cited},
-        }, indent=2))
+        print(json.dumps(json_payload(out, verification), indent=2))
         return 0 if (verification is None or verification.passed) else 1
 
     print(render(out, verification, brief_only=args.no_model))
