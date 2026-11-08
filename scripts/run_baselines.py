@@ -19,7 +19,9 @@ from kgav.baselines import (
     degree_ranking,
     dwpc_scores,
     hits_at_k,
+    hits_at_k_range,
     mrr,
+    mrr_range,
     network_proximity,
     rank,
 )
@@ -300,15 +302,65 @@ def run_one(args, schema, g, held, labels, dwpc, names, virus) -> None:
         scorers["proximity"] = prox
     print(f"  {len(prox):,} drugs scored")
 
-    print(f"\n{'scorer':<12} {'n':>7} {'Hits@10':>8} {'Hits@50':>8} "
-          f"{'Hits@100':>9} {'MRR':>7}")
+    # THE RANGE, NOT ONE DRAW (fix-list E2). rank() has no tiebreak and
+    # Python's sort is stable, so where a tie block straddles k which of
+    # its members fall inside the cut is decided by dict insertion order.
+    #
+    # MEASURED over these sixteen files on v0.1, and the result is not
+    # what the fix list implied. It named "Hits@k/MRR" together:
+    #
+    #     Hits@k    1 of 120 undetermined
+    #     MRR      10 of  40 undetermined
+    #
+    # A TIE AT THE CUT IS NOT THE SAME AS AN UNDETERMINED FIGURE. 39 of
+    # the 120 Hits@k cells have a tie block straddling k and are still
+    # determined, because the block holds no positive -- how it is
+    # ordered then changes nothing. Counting ties rather than
+    # indeterminacy overstates this defect 23-fold, which is the mistake
+    # made when it was first measured here.
+    #
+    # MRR is the one that was broken, and the spreads are not marginal:
+    # Zika dwpc publishes 0.3333 over a true range of [0.2500, 1.0000],
+    # and DENV-2 dwpc publishes 0.3333 over [0.3333, 1.0000]. MRR reads
+    # the FIRST positive's rank, so a tie block at the top of the
+    # ranking moves the whole statistic; Hits@k only moves when a
+    # positive sits in the block at the cut. A `~` marks one draw.
+    print(f"\n{'scorer':<12} {'n':>7} {'Hits@10':>10} {'Hits@50':>10} "
+          f"{'Hits@100':>11} {'MRR':>16}")
     ranked_all = {}
+    ranges: dict[str, dict] = {}
     for name, scores in scorers.items():
         r = rank(scores)
         ranked_all[name] = r
-        print(f"{name:<12} {len(r):>7,} {hits_at_k(r, positives, 10):>8} "
-              f"{hits_at_k(r, positives, 50):>8} {hits_at_k(r, positives, 100):>9} "
-              f"{mrr(r, positives):>7.4f}")
+        cells = []
+        per_k = {}
+        for k in (10, 50, 100):
+            lo, hi, tied, tied_pos, exp = hits_at_k_range(r, positives, k)
+            per_k[k] = {"hits": hits_at_k(r, positives, k),
+                        "lo": lo, "hi": hi, "determined": lo == hi,
+                        "tied_at_cut": tied,
+                        "tied_at_cut_positives": tied_pos,
+                        "expected": exp}
+            cells.append(f"{lo}" if lo == hi else f"{lo}-{hi} ~")
+        m_lo, m_hi, m_tied, m_tied_pos = mrr_range(r, positives)
+        point = mrr(r, positives)
+        mcell = (f"{point:.4f}" if m_lo == m_hi
+                 else f"{m_lo:.4f}-{m_hi:.4f} ~")
+        ranges[name] = {"hits": per_k,
+                        "mrr": {"mrr": point, "lo": m_lo, "hi": m_hi,
+                                "determined": m_lo == m_hi,
+                                "tied_at_rank1": m_tied,
+                                "tied_at_rank1_positives": m_tied_pos}}
+        print(f"{name:<12} {len(r):>7,} {cells[0]:>10} {cells[1]:>10} "
+              f"{cells[2]:>11} {mcell:>16}")
+    undetermined = [
+        f"{name} Hits@{k}" for name, v in ranges.items()
+        for k, c in v["hits"].items() if not c["determined"]
+    ] + [f"{name} MRR" for name, v in ranges.items()
+         if not v["mrr"]["determined"]]
+    if undetermined:
+        print(f"    ~ one draw from a tie block, not a measurement: "
+              f"{', '.join(undetermined)}")
 
     if names:
         print("\nbiology controls (rank out of n; lower is higher-ranked):")
@@ -365,11 +417,20 @@ def run_one(args, schema, g, held, labels, dwpc, names, virus) -> None:
         "held_out": sorted(held),
         "n_positives": len(positives),
         "n_negatives": len(negatives),
+        # The point values keep their existing keys so a reader of an
+        # older file is not silently reading a different shape; the
+        # range sits beside each one. `determined: false` is the flag
+        # fix-list E2 asked for -- 1 Hits@k figure and 10 of 40 MRRs in
+        # these files needed it and carried none.
         "metrics": {n: {"n": len(r),
                         "hits@10": hits_at_k(r, positives, 10),
                         "hits@50": hits_at_k(r, positives, 50),
                         "hits@100": hits_at_k(r, positives, 100),
-                        "mrr": mrr(r, positives)}
+                        "mrr": mrr(r, positives),
+                        "hits@10_range": ranges[n]["hits"][10],
+                        "hits@50_range": ranges[n]["hits"][50],
+                        "hits@100_range": ranges[n]["hits"][100],
+                        "mrr_range": ranges[n]["mrr"]}
                     for n, r in ranked_all.items()},
         "top": {n: [{"drug": d, "score": s} for d, s in r[:200]]
                 for n, r in ranked_all.items()},

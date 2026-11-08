@@ -1131,7 +1131,7 @@ def confound_warning(per: dict[str, dict], degree_key: str = DEGREE_KEY,
 
 
 def hits_at_k_range(ranked: list[tuple[str, float]], positives: set[str],
-                    k: int) -> tuple[int, int, int, int]:
+                    k: int) -> tuple[int, int, int, int, float]:
     """The range Hits@k can take over tie orderings, and the tie at the cut.
 
     rank() is `sorted(scores.items(), key=lambda kv: -kv[1])` with NO
@@ -1467,6 +1467,58 @@ def mrr(ranked: list[tuple[str, float]], positives: set[str]) -> float:
         if d in positives:
             return 1.0 / i
     return 0.0
+
+
+def mrr_range(ranked: list[tuple[str, float]], positives: set[str]
+              ) -> tuple[float, float, int, int]:
+    """The range MRR can take over tie orderings, and the tie it sits in.
+
+    MRR here is 1/(rank of the first positive), and `rank()` has no
+    tiebreak, so when the first positive sits inside a block of equal
+    scores its rank -- and therefore the whole statistic -- is decided by
+    dict insertion order. `hits_at_k_range` has covered Hits@k since
+    2026-10-14 and MRR was left on one draw, in the same files, for the
+    same reason the lift was: nobody had asked it.
+
+    MEASURED on release v0.1 across the sixteen `baselines_*.json`: 9 of
+    48 published MRR figures have a tie at rank 1 alone, before counting
+    blocks further down. `degree` on the flaviviruses is the common case
+    -- many compounds share a degree exactly.
+
+    Returns (low, high, contested, contested_positives).
+
+    `high` places a positive first in its block and `low` places every
+    tied non-positive first. low == high means the first positive's block
+    holds no non-positives ahead of it and the figure is a measurement.
+    A block of one is not a tie and reports 0 contested.
+
+    THE BOUNDS ARE THE RIGHT WAY ROUND BY CONSTRUCTION: a smaller rank is
+    a larger reciprocal, so `high` comes from the EARLIER position. That
+    inversion is the one thing a reader checking this by hand gets wrong,
+    which is why it is stated rather than left to the arithmetic.
+    """
+    first = next((i for i, (d, _s) in enumerate(ranked) if d in positives),
+                 None)
+    if first is None:
+        return 0.0, 0.0, 0, 0
+    score = ranked[first][1]
+    # The contiguous run of equal scores containing `first`. Scanning
+    # outwards rather than scanning the whole list: the block can start
+    # before the first positive, since the entries ahead of it with the
+    # same score are non-positives.
+    start = first
+    while start > 0 and ranked[start - 1][1] == score:
+        start -= 1
+    end = first
+    while end + 1 < len(ranked) and ranked[end + 1][1] == score:
+        end += 1
+    size = end - start + 1
+    pos_in_block = sum(1 for d, _s in ranked[start:end + 1] if d in positives)
+    best_rank = start + 1                       # a positive placed first
+    worst_rank = start + (size - pos_in_block) + 1   # positives placed last
+    contested = size if size > 1 else 0
+    return (1.0 / worst_rank, 1.0 / best_rank, contested,
+            pos_in_block if contested else 0)
 
 
 # ------------------------------------------------- multiple-testing (E1)
