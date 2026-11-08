@@ -235,15 +235,57 @@ def _verdict(edge: dict, inactive_above_nm: float,
     return None
 
 
+def imputed_relation_decides(edge: dict, inactive_above_nm: float,
+                             active_below_nm: float) -> bool:
+    """Whether this edge's verdict rests on a relation nobody stated.
+
+    `chembl.py` reads a NULL `standard_relation` as "=" and marks the
+    edge `relation_imputed` (fix-list L4). For most rows that costs
+    nothing: a value at or above the inactivity floor is inactive
+    whether it is read as "= 50000" or "> 50000". For a value BELOW the
+    floor it decides everything -- "= 400" is active and "> 400" proves
+    nothing -- and the edge becomes a POSITIVE on an assumption.
+
+    MEASURED over the 1,069 imputed rows on chembl_37 for these taxa:
+
+        912   inactive under "=" and under ">"    -> kept
+        153   active under "=", undecidable under ">"
+          4   active under "=", inactive under ">"
+
+    so 157 verdicts rest on the imputation and 912 do not. This returns
+    True for the 157.
+
+    THE RULE IS DERIVED, NOT A THRESHOLD OF ITS OWN: it asks whether
+    `_verdict` reaches the same answer with the relation read as a lower
+    bound instead. With the two project defaults equal at 10 uM that
+    reduces to "the value is below the floor", but it is not written
+    that way, because the two cuts are independent parameters and a
+    future run with a gap between them would need the comparison rather
+    than the shortcut.
+    """
+    q = edge.get("qualifiers") or {}
+    if not q.get("relation_imputed"):
+        return False
+    as_stated = _verdict(edge, inactive_above_nm, active_below_nm)
+    as_bound = _verdict({"qualifiers": {**q, "relation": ">"}},
+                        inactive_above_nm, active_below_nm)
+    return as_stated != as_bound
+
+
 def classify(edge: dict, inactive_above_nm: float = DEFAULT_INACTIVE_ABOVE_NM,
              active_below_nm: float = DEFAULT_ACTIVE_BELOW_NM) -> str | None:
     """'active', 'inactive', or None when the measurement decides nothing.
 
-    An edge whose potency fields DISAGREE decides nothing, however
-    confident either field looks on its own -- see `contested_potency`
-    for the measurement and the argument.
+    Three ways to decide nothing, and they are different questions:
+
+      - the relation and value do not settle it ("> 100 nM"),
+      - the edge's potency fields DISAGREE (`contested_potency`),
+      - the relation was never stated and reading it as "=" is what
+        produces the verdict (`imputed_relation_decides`).
     """
     if contested_potency(edge, inactive_above_nm, active_below_nm):
+        return None
+    if imputed_relation_decides(edge, inactive_above_nm, active_below_nm):
         return None
     return _verdict(edge, inactive_above_nm, active_below_nm)
 

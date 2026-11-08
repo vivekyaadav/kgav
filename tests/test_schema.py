@@ -408,3 +408,40 @@ def test_the_phase1_patch_refuses_to_downgrade_the_schema():
     assert r.returncode == 2, r.stdout
     assert "would downgrade" in r.stdout
     assert (root / "schema" / "kg_schema.yaml").read_text() == before
+
+
+def test_the_schema_file_has_no_duplicate_keys():
+    """yaml.safe_load KEEPS THE LAST and says nothing.
+
+    Writing `relation_imputed` into HAS_ANTIVIRAL_ACTIVITY_AGAINST twice
+    on 2026-11-09 -- once by hand with its measurement, once by a script
+    inserting a generic pointer -- produced a file that loaded cleanly,
+    validated the release with PASS, and had two definitions of one
+    qualifier three lines apart. The loader cannot report this, so the
+    raw text has to be checked.
+
+    A real cost, not a tidiness rule: whichever definition came second
+    would silently win, so a later edit to the FIRST one would appear to
+    do nothing.
+    """
+    import yaml
+    from pathlib import Path as _P
+
+    class _Strict(yaml.SafeLoader):
+        pass
+
+    def _no_dupes(loader, node, deep=False):
+        seen = set()
+        for key_node, _v in node.value:
+            key = loader.construct_object(key_node, deep=deep)
+            assert key not in seen, (
+                f"duplicate key {key!r} at line "
+                f"{key_node.start_mark.line + 1} of kg_schema.yaml; "
+                f"yaml.safe_load would keep only the last")
+            seen.add(key)
+        return yaml.SafeLoader.construct_mapping(loader, node, deep)
+
+    _Strict.add_constructor(
+        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_dupes)
+    path = _P(__file__).resolve().parents[1] / "schema" / "kg_schema.yaml"
+    yaml.load(path.read_text(), Loader=_Strict)

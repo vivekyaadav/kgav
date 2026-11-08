@@ -56,7 +56,7 @@
       }
     },
     "dwpc": {
-      "n": 2947,
+      "n": 2891,
       "hits@10": 2,
       "hits@50": 3,
       "hits@100": 5,
@@ -1181,16 +1181,16 @@
         "score": 0.979337231968811
       },
       {
+        "drug": "INCHIKEY:KTUFNOKKBVMGRW-UHFFFAOYSA-N",
+        "score": 0.9789473684210527
+      },
+      {
         "drug": "INCHIKEY:CMFVEXWUTRIUBT-SNYZSRNZSA-N",
-        "score": 0.9791666666666666
+        "score": 0.9788732394366197
       },
       {
         "drug": "INCHIKEY:ZWMHIKWELPMOEB-MHZLTWQESA-N",
-        "score": 0.9791666666666666
-      },
-      {
-        "drug": "INCHIKEY:KTUFNOKKBVMGRW-UHFFFAOYSA-N",
-        "score": 0.9789473684210527
+        "score": 0.9788732394366197
       },
       {
         "drug": "INCHIKEY:ONIQOQHATWINJY-UHFFFAOYSA-N",
@@ -1661,28 +1661,28 @@
         "score": 0.9376218323586745
       },
       {
-        "drug": "INCHIKEY:IMQVKPIOLDMURL-LJAQVGFWSA-N",
-        "score": 0.9375
-      },
-      {
-        "drug": "INCHIKEY:JUGHUWDMWBHPAK-SNYZSRNZSA-N",
-        "score": 0.9375
-      },
-      {
-        "drug": "INCHIKEY:NOSCNYQAWARNLP-MHZLTWQESA-N",
-        "score": 0.9375
-      },
-      {
-        "drug": "INCHIKEY:TZIFXJGSHAZRCB-NDEPHWFRSA-N",
-        "score": 0.9375
-      },
-      {
         "drug": "INCHIKEY:IIXWYSCJSQVBQM-LLVKDONJSA-N",
         "score": 0.9372319688109162
       },
       {
         "drug": "INCHIKEY:KGPGFQWBCSZGEL-ZDUSSCGKSA-N",
         "score": 0.9368421052631579
+      },
+      {
+        "drug": "INCHIKEY:IMQVKPIOLDMURL-LJAQVGFWSA-N",
+        "score": 0.9366197183098591
+      },
+      {
+        "drug": "INCHIKEY:JUGHUWDMWBHPAK-SNYZSRNZSA-N",
+        "score": 0.9366197183098591
+      },
+      {
+        "drug": "INCHIKEY:NOSCNYQAWARNLP-MHZLTWQESA-N",
+        "score": 0.9366197183098591
+      },
+      {
+        "drug": "INCHIKEY:TZIFXJGSHAZRCB-NDEPHWFRSA-N",
+        "score": 0.9366197183098591
       },
       {
         "drug": "INCHIKEY:QHADVLVFMKEIIP-UHFFFAOYSA-N",
@@ -2552,13 +2552,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "3356fae68afdf18d",
-      "edges_sha": "f3bb418a89779e94"
+      "edges_sha": "a3232767b2964139"
     },
     "code": {
-      "commit": "99f6437fd2d666544058d3bf7e23682f5a4131df",
+      "commit": "eb8d56d532c7223645482c169cc56b4151b4eba9",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-08T12:44:36+00:00"
+    "generated_utc": "2026-11-08T13:10:42+00:00"
   }
 }

@@ -162,17 +162,17 @@
       "COMBINED": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5746373141431035,
+        "auc": 0.5725302856653206,
         "evaluable": true,
-        "auc_ci_lo": 0.5122763278685885,
-        "auc_ci_hi": 0.6369983004176185,
+        "auc_ci_lo": 0.5102007635528742,
+        "auc_ci_hi": 0.634859807777767,
         "imputed": true,
         "coverage_pos": 0.43820224719101125,
         "coverage_neg": 0.3092741386354351,
         "auc_ceiling": 0.6322263655518441,
         "auc_headroom": 0.13222636555184408,
         "auc_floor": 0.5644640542777881,
-        "auc_skill": 0.15013153586469213
+        "auc_skill": 0.11903713488918122
       },
       "degree": {
         "n_pos": 89,
@@ -195,7 +195,7 @@
   "metapath_reach": {
     "cross_sectional": {
       "M1": {
-        "drugs_reached": 2616,
+        "drugs_reached": 2561,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11082",
@@ -332,7 +332,7 @@
         "missing_predicates": []
       },
       "M8": {
-        "drugs_reached": 82,
+        "drugs_reached": 27,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:2697049",
@@ -350,7 +350,7 @@
     },
     "temporal": {
       "M1": {
-        "drugs_reached": 690,
+        "drugs_reached": 635,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11082",
@@ -476,7 +476,7 @@
         "missing_predicates": []
       },
       "M8": {
-        "drugs_reached": 60,
+        "drugs_reached": 5,
         "viruses_reached": [
           "NCBITaxon:2697049",
           "NCBITaxon:694009"
@@ -495,13 +495,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "3356fae68afdf18d",
-      "edges_sha": "f3bb418a89779e94"
+      "edges_sha": "a3232767b2964139"
     },
     "code": {
-      "commit": "fa9211d5ad69e26330da412a4c061266a2b1abef",
+      "commit": "eb8d56d532c7223645482c169cc56b4151b4eba9",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-08T11:37:35+00:00"
+    "generated_utc": "2026-11-08T13:21:00+00:00"
   }
 }

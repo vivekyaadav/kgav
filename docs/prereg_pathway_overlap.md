@@ -10,12 +10,13 @@ the correction family. A third candidate -- whether `auc_ceiling` replaces
 hard-negatives analysis and not to this one, and is left out rather than
 listed here for completeness.
 
-Date drafted: 2026-11-02. Release: v0.1 (78,789 nodes / 392,674 edges,
-`nodes_sha` 3356fae68afdf18d, `edges_sha` f3bb418a89779e94). Scripts:
+Date drafted: 2026-11-02. Release: v0.1 (78,789 nodes / 392,624 edges,
+`nodes_sha` 3356fae68afdf18d, `edges_sha` a3232767b2964139). Scripts:
 `scripts/pathway_landscape.py`, read by `src/kgav/landscape.py`.
 
-**The release identification was updated on 2026-11-08 and the analysis was
-not re-registered**, because the rebuild of 2026-11-07 did not touch it.
+**The release identification was updated on 2026-11-08 and again on
+2026-11-09, and the analysis was not re-registered either time**, because
+neither rebuild touched it.
 `data/results/pathway_landscape.json` was regenerated against the new
 release and differs from the committed version in **four fields, all
 provenance**: the code commit, the dirty flag, the timestamp and

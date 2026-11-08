@@ -538,3 +538,94 @@ def test_the_active_cut_is_not_claimed_to_be_derived():
     src = (Path(L.__file__)).read_text()
     assert "ONLY HALF DERIVED" in src
     assert "no distribution in this corpus answers it" in src
+
+
+# ------------------------------------------ an imputed relation (L4)
+def _imputed(value, **extra):
+    """An edge whose source stated no relation, as chembl.py emits it."""
+    e = _act("d", value)
+    e["qualifiers"]["relation_imputed"] = True
+    e["qualifiers"].update(extra)
+    return e
+
+
+def test_an_imputed_relation_cannot_make_a_positive():
+    """THE DEFECT. `chembl.py` read a NULL standard_relation as "=", so a
+    value below the cut became an ACTIVE label on an assumption nobody
+    recorded. 157 of the 1,069 imputed rows on chembl_37 are in this
+    state."""
+    assert classify(_act("d", 400.0)) == "active"      # relation stated
+    assert classify(_imputed(400.0)) is None           # relation assumed
+
+
+def test_an_imputed_relation_above_the_floor_still_decides():
+    """And the 912 that are inactive whichever way the relation reads are
+    KEPT. Dropping every imputed row -- what the fix list proposed --
+    would discard them, and they are the negatives this project values
+    most. A mutant refusing all imputed rows passes the test above and
+    fails this one."""
+    assert classify(_imputed(50_000.0)) == "inactive"
+
+
+def test_the_refusal_is_derived_not_a_second_threshold():
+    """The rule asks whether the verdict survives reading the relation as
+    a lower bound; it is not "below 10 uM" hardcoded.
+
+    With a GAP between the two cuts the shortcut and the real rule part
+    company: at active_below=1 uM and inactive_above=10 uM, a 5 uM
+    imputed value is `inactive` as "=" and `undecidable` as ">", so it
+    must be refused -- and it is NOT below the active cut, so a
+    threshold-shaped implementation would wave it through.
+    """
+    e = _imputed(5_000.0)
+    assert L.imputed_relation_decides(e, 10_000.0, 1_000.0) is True
+    assert classify(e, 10_000.0, 1_000.0) is None
+
+
+def test_a_stated_relation_is_never_treated_as_imputed():
+    for rel in ("=", ">", "<", ">=", "<=", "~"):
+        e = _act("d", 400.0, rel)
+        assert L.imputed_relation_decides(e, 10_000.0, 10_000.0) is False, rel
+
+
+def test_the_absence_of_the_flag_means_the_source_stated_a_relation():
+    """Not "unknown". chembl.py writes the qualifier only when true, so a
+    default of False here would silently reclassify every edge written
+    before the flag existed -- which is why the flag is positive rather
+    than a `relation_stated: bool`."""
+    e = _act("d", 400.0)
+    assert "relation_imputed" not in e["qualifiers"]
+    assert classify(e) == "active"
+
+
+def test_the_release_carries_the_imputed_flag_and_refuses_what_it_should():
+    """Measured on the release rather than the fixture.
+
+    The post-merge count is much smaller than the 1,069 raw rows,
+    because merge_edges collapses a compound's records into one edge and
+    most imputed rows are protein-layer. What matters is that the flag
+    survives assembly and that classify refuses the edges whose verdict
+    rests on it.
+    """
+    release = Path(__file__).resolve().parents[1] / "data/releases/v0.1"
+    if not (release / "edges.jsonl").exists():
+        pytest.skip("release v0.1 is not built in this checkout")
+    flagged = refused = decided = 0
+    for line in (release / "edges.jsonl").read_text().splitlines():
+        if not line.strip():
+            continue
+        e = json.loads(line)
+        if not (e.get("qualifiers") or {}).get("relation_imputed"):
+            continue
+        flagged += 1
+        if e["predicate"] != "HAS_ANTIVIRAL_ACTIVITY_AGAINST":
+            continue
+        if classify(e) is None:
+            refused += 1
+        else:
+            decided += 1
+    assert flagged, "no edge in the release carries relation_imputed"
+    assert refused and decided, (
+        f"the flag must both refuse and permit verdicts: refused={refused}, "
+        f"decided={decided}. All-or-nothing means the rule collapsed into "
+        f"dropping or ignoring every imputed edge")

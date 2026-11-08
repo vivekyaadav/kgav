@@ -143,11 +143,25 @@ more viruses, in a second family, were examined.
 - **one date on every edge** — STRING `2023-08-28`, VirHostNet
   `2024-01-01`, NCATS `2020-08-18`. These are *file release* dates, not
   when any fact was established.
-- **undated** — 6,287 edges (1.6%) carry `1970-01-01`, the placeholder
-  every ingest writes when it has none.
+- **undated** — 14,838 edges (3.8%) carry `1970-01-01`, the placeholder
+  every ingest writes when it has none. By source: VirHostNet 5,222, Guide
+  to PHARMACOLOGY 3,601, `kgav-computed` 3,178, ChEMBL 2,522, InterPro 158,
+  MONDO 16.
+
+  **That count was 6,287 (1.6%) and the rise is a correction, not a
+  regression.** Every VirHostNet edge used to carry a blanket
+  `2024-01-01` applied to all 12,514 rows regardless of evidence
+  (fix-list C1); dating them by the publication year in their own
+  reference field left 5,222 with no parseable year, which are now
+  honestly undated instead of confidently wrong. The same holds for the
+  Guide to PHARMACOLOGY `TARGETS` edges (C3): they are undated because
+  GtoP publishes no per-interaction year, and nothing in this graph can
+  supply one offline — a PMID-to-year index built from the release is
+  unsound, since 42.9% of PMIDs here get different years from different
+  dated edges.
 
 The 1986–2008 shape of the histogram is UniProt's curation history —
-176,907 of 386,192 edges — not a record of when anything about these
+176,907 of 392,624 edges — not a record of when anything about these
 drugs was learned.
 
 ## What the pathway null could have detected

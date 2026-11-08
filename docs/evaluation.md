@@ -76,14 +76,14 @@ have contributed.
 | M6 | 5.6% | 2.5% | 0.5156 | 0.5156 | 0.5163 | -0.9% |
 | M7 | 0.0% | 0.4% | 0.4982 | 0.4982 | 0.4982 | n/a |
 | M8 | 1.1% | 0.0% | 0.5056 | 0.5056 | 0.5056 | n/a |
-| **COMBINED** | 43.8% | 30.9% | **0.5645** | 0.5746 | 0.6322 | **15.0%** |
+| **COMBINED** | 43.8% | 30.9% | **0.5645** | 0.5725 | 0.6322 | **11.9%** |
 | **degree** | 100.0% | 100.0% | **0.5000** | 0.5767 | 1.0000 | **15.3%** |
 
 **Degree's floor is exactly 0.5 and COMBINED's is 0.5645.** Degree reaches
 every compound in both classes, so it has no coverage asymmetry at all and
 every one of its 0.0767 points above chance is ranking. COMBINED's margin
-above chance is 0.0746, of which **0.0645 -- 86% -- is its coverage gap**
-and 0.0102 is ranking. The two raw numbers are two thousandths apart and
+above chance is 0.0746, of which **0.0645 -- 89% -- is its coverage gap**
+and 0.0081 is ranking. The two raw numbers are two thousandths apart and
 they are not measuring the same thing.
 
 **Normalised, the finding survives and gets a reason.** The fraction of the
@@ -195,13 +195,13 @@ The one-line version of every table here:
 > two scorers:
 >
 >     run                  virus        scorer    AUC [95% CI]           floor  from reach
->     cross-sectional      SARS-CoV-2   COMBINED  0.575 [0.512, 0.637]   0.5645       86%
+>     cross-sectional      SARS-CoV-2   COMBINED  0.573 [0.510, 0.635]   0.5645       89%
 >                          SARS-CoV-2   degree    0.577 [0.514, 0.639]   0.5000        0%
 >
 > **Two cells, and the third column is how much of each margin above
 > chance is the imputation floor rather than the ranking.** Degree has no
 > floor at all, because it is the only scorer here that reaches every
-> compound in both classes; 86% of COMBINED's is reach.
+> compound in both classes; 89% of COMBINED's is reach.
 >
 > **Five of these cells were temporal until 2026-11-09 and are gone.**
 > They were: SARS-CoV-2 COMBINED 0.526, SARS-CoV-2 degree 0.555 and
@@ -214,7 +214,7 @@ The one-line version of every table here:
 >
 > Cross-sectionally degree and COMBINED are **0.002 apart**, and that
 > number is not the comparison it looks like either. Normalised for reach
-> they use 15.0% and 15.3% of the span available to them, which is the
+> they use 11.9% and 15.3% of the span available to them, which is the
 > defensible version of "indistinguishable". Both decomposition tables are
 > above.
 >
@@ -250,7 +250,7 @@ The one-line version of every table here:
 > It does not rescue the conclusion, and it sharpens it. An ensemble of
 > eight channels clears chance, and so does counting a compound's edges,
 > and neither of them ranks better than the other once reach is taken out
-> -- 15.0% against 15.3% of the span each had available. What the graph
+> -- 11.9% against 15.3% of the span each had available. What the graph
 > separates is well-studied chemical matter from obscure chemical matter,
 > which is what degree measures directly and what COMBINED's coverage
 > asymmetry measures indirectly.
@@ -332,10 +332,10 @@ floor rather than the channel, and the cell reads *not evaluable*.
 
 | # | Protocol | pos | neg | cov_pos | cov_neg | reached | **M1** |
 |---|---|---|---|---|---|---|---|
-| 1 | `selective-only`, positives only | 785 | 10,984 | 58.0% | 1.8% | 455 | 0.781 [0.761, 0.800] |
-| 2 | `all` — no selectivity filter | 2,005 | 10,984 | 36.4% | 1.8% | 730 | 0.673 [0.659, 0.687] |
-| 3 | `verified-only`, **both** sides | 963 | 182 | 48.6% | 24.2% | 468 | 0.621 [0.579, 0.662] |
-| 4 | + `--publication-disjoint` | 963 | 182 | 0.5% | 2.2% | 5 | **not evaluable** |
+| 1 | `selective-only`, positives only | 784 | 10,998 | 58.0% | 1.8% | 455 | 0.781 [0.762, 0.801] |
+| 2 | `all` — no selectivity filter | 1,976 | 10,998 | 36.9% | 1.8% | 730 | 0.676 [0.662, 0.689] |
+| 3 | `verified-only`, **both** sides | 960 | 185 | 48.8% | 23.8% | 468 | 0.623 [0.582, 0.664] |
+| 4 | + `--publication-disjoint` | 960 | 185 | 0.5% | 2.2% | 5 | **not evaluable** |
 | 5 | + `--label-source` (one screen) | 89 | 7,343 | 3.4% | 0.7% | 3 | **not evaluable** |
 
 **These figures replace an earlier set -- 0.823, 0.726, 0.660, 0.499 -- that
@@ -469,7 +469,7 @@ So p-values make the *uncontrolled* protocol look full of discoveries.
 
 | virus | best readable channel | lift | p | significant | degree | p | baseline verdict |
 |---|---|---|---|---|---|---|---|
-| SARS-CoV-2 | M4 | 1.61 | 0.2362 | M7 0.0014 | 0.63 | 0.9043 | BASELINE NOT DETERMINED |
+| SARS-CoV-2 | M4 | 1.79 | 0.1850 | M7 0.0013 | 0.51 | 0.9574 | BASELINE NOT DETERMINED |
 | DENV-2 | — | — | — | — | 0.76 | 0.7623 | — |
 | Zika | — | — | — | — | 0.67 | 0.8039 | — |
 | West Nile | — | — | — | — | 0.97 | 0.6464 | — |
@@ -539,12 +539,12 @@ what that guard reads, and edge counts cannot see this.
 
 ### The one readable cell that is nominally significant, and whether it survives correction
 
-Across all fifteen viruses and eight metapaths, **ten cells are both
+Across all fifteen viruses and eight metapaths, **eleven cells are both
 `trustworthy` and `hits_determined`** -- readable, in the sense the rest of
 this document means. One of them is nominally significant at p<0.05:
 
-**SARS-CoV-2 M7, lift 1.29, p=0.001418**, reaching 225 positives in a pool
-of 476. It is the only cell in this table that clears any threshold while
+**SARS-CoV-2 M7, lift 1.29, p=0.001321**, reaching 225 positives in a pool
+of 477. It is the only cell in this table that clears any threshold while
 being readable.
 
 **It no longer has a baseline to be compared against.** Until 2026-11-08
@@ -610,9 +610,9 @@ seeing the number:
      the one the table meant was unrecorded. The verdict column is derived
      too -- `clears` iff the cell's p is below that family's alpha. -->
 
-| family | n | alpha | M7 at p=0.001418 |
+| family | n | alpha | M7 at p=0.001321 |
 |---|---|---|---|
-| readable cells only | 10 | 0.00500 | clears, by a factor of 4 |
+| readable cells only | 11 | 0.00455 | clears, by a factor of 3 |
 | every cell computed | 61 | 0.00082 | **fails** |
 | every cell planned (15 viruses x 8 metapaths) | 120 | 0.00042 | **fails** |
 | planned, plus COMBINED and degree | 150 | 0.00033 | **fails** |
@@ -646,8 +646,8 @@ result here is: the only reasoning channel that beats a chance baseline on
 readable data is the one that reasons least.
 
 **The table names M4 on that row, not M7.** `best_readable` picks the
-highest lift among readable channels, so it prints M4 at 1.53 (p=0.2630)
-while the verdict beside it is about M7 at 1.28 (p=0.0017). A reader sees a
+highest lift among readable channels, so it prints M4 at 1.79 (p=0.1850)
+while the verdict beside it is about M7 at 1.29 (p=0.0013). A reader sees a
 channel named, a verdict given, and no way to tell they are about different
 things. Highest lift was the wrong selector on a page whose entire argument
 is that lift without a determined hit count and a credible expectation is
@@ -784,9 +784,9 @@ denominator is itself at chance. SARS-CoV-2 cross-sectional is why, and on
 this release there is **no ratio to print**: degree's Hits@100 there is an
 interval, `hits_determined` is `False`, and `lift_vs_degree` is therefore
 `None` for every channel on that virus -- not a number marked unreliable
-but no number at all. M4 reads lift 1.53 at p=0.2630 and M7 1.28 at
-p=0.0017, and neither can be expressed as a multiple of anything. The
-published row does carry a degree lift of **0.63** (p=0.9088), and that
+but no number at all. M4 reads lift 1.79 at p=0.1850 and M7 1.29 at
+p=0.0013, and neither can be expressed as a multiple of anything. The
+published row does carry a degree lift of **0.51** (p=0.9574), and that
 figure is one draw from the tie block rather than a measurement, which is
 precisely why nothing is divided by it. A ratio
 over a denominator at chance would be a statement about how little degree
@@ -1075,10 +1075,10 @@ release of 2026-11-08:
 | M3 | 1,146 | 13 | 2.64 | 0.0970 | 0.504 [0.481, 0.527] |  |
 | M4 | 3,870 | 27 | 2.87 | 0.1532 | 0.509 [0.486, 0.532] | (!) |
 | M6 | 255 | 0 | 0.00 | — | 0.500 [0.477, 0.523] | (!) |
-| M7 | 65 | 0 | 0.00 | — | 0.500 [0.477, 0.523] | (!) |
-| M8 | 79 | 0 | 0.00 | — | 0.500 [0.477, 0.523] | (!) |
-| **COMBINED** | 4,506 | 32 | 2.82 | 0.1578 | 0.509 [0.486, 0.532] | (!) |
-| degree | 5,969 | 64 | 0.93 | 0.6628 | 0.516 [0.493, 0.539] | ~ties |
+| M7 | 66 | 0 | 0.00 | — | 0.500 [0.477, 0.523] | (!) |
+| M8 | 24 | 0 | 0.00 | — | 0.500 [0.477, 0.523] | (!) |
+| **COMBINED** | 4,452 | 32 | 2.78 | 0.1608 | 0.509 [0.486, 0.532] | (!) |
+| degree | 5,922 | 64 | 0.93 | 0.6657 | 0.516 [0.493, 0.539] | ~ties |
 
 **Every figure in that table moved, and the two that matter moved in
 opposite directions.** COMBINED's lift fell from 3.36 (p=0.0154,

@@ -5,17 +5,17 @@
   "stats": {
     "edge_train": 203492,
     "edge_dropped_future": 149417,
-    "label_train_active": 2420,
+    "label_train_active": 2375,
     "held_out_not_a_label": 2421,
     "label_test_inactive": 6771,
-    "undated_kept": 10757,
+    "undated_kept": 10702,
     "label_train_inactive": 13467,
-    "label_undecidable": 515,
+    "label_undecidable": 560,
     "label_test_active": 3105,
     "computed_dated_from_endpoints": 2864,
     "computed_dropped_future_endpoint": 1412,
-    "undated_kept_computed": 309,
-    "train_ambiguous_dropped": 100
+    "undated_kept_computed": 314,
+    "train_ambiguous_dropped": 86
   },
   "audits": [
     "ceiling: 69/71 test compounds for NCBITaxon:11053 have no pre-2021 evidence",
@@ -44,13 +44,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "3356fae68afdf18d",
-      "edges_sha": "f3bb418a89779e94"
+      "edges_sha": "a3232767b2964139"
     },
     "code": {
-      "commit": "fa9211d5ad69e26330da412a4c061266a2b1abef",
+      "commit": "eb8d56d532c7223645482c169cc56b4151b4eba9",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-08T11:25:09+00:00"
+    "generated_utc": "2026-11-08T13:08:35+00:00"
   }
 }

@@ -6,17 +6,17 @@
   "stats": {
     "edge_train": 203492,
     "edge_dropped_future": 149417,
-    "label_train_active": 2420,
+    "label_train_active": 2375,
     "held_out_not_a_label": 2421,
     "label_test_inactive": 6771,
-    "undated_dropped": 10757,
+    "undated_dropped": 10702,
     "label_train_inactive": 13467,
-    "label_undecidable": 515,
+    "label_undecidable": 560,
     "label_test_active": 3105,
     "computed_dated_from_endpoints": 2864,
     "computed_dropped_future_endpoint": 1412,
-    "undated_kept_computed": 309,
-    "train_ambiguous_dropped": 100,
+    "undated_kept_computed": 314,
+    "train_ambiguous_dropped": 86,
     "test_positive_already_known_dropped": 5,
     "test_negative_already_known_dropped": 13
   },
@@ -38,11 +38,11 @@
     "ceiling: 33/43 test compounds for NCBITaxon:694009 have no pre-2021 evidence"
   ],
   "undated_census": {
-    "CHEMICALLY_SIMILAR_TO|infores:kgav-computed": 309
+    "CHEMICALLY_SIMILAR_TO|infores:kgav-computed": 314
   },
   "training_graph_predicates": {
     "BELONGS_TO": 78,
-    "CHEMICALLY_SIMILAR_TO": 1737,
+    "CHEMICALLY_SIMILAR_TO": 1742,
     "ENCODED_BY": 19400,
     "FOLD_SIMILAR_TO": 24,
     "HOST_FACTOR_FOR": 6536,
@@ -54,7 +54,7 @@
   },
   "training_graph_predicate_sources": {
     "BELONGS_TO|infores:uniprot": 78,
-    "CHEMICALLY_SIMILAR_TO|infores:kgav-computed": 1737,
+    "CHEMICALLY_SIMILAR_TO|infores:kgav-computed": 1742,
     "ENCODED_BY|infores:uniprot": 19400,
     "FOLD_SIMILAR_TO|infores:kgav-computed": 24,
     "HOST_FACTOR_FOR|infores:biogrid-orcs": 6536,
@@ -135,7 +135,7 @@
         "auc_coverage_neg": 0.0030643513789581204,
         "auc_evaluable": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.19388911788953012,
+        "lift_vs_degree": 0.19360979625437333,
         "vs_degree_readable": false
       },
       "M2": {
@@ -167,7 +167,7 @@
         "auc_coverage_neg": 0.0,
         "auc_evaluable": false,
         "beats_degree": true,
-        "lift_vs_degree": 1.2000058885879166,
+        "lift_vs_degree": 1.198277129332902,
         "vs_degree_readable": false
       },
       "M3": {
@@ -199,7 +199,7 @@
         "auc_coverage_neg": 0.0,
         "auc_evaluable": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.9462335119538337,
+        "lift_vs_degree": 0.9448703436921178,
         "vs_degree_readable": false
       },
       "M4": {
@@ -231,7 +231,7 @@
         "auc_coverage_neg": 0.0,
         "auc_evaluable": true,
         "beats_degree": true,
-        "lift_vs_degree": 2.3366824677109097,
+        "lift_vs_degree": 2.3333161830280575,
         "vs_degree_readable": false
       },
       "M5": {
@@ -302,7 +302,7 @@
         "vs_degree_readable": false
       },
       "M7": {
-        "pool": 65,
+        "pool": 66,
         "pos": 0,
         "hits": 0,
         "expected": 0.0,
@@ -366,24 +366,24 @@
         "vs_degree_readable": false
       },
       "COMBINED": {
-        "pool": 3059,
+        "pool": 3060,
         "pos": 19,
         "hits": 2,
-        "expected": 0.6211180124223602,
-        "lift": 3.22,
+        "expected": 0.6209150326797386,
+        "lift": 3.221052631578947,
         "mrr": 0.01694915254237288,
         "hits_lo": 2,
         "hits_hi": 2,
         "hits_expected": 2.0,
-        "lift_expected": 3.22,
+        "lift_expected": 3.221052631578947,
         "hits_determined": true,
         "tied_at_cut": 0,
         "tied_at_cut_positives": 0,
-        "lift_lo": 3.22,
-        "lift_hi": 3.22,
+        "lift_lo": 3.221052631578947,
+        "lift_hi": 3.221052631578947,
         "trustworthy": false,
         "lift_is_pool_artifact": false,
-        "p_value": 0.12630369951630077,
+        "p_value": 0.12623582251784846,
         "auc": 0.5045227303611357,
         "auc_ci_lo": 0.48149689343233193,
         "auc_ci_hi": 0.5275485672899395,
@@ -394,28 +394,28 @@
         "auc_coverage_neg": 0.0030643513789581204,
         "auc_evaluable": true,
         "beats_degree": true,
-        "lift_vs_degree": 1.758656224237428,
+        "lift_vs_degree": 1.7566967428862337,
         "vs_degree_readable": false
       },
       "degree": {
-        "pool": 4852,
+        "pool": 4859,
         "pos": 53,
         "hits": 2,
-        "expected": 1.092333058532564,
-        "lift": 1.830943396226415,
+        "expected": 1.0907594155175961,
+        "lift": 1.8335849056603775,
         "mrr": 0.01639344262295082,
         "hits_lo": 2,
         "hits_hi": 2,
         "hits_expected": 2.0,
-        "lift_expected": 1.830943396226415,
+        "lift_expected": 1.8335849056603775,
         "hits_determined": true,
         "tied_at_cut": 4,
         "tied_at_cut_positives": 0,
-        "lift_lo": 1.830943396226415,
-        "lift_hi": 1.830943396226415,
+        "lift_lo": 1.8335849056603775,
+        "lift_hi": 1.8335849056603775,
         "trustworthy": true,
         "lift_is_pool_artifact": false,
-        "p_value": 0.2986474470357146,
+        "p_value": 0.29806100043685024,
         "auc": 0.5128048665514962,
         "auc_ci_lo": 0.4898166699397565,
         "auc_ci_hi": 0.5357930631632358,
@@ -548,7 +548,7 @@
         "auc_coverage_neg": 0.0,
         "auc_evaluable": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.07749381698268756,
+        "lift_vs_degree": 0.07738217740275777,
         "vs_degree_readable": true
       },
       "M3": {
@@ -580,7 +580,7 @@
         "auc_coverage_neg": 0.0,
         "auc_evaluable": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.12695795548227537,
+        "lift_vs_degree": 0.1267750565960074,
         "vs_degree_readable": true
       },
       "M4": {
@@ -612,7 +612,7 @@
         "auc_coverage_neg": 0.16666666666666666,
         "auc_evaluable": false,
         "beats_degree": true,
-        "lift_vs_degree": 1.2593569661995054,
+        "lift_vs_degree": 1.2575427042601357,
         "vs_degree_readable": true
       },
       "M5": {
@@ -772,28 +772,28 @@
         "auc_coverage_neg": 0.16666666666666666,
         "auc_evaluable": false,
         "beats_degree": true,
-        "lift_vs_degree": 1.3162407254740314,
+        "lift_vs_degree": 1.3143445153323727,
         "vs_degree_readable": true
       },
       "degree": {
-        "pool": 4852,
+        "pool": 4859,
         "pos": 12,
         "hits": 3,
-        "expected": 0.247320692497939,
-        "lift": 12.129999999999999,
+        "expected": 0.2469643959662482,
+        "lift": 12.1475,
         "mrr": 0.043478260869565216,
         "hits_lo": 3,
         "hits_hi": 3,
         "hits_expected": 3.0,
-        "lift_expected": 12.129999999999999,
+        "lift_expected": 12.1475,
         "hits_determined": true,
         "tied_at_cut": 4,
         "tied_at_cut_positives": 0,
-        "lift_lo": 12.129999999999999,
-        "lift_hi": 12.129999999999999,
+        "lift_lo": 12.1475,
+        "lift_hi": 12.1475,
         "trustworthy": false,
         "lift_is_pool_artifact": false,
-        "p_value": 0.0016327097722108677,
+        "p_value": 0.0016259811260170185,
         "auc": 0.5316666666666666,
         "auc_ci_lo": 0.2896856923814225,
         "auc_ci_hi": 0.7736476409519107,
@@ -838,7 +838,7 @@
         "auc_coverage_neg": 0.0,
         "auc_evaluable": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.069387194284144,
+        "lift_vs_degree": 0.06928723331275297,
         "vs_degree_readable": true
       },
       "M2": {
@@ -892,7 +892,7 @@
         "auc_coverage_neg": 0.25,
         "auc_evaluable": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.21022258862324816,
+        "lift_vs_degree": 0.20991973657131097,
         "vs_degree_readable": true
       },
       "M4": {
@@ -970,12 +970,12 @@
             "OrganismTaxon"
           ],
           "predicate_edges_in_training_graph": {
-            "CHEMICALLY_SIMILAR_TO": 1737,
+            "CHEMICALLY_SIMILAR_TO": 1742,
             "TARGETS": 11293,
             "HOST_FACTOR_FOR": 6536
           },
           "predicate_sources": {
-            "CHEMICALLY_SIMILAR_TO|infores:kgav-computed": 1737,
+            "CHEMICALLY_SIMILAR_TO|infores:kgav-computed": 1742,
             "HOST_FACTOR_FOR|infores:biogrid-orcs": 6536,
             "TARGETS|infores:chembl": 8552,
             "TARGETS|infores:chembl|infores:guidetopharmacology": 2741
@@ -1077,28 +1077,28 @@
         "auc_coverage_neg": 0.25,
         "auc_evaluable": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.19291014014839244,
+        "lift_vs_degree": 0.19263222885367362,
         "vs_degree_readable": true
       },
       "degree": {
-        "pool": 4852,
+        "pool": 4859,
         "pos": 10,
         "hits": 3,
-        "expected": 0.20610057708161583,
-        "lift": 14.556,
+        "expected": 0.20580366330520683,
+        "lift": 14.577,
         "mrr": 0.03571428571428571,
         "hits_lo": 3,
         "hits_hi": 3,
         "hits_expected": 3.0,
-        "lift_expected": 14.556,
+        "lift_expected": 14.577,
         "hits_determined": true,
         "tied_at_cut": 4,
         "tied_at_cut_positives": 0,
-        "lift_lo": 14.556,
-        "lift_hi": 14.556,
+        "lift_lo": 14.577,
+        "lift_hi": 14.577,
         "trustworthy": false,
         "lift_is_pool_artifact": false,
-        "p_value": 0.0009177238092212543,
+        "p_value": 0.0009139021298659873,
         "auc": 0.4941860465116279,
         "auc_ci_lo": 0.19437348485625677,
         "auc_ci_hi": 0.793998608166999,
@@ -1146,13 +1146,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "3356fae68afdf18d",
-      "edges_sha": "f3bb418a89779e94"
+      "edges_sha": "a3232767b2964139"
     },
     "code": {
-      "commit": "fa9211d5ad69e26330da412a4c061266a2b1abef",
+      "commit": "eb8d56d532c7223645482c169cc56b4151b4eba9",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-08T11:23:20+00:00"
+    "generated_utc": "2026-11-08T13:06:45+00:00"
   }
 }

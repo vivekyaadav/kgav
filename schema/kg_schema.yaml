@@ -304,6 +304,9 @@ edge_classes:
       cell_line:          {type: string, doc: "CVCL CURIE"}
       assay_type:         {type: string, enum: assay_type}
       relation:           {type: string, enum: activity_relation}
+      # See HAS_ANTIVIRAL_ACTIVITY_AGAINST.relation_imputed (fix-list L4):
+      # true when the source stated no relation and "=" was assumed.
+      relation_imputed:   {type: bool}
       target_resolution:  {type: string, enum: target_resolution}
       domain:             {type: string}
       unquantified:
@@ -334,6 +337,9 @@ edge_classes:
       ki_nm:              {type: float, min: 0}
       kd_nm:              {type: float, min: 0}
       relation:           {type: string, enum: activity_relation}
+      # See HAS_ANTIVIRAL_ACTIVITY_AGAINST.relation_imputed (fix-list L4):
+      # true when the source stated no relation and "=" was assumed.
+      relation_imputed:   {type: bool}
       target_resolution:  {type: string, enum: target_resolution}
       # nsp3 carries both PLpro and the ADP-ribose macrodomain -- separate
       # druggable sites on one protein. A macrodomain binder says nothing about
@@ -467,6 +473,9 @@ edge_classes:
       ki_nm:      {type: float, min: 0}
       ec50_nm:    {type: float, min: 0}
       relation:   {type: string, enum: activity_relation}
+      # See HAS_ANTIVIRAL_ACTIVITY_AGAINST.relation_imputed (fix-list L4):
+      # true when the source stated no relation and "=" was assumed.
+      relation_imputed:   {type: bool}
       direction:  {type: string, enum: target_direction}
       assay_type: {type: string, enum: assay_type}
       # WHICH ASSAY (fix-list V6). ChEMBL's assay CHEMBL id is already in
@@ -607,6 +616,13 @@ edge_classes:
       virus_strain:      {type: string}
       ic50_nm:           {type: float, min: 0}
       relation:          {type: string, enum: activity_relation}
+      # TRUE WHEN THE SOURCE STATED NO RELATION and "=" was assumed
+      # (fix-list L4). 1,069 chembl_37 rows for these taxa carry a value
+      # with a NULL standard_relation; 912 are inactive whichever way it
+      # is read and 157 become POSITIVES only because "=" was assumed.
+      # kgav.labels.imputed_relation_decides refuses that second group.
+      # Absent means the source stated a relation -- never "unknown".
+      relation_imputed:  {type: bool}
       assay_type:        {type: string, enum: assay_type}
       assay_id: {type: string, doc: "the source's own assay identifier"}
       # Derived at assembly from the absence of every measured value; see the

@@ -5,11 +5,11 @@
   "publication_disjoint": false,
   "label_source": null,
   "label_stats": {
-    "active": 5525,
+    "active": 5480,
     "inactive": 20238,
-    "undecidable": 515,
+    "undecidable": 560,
     "contested_potency": 173,
-    "ambiguous_dropped": 114
+    "ambiguous_dropped": 100
   },
   "train_split": {
     "cutoff": 2021,
@@ -20,7 +20,7 @@
   "cross_sectional_notes": {
     "labelled_viruses": 15,
     "labels": {
-      "active": 5525,
+      "active": 5480,
       "inactive": 20238,
       "other_source": 0
     },
@@ -51,154 +51,154 @@
   "cross_sectional": {
     "SARS-CoV-2": {
       "M1": {
-        "n_pos": 785,
-        "n_neg": 10984,
-        "auc": 0.7807082449979357,
+        "n_pos": 784,
+        "n_neg": 10998,
+        "auc": 0.7810894884413121,
         "evaluable": true,
-        "auc_ci_lo": 0.7612628760328771,
-        "auc_ci_hi": 0.8001536139629942,
+        "auc_ci_lo": 0.7616424069413376,
+        "auc_ci_hi": 0.8005365699412866,
         "imputed": true,
-        "coverage_pos": 0.5796178343949044,
-        "coverage_neg": 0.01820830298616169,
-        "auc_ceiling": 0.785981694276794,
-        "auc_headroom": 0.285981694276794,
-        "auc_floor": 0.7807047657043714,
-        "auc_skill": 0.0006593406593448765
+        "coverage_pos": 0.5803571428571429,
+        "coverage_neg": 0.01818512456810329,
+        "auc_ceiling": 0.7863629426129426,
+        "auc_headroom": 0.2863629426129426,
+        "auc_floor": 0.7810860091445198,
+        "auc_skill": 0.0006593406593358597
       },
       "M2": {
-        "n_pos": 785,
-        "n_neg": 10984,
-        "auc": 0.4580686557401385,
+        "n_pos": 784,
+        "n_neg": 10998,
+        "auc": 0.4579978131459894,
         "evaluable": true,
-        "auc_ci_lo": 0.4377658100392642,
-        "auc_ci_hi": 0.4783715014410128,
+        "auc_ci_lo": 0.4376851159031308,
+        "auc_ci_hi": 0.47831051038884803,
         "imputed": true,
-        "coverage_pos": 0.01019108280254777,
-        "coverage_neg": 0.09386380189366351,
-        "auc_ceiling": 0.45864192734307224,
-        "auc_headroom": -0.04135807265692776,
-        "auc_floor": 0.45816364045444213,
-        "auc_skill": -0.1985935984481785
+        "coverage_pos": 0.01020408163265306,
+        "coverage_neg": 0.09401709401709402,
+        "auc_ceiling": 0.45857317285888716,
+        "auc_headroom": -0.04142682714111284,
+        "auc_floor": 0.45809349380777953,
+        "auc_skill": -0.19946808510643316
       },
       "M3": {
-        "n_pos": 785,
-        "n_neg": 10984,
-        "auc": 0.4648972332657577,
+        "n_pos": 784,
+        "n_neg": 10998,
+        "auc": 0.4647707282585702,
         "evaluable": true,
-        "auc_ci_lo": 0.44448351073142284,
-        "auc_ci_hi": 0.4853109558000926,
+        "auc_ci_lo": 0.4443478944171185,
+        "auc_ci_hi": 0.48519356210002185,
         "imputed": true,
-        "coverage_pos": 0.008917197452229299,
-        "coverage_neg": 0.07911507647487254,
-        "auc_ceiling": 0.4652538028678657,
-        "auc_headroom": -0.03474619713213428,
-        "auc_floor": 0.46490106048867835,
-        "auc_skill": -0.01084990958402903
+        "coverage_pos": 0.008928571428571428,
+        "coverage_neg": 0.07937806873977087,
+        "auc_ceiling": 0.46512961772270284,
+        "auc_headroom": -0.03487038227729716,
+        "auc_floor": 0.4647752513444003,
+        "auc_skill": -0.012763868434035201
       },
       "M4": {
-        "n_pos": 785,
-        "n_neg": 10984,
-        "auc": 0.3903588195452795,
+        "n_pos": 784,
+        "n_neg": 10998,
+        "auc": 0.3902004098147715,
         "evaluable": true,
-        "auc_ci_lo": 0.37142374206859224,
-        "auc_ci_hi": 0.4092938970219668,
+        "auc_ci_lo": 0.3712591533401402,
+        "auc_ci_hi": 0.4091416662894028,
         "imputed": true,
-        "coverage_pos": 0.016560509554140127,
-        "coverage_neg": 0.23607064821558632,
-        "auc_ceiling": 0.39219965578189003,
-        "auc_headroom": -0.10780034421810997,
-        "auc_floor": 0.3902449306692769,
-        "auc_skill": 0.058263371799813
+        "coverage_pos": 0.016581632653061226,
+        "coverage_neg": 0.2364066193853428,
+        "auc_ceiling": 0.3920475104935591,
+        "auc_headroom": -0.10795248950644087,
+        "auc_floor": 0.3900875066338592,
+        "auc_skill": 0.057603550295849376
       },
       "M5": {
-        "n_pos": 785,
-        "n_neg": 10984,
-        "auc": 0.420299532382945,
+        "n_pos": 784,
+        "n_neg": 10998,
+        "auc": 0.42010189236633005,
         "evaluable": true,
-        "auc_ci_lo": 0.40069971809657634,
-        "auc_ci_hi": 0.43989934666931363,
+        "auc_ci_lo": 0.4004956955302882,
+        "auc_ci_hi": 0.4397080892023719,
         "imputed": true,
-        "coverage_pos": 0.015286624203821656,
-        "coverage_neg": 0.17507283321194464,
-        "auc_ceiling": 0.42144503180074316,
-        "auc_headroom": -0.07855496819925684,
-        "auc_floor": 0.4201068954959385,
-        "auc_skill": 0.14395909169702364
+        "coverage_pos": 0.015306122448979591,
+        "coverage_neg": 0.17548645208219676,
+        "auc_ceiling": 0.42125284374524496,
+        "auc_headroom": -0.07874715625475504,
+        "auc_floor": 0.4199098351833914,
+        "auc_skill": 0.14300518134714327
       },
       "M6": {
-        "n_pos": 785,
-        "n_neg": 10984,
-        "auc": 0.49176010502827505,
+        "n_pos": 784,
+        "n_neg": 10998,
+        "auc": 0.4917851483201027,
         "evaluable": true,
-        "auc_ci_lo": 0.47095886864792363,
-        "auc_ci_hi": 0.5125613414086265,
+        "auc_ci_lo": 0.4709721293800678,
+        "auc_ci_hi": 0.5125981672601376,
         "imputed": true,
-        "coverage_pos": 0.011464968152866241,
-        "coverage_neg": 0.027858703568827387,
-        "auc_ceiling": 0.4919628318666178,
-        "auc_headroom": -0.008037168133382178,
-        "auc_floor": 0.49180313229201944,
-        "auc_skill": -0.2694262890342377
+        "coverage_pos": 0.011479591836734694,
+        "coverage_neg": 0.027823240589198037,
+        "auc_ceiling": 0.491987875346538,
+        "auc_headroom": -0.008012124653462016,
+        "auc_floor": 0.49182817562376835,
+        "auc_skill": -0.2694262890342511
       },
       "M7": {
-        "n_pos": 785,
-        "n_neg": 10984,
-        "auc": 0.5380960609757794,
+        "n_pos": 784,
+        "n_neg": 10998,
+        "auc": 0.5381615071014767,
         "evaluable": true,
-        "auc_ci_lo": 0.5168114850685641,
-        "auc_ci_hi": 0.5593806368829948,
+        "auc_ci_lo": 0.5168644908570272,
+        "auc_ci_hi": 0.5594585233459262,
         "imputed": true,
-        "coverage_pos": 0.08917197452229299,
-        "coverage_neg": 0.013474144209759651,
-        "auc_ceiling": 0.5384496731783579,
-        "auc_headroom": 0.0384496731783579,
-        "auc_floor": 0.5378489151562666,
-        "auc_skill": 0.4113899613899036
+        "coverage_pos": 0.08928571428571429,
+        "coverage_neg": 0.013456992180396435,
+        "auc_ceiling": 0.5385151196321409,
+        "auc_headroom": 0.03851511963214094,
+        "auc_floor": 0.5379143610526589,
+        "auc_skill": 0.4113899613899696
       },
       "M8": {
-        "n_pos": 785,
-        "n_neg": 10984,
-        "auc": 0.5005914219176938,
+        "n_pos": 784,
+        "n_neg": 10998,
+        "auc": 0.5005922922906205,
         "evaluable": true,
-        "auc_ci_lo": 0.47967985644202205,
-        "auc_ci_hi": 0.5215029873933655,
+        "auc_ci_lo": 0.47966915877509,
+        "auc_ci_hi": 0.5215154258061511,
         "imputed": true,
-        "coverage_pos": 0.0012738853503184713,
-        "coverage_neg": 9.104151493080845e-05,
-        "auc_ceiling": 0.5005914799059199,
-        "auc_headroom": 0.0005914799059199005,
-        "auc_floor": 0.5005914219176938,
+        "coverage_pos": 0.0012755102040816326,
+        "coverage_neg": 9.092562284051645e-05,
+        "auc_ceiling": 0.5005923502789005,
+        "auc_headroom": 0.0005923502789004775,
+        "auc_floor": 0.5005922922906205,
         "auc_skill": 0.0
       },
       "COMBINED": {
-        "n_pos": 785,
-        "n_neg": 10984,
-        "auc": 0.6746306729881565,
+        "n_pos": 784,
+        "n_neg": 10998,
+        "auc": 0.6748822142059224,
         "evaluable": true,
-        "auc_ci_lo": 0.6533791743614802,
-        "auc_ci_hi": 0.6958821716148328,
+        "auc_ci_lo": 0.6536205462633639,
+        "auc_ci_hi": 0.696143882148481,
         "imputed": true,
-        "coverage_pos": 0.6840764331210191,
-        "coverage_neg": 0.2922432629278951,
-        "auc_ceiling": 0.7958749495502433,
-        "auc_headroom": 0.2958749495502433,
-        "auc_floor": 0.695916585096562,
-        "auc_skill": -0.21294778305690393
+        "coverage_pos": 0.6849489795918368,
+        "coverage_neg": 0.29250772867794145,
+        "auc_ceiling": 0.7963970605972885,
+        "auc_headroom": 0.29639706059728854,
+        "auc_floor": 0.6962206254569476,
+        "auc_skill": -0.21300829103303012
       },
       "degree": {
-        "n_pos": 785,
-        "n_neg": 10984,
-        "auc": 0.6726169158614035,
+        "n_pos": 784,
+        "n_neg": 10998,
+        "auc": 0.6728634102304315,
         "evaluable": true,
-        "auc_ci_lo": 0.651347729102856,
-        "auc_ci_hi": 0.693886102619951,
+        "auc_ci_lo": 0.6515839370551804,
+        "auc_ci_hi": 0.6941428834056826,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
         "auc_headroom": 0.5,
         "auc_floor": 0.5,
-        "auc_skill": 0.34523383172280697
+        "auc_skill": 0.345726820460863
       }
     },
     "DENV-2": {
@@ -295,17 +295,17 @@
       "M7": {
         "n_pos": 451,
         "n_neg": 3044,
-        "auc": 0.5287691099644242,
+        "auc": 0.5276593698919907,
         "evaluable": true,
-        "auc_ci_lo": 0.4998716842022367,
-        "auc_ci_hi": 0.5576665357266116,
+        "auc_ci_lo": 0.49877298185851193,
+        "auc_ci_hi": 0.5565457579254695,
         "imputed": true,
-        "coverage_pos": 0.06430155210643015,
+        "coverage_pos": 0.06208425720620843,
         "coverage_neg": 0.006898817345597897,
-        "auc_ceiling": 0.5289231697119264,
-        "auc_headroom": 0.028923169711926433,
-        "auc_floor": 0.5287013673804162,
-        "auc_skill": 0.3054187192115144
+        "auc_ceiling": 0.5278068739055567,
+        "auc_headroom": 0.027806873905556695,
+        "auc_floor": 0.5275927199303052,
+        "auc_skill": 0.3112244897962543
       },
       "M8": {
         "n_pos": 451,
@@ -325,32 +325,32 @@
       "COMBINED": {
         "n_pos": 451,
         "n_neg": 3044,
-        "auc": 0.5570676639152009,
+        "auc": 0.5559783194594579,
         "evaluable": true,
-        "auc_ci_lo": 0.5279514040856643,
-        "auc_ci_hi": 0.5861839237447375,
+        "auc_ci_lo": 0.5268682345599307,
+        "auc_ci_hi": 0.585088404358985,
         "imputed": true,
-        "coverage_pos": 0.12638580931263857,
+        "coverage_pos": 0.12416851441241686,
         "coverage_neg": 0.012812089356110381,
-        "auc_ceiling": 0.5575964931193931,
-        "auc_headroom": 0.05759649311939308,
-        "auc_floor": 0.556786859978264,
-        "auc_skill": 0.34682860998658965
+        "auc_ceiling": 0.556473641579087,
+        "auc_headroom": 0.056473641579086964,
+        "auc_floor": 0.5556782125281532,
+        "auc_skill": 0.37728937728935685
       },
       "degree": {
         "n_pos": 451,
         "n_neg": 3044,
-        "auc": 0.5715514654250592,
+        "auc": 0.5704526515758528,
         "evaluable": true,
-        "auc_ci_lo": 0.5423704535309694,
-        "auc_ci_hi": 0.600732477319149,
+        "auc_ci_lo": 0.5412754151687463,
+        "auc_ci_hi": 0.5996298879829592,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
         "auc_headroom": 0.5,
         "auc_floor": 0.5,
-        "auc_skill": 0.14310293085011838
+        "auc_skill": 0.14090530315170557
       }
     },
     "Zika": {
@@ -539,17 +539,17 @@
       "degree": {
         "n_pos": 115,
         "n_neg": 95,
-        "auc": 0.49061784897025174,
+        "auc": 0.48640732265446224,
         "evaluable": true,
-        "auc_ci_lo": 0.4119567355874025,
-        "auc_ci_hi": 0.5692789623531009,
+        "auc_ci_lo": 0.40774386103458893,
+        "auc_ci_hi": 0.5650707842743355,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
         "auc_headroom": 0.5,
         "auc_floor": 0.5,
-        "auc_skill": -0.01876430205949653
+        "auc_skill": -0.027185354691075525
       }
     },
     "HCoV-OC43": {
@@ -723,17 +723,17 @@
       "COMBINED": {
         "n_pos": 65,
         "n_neg": 95,
-        "auc": 0.5374089068825911,
+        "auc": 0.536923076923077,
         "evaluable": true,
-        "auc_ci_lo": 0.44593691833527843,
-        "auc_ci_hi": 0.6288808954299039,
+        "auc_ci_lo": 0.4454485005549507,
+        "auc_ci_hi": 0.6283976532912032,
         "imputed": true,
         "coverage_pos": 0.3076923076923077,
         "coverage_neg": 0.23157894736842105,
         "auc_ceiling": 0.5736842105263158,
         "auc_headroom": 0.0736842105263158,
         "auc_floor": 0.5380566801619433,
-        "auc_skill": -0.018181818181816595
+        "auc_skill": -0.0318181818181806
       },
       "degree": {
         "n_pos": 65,
@@ -832,17 +832,17 @@
       "degree": {
         "n_pos": 56,
         "n_neg": 123,
-        "auc": 0.5465301974448316,
+        "auc": 0.537746806039489,
         "evaluable": true,
-        "auc_ci_lo": 0.4545008775368795,
-        "auc_ci_hi": 0.6385595173527836,
+        "auc_ci_lo": 0.4457482389389287,
+        "auc_ci_hi": 0.6297453731400493,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
         "auc_headroom": 0.5,
         "auc_floor": 0.5,
-        "auc_skill": 0.09306039488966311
+        "auc_skill": 0.07549361207897798
       }
     },
     "MERS-CoV": {
@@ -1123,17 +1123,17 @@
       "degree": {
         "n_pos": 47,
         "n_neg": 109,
-        "auc": 0.535623658012883,
+        "auc": 0.5251805582666407,
         "evaluable": true,
-        "auc_ci_lo": 0.43595708645141135,
-        "auc_ci_hi": 0.6352902295743548,
+        "auc_ci_lo": 0.42562991811816114,
+        "auc_ci_hi": 0.6247311984151203,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
         "auc_headroom": 0.5,
         "auc_floor": 0.5,
-        "auc_skill": 0.07124731602576606
+        "auc_skill": 0.05036111653328135
       }
     },
     "West Nile": {
@@ -2017,7 +2017,7 @@
   "metapath_reach": {
     "cross_sectional": {
       "M1": {
-        "drugs_reached": 3697,
+        "drugs_reached": 3642,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11082",
@@ -2154,7 +2154,7 @@
         "missing_predicates": []
       },
       "M8": {
-        "drugs_reached": 109,
+        "drugs_reached": 54,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:2697049",
@@ -2172,7 +2172,7 @@
     },
     "temporal": {
       "M1": {
-        "drugs_reached": 943,
+        "drugs_reached": 888,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11082",
@@ -2298,7 +2298,7 @@
         "missing_predicates": []
       },
       "M8": {
-        "drugs_reached": 79,
+        "drugs_reached": 24,
         "viruses_reached": [
           "NCBITaxon:2697049",
           "NCBITaxon:694009"
@@ -2317,13 +2317,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "3356fae68afdf18d",
-      "edges_sha": "f3bb418a89779e94"
+      "edges_sha": "a3232767b2964139"
     },
     "code": {
-      "commit": "fa9211d5ad69e26330da412a4c061266a2b1abef",
+      "commit": "eb8d56d532c7223645482c169cc56b4151b4eba9",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-08T11:32:48+00:00"
+    "generated_utc": "2026-11-08T13:16:13+00:00"
   }
 }

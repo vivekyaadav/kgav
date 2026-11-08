@@ -576,7 +576,14 @@ DROPPED_COUNTERS = ("no_inchikey", "unmapped_taxon", "unconvertible_units",
 #: this -- every counter must have a declared fate -- is the same one that
 #: found 1,433 pairs asserting inhibition they had no measurement for.
 BREAKDOWN_COUNTERS = ("rows", "censored", "unresolved",
-                      "dated_year_only", "undated_placeholder")
+                      "dated_year_only", "undated_placeholder",
+                      # A BREAKDOWN, NOT A FATE (fix-list L4). An imputed
+                      # relation does not emit or drop a row -- the row is
+                      # emitted either way -- it records that `=` was
+                      # assumed rather than read. Listing it here is what
+                      # lets `accounting` keep its invariant that every
+                      # counter's fate is stated.
+                      "relation_imputed")
 #: unit_ breaks `unconvertible_units` down by the unit string itself,
 #: because the total cannot answer the question it raises: ChEMBL
 #: standard_units is an open set, and whether it ever holds "M" --
@@ -629,7 +636,29 @@ def ingest_activities(em, rows: list[dict], viral_targets: dict[str, dict[str, s
             stats["unconvertible_units"] += 1
             stats[f"unit_{(r['standard_units'] or '(none)').strip()}"] += 1
             continue
-        relation = r["standard_relation"] if r["standard_relation"] in VALID_RELATIONS else "="
+        # A MISSING RELATION IS NOT AN EQUALS SIGN (fix-list L4). This was
+        # a one-line conditional that silently read 1,069 rows as exact
+        # measurements, 2.74% of the potency rows for these taxa, and
+        # nothing counted them. `host_targets.py` already counted the
+        # same thing under the same name -- where it is 0 -- so the
+        # vocabulary is shared rather than invented here.
+        #
+        # MEASURED EXPOSURE of the imputation, over those 1,069:
+        #
+        #     912   inactive under "=" AND under ">"   -- harmless
+        #     153   active under "=", undecidable under ">"
+        #       4   active under "=", inactive under ">"
+        #
+        # So 157 rows become POSITIVES on an assumption, and 912 reach
+        # the same verdict whichever way the relation is read. The
+        # imputation travels on the edge as a qualifier and
+        # labels.classify refuses exactly the verdicts that depend on
+        # it; the 912 are kept, because nothing about them is ambiguous.
+        given = r["standard_relation"]
+        relation_imputed = given not in VALID_RELATIONS
+        relation = "=" if relation_imputed else given
+        if relation_imputed:
+            stats["relation_imputed"] += 1
         if relation != "=":
             stats["censored"] += 1
 
@@ -656,6 +685,10 @@ def ingest_activities(em, rows: list[dict], viral_targets: dict[str, dict[str, s
         # the assembled edge, and the selectivity layer later supplied the
         # CC50 that made the claim false. Derived at assembly instead.
         quals = {qual_field: nm, "relation": relation}
+        # Only when true, so the qualifier's absence means "the source
+        # stated a relation" rather than "this layer predates the flag".
+        if relation_imputed:
+            quals["relation_imputed"] = True
         # WHICH EXPERIMENT (fix-list V6), set on the SHARED dict before the
         # branch so every path gets it. Setting it inside the protein branch
         # reached only 39% of the HAS_ANTIVIRAL edges -- the direct-organism

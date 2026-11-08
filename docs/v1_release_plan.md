@@ -13,7 +13,7 @@ scoring method for drug repurposing comes after, not in this release.
 
 ## Where the graph stands
 
-Release v0.1: 78,782 nodes, 386,192 edges, schema 0.13.0, `schema: PASS`.
+Release v0.1: 78,789 nodes, 392,624 edges, schema 0.13.0, `schema: PASS`.
 Sixteen viruses — seven coronaviruses and nine flaviviruses — after the
 2026-10-23 promotion took the built set from eight.
 
@@ -25,19 +25,52 @@ Sixteen viruses — seven coronaviruses and nine flaviviruses — after the
 ### The finding the paper is about
 
 `scripts/pathway_landscape.py`, on v0.1: drugged human proteins overlap
-CRISPR dependency factors at 0.86–0.94 times the rate a degree-matched
-random protein set does, in every one of the eight taxa that have
-dependency factors, with matched p from 0.73 to 1.00. The naive p of
-1.28e-04 for SARS-CoV-2 disappears under degree matching.
+CRISPR dependency factors at close to the rate a degree-matched random
+protein set does, in all eight taxa that have dependency factors. **No
+taxon clears the corrected threshold in either direction.**
 
-Eight taxa, two families. Zika at 0.88 is not a repetition of the
-coronavirus result; it is a different family, a different screen
-literature, different labs, landing in the same band.
+<!-- TABLE: landscape_by_taxon — asserted cell-by-cell by
+     tests/test_release_plan_figures.py against
+     data/results/pathway_landscape.json. ratio is n_observed/expected,
+     derived the way kgav.landscape.TaxonOverlap.ratio derives it. Do not
+     hand-edit; re-derive with `make pathway-landscape`. -->
 
-Two taxa — DENV-2 at 0.26 and West Nile at 0.00 — are NOT evidence of
-depletion. They have 50 and 18 dependency factors against expectations of
-7.5 and 3.1, so a ratio there is one or two Poisson draws. They contribute
-scope, not statistical weight, and the paper must say so.
+| virus | dependency factors | observed | matched expectation | ratio | p naive | p matched |
+|---|---:|---:|---:|---:|---:|---:|
+| HCoV-NL63 | 57 | 10 | 7.3 | **1.36** | 0.04148 | 0.1869 |
+| SARS-CoV-2 | 3,460 | 384 | 359.2 | **1.07** | 0.0003959 | 0.07096 |
+| HCoV-OC43 | 657 | 62 | 65.3 | **0.95** | 0.5537 | 0.6887 |
+| HCoV-229E | 1,367 | 128 | 134.9 | **0.95** | 0.6012 | 0.7596 |
+| Zika | 815 | 76 | 80.4 | **0.95** | 0.5994 | 0.7241 |
+| MERS-CoV | 678 | 60 | 66.4 | **0.90** | 0.7494 | 0.8256 |
+| DENV-2 | 50 | 2 | 6.4 | **0.31** | 0.9583 | 0.989 |
+| West Nile | 18 | 0 | 2.5 | **0.00** | 1 | 1 |
+
+**THIS PARAGRAPH CLAIMED A DEPLETION IN EVERY TAXON AND THAT WAS FALSE**
+(fix-list D4). It read "0.86–0.94 times the rate ... in every one of the
+eight taxa ... with matched p from 0.73 to 1.00", and on this release the
+ratios run **0.00 to 1.36** with **two taxa above 1.0** — HCoV-NL63 at 1.36
+and SARS-CoV-2 at 1.07 are ENRICHED, not depleted — and matched p runs from
+**0.071**, not 0.73. The naive p for SARS-CoV-2 is 3.96e-04, not 1.28e-04.
+Every figure came from the 2026-10-28 run and nothing re-derived them
+across four rebuilds; this table is now machine-checked.
+
+The conclusion survives the correction and gets weaker, which is the
+honest direction. **SARS-CoV-2's naive p of 3.96e-04 does disappear under
+degree matching** — 0.071, against a Bonferroni-corrected alpha the
+landscape computes from its own family size — so the headline control still
+works. What cannot be said any more is that the overlap is *depleted*: it
+is indistinguishable from the degree-matched background, in both
+directions, in all eight taxa.
+
+**DENV-2 at 0.31 and West Nile at 0.00 are still NOT evidence of
+depletion.** They hold 50 and 18 dependency factors against matched
+expectations of 6.4 and 2.5, so a ratio there is one or two Poisson draws;
+West Nile observed zero. They contribute scope, not statistical weight, and
+the paper must say so. **HCoV-NL63 at 1.36 is the same situation in the
+other direction** — 10 observed against 7.3 expected — and the old
+paragraph had no room for that case because it asserted every taxon fell
+in one narrow band.
 
 ---
 

@@ -72,20 +72,51 @@ def parse_table() -> dict[str, tuple[int, str]]:
 
 
 # -------------------------------------------------------------- the helper
-def test_the_helper_reproduces_the_four_family_sizes(cross):
-    """The sizes the document has carried since 2026-10-28, derived.
+def test_the_helper_computes_each_family_from_its_definition(cross):
+    """Each family size re-derived from what it MEANS, not pinned to a
+    number.
 
-    Three of these were right when typed and one -- `cells_computed` at 61
-    -- had a definition nobody had written down: it is every (virus,
-    metapath) cell the run PRODUCED, which is not the same as every cell
-    with a p-value (34 of them) and not the same as every cell planned
-    (120). An undocumented definition that happens to give the right
-    number is the thing this file exists to retire.
+    The first version of this test asserted
+    `{"readable_cells": 10, "cells_computed": 61, ...}` -- and when L4
+    moved a cell into the readable set on 2026-11-09 it failed on the
+    literal 10. That is the "check written with the same literals it is
+    checking" defect `test_landscape.py` already carries a warning
+    about: a size that moves with the data is not a regression, while a
+    size that stops matching its definition is.
+
+    `cells_computed` is the one that needed a definition recorded at all:
+    every (virus, metapath) cell the run PRODUCED, which is neither every
+    cell with a p-value nor every cell planned. Three readings, three
+    numbers, and the one the document meant was written down nowhere.
     """
-    got = correction_families(cross["per_virus"], 8)
-    sizes = {k: v["n"] for k, v in got["families"].items()}
-    assert sizes == {"readable_cells": 10, "cells_computed": 61,
-                     "cells_planned": 120, "planned_plus_baselines": 150}, sizes
+    per = cross["per_virus"]
+    got = {k: v["n"]
+           for k, v in correction_families(per, 8)["families"].items()}
+
+    singles = [(v, n, m) for v, ch in per.items() for n, m in ch.items()
+               if n not in ("degree", "COMBINED") and isinstance(m, dict)
+               and ("lift" in m or "auc" in m)]
+    readable = [x for x in singles
+                if x[2].get("hits_determined") and x[2].get("trustworthy")]
+    n_viruses = sum(1 for ch in per.values()
+                    if isinstance(ch, dict) and "not_evaluable" not in ch)
+
+    assert got["readable_cells"] == len(readable)
+    assert got["cells_computed"] == len(singles)
+    assert got["cells_planned"] == n_viruses * 8
+    assert got["planned_plus_baselines"] == n_viruses * 8 + 2 * n_viruses
+    # AND THE NESTING, which is what makes these a sensitivity rather
+    # than four unrelated numbers: each family contains the one before.
+    sizes = [got[k] for k in CORRECTION_FAMILIES]
+    assert sizes == sorted(sizes), (
+        f"the families are not nested smallest-first: {sizes}")
+    # `cells_computed` must still differ from the count of cells with a
+    # p-value, or the distinction this test records is not visible here.
+    with_p = sum(1 for _v, _n, m in singles if m.get("p_value") is not None)
+    assert got["cells_computed"] != with_p, (
+        "every produced cell now has a p-value, so the difference between "
+        "`cells_computed` and 'cells with a p-value' is no longer present "
+        "in this data and the docstring overstates it")
 
 
 def test_a_placeholder_row_is_not_a_test(cross):
