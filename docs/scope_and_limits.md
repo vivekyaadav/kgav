@@ -23,7 +23,7 @@ Seven coronaviruses and nine flaviviruses, built from
 
 | virus        | taxon | family | dependency | restriction | antiviral | chain source | in overlap table |
 |--------------|------:|--------|-----------:|------------:|----------:|--------------|------------------|
-| SARS-CoV-2   | 2697049 | Coronaviridae | 3,460 | 1,122 | 14,996 | species | yes |
+| SARS-CoV-2   | 2697049 | Coronaviridae | 3,460 | 1,122 | 14,998 | species | yes |
 | HCoV-229E    | 11137 | Coronaviridae | 1,367 | 9 | 212 | species | yes |
 | Zika         | 64320 | Flaviviridae | 815 | 0 | 3,414 | species | yes |
 | MERS-CoV     | 1335626 | Coronaviridae | 678 | 0 | 183 | strain 1263720 | yes |
@@ -42,7 +42,7 @@ Seven coronaviruses and nine flaviviruses, built from
 
 <!-- END TABLE: scope_by_virus -->
 
-7,102 dependency and 1,161 restriction factors, 26,276 antiviral activity
+7,102 dependency and 1,161 restriction factors, 26,278 antiviral activity
 edges. **8 of the 16 viruses have no dependency factor at all** and are
 therefore absent from the overlap analysis entirely.
 

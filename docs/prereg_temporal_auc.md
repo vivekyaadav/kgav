@@ -212,3 +212,86 @@ reading "no comparison against this baseline can be read -- including every
 ratio in the vs-deg column, which divides by it". Printing a figure and then
 telling the reader to ignore it is the defect rather than the fix. The cell
 now reads `n/d` when the degree row's own Hits@k is an interval.
+
+---
+
+# Amendment, 2026-11-08: the bar was computed on the wrong n
+
+The verdict above is kept as written, because it records what was measured
+on 2026-10-14 and the sequence is the result. Three of its statements are
+no longer true of the release, and one of them was never true.
+
+## The bar
+
+**"At COMBINED's 48 reached positives a Hanley-McNeil interval excludes 0.5
+only from 0.586 upward" used the wrong n, and the arithmetic above it is
+right.** `evaluate_against_negatives` ranks the whole labelled test set and
+imputes the floor to every compound a scorer cannot reach, so the AUC's n
+is the test set and is identical for all nine scorers. The results file has
+recorded it all along, in `auc_n_pos` and `auc_n_neg`: **1,580 and 982** on
+`undated=include`. The reach count — 48 then, 96 now — is the denominator
+of the LIFT, not of the AUC.
+
+At n=1,580/982 the interval half-width is 0.023 and the bar is **0.523**.
+The table in "What AUC the interval needs to clear chance" is correct for
+every row it contains; the row the run needed was not in it, and the
+conclusion drawn from the table therefore understated the bar by 0.063.
+
+## What that changes
+
+| 2026-10-14 | 2026-11-08 | |
+|---|---|---|
+| COMBINED 0.512 [0.49, 0.54] | **0.526 [0.503, 0.549]** | now excludes 0.5 |
+| degree 0.504 [0.48, 0.53] | **0.555 [0.533, 0.578]** | now excludes 0.5 |
+| COMBINED lift 3.36, p=0.0154 | 2.39, p=0.0574 | no longer significant |
+| degree lift 0.97, p=0.5909 | 0.44, p=0.9723, hits 3–4 | now undetermined |
+
+**The decision rule settles it without an amendment, which is the whole
+argument for having written one.** The rule was: *claim a result for
+COMBINED only if its interval clears 0.5 AND the degree baseline on the
+same split does not.* The first condition is now met. The second is not —
+degree clears by a wider margin, from a ranking with no imputation in it at
+all. **No result is claimed for COMBINED.** Nothing here is a judgement
+made after seeing the number.
+
+## Two statements that were never true
+
+**"Degree on the same split reads 0.504 — at chance"** is wrong on this
+release and was wrong on the committed results of 2026-11-07 as well:
+degree read 0.556 [0.534, 0.579] there. The sentence it licensed — "the
+temporal protocol removes the study-volume confound" — is true of the LIFT,
+where degree falls from 10.02 (p<.0001) cross-sectionally to 0.44
+(p=0.9723), and false of the AUC. The two are not in tension for the same
+reason the verdict already gives for COMBINED: the lift reads a cut and the
+AUC does not. The claim must name which metric it is about.
+
+**"The only scorer that ever did is degree, cross-sectionally"** is wrong in
+both halves. Seven (run, virus, scorer) cells on this release have an AUC
+interval excluding 0.5, five of them temporal and two on SARS-CoV rather
+than SARS-CoV-2, and `tests/test_evaluation_table.py` now derives that
+census from every results file. The claim that no INDIVIDUAL reasoning
+channel clears chance anywhere survives and is asserted by the same test.
+
+**"Four of four cross-sectional viruses"** is recorded as D2 in
+`docs/audit_2026-11-03_fixes.md` and is corrected in `docs/evaluation.md`:
+five cross-sectional viruses have a channel at p<0.05 and degree clears it
+in one of them. The sentence counted the viruses where DEGREE was
+significant.
+
+## What is still not measured
+
+COMBINED reaches 96 of 1,580 test positives, 6.1%, and the other 93.9%
+carry the imputed floor. An AUC computed that way exceeds 0.5 whenever a
+scorer reaches a larger fraction of the positives than of the negatives,
+with no ranking skill inside the reached set: if reached compounds all
+outrank unreached ones and are internally unordered, the AUC is exactly
+`0.5 + (coverage_pos - coverage_neg) / 2`. 0.526 is what a coverage gap of
+5.2 points gives.
+
+**Whether that is what 0.526 is cannot be determined from the results
+file.** `scripts/temporal_split.py` writes `auc_n_pos` and `auc_n_neg` but
+not `coverage_pos` and `coverage_neg`, which the cross-sectional protocol
+writes and `docs/evaluation.md` reads for every other table. Until it does,
+this row cannot be distinguished from its own imputation floor. No
+prediction is made here about which it is; the measurement is a change to
+the script, not a judgement.

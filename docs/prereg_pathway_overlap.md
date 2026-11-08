@@ -10,9 +10,22 @@ the correction family. A third candidate -- whether `auc_ceiling` replaces
 hard-negatives analysis and not to this one, and is left out rather than
 listed here for completeness.
 
-Date drafted: 2026-11-02. Release: v0.1 (78,789 nodes / 392,672 edges,
-`nodes_sha` 3356fae68afdf18d, `edges_sha` 6148f080fb56418d). Scripts:
+Date drafted: 2026-11-02. Release: v0.1 (78,789 nodes / 392,674 edges,
+`nodes_sha` 3356fae68afdf18d, `edges_sha` f3bb418a89779e94). Scripts:
 `scripts/pathway_landscape.py`, read by `src/kgav/landscape.py`.
+
+**The release identification was updated on 2026-11-08 and the analysis was
+not re-registered**, because the rebuild of 2026-11-07 did not touch it.
+`data/results/pathway_landscape.json` was regenerated against the new
+release and differs from the committed version in **four fields, all
+provenance**: the code commit, the dirty flag, the timestamp and
+`edges_sha`. Every measured figure -- every p-value, every overlap ratio,
+every degree-matched null -- is byte-identical. The two edges this rebuild
+added are `HAS_ANTIVIRAL_ACTIVITY_AGAINST`, which this analysis does not
+read. A registration that quoted a release no longer on disk would be
+unverifiable, which is what `tests/test_landscape.py::
+test_the_quoted_release_matches_the_census` exists to prevent; it caught
+this.
 
 ## Why this is a re-registration, and what that costs
 

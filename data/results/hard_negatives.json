@@ -7,7 +7,7 @@
     "infores:ncats-opendata"
   ],
   "label_stats": {
-    "other_source": 18844,
+    "other_source": 18846,
     "inactive": 7343,
     "active": 89
   },
@@ -22,7 +22,7 @@
     "labels": {
       "active": 89,
       "inactive": 7343,
-      "other_source": 18844
+      "other_source": 18846
     },
     "unscored": {},
     "empty_label_set": false
@@ -32,7 +32,7 @@
     "labels": {
       "active": 0,
       "inactive": 0,
-      "other_source": 18844
+      "other_source": 18846
     },
     "unscored": {},
     "empty_label_set": true
@@ -55,10 +55,10 @@
       "M2": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5074503425260165,
+        "auc": 0.5074495774466854,
         "evaluable": true,
-        "auc_ci_lo": 0.4468253103279267,
-        "auc_ci_hi": 0.5680753747241063,
+        "auc_ci_lo": 0.44682457345321125,
+        "auc_ci_hi": 0.5680745814401595,
         "imputed": true,
         "coverage_pos": 0.12359550561797752,
         "coverage_neg": 0.112351899768487,
@@ -68,10 +68,10 @@
       "M3": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5405423188330398,
+        "auc": 0.5405430839123708,
         "evaluable": true,
-        "auc_ci_lo": 0.4788752609371726,
-        "auc_ci_hi": 0.6022093767289071,
+        "auc_ci_lo": 0.4788760060760464,
+        "auc_ci_hi": 0.6022101617486952,
         "imputed": true,
         "coverage_pos": 0.1797752808988764,
         "coverage_neg": 0.10104861773117255,
@@ -107,10 +107,10 @@
       "M6": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.5155540628007718,
+        "auc": 0.5155548278801029,
         "evaluable": true,
-        "auc_ci_lo": 0.45464088742560615,
-        "auc_ci_hi": 0.5764672381759374,
+        "auc_ci_lo": 0.45464162630385363,
+        "auc_ci_hi": 0.5764680294563521,
         "imputed": true,
         "coverage_pos": 0.056179775280898875,
         "coverage_neg": 0.02505787825139589,
@@ -146,10 +146,10 @@
       "COMBINED": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.574622777635813,
+        "auc": 0.5746373141431035,
         "evaluable": true,
-        "auc_ci_lo": 0.5122620032128464,
-        "auc_ci_hi": 0.6369835520587797,
+        "auc_ci_lo": 0.5122763278685885,
+        "auc_ci_hi": 0.6369983004176185,
         "imputed": true,
         "coverage_pos": 0.43820224719101125,
         "coverage_neg": 0.3092741386354351,
@@ -159,10 +159,10 @@
       "degree": {
         "n_pos": 89,
         "n_neg": 7343,
-        "auc": 0.6157771599337135,
+        "auc": 0.5766938473850354,
         "evaluable": true,
-        "auc_ci_lo": 0.5531128488651507,
-        "auc_ci_hi": 0.6784414710022764,
+        "auc_ci_lo": 0.5143036220774068,
+        "auc_ci_hi": 0.639084072692664,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
@@ -175,7 +175,7 @@
   "metapath_reach": {
     "cross_sectional": {
       "M1": {
-        "drugs_reached": 2618,
+        "drugs_reached": 2616,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11082",
@@ -475,13 +475,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "3356fae68afdf18d",
-      "edges_sha": "6148f080fb56418d"
+      "edges_sha": "f3bb418a89779e94"
     },
     "code": {
-      "commit": "66379a0a851d0562ebb7f51398fbe0f73300ab0a",
-      "dirty": true
+      "commit": "8ce3e5b8a2ac44013d148e4f49fa035260101c68",
+      "dirty": false
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-07T00:49:10+00:00"
+    "generated_utc": "2026-11-07T05:03:52+00:00"
   }
 }

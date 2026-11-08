@@ -3,28 +3,29 @@
     "SARS-CoV-2": {
       "M1": {
         "pool": 3021,
-        "pos": 732,
+        "pos": 737,
         "hits": 9,
-        "expected": 24.23038728897716,
-        "lift": 0.37143442622950823,
+        "expected": 24.395895398874544,
+        "lift": 0.36891451831750344,
         "mrr": 1.0,
         "hits_lo": 2,
         "hits_hi": 12,
         "hits_expected": 10.979591836734693,
-        "lift_expected": 0.4531331549013048,
+        "lift_expected": 0.45005898153019686,
         "hits_determined": false,
         "tied_at_cut": 98,
         "tied_at_cut_positives": 10,
-        "lift_lo": 0.08254098360655739,
-        "lift_hi": 0.4952459016393443,
+        "lift_lo": 0.08198100407055631,
+        "lift_hi": 0.4918860244233379,
         "trustworthy": true,
         "lift_is_pool_artifact": false,
-        "p_value": 0.9999809143194746,
+        "p_value": 0.9999836292459713,
         "truncated_walks": 0,
         "order_dependent": false,
-        "beats_degree": false,
-        "lift_vs_degree": 0.4926509481303803,
-        "vs_degree_readable": false
+        "lift_vs_degree": null,
+        "beats_degree": null,
+        "vs_degree_readable": false,
+        "vs_degree_undetermined": true
       },
       "M2": {
         "pool": 1561,
@@ -47,9 +48,10 @@
         "p_value": 0.9786241162376919,
         "truncated_walks": 0,
         "order_dependent": false,
-        "beats_degree": false,
-        "lift_vs_degree": 0.36323293229593967,
-        "vs_degree_readable": false
+        "lift_vs_degree": null,
+        "beats_degree": null,
+        "vs_degree_readable": false,
+        "vs_degree_undetermined": true
       },
       "M3": {
         "pool": 1332,
@@ -72,9 +74,10 @@
         "p_value": 0.9245888602136162,
         "truncated_walks": 0,
         "order_dependent": false,
-        "beats_degree": false,
-        "lift_vs_degree": 0.6543312015478425,
-        "vs_degree_readable": false
+        "lift_vs_degree": null,
+        "beats_degree": null,
+        "vs_degree_readable": false,
+        "vs_degree_undetermined": true
       },
       "M4": {
         "pool": 4106,
@@ -97,9 +100,10 @@
         "p_value": 0.2629782841112376,
         "truncated_walks": 0,
         "order_dependent": false,
-        "beats_degree": true,
-        "lift_vs_degree": 2.035880712469393,
-        "vs_degree_readable": false
+        "lift_vs_degree": null,
+        "beats_degree": null,
+        "vs_degree_readable": false,
+        "vs_degree_undetermined": true
       },
       "M5": {
         "pool": 3013,
@@ -122,9 +126,10 @@
         "p_value": 0.6182110115042405,
         "truncated_walks": 0,
         "order_dependent": false,
-        "beats_degree": true,
-        "lift_vs_degree": 1.2619842953323506,
-        "vs_degree_readable": false
+        "lift_vs_degree": null,
+        "beats_degree": null,
+        "vs_degree_readable": false,
+        "vs_degree_undetermined": true
       },
       "M6": {
         "pool": 380,
@@ -147,9 +152,10 @@
         "p_value": 0.6164544570635873,
         "truncated_walks": 0,
         "order_dependent": false,
-        "beats_degree": true,
-        "lift_vs_degree": 1.2847361429436974,
-        "vs_degree_readable": false
+        "lift_vs_degree": null,
+        "beats_degree": null,
+        "vs_degree_readable": false,
+        "vs_degree_undetermined": true
       },
       "M7": {
         "pool": 476,
@@ -172,9 +178,10 @@
         "p_value": 0.0016550943462364605,
         "truncated_walks": 0,
         "order_dependent": false,
-        "beats_degree": true,
-        "lift_vs_degree": 1.7040624941529978,
-        "vs_degree_readable": false
+        "lift_vs_degree": null,
+        "beats_degree": null,
+        "vs_degree_readable": false,
+        "vs_degree_undetermined": true
       },
       "M8": {
         "pool": 81,
@@ -197,52 +204,54 @@
         "p_value": null,
         "truncated_walks": 0,
         "order_dependent": false,
-        "beats_degree": true,
-        "lift_vs_degree": 1.074341094433282,
-        "vs_degree_readable": false
+        "lift_vs_degree": null,
+        "beats_degree": null,
+        "vs_degree_readable": false,
+        "vs_degree_undetermined": true
       },
       "COMBINED": {
         "pool": 7978,
-        "pos": 1094,
+        "pos": 1099,
         "hits": 5,
-        "expected": 13.712709952369014,
-        "lift": 0.36462522851919565,
+        "expected": 13.775382301328653,
+        "lift": 0.3629663330300273,
         "mrr": 1.0,
         "hits_lo": 5,
         "hits_hi": 5,
         "hits_expected": 5.0,
-        "lift_expected": 0.36462522851919565,
+        "lift_expected": 0.3629663330300273,
         "hits_determined": true,
         "tied_at_cut": 0,
         "tied_at_cut_positives": 0,
-        "lift_lo": 0.36462522851919565,
-        "lift_hi": 0.36462522851919565,
+        "lift_lo": 0.3629663330300273,
+        "lift_hi": 0.3629663330300273,
         "trustworthy": true,
         "lift_is_pool_artifact": false,
-        "p_value": 0.99877003710641,
-        "beats_degree": false,
-        "lift_vs_degree": 0.483619588969504,
-        "vs_degree_readable": false
+        "p_value": 0.9988340907108264,
+        "lift_vs_degree": null,
+        "beats_degree": null,
+        "vs_degree_readable": false,
+        "vs_degree_undetermined": true
       },
       "degree": {
         "pool": 25383,
-        "pos": 2020,
-        "hits": 6,
-        "expected": 7.958082180987275,
-        "lift": 0.753950495049505,
+        "pos": 2025,
+        "hits": 5,
+        "expected": 7.97778040420754,
+        "lift": 0.6267407407407407,
         "mrr": 0.020833333333333332,
-        "hits_lo": 6,
-        "hits_hi": 6,
-        "hits_expected": 6.0,
-        "lift_expected": 0.753950495049505,
-        "hits_determined": true,
-        "tied_at_cut": 10,
-        "tied_at_cut_positives": 3,
-        "lift_lo": 0.753950495049505,
-        "lift_hi": 0.753950495049505,
+        "hits_lo": 4,
+        "hits_hi": 5,
+        "hits_expected": 4.714285714285714,
+        "lift_expected": 0.5909269841269842,
+        "hits_determined": false,
+        "tied_at_cut": 7,
+        "tied_at_cut_positives": 1,
+        "lift_lo": 0.5013925925925926,
+        "lift_hi": 0.6267407407407407,
         "trustworthy": true,
         "lift_is_pool_artifact": false,
-        "p_value": 0.8167494073157845,
+        "p_value": 0.908847704204738,
         "lift_vs_degree": null,
         "beats_degree": null,
         "vs_degree_readable": null
@@ -484,7 +493,7 @@
         "hits_expected": 3.0,
         "lift_expected": 0.7280019120458892,
         "hits_determined": true,
-        "tied_at_cut": 10,
+        "tied_at_cut": 7,
         "tied_at_cut_positives": 0,
         "lift_lo": 0.7280019120458892,
         "lift_hi": 0.7280019120458892,
@@ -519,7 +528,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": true,
-        "lift_vs_degree": 1.1537308208362824,
+        "lift_vs_degree": 1.7328350362107683,
         "vs_degree_readable": false
       },
       "M2": {
@@ -544,7 +553,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": true,
-        "lift_vs_degree": 2.3753693416853805,
+        "lift_vs_degree": 3.5676633967616125,
         "vs_degree_readable": false
       },
       "M3": {
@@ -569,7 +578,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": true,
-        "lift_vs_degree": 1.3196496342696553,
+        "lift_vs_degree": 1.9820352204231177,
         "vs_degree_readable": false
       },
       "M4": {
@@ -594,7 +603,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": true,
-        "lift_vs_degree": 3.9386466007432803,
+        "lift_vs_degree": 5.915612811724383,
         "vs_degree_readable": false
       },
       "M5": {
@@ -619,7 +628,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": true,
-        "lift_vs_degree": 4.772886649260601,
+        "lift_vs_degree": 7.168591720299557,
         "vs_degree_readable": false
       },
       "M6": {
@@ -644,7 +653,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": true,
-        "lift_vs_degree": 1.5734284100907432,
+        "lift_vs_degree": 2.363195839735256,
         "vs_degree_readable": false
       },
       "M7": {
@@ -669,7 +678,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.3349879840838357,
+        "lift_vs_degree": 0.5031320174920223,
         "vs_degree_readable": false
       },
       "M8": {
@@ -694,7 +703,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.29438337995246167,
+        "lift_vs_degree": 0.4421463184020802,
         "vs_degree_readable": false
       },
       "COMBINED": {
@@ -717,28 +726,28 @@
         "lift_is_pool_artifact": false,
         "p_value": 0.14335575287893276,
         "beats_degree": true,
-        "lift_vs_degree": 2.316527076376355,
+        "lift_vs_degree": 3.4792858158770352,
         "vs_degree_readable": false
       },
       "degree": {
         "pool": 25383,
-        "pos": 773,
-        "hits": 3,
-        "expected": 3.0453453098530514,
-        "lift": 0.9851099611901681,
+        "pos": 774,
+        "hits": 2,
+        "expected": 3.0492849544971046,
+        "lift": 0.655891472868217,
         "mrr": 0.25,
-        "hits_lo": 3,
-        "hits_hi": 3,
-        "hits_expected": 3.0,
-        "lift_expected": 0.9851099611901681,
+        "hits_lo": 2,
+        "hits_hi": 2,
+        "hits_expected": 2.0,
+        "lift_expected": 0.655891472868217,
         "hits_determined": true,
-        "tied_at_cut": 10,
-        "tied_at_cut_positives": 1,
-        "lift_lo": 0.9851099611901681,
-        "lift_hi": 0.9851099611901681,
+        "tied_at_cut": 7,
+        "tied_at_cut_positives": 0,
+        "lift_lo": 0.655891472868217,
+        "lift_hi": 0.655891472868217,
         "trustworthy": true,
         "lift_is_pool_artifact": false,
-        "p_value": 0.5909101978881127,
+        "p_value": 0.8132312131046843,
         "lift_vs_degree": null,
         "beats_degree": null,
         "vs_degree_readable": null
@@ -905,7 +914,7 @@
         "hits_expected": 1.0,
         "lift_expected": 0.9688167938931298,
         "hits_determined": true,
-        "tied_at_cut": 10,
+        "tied_at_cut": 7,
         "tied_at_cut_positives": 0,
         "lift_lo": 0.9688167938931298,
         "lift_hi": 0.9688167938931298,
@@ -978,7 +987,7 @@
         "hits_expected": 2.0,
         "lift_expected": 2.383380281690141,
         "hits_determined": true,
-        "tied_at_cut": 10,
+        "tied_at_cut": 7,
         "tied_at_cut_positives": 0,
         "lift_lo": 2.383380281690141,
         "lift_hi": 2.383380281690141,
@@ -1051,7 +1060,7 @@
         "hits_expected": 2.0,
         "lift_expected": 2.6033846153846154,
         "hits_determined": true,
-        "tied_at_cut": 10,
+        "tied_at_cut": 7,
         "tied_at_cut_positives": 0,
         "lift_lo": 2.6033846153846154,
         "lift_hi": 2.6033846153846154,
@@ -1136,7 +1145,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": true,
-        "lift_vs_degree": 2.1897464182064112,
+        "lift_vs_degree": 4.3794928364128225,
         "vs_degree_readable": false
       },
       "M5": {
@@ -1161,7 +1170,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": true,
-        "lift_vs_degree": 3.0560611432848757,
+        "lift_vs_degree": 6.112122286569751,
         "vs_degree_readable": false
       },
       "M6": {
@@ -1209,28 +1218,28 @@
         "lift_is_pool_artifact": false,
         "p_value": 0.13355694666227547,
         "beats_degree": true,
-        "lift_vs_degree": 2.2818159135379323,
+        "lift_vs_degree": 4.563631827075865,
         "vs_degree_readable": false
       },
       "degree": {
         "pool": 25383,
         "pos": 164,
-        "hits": 2,
+        "hits": 1,
         "expected": 0.6461017216247095,
-        "lift": 3.0954878048780485,
-        "mrr": 0.011764705882352941,
-        "hits_lo": 2,
-        "hits_hi": 2,
-        "hits_expected": 2.0,
-        "lift_expected": 3.0954878048780485,
+        "lift": 1.5477439024390243,
+        "mrr": 0.010752688172043012,
+        "hits_lo": 1,
+        "hits_hi": 1,
+        "hits_expected": 1.0,
+        "lift_expected": 1.5477439024390243,
         "hits_determined": true,
-        "tied_at_cut": 10,
-        "tied_at_cut_positives": 1,
-        "lift_lo": 3.0954878048780485,
-        "lift_hi": 3.0954878048780485,
+        "tied_at_cut": 7,
+        "tied_at_cut_positives": 0,
+        "lift_lo": 1.5477439024390243,
+        "lift_hi": 1.5477439024390243,
         "trustworthy": false,
         "lift_is_pool_artifact": false,
-        "p_value": 0.1366702838278392,
+        "p_value": 0.4776772044782461,
         "lift_vs_degree": null,
         "beats_degree": null,
         "vs_degree_readable": null
@@ -1272,7 +1281,7 @@
         "hits_expected": 2.0,
         "lift_expected": 3.3180392156862744,
         "hits_determined": true,
-        "tied_at_cut": 10,
+        "tied_at_cut": 7,
         "tied_at_cut_positives": 0,
         "lift_lo": 3.3180392156862744,
         "lift_hi": 3.3180392156862744,
@@ -1307,7 +1316,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.0711152350952354,
+        "lift_vs_degree": 0.08296777427777463,
         "vs_degree_readable": true
       },
       "M3": {
@@ -1332,7 +1341,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.20286757889540405,
+        "lift_vs_degree": 0.23667884204463807,
         "vs_degree_readable": true
       },
       "M7": {
@@ -1357,7 +1366,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.06287672851908759,
+        "lift_vs_degree": 0.07335618327226885,
         "vs_degree_readable": true
       },
       "M8": {
@@ -1382,7 +1391,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.06929272122511693,
+        "lift_vs_degree": 0.08084150809596975,
         "vs_degree_readable": true
       },
       "COMBINED": {
@@ -1405,28 +1414,28 @@
         "lift_is_pool_artifact": false,
         "p_value": 0.23524219302793992,
         "beats_degree": false,
-        "lift_vs_degree": 0.1227118012367983,
+        "lift_vs_degree": 0.14316376810959802,
         "vs_degree_readable": true
       },
       "degree": {
         "pool": 25383,
         "pos": 152,
-        "hits": 7,
+        "hits": 6,
         "expected": 0.5988259858960722,
-        "lift": 11.68953947368421,
+        "lift": 10.019605263157894,
         "mrr": 0.06666666666666667,
-        "hits_lo": 7,
-        "hits_hi": 7,
-        "hits_expected": 7.0,
-        "lift_expected": 11.68953947368421,
+        "hits_lo": 6,
+        "hits_hi": 6,
+        "hits_expected": 6.0,
+        "lift_expected": 10.019605263157894,
         "hits_determined": true,
-        "tied_at_cut": 10,
-        "tied_at_cut_positives": 1,
-        "lift_lo": 11.68953947368421,
-        "lift_hi": 11.68953947368421,
+        "tied_at_cut": 7,
+        "tied_at_cut_positives": 0,
+        "lift_lo": 10.019605263157894,
+        "lift_hi": 10.019605263157894,
         "trustworthy": false,
         "lift_is_pool_artifact": false,
-        "p_value": 2.4149589289082195e-06,
+        "p_value": 3.13211445304565e-05,
         "lift_vs_degree": null,
         "beats_degree": null,
         "vs_degree_readable": null
@@ -1453,28 +1462,28 @@
         "lift_is_pool_artifact": true,
         "p_value": null,
         "beats_degree": false,
-        "lift_vs_degree": 0.0,
+        "lift_vs_degree": null,
         "vs_degree_readable": false
       },
       "degree": {
         "pool": 25383,
         "pos": 135,
-        "hits": 1,
+        "hits": 0,
         "expected": 0.5318520269471694,
-        "lift": 1.8802222222222222,
-        "mrr": 0.01020408163265306,
-        "hits_lo": 1,
-        "hits_hi": 1,
-        "hits_expected": 1.0,
-        "lift_expected": 1.8802222222222222,
+        "lift": 0.0,
+        "mrr": 0.005,
+        "hits_lo": 0,
+        "hits_hi": 0,
+        "hits_expected": 0.0,
+        "lift_expected": 0.0,
         "hits_determined": true,
-        "tied_at_cut": 10,
-        "tied_at_cut_positives": 1,
-        "lift_lo": 1.8802222222222222,
-        "lift_hi": 1.8802222222222222,
+        "tied_at_cut": 7,
+        "tied_at_cut_positives": 0,
+        "lift_lo": 0.0,
+        "lift_hi": 0.0,
         "trustworthy": false,
         "lift_is_pool_artifact": false,
-        "p_value": 0.41393047800324834,
+        "p_value": 1.0,
         "lift_vs_degree": null,
         "beats_degree": null,
         "vs_degree_readable": null
@@ -1503,7 +1512,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.015719182129771893,
+        "lift_vs_degree": 0.017964779576882164,
         "vs_degree_readable": true
       },
       "M2": {
@@ -1528,7 +1537,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.091320962849151,
+        "lift_vs_degree": 0.10436681468474401,
         "vs_degree_readable": true
       },
       "M3": {
@@ -1553,7 +1562,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.08907536540204072,
+        "lift_vs_degree": 0.10180041760233226,
         "vs_degree_readable": true
       },
       "M4": {
@@ -1578,7 +1587,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.8457333648504904,
+        "lift_vs_degree": 0.9665524169719891,
         "vs_degree_readable": true
       },
       "M5": {
@@ -1603,7 +1612,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.4252600165465075,
+        "lift_vs_degree": 0.48601144748172287,
         "vs_degree_readable": true
       },
       "M6": {
@@ -1653,7 +1662,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.009169522909033605,
+        "lift_vs_degree": 0.010479454753181263,
         "vs_degree_readable": true
       },
       "COMBINED": {
@@ -1676,28 +1685,28 @@
         "lift_is_pool_artifact": false,
         "p_value": 9.272607184098029e-05,
         "beats_degree": false,
-        "lift_vs_degree": 0.5099207415127519,
+        "lift_vs_degree": 0.5827665617288593,
         "vs_degree_readable": true
       },
       "degree": {
         "pool": 25383,
         "pos": 133,
-        "hits": 8,
+        "hits": 7,
         "expected": 0.5239727376590632,
-        "lift": 15.26796992481203,
+        "lift": 13.359473684210526,
         "mrr": 0.06666666666666667,
-        "hits_lo": 8,
-        "hits_hi": 8,
-        "hits_expected": 8.0,
-        "lift_expected": 15.26796992481203,
+        "hits_lo": 7,
+        "hits_hi": 7,
+        "hits_expected": 7.0,
+        "lift_expected": 13.359473684210526,
         "hits_determined": true,
-        "tied_at_cut": 10,
-        "tied_at_cut_positives": 1,
-        "lift_lo": 15.26796992481203,
-        "lift_hi": 15.26796992481203,
+        "tied_at_cut": 7,
+        "tied_at_cut_positives": 0,
+        "lift_lo": 13.359473684210526,
+        "lift_hi": 13.359473684210526,
         "trustworthy": false,
         "lift_is_pool_artifact": false,
-        "p_value": 5.70554708683064e-08,
+        "p_value": 9.875533466849374e-07,
         "lift_vs_degree": null,
         "beats_degree": null,
         "vs_degree_readable": null
@@ -1726,8 +1735,8 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.027012830109390797,
-        "vs_degree_readable": true
+        "lift_vs_degree": 0.0405192451640862,
+        "vs_degree_readable": false
       },
       "M2": {
         "pool": 721,
@@ -1751,8 +1760,8 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.22913235892789136,
-        "vs_degree_readable": true
+        "lift_vs_degree": 0.34369853839183706,
+        "vs_degree_readable": false
       },
       "M3": {
         "pool": 195,
@@ -1777,7 +1786,7 @@
         "order_dependent": false,
         "beats_degree": false,
         "lift_vs_degree": 0.0,
-        "vs_degree_readable": true
+        "vs_degree_readable": false
       },
       "M4": {
         "pool": 4091,
@@ -1800,9 +1809,9 @@
         "p_value": 0.19984459735346458,
         "truncated_walks": 0,
         "order_dependent": false,
-        "beats_degree": false,
-        "lift_vs_degree": 0.7222842351471749,
-        "vs_degree_readable": true
+        "beats_degree": true,
+        "lift_vs_degree": 1.0834263527207624,
+        "vs_degree_readable": false
       },
       "M5": {
         "pool": 2668,
@@ -1826,8 +1835,8 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.6056321910239888,
-        "vs_degree_readable": true
+        "lift_vs_degree": 0.9084482865359831,
+        "vs_degree_readable": false
       },
       "M6": {
         "pool": 205,
@@ -1852,7 +1861,7 @@
         "order_dependent": false,
         "beats_degree": false,
         "lift_vs_degree": 0.0,
-        "vs_degree_readable": true
+        "vs_degree_readable": false
       },
       "M7": {
         "pool": 8,
@@ -1877,7 +1886,7 @@
         "order_dependent": false,
         "beats_degree": false,
         "lift_vs_degree": 0.0,
-        "vs_degree_readable": true
+        "vs_degree_readable": false
       },
       "COMBINED": {
         "pool": 4321,
@@ -1899,28 +1908,28 @@
         "lift_is_pool_artifact": false,
         "p_value": 0.2798581327801098,
         "beats_degree": false,
-        "lift_vs_degree": 0.4904304155574691,
-        "vs_degree_readable": true
+        "lift_vs_degree": 0.7356456233362036,
+        "vs_degree_readable": false
       },
       "degree": {
         "pool": 25383,
         "pos": 121,
-        "hits": 3,
+        "hits": 2,
         "expected": 0.47669700193042586,
-        "lift": 6.293305785123967,
-        "mrr": 0.01694915254237288,
-        "hits_lo": 3,
-        "hits_hi": 3,
-        "hits_expected": 3.0,
-        "lift_expected": 6.293305785123967,
+        "lift": 4.195537190082645,
+        "mrr": 0.014705882352941176,
+        "hits_lo": 2,
+        "hits_hi": 2,
+        "hits_expected": 2.0,
+        "lift_expected": 4.195537190082645,
         "hits_determined": true,
-        "tied_at_cut": 10,
-        "tied_at_cut_positives": 1,
-        "lift_lo": 6.293305785123967,
-        "lift_hi": 6.293305785123967,
+        "tied_at_cut": 7,
+        "tied_at_cut_positives": 0,
+        "lift_lo": 4.195537190082645,
+        "lift_hi": 4.195537190082645,
         "trustworthy": false,
         "lift_is_pool_artifact": false,
-        "p_value": 0.012217169092323914,
+        "p_value": 0.08254076938184456,
         "lift_vs_degree": null,
         "beats_degree": null,
         "vs_degree_readable": null
@@ -1949,7 +1958,7 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.0,
+        "lift_vs_degree": null,
         "vs_degree_readable": false
       },
       "COMBINED": {
@@ -1972,28 +1981,28 @@
         "lift_is_pool_artifact": true,
         "p_value": null,
         "beats_degree": false,
-        "lift_vs_degree": 0.0,
+        "lift_vs_degree": null,
         "vs_degree_readable": false
       },
       "degree": {
         "pool": 25383,
         "pos": 72,
-        "hits": 1,
+        "hits": 0,
         "expected": 0.28365441437182365,
-        "lift": 3.5254166666666666,
-        "mrr": 0.01020408163265306,
-        "hits_lo": 1,
-        "hits_hi": 1,
-        "hits_expected": 1.0,
-        "lift_expected": 3.5254166666666666,
+        "lift": 0.0,
+        "mrr": 0.005,
+        "hits_lo": 0,
+        "hits_hi": 0,
+        "hits_expected": 0.0,
+        "lift_expected": 0.0,
         "hits_determined": true,
-        "tied_at_cut": 10,
-        "tied_at_cut_positives": 1,
-        "lift_lo": 3.5254166666666666,
-        "lift_hi": 3.5254166666666666,
+        "tied_at_cut": 7,
+        "tied_at_cut_positives": 0,
+        "lift_lo": 0.0,
+        "lift_hi": 0.0,
         "trustworthy": false,
         "lift_is_pool_artifact": false,
-        "p_value": 0.24769516145922035,
+        "p_value": 1.0,
         "lift_vs_degree": null,
         "beats_degree": null,
         "vs_degree_readable": null
@@ -2054,13 +2063,13 @@
         "hits": 0,
         "expected": 0.08273253752511524,
         "lift": 0.0,
-        "mrr": 0.0022935779816513763,
+        "mrr": 0.00047393364928909954,
         "hits_lo": 0,
         "hits_hi": 0,
         "hits_expected": 0.0,
         "lift_expected": 0.0,
         "hits_determined": true,
-        "tied_at_cut": 10,
+        "tied_at_cut": 7,
         "tied_at_cut_positives": 0,
         "lift_lo": 0.0,
         "lift_hi": 0.0,
@@ -2095,8 +2104,8 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.0,
-        "vs_degree_readable": true
+        "lift_vs_degree": null,
+        "vs_degree_readable": false
       },
       "M3": {
         "pool": 175,
@@ -2120,8 +2129,8 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.0,
-        "vs_degree_readable": true
+        "lift_vs_degree": null,
+        "vs_degree_readable": false
       },
       "M4": {
         "pool": 3606,
@@ -2145,8 +2154,8 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.0,
-        "vs_degree_readable": true
+        "lift_vs_degree": null,
+        "vs_degree_readable": false
       },
       "M5": {
         "pool": 878,
@@ -2170,8 +2179,8 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.0,
-        "vs_degree_readable": true
+        "lift_vs_degree": null,
+        "vs_degree_readable": false
       },
       "M6": {
         "pool": 21,
@@ -2195,8 +2204,8 @@
         "truncated_walks": 0,
         "order_dependent": false,
         "beats_degree": false,
-        "lift_vs_degree": 0.0,
-        "vs_degree_readable": true
+        "lift_vs_degree": null,
+        "vs_degree_readable": false
       },
       "COMBINED": {
         "pool": 3629,
@@ -2218,28 +2227,28 @@
         "lift_is_pool_artifact": false,
         "p_value": null,
         "beats_degree": false,
-        "lift_vs_degree": 0.0,
-        "vs_degree_readable": true
+        "lift_vs_degree": null,
+        "vs_degree_readable": false
       },
       "degree": {
         "pool": 25383,
         "pos": 5,
-        "hits": 1,
+        "hits": 0,
         "expected": 0.019698223220265532,
-        "lift": 50.766,
-        "mrr": 0.01020408163265306,
-        "hits_lo": 1,
-        "hits_hi": 1,
-        "hits_expected": 1.0,
-        "lift_expected": 50.766,
+        "lift": 0.0,
+        "mrr": 0.005,
+        "hits_lo": 0,
+        "hits_hi": 0,
+        "hits_expected": 0.0,
+        "lift_expected": 0.0,
         "hits_determined": true,
-        "tied_at_cut": 10,
-        "tied_at_cut_positives": 1,
-        "lift_lo": 50.766,
-        "lift_hi": 50.766,
+        "tied_at_cut": 7,
+        "tied_at_cut_positives": 0,
+        "lift_lo": 0.0,
+        "lift_hi": 0.0,
         "trustworthy": false,
         "lift_is_pool_artifact": false,
-        "p_value": 0.01954515342787003,
+        "p_value": 1.0,
         "lift_vs_degree": null,
         "beats_degree": null,
         "vs_degree_readable": null
@@ -2405,13 +2414,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "3356fae68afdf18d",
-      "edges_sha": "6148f080fb56418d"
+      "edges_sha": "f3bb418a89779e94"
     },
     "code": {
-      "commit": "66379a0a851d0562ebb7f51398fbe0f73300ab0a",
-      "dirty": true
+      "commit": "8ce3e5b8a2ac44013d148e4f49fa035260101c68",
+      "dirty": false
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-07T00:41:13+00:00"
+    "generated_utc": "2026-11-07T04:55:50+00:00"
   }
 }

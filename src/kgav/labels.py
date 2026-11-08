@@ -340,6 +340,71 @@ def auc_ceiling(reached_pos: int, reached_neg: int,
     return (k * n_neg + 0.5 * (n_pos - k) * (n_neg - j)) / (n_pos * n_neg)
 
 
+def auc_floor(reached_pos: int, reached_neg: int,
+              n_pos: int, n_neg: int) -> float:
+    """The AUC this coverage produces with NO ranking skill at all.
+
+    The companion to `auc_ceiling`, and the more important of the two.
+    `auc_ceiling` says how high a scorer could have gone; this says how
+    high it gets for free. The gap between them is the only part of an
+    imputed AUC that reflects the ranking.
+
+    WHY IT IS NEEDED. On release v0.1, SARS-CoV-2, the cross-sectional
+    protocol reads degree 0.5767 and the COMBINED ensemble 0.5746 -- two
+    thousandths apart, which reads as "the graph ties with counting
+    edges". It is not a comparison. degree reaches every compound in both
+    classes, so its floor is exactly 0.5 and all 0.0767 of its margin is
+    ranking. COMBINED reaches 43.8% of the positives and 30.9% of the
+    negatives, and that gap ALONE scores 0.5645: 86% of its margin above
+    chance is the imputation, not the paths. Normalised by what each had
+    available -- (auc - floor) / (ceiling - floor) -- they read 15.3% and
+    15.0%, which is the defensible version of "indistinguishable".
+
+    THE MODEL, spelled out, because the formula is only obvious once:
+    every reached compound outranks every unreached one; the reached
+    positives and reached negatives are interleaved at random (half
+    credit); the unreached positives tie with the unreached negatives
+    (half credit) and lose to the reached negatives.
+
+        reached pos vs reached neg      k*j pairs, 0.5 each
+        reached pos vs unreached neg    k*(n_neg-j),  1.0 each
+        unreached pos vs reached neg    (n_pos-k)*j,  0.0 each
+        unreached pos vs unreached neg  (n_pos-k)*(n_neg-j), 0.5 each
+
+    which reduces exactly to `0.5 + (coverage_pos - coverage_neg) / 2`.
+    The reduction is asserted in the tests rather than used here, because
+    the pair counting is what the number MEANS and the two-term form is
+    what it simplifies to; writing only the short form leaves a reader
+    unable to check it.
+
+    Verified against the three cells of v0.1 that reach almost nothing,
+    where floor, measured AUC and ceiling coincide to four decimals:
+    M1 0.5135, M6 0.5156, M8 0.5056.
+
+    Reported, not enforced -- the same stance `auc_ceiling` takes, for
+    the same reason: what the evaluation claims belongs in the prereg.
+    """
+    if n_pos <= 0 or n_neg <= 0:
+        return 0.5
+    k = max(0, min(reached_pos, n_pos))
+    j = max(0, min(reached_neg, n_neg))
+    return (0.5 * k * j
+            + k * (n_neg - j)
+            + 0.5 * (n_pos - k) * (n_neg - j)) / (n_pos * n_neg)
+
+
+def auc_skill(auc: float, floor: float, ceiling: float) -> float | None:
+    """What fraction of the separation available to a scorer it used.
+
+    `None` when there was none available -- ceiling == floor -- which is
+    the honest answer for a channel reaching one compound, and is why
+    this returns an Optional rather than a 0.0 that would rank such a
+    channel alongside a genuine failure.
+    """
+    span = ceiling - floor
+    return None if span <= 1e-12 else (auc - floor) / span
+
+
 def measured_reach(results: Path, release: Path) -> dict[str, int] | None:
     """Held-out positives each virus's metapaths actually reach.
 
@@ -447,6 +512,7 @@ def evaluate_against_negatives(scores: dict[str, float], pos: set[str],
     # impose an imputation ceiling on a cell with no imputation. Found
     # by a surviving mutant, which turned out to be the correct code.
     ceiling = auc_ceiling(reached_p, reached_n, n_p, n_n)
+    floor = auc_floor(reached_p, reached_n, n_p, n_n)
     return {"n_pos": n_p, "n_neg": n_n, "auc": auc, "evaluable": True,
             # THE INTERVAL TRAVELS WITH THE NUMBER. A point AUC says nothing
             # about whether the scorer discriminates: 0.523 on 89 positives
@@ -466,4 +532,11 @@ def evaluate_against_negatives(scores: dict[str, float], pos: set[str],
             # ranked badly, or it could not have ranked well -- and
             # nothing in this dict distinguished them. See auc_ceiling.
             "auc_ceiling": ceiling,
-            "auc_headroom": ceiling - 0.5}
+            "auc_headroom": ceiling - 0.5,
+            # AND WHAT IT SCORED FOR FREE. auc_headroom measures the gap
+            # from CHANCE to the ceiling, which overstates what a
+            # low-coverage scorer had to play for: its floor is not 0.5.
+            # See auc_floor -- 86% of COMBINED's cross-sectional margin
+            # above chance is its coverage asymmetry.
+            "auc_floor": floor,
+            "auc_skill": auc_skill(auc, floor, ceiling)}

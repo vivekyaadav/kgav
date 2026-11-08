@@ -134,6 +134,13 @@ def parse() -> dict[str, list[str]]:
             break
         cells = [c.strip() for c in line.strip("|").split("|")]
         assert len(cells) == 8, f"expected 8 columns, got {len(cells)}: {line}"
+        # NO DUPLICATE ROWS. Keying by virus name silently collapses one, so
+        # the table carried JEV and HCoV-NL63 twice each from 2026-10-23 to
+        # 2026-11-08 while every check here passed: each duplicate agreed
+        # with the results file, and set equality cannot count.
+        assert cells[0] not in rows, (
+            f"{cells[0]} appears twice in the table; keying rows by virus "
+            f"hides a duplicate from every check in this file")
         rows[cells[0]] = cells[1:]
     return rows
 
@@ -540,13 +547,27 @@ def test_the_at_chance_claim_names_the_run_it_holds_under():
     It does hold. The replacement sentence is pinned to whichever run
     holds it now, and to the channel carrying it -- naming the verdict
     without the channel is how the table came to print M4 beside a
-    verdict about M7."""
+    verdict about M7.
+
+    BOTH DIRECTIONS, since 2026-11-08. The first version asserted the
+    verdict holds somewhere, so when L7 took degree's last determined
+    cross-sectional row away the test failed with "the document must be
+    corrected rather than this test relaxed" -- correct, but it gave no
+    way to state the true position without deleting the check. A document
+    that claims the verdict holds nowhere is as assertable as one that
+    names a holder: the derived set decides which claim is required, and
+    the other one fails.
+    """
     holding = at_chance_runs()
-    assert holding, (
-        "no run reads BASELINE AT CHANCE any more; the document still "
-        "says one does and must be corrected rather than this test "
-        "relaxed")
     text = DOC.read_text()
+    if not holding:
+        block = text.split("    CONFOUNDED", 1)[1].split(
+            "    (nothing)", 1)[0]
+        flat = " ".join(block.split())
+        assert "NO (run, virus) pair on this release" in flat, (
+            "no run reads BASELINE AT CHANCE; the verdict block must say "
+            "so in those words rather than describing a holder")
+        return
     # Whitespace-normalised, because the verdict block is a wrapped
     # indented paragraph: "M7's 1.34\n   (p=0.0004)" is the figure being
     # present, and a raw substring search calls it missing.
@@ -629,3 +650,132 @@ def test_the_significant_column_respects_readability(kw):
 
 def test_no_significant_channel_is_an_em_dash():
     assert significant_cell({"M4": _chan(0.4), "degree": _chan(0.9)}) == DASH
+
+
+WORDS = {0: "NO", 1: "ONE", 2: "TWO", 3: "THREE", 4: "FOUR", 5: "FIVE",
+         6: "SIX", 7: "SEVEN", 8: "EIGHT", 9: "NINE", 10: "TEN",
+         11: "ELEVEN", 12: "TWELVE"}
+
+
+def verdict_census() -> dict[str, int]:
+    """How many (run, virus) pairs read each verdict, derived.
+
+    The verdict block prints a count per class in words -- "Ten (run,
+    virus) pairs", "Three pairs, all temporal" -- and those counts went
+    stale three times in six days while the prose around them was
+    rewritten by hand. Only the AT CHANCE class had a test, and only in
+    the direction that assumed it held somewhere.
+    """
+    import sys
+    sys.path.insert(0, str(ROOT / "src"))
+    from kgav.baselines import confound_warning
+
+    runs = {"cross-sectional": ("metapath_comparison.json", "per_virus")}
+    for policy in ("computed_only", "include", "exclude"):
+        runs[f"temporal {policy}"] = (
+            f"temporal_2021_{policy}.json", "results")
+    out = {"CONFOUNDED": 0, "BASELINE AT CHANCE": 0,
+           "BASELINE NOT DETERMINED": 0}
+    for name, key in runs.values():
+        path = ROOT / "data" / "results" / name
+        if not path.exists():
+            continue
+        for row in json.loads(path.read_text())[key].values():
+            warning = confound_warning(row)
+            if warning:
+                out[warning.split(":")[0]] += 1
+    return out
+
+
+@pytest.mark.parametrize("verdict", ["CONFOUNDED", "BASELINE AT CHANCE",
+                                     "BASELINE NOT DETERMINED"])
+def test_each_verdict_entry_states_the_count_the_results_give(verdict):
+    """The count beside each verdict, in the words the block uses.
+
+    Derived, so a regeneration that moves a pair from one class to
+    another fails here instead of leaving a tally nothing recomputes --
+    which is what "Ten (run, virus) pairs" was on 2026-11-08, when the
+    real figure was eight.
+    """
+    n = verdict_census()[verdict]
+    text = DOC.read_text()
+    block = text.split("    CONFOUNDED", 1)[1].split("    (nothing)", 1)[0]
+    flat = " ".join(block.split())
+    entry = ("CONFOUNDED " + flat.split("BASELINE AT CHANCE", 1)[0]
+             if verdict == "CONFOUNDED" else
+             flat.split(verdict, 1)[1].split("BASELINE NOT", 1)[0]
+             if verdict == "BASELINE AT CHANCE" else
+             flat.split("BASELINE NOT", 1)[1])
+    word = WORDS[n]
+    assert word in entry or word.capitalize() in entry, (
+        f"{verdict} holds for {n} (run, virus) pair(s); its entry in the "
+        f"verdict block does not state that count:\n{entry}")
+
+
+# ------------------------------------------- which cells clear chance at all
+CLEAR_RUNS = {
+    "cross-sectional": ("hard_negatives.json", "cross_sectional"),
+    "temporal include": ("temporal_2021_include.json", "results"),
+    "temporal computed_only": ("temporal_2021_computed_only.json", "results"),
+    "temporal exclude": ("temporal_2021_exclude.json", "results"),
+}
+
+
+def clear_of_chance() -> dict[tuple[str, str, str], str]:
+    """(run, virus, scorer) -> rendered AUC, for every cell whose
+    Hanley-McNeil interval excludes 0.5.
+
+    THE CENSUS THAT EXISTED IN NO TEST. The claim block enumerated these
+    cells in prose -- "two scorers do, both only cross-sectionally and
+    both on SARS-CoV-2" -- while five of the seven were temporal and two
+    were a different virus. Every other table in this document is
+    re-derived; this sentence was the one summary of them all and nothing
+    could contradict it.
+    """
+    out = {}
+    for label, (name, key) in CLEAR_RUNS.items():
+        path = ROOT / "data" / "results" / name
+        if not path.exists():
+            continue
+        for virus, channels in json.loads(path.read_text())[key].items():
+            if not isinstance(channels, dict):
+                continue
+            for scorer, m in channels.items():
+                if not isinstance(m, dict):
+                    continue
+                lo, hi = m.get("auc_ci_lo"), m.get("auc_ci_hi")
+                if lo is None or hi is None:
+                    continue
+                if lo > 0.5 or hi < 0.5:
+                    out[(label, virus, scorer)] = (
+                        f"{m['auc']:.3f} [{lo:.3f}, {hi:.3f}]")
+    return out
+
+
+def test_no_individual_reasoning_channel_clears_chance_anywhere():
+    """The document's first sentence. A channel appearing here is the
+    result, not a test to relax -- and it would invalidate the whole
+    page, so it is asserted separately from the enumeration below."""
+    channels = {k: v for k, v in clear_of_chance().items()
+                if re.fullmatch(r"M\d", k[2])}
+    assert not channels, (
+        "an individual reasoning channel now has an AUC interval excluding "
+        f"chance: {channels}. The claim block says none does")
+
+
+def test_the_claim_block_enumerates_every_cell_that_clears_chance():
+    """Exactly the derived set, both ways: a cell that clears and is not
+    listed, and a cell listed that does not clear."""
+    got = clear_of_chance()
+    text = DOC.read_text()
+    block = text.split("The one-line version of every table here:", 1)[1]
+    block = block.split("Five figures for M1", 1)[0]
+    flat = " ".join(block.split())
+    # The count, stated.
+    assert str(len(got)) in flat or WORDS[len(got)].lower() in flat.lower(), (
+        f"{len(got)} cells clear chance; the block does not state that count")
+    for (label, virus, scorer), rendered in sorted(got.items()):
+        assert f"{scorer} {rendered}" in flat, (
+            f"{label} / {virus} / {scorer} reads {rendered} and the claim "
+            f"block does not print it")
+        assert virus in flat, f"{virus} clears chance and is not named"

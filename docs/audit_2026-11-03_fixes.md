@@ -40,7 +40,7 @@ The rest are screening compounds with no known target; no data source fixes them
 | # | Problem | Fix |
 |---|---|---|
 | B1 | `host_targets` keeps only `max_phase ≥ 2` drugs | Drop the phase filter (keep pChEMBL ≥ 6) → recovers ≤1,409 compounds |
-| B2 | Unreached compounds are imputed to the bottom of every ranking, so AUC mostly measures coverage | Report AUC on the reachable subset **plus** coverage, as the primary number |
+| B2 | Unreached compounds are imputed to the bottom of every ranking, so AUC mostly measures coverage | **HALF DONE 2026-11-08.** `kgav.labels.auc_floor` computes what a given coverage scores with no ranking skill (`0.5 + (cov_pos - cov_neg) / 2`, derived from the pair counting), `auc_skill` the fraction of the floor-to-ceiling span a scorer used, and both are now emitted beside `auc_ceiling`. The measurement: **86% of COMBINED's cross-sectional margin above chance is coverage asymmetry and 0% of degree's is**; normalised, every scorer including the baseline uses 13.0–26.3% of its available span and none is distinguishable from the others. `docs/evaluation.md` carries the decomposition, pinned by `tests/test_auc_decomposition.py`. **Not done:** `scripts/temporal_split.py` records `auc_n_pos`/`auc_n_neg` but not the coverages, so the temporal table cannot be decomposed — and that is the table whose COMBINED row, 0.526 [0.503, 0.549], is the one interval in this project excluding chance with no known floor beneath it |
 | B3 | **Decision needed:** restate the task as "compounds with a known mechanism" (≈30% of labels) | Owner's call before step 2 |
 
 ## L. Label quality
@@ -69,13 +69,20 @@ The rest are screening compounds with no known target; no data source fixes them
 
 | # | Claim | Truth (from `data/results`) |
 |---|---|---|
-| D1 | `docs/evaluation.md:55` "no scorer excludes chance… degree only cross-sectionally" | SARS-CoV-2 degree 0.624 [0.561, 0.686] and COMBINED 0.581 [0.518, 0.643] exclude 0.5; degree also excludes chance under the temporal split |
-| D2 | `evaluation.md:59` "4 of 4, no exception" | 5 viruses with p<0.05; degree cleared it in 1 |
-| D3 | `evaluation.md:49-69` temporal AUCs | Stale (pre-GtoP release) |
+| D1 | ~~`docs/evaluation.md:55` "no scorer excludes chance… degree only cross-sectionally"~~ **FIXED 2026-11-08.** The claim block now prints the whole derived census — seven (run, virus, scorer) cells clear chance, five of them temporal, two on SARS-CoV — and `tests/test_evaluation_table.py::test_the_claim_block_enumerates_every_cell_that_clears_chance` asserts the list is exactly the set the results files give, both ways. The surviving claim, that no INDIVIDUAL reasoning channel clears chance anywhere, has its own test |
+| D2 | ~~`evaluation.md:59` "4 of 4, no exception"~~ **FIXED 2026-11-08.** Re-measured: five cross-sectional viruses have a channel at p<0.05 — SARS-CoV-2 (M7), DENV-2 (M1, M4, M5), Zika (M5), West Nile (M4), MERS-CoV (M4, M5) — and degree clears it in one, MERS-CoV. The sentence had counted the viruses where DEGREE was significant. Corrected in `evaluation.md` and in the amendment to `docs/prereg_temporal_auc.md`, which cited it |
+| D3 | ~~`evaluation.md:49-69` temporal AUCs~~ **FIXED 2026-11-08.** Every cell of the temporal table was stale by two rebuilds; it is re-derived and now pinned by `tests/test_temporal_table.py`. Two further defects fell out of doing it: the pre-registered AUC bar of 0.586 was computed on the reach count (48) instead of the AUC's own n (`auc_n_pos` 1,580 / `auc_n_neg` 982, where the bar is 0.523), and "degree is at chance on the temporal split" was false — degree reads 0.555 [0.533, 0.578] there. Both are recorded in the prereg amendment |
 | D4 | `docs/v1_release_plan.md:16-40` node/edge counts and overlap ratios | Stale; see `pathway_landscape.json` |
 | D5 | `scripts/diagnose_doc_figures.py` matches figures by value, not by virus/channel → false passes | Match on (virus, channel, metric) |
 
-**State the real headline:** degree beats every reasoning channel on every scored virus.
+**State the real headline:** ~~degree beats every reasoning channel on every
+scored virus.~~ **Re-measured 2026-11-08 and withdrawn.** Degree's apparent
+margin was substantially the baseline counting the held-out label edges
+themselves (L7). With them excluded, cross-sectional SARS-CoV-2 reads degree
+0.577 [0.514, 0.639] against COMBINED 0.575 [0.512, 0.637] — 0.002 apart and
+not distinguishable. The real headline is that an eight-channel ensemble and
+counting a compound's edges perform identically, and both barely clear
+chance.
 
 ## A. Agent (`src/kgav/agent`, `scripts/kgav_ask.py`)
 

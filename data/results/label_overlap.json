@@ -1,7 +1,7 @@
 {
-  "both": 1163,
-  "both_sides_have_pubs": 1107,
-  "share_a_pub": 1019,
+  "both": 1165,
+  "both_sides_have_pubs": 1109,
+  "share_a_pub": 1020,
   "evidence_has_no_pmid": 31,
   "neither_has_a_pmid": 19,
   "label_has_no_pmid": 6,
@@ -15,13 +15,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "3356fae68afdf18d",
-      "edges_sha": "6148f080fb56418d"
+      "edges_sha": "f3bb418a89779e94"
     },
     "code": {
-      "commit": "66379a0a851d0562ebb7f51398fbe0f73300ab0a",
-      "dirty": true
+      "commit": "8ce3e5b8a2ac44013d148e4f49fa035260101c68",
+      "dirty": false
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-07T00:49:50+00:00"
+    "generated_utc": "2026-11-07T05:04:32+00:00"
   }
 }
