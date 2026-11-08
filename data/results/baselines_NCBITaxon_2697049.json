@@ -10,8 +10,8 @@
     "MEASURED_INACTIVE_AGAINST",
     "TREATS"
   ],
-  "n_positives": 2025,
-  "n_negatives": 10953,
+  "n_positives": 2005,
+  "n_negatives": 10984,
   "metrics": {
     "degree": {
       "n": 25383,
@@ -22,10 +22,10 @@
     },
     "dwpc": {
       "n": 7978,
-      "hits@10": 1,
-      "hits@50": 2,
-      "hits@100": 5,
-      "mrr": 1.0
+      "hits@10": 0,
+      "hits@50": 1,
+      "hits@100": 4,
+      "mrr": 0.037037037037037035
     },
     "proximity": {
       "n": 3907,
@@ -2450,10 +2450,10 @@
       "edges_sha": "f3bb418a89779e94"
     },
     "code": {
-      "commit": "8db681f698df2948b9536684e9992a9cc748cfea",
+      "commit": "fa9211d5ad69e26330da412a4c061266a2b1abef",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-08T10:53:30+00:00"
+    "generated_utc": "2026-11-08T11:27:02+00:00"
   }
 }

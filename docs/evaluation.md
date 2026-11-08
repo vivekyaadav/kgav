@@ -332,10 +332,10 @@ floor rather than the channel, and the cell reads *not evaluable*.
 
 | # | Protocol | pos | neg | cov_pos | cov_neg | reached | **M1** |
 |---|---|---|---|---|---|---|---|
-| 1 | `selective-only`, positives only | 798 | 10,953 | 57.5% | 1.8% | 459 | 0.779 [0.760, 0.798] |
-| 2 | `all` — no selectivity filter | 2,025 | 10,953 | 36.4% | 1.8% | 737 | 0.673 [0.660, 0.687] |
-| 3 | `verified-only`, **both** sides | 979 | 168 | 48.3% | 24.4% | 473 | 0.622 [0.579, 0.665] |
-| 4 | + `--publication-disjoint` | 979 | 168 | 0.5% | 1.2% | 5 | **not evaluable** |
+| 1 | `selective-only`, positives only | 785 | 10,984 | 58.0% | 1.8% | 455 | 0.781 [0.761, 0.800] |
+| 2 | `all` — no selectivity filter | 2,005 | 10,984 | 36.4% | 1.8% | 730 | 0.673 [0.659, 0.687] |
+| 3 | `verified-only`, **both** sides | 963 | 182 | 48.6% | 24.2% | 468 | 0.621 [0.579, 0.662] |
+| 4 | + `--publication-disjoint` | 963 | 182 | 0.5% | 2.2% | 5 | **not evaluable** |
 | 5 | + `--label-source` (one screen) | 89 | 7,343 | 3.4% | 0.7% | 3 | **not evaluable** |
 
 **These figures replace an earlier set -- 0.823, 0.726, 0.660, 0.499 -- that
@@ -469,15 +469,15 @@ So p-values make the *uncontrolled* protocol look full of discoveries.
 
 | virus | best readable channel | lift | p | significant | degree | p | baseline verdict |
 |---|---|---|---|---|---|---|---|
-| SARS-CoV-2 | M4 | 1.53 | 0.2630 | M7 0.0017 | 0.63 | 0.9088 | BASELINE NOT DETERMINED |
-| DENV-2 | — | — | — | — | 0.73 | 0.7858 | — |
-| Zika | — | — | — | — | 0.66 | 0.8132 | — |
+| SARS-CoV-2 | M4 | 1.61 | 0.2362 | M7 0.0014 | 0.63 | 0.9043 | BASELINE NOT DETERMINED |
+| DENV-2 | — | — | — | — | 0.76 | 0.7623 | — |
+| Zika | — | — | — | — | 0.67 | 0.8039 | — |
 | West Nile | — | — | — | — | 0.97 | 0.6464 | — |
 | DENV-3 | — | — | — | — | 2.38 | 0.2050 | — |
 | DENV-1 | — | — | — | — | 2.60 | 0.1793 | — |
 | HCoV-OC43 | — | — | — | — | 1.55 | 0.4777 | — |
 | DENV-4 | — | — | — | — | 3.32 | 0.1222 | — |
-| SARS-CoV | M3 | 2.37 | 0.0766 | — | 10.02 | <.0001 | CONFOUNDED |
+| SARS-CoV | M3 | 2.37 | 0.0766 | — | 10.09 | <.0001 | CONFOUNDED |
 | Yellow fever | — | — | — | — | 0.00 | 1.0000 | — |
 | MERS-CoV | M2 | 1.39 | 0.4374 | — | 13.36 | <.0001 | CONFOUNDED |
 | HCoV-229E | — | — | — | — | 4.20 | 0.0825 | — |
@@ -503,13 +503,13 @@ both are severe.
 
 `hits_determined: False` means the published hit count is one draw from a
 tie block straddling k, so the lift computed from it is one draw too. The
-tie blocks here are not marginal. **DENV-2 M1** has a nominal lift of 2.04
-at p=3.6e-11 -- the smallest p-value anywhere in this project -- and its
-Hits@100 range is `[0, 44]` out of 44 positives, with 166 of a 236-compound
-pool tied at the cut and every one of the 44 positives inside that block.
+tie blocks here are not marginal. **DENV-2 M1** has a nominal lift of 1.61
+at p=0.000222 -- the smallest p-value anywhere in this project -- and its
+Hits@100 range is `[0, 41]` out of 41 positives, with 166 of a 236-compound
+pool tied at the cut and every one of the 41 positives inside that block.
 The hit count could as truthfully have been zero. **SARS-CoV M1** reads lift
-2.08 at p=3.9e-06 with range `[2, 23]` of 23, 219 of a 239 pool tied, 21
-positives in the block. **Zika M1** is `[7, 29]`, **West Nile M1** is
+0.76 at p=0.8914 with range `[2, 22]` of 22, 219 of a 239 pool tied, 20
+positives in the block. **Zika M1** is `[7, 28]`, **West Nile M1** is
 `[0, 5]` with the entire pool of 106 tied. Four of the five largest-looking
 results in the table are a tie block being reported as a measurement.
 
@@ -543,7 +543,7 @@ Across all fifteen viruses and eight metapaths, **ten cells are both
 `trustworthy` and `hits_determined`** -- readable, in the sense the rest of
 this document means. One of them is nominally significant at p<0.05:
 
-**SARS-CoV-2 M7, lift 1.28, p=0.001655**, reaching 226 positives in a pool
+**SARS-CoV-2 M7, lift 1.29, p=0.001418**, reaching 225 positives in a pool
 of 476. It is the only cell in this table that clears any threshold while
 being readable.
 
@@ -610,9 +610,9 @@ seeing the number:
      the one the table meant was unrecorded. The verdict column is derived
      too -- `clears` iff the cell's p is below that family's alpha. -->
 
-| family | n | alpha | M7 at p=0.001655 |
+| family | n | alpha | M7 at p=0.001418 |
 |---|---|---|---|
-| readable cells only | 10 | 0.00500 | clears, by a factor of 3 |
+| readable cells only | 10 | 0.00500 | clears, by a factor of 4 |
 | every cell computed | 61 | 0.00082 | **fails** |
 | every cell planned (15 viruses x 8 metapaths) | 120 | 0.00042 | **fails** |
 | planned, plus COMBINED and degree | 150 | 0.00033 | **fails** |
@@ -770,7 +770,7 @@ because `lift_row` computes both from the same `hits_at_k` draw that
 with its own hits column saying the count is unknown within [7, 19] and the
 two columns beside it quoting a lift and a p computed from one number inside
 it. On v0.1 that is Zika M1, and its real lift interval is
-[7/14.1, 29/14.1] = **[0.50, 2.06]** — it contains 1.00, so the row is
+[7/13.6, 28/13.6] = **[0.52, 2.06]** — it contains 1.00, so the row is
 consistent with no enrichment while reading, as printed, as the strongest
 result in the regeneration: `p < .0001` against a Zika degree baseline that
 is itself at chance (lift 0.66, p=0.8132), which is exactly the clean
@@ -808,8 +808,8 @@ wording, while `vs_degree_readable` is False.
 
 Note SARS-CoV especially. M1 there reads p<0.0001 and looks like the
 strongest result in the project -- and it is not readable at all:
-`hits_determined` is `False`, its Hits@100 is one draw from [2, 23] of 23
-positives, so its lift is one draw from [0.21, 2.39], an interval that
+`hits_determined` is `False`, its Hits@100 is one draw from [2, 22] of 22
+positives, so its lift is one draw from [0.22, 2.39], an interval that
 contains 1.00. An earlier version of this paragraph compared M1's 2.10
 against a degree lift of 9.51 as though both were measurements; they were
 two draws. Reported alone, that p-value would have been the fifth wrong M1
@@ -821,7 +821,7 @@ canonical order changed nothing about the graph and moved the figure to
 0.83. `rank()` sorts on score with no tiebreak and Python's sort is
 stable, so which of 23 tied compounds fall inside Hits@100 is decided by
 the order edges.jsonl happens to be written in. Both numbers are draws
-from [0.21, 2.39]; quoting either one, and then saying in the next clause
+from [0.22, 2.39]; quoting either one, and then saying in the next clause
 that the interval contains 1.00, is the document disagreeing with itself
 in two sentences.
 
@@ -1097,16 +1097,16 @@ the run, that a Hanley-McNeil interval excludes 0.5 only from **0.586**
 upward "at COMBINED's 48 reached positives" against 3,630 negatives. The
 AUC is not computed over the reached positives. The results file records
 `auc_n_pos` and `auc_n_neg` directly, and on this split they are
-**1,580 and 982** for every scorer: `evaluate_against_negatives` ranks the
+**1,571 and 979** for every scorer: `evaluate_against_negatives` ranks the
 whole labelled test set and imputes the floor to the compounds a scorer
-cannot reach. At n=1,580/982 the interval half-width is 0.023, so the bar
+cannot reach. At n=1,571/979 the interval half-width is 0.023, so the bar
 -- the smallest AUC whose interval excludes 0.5 -- is **0.523**, not 0.586.
 COMBINED's 0.526 clears it with 0.003 to spare. The prereg's arithmetic was done carefully and shown in
 full; it was done on the reach count, which is the denominator of the LIFT.
 
 **AND IT NO LONGER CLEARS THE BAR AT ALL, ON A GRAPH WITH THE LEAK
-REMOVED.** COMBINED now reaches 32 of 1,580 test positives, 2.0%, and 3 of
-982 test negatives, 0.3%, and reads **0.509 [0.486, 0.532]** -- below the
+REMOVED.** COMBINED now reaches 32 of 1,571 test positives, 2.0%, and 3 of
+979 test negatives, 0.3%, and reads **0.509 [0.486, 0.532]** -- below the
 0.523 bar and containing chance. The arithmetic of its floor is exact: if
 reached compounds all outrank unreached ones and are internally unordered,
 the AUC is `0.5 + (coverage_pos - coverage_neg) / 2`.

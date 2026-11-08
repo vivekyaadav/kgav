@@ -141,9 +141,83 @@ def _potency(edge: dict) -> float | None:
     return None
 
 
-def classify(edge: dict, inactive_above_nm: float = DEFAULT_INACTIVE_ABOVE_NM,
-             active_below_nm: float = DEFAULT_ACTIVE_BELOW_NM) -> str | None:
-    """'active', 'inactive', or None when the measurement decides nothing."""
+def potency_fields(edge: dict) -> list[tuple[str, float]]:
+    """Every potency field this edge carries, in POTENCY_FIELDS order.
+
+    `_potency` returns the first and `classify` reads only that one, so
+    the order of a module-level tuple decided the verdict of any edge
+    holding more than one. See `contested_potency`.
+    """
+    q = edge.get("qualifiers") or {}
+    return [(f, float(q[f])) for f in POTENCY_FIELDS if q.get(f) is not None]
+
+
+def contested_potency(edge: dict, inactive_above_nm: float,
+                      active_below_nm: float) -> bool:
+    """Whether this edge's potency fields disagree about its verdict.
+
+    THE DEFECT (fix-list L3). `merge_edges` joins the records of one
+    (compound, target) pair into a single edge, so a compound with an
+    EC50 of 400 nM and an IC50 of 40,000 nM against the same virus
+    arrives as ONE edge carrying both numbers and one `relation`.
+    `_potency` returns the first field present in POTENCY_FIELDS, which
+    is `ec50_nm`, so that edge classified ACTIVE -- and had the tuple
+    been written `("ic50_nm", "ec50_nm", ...)` it would have classified
+    INACTIVE. The verdict came from the declaration order of a constant.
+
+    MEASURED on data/releases/v0.1, over 26,278
+    HAS_ANTIVIRAL_ACTIVITY_AGAINST edges:
+
+        edges carrying 2+ potency fields     1,578
+        of those, fields DISAGREE              173
+          currently called active              118
+          currently called inactive             55
+        distinct field pairs involved            1   (ec50_nm + ic50_nm)
+
+    So 173 label verdicts were decided by a tuple's order, 118 of them
+    becoming positives. The module's own rule settles what to do with
+    them: "a compound with both an active and an inactive measurement
+    against the same virus is real -- different cell lines, different
+    strains, different labs -- and forcing it to one side would
+    manufacture a label the data does not support." `build_labels`
+    already applies exactly that to a compound whose SEPARATE edges
+    disagree. This applies it one level down, to a single edge whose
+    merged fields disagree, which is the same disagreement surviving a
+    merge.
+
+    NOT A JUDGEMENT ABOUT WHICH FIELD IS BETTER. An EC50 and an IC50
+    are different assays and either may be the relevant one; the point
+    is that nothing in the edge says which, so the edge decides nothing.
+
+    THE PROTEIN LAYER IS UNAFFECTED, measured before the change: of the
+    192 INHIBITS and 52 MEASURED_INACTIVE_AGAINST edges carrying two
+    potency fields, ZERO disagree. `chembl.py` calls classify() on
+    single rows before merge_edges runs, so the contradiction cannot
+    arise there -- it is created by the merge and only the label
+    predicate is read after it.
+    """
+    verdicts = set()
+    for name, _value in potency_fields(edge):
+        # `name`, not `field` -- dataclasses.field is imported above and a
+        # loop variable shadowing it is how a module grows a bug that only
+        # shows up when someone adds a dataclass. ruff F402 caught it.
+        one = {"qualifiers": {k: v for k, v in
+                              (edge.get("qualifiers") or {}).items()
+                              if k not in POTENCY_FIELDS or k == name}}
+        verdicts.add(_verdict(one, inactive_above_nm, active_below_nm))
+    verdicts.discard(None)
+    return len(verdicts) > 1
+
+
+def _verdict(edge: dict, inactive_above_nm: float,
+             active_below_nm: float) -> str | None:
+    """The verdict from this edge's FIRST potency field.
+
+    Split out of `classify` so `contested_potency` can ask the same
+    question of one field at a time without a second copy of the
+    threshold logic -- the two-implementations failure this repository
+    keeps finding. Not for callers: `classify` is the entry point.
+    """
     q = edge.get("qualifiers") or {}
     relation = q.get("relation") or "="
     value = _potency(edge)
@@ -159,6 +233,19 @@ def classify(edge: dict, inactive_above_nm: float = DEFAULT_INACTIVE_ABOVE_NM,
     if relation in ("<", "<="):
         return "active" if value <= active_below_nm else None
     return None
+
+
+def classify(edge: dict, inactive_above_nm: float = DEFAULT_INACTIVE_ABOVE_NM,
+             active_below_nm: float = DEFAULT_ACTIVE_BELOW_NM) -> str | None:
+    """'active', 'inactive', or None when the measurement decides nothing.
+
+    An edge whose potency fields DISAGREE decides nothing, however
+    confident either field looks on its own -- see `contested_potency`
+    for the measurement and the argument.
+    """
+    if contested_potency(edge, inactive_above_nm, active_below_nm):
+        return None
+    return _verdict(edge, inactive_above_nm, active_below_nm)
 
 
 def censored_bound_census(release: Path,
@@ -255,6 +342,14 @@ def build_labels(release: Path, year_from: int | None = None,
         verdict = classify(e, inactive_above_nm, active_below_nm)
         if verdict is None:
             out.stats["undecidable"] += 1
+            # SEPARATELY, because the two have different remedies. An
+            # edge with no potency value needs data; an edge whose
+            # fields DISAGREE needs a judgement about which assay the
+            # label means, and until that judgement is made it is the
+            # same ambiguity this module already drops one level up.
+            # 173 label edges on v0.1, 118 of them former positives.
+            if contested_potency(e, inactive_above_nm, active_below_nm):
+                out.stats["contested_potency"] += 1
             continue
         bucket = active if verdict == "active" else inactive
         bucket.setdefault(e["object"], set()).add(e["subject"])

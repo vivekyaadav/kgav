@@ -228,11 +228,11 @@ only from 0.586 upward" used the wrong n, and the arithmetic above it is
 right.** `evaluate_against_negatives` ranks the whole labelled test set and
 imputes the floor to every compound a scorer cannot reach, so the AUC's n
 is the test set and is identical for all nine scorers. The results file has
-recorded it all along, in `auc_n_pos` and `auc_n_neg`: **1,580 and 982** on
+recorded it all along, in `auc_n_pos` and `auc_n_neg`: **1,571 and 979** on
 `undated=include`. The reach count — 48 then, 96 now — is the denominator
 of the LIFT, not of the AUC.
 
-At n=1,580/982 the interval half-width is 0.023 and the bar is **0.523**.
+At n=1,571/979 the interval half-width is 0.023 and the bar is **0.523**.
 The table in "What AUC the interval needs to clear chance" is correct for
 every row it contains; the row the run needed was not in it, and the
 conclusion drawn from the table therefore understated the bar by 0.063.
@@ -280,8 +280,9 @@ significant.
 
 ## 0.526 IS the imputation floor
 
-COMBINED reaches 96 of 1,580 test positives, 6.1%, and 8 of 982 test
-negatives, 0.8%. The other 93.9% of the positives carry the imputed floor.
+COMBINED reaches 96 of 1,575 test positives, 6.1%, and 8 of 984 test
+negatives, 0.8% (the figures of the leaking graph; see the next
+amendment). The other 93.9% of the positives carry the imputed floor.
 An AUC computed that way exceeds 0.5 whenever a scorer reaches a larger
 fraction of the positives than of the negatives, with no ranking skill
 inside the reached set at all: if reached compounds all outrank unreached
@@ -298,7 +299,7 @@ ones and are internally unordered, the AUC is exactly
 ceiling is three ten-thousandths above it.** COMBINED could not have
 scored above 0.5266 however well it ranked, and it scored what its reach
 alone produces. The interval [0.503, 0.549] excludes 0.5 because n is
-1,580/982, not because anything was separated. `kgav.labels.auc_floor` and
+1,571/979, not because anything was separated. `kgav.labels.auc_floor` and
 `auc_ceiling` compute both figures and
 `tests/test_auc_decomposition.py::test_the_one_chance_clearing_ensemble_cell_is_its_own_floor`
 fails if a later release pulls the three numbers apart.
@@ -401,3 +402,20 @@ and still has 0.0000 of span between floor and ceiling.
 
 Unchanged, and now for the simplest possible reason. **No result is
 claimed for COMBINED**: its interval contains 0.5.
+
+---
+
+# Amendment, 2026-11-09 (second): the test-set sizes moved under L3
+
+The figures above were measured before fix-list L3, which made a label
+edge whose potency fields DISAGREE decide nothing. 173 such edges left the
+label set, so the temporal test set is slightly smaller:
+
+    auc_n_pos  1,580 -> 1,571        auc_n_neg  982 -> 979
+
+The bar is unchanged at **0.523** -- the Hanley-McNeil half-width at
+1,571/979 is still 0.023 -- and so is every conclusion above. COMBINED
+reads 0.5087 against a floor of 0.5087, degree 0.5163 against 0.5163, and
+neither interval excludes 0.5. Recorded because an n that moves without
+being re-derived is how the 0.586 bar came to be computed on the wrong
+one in the first place.

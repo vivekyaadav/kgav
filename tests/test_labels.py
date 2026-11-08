@@ -42,6 +42,154 @@ def test_edge_without_a_potency_value_decides_nothing():
     assert classify(e) is None
 
 
+# ------------------------------------------- contested potency fields (L3)
+def _two_fields(ec50, ic50, relation="="):
+    """One edge carrying both an EC50 and an IC50, as merge_edges makes it."""
+    e = _act("d", ec50, relation)
+    e["qualifiers"]["ic50_nm"] = ic50
+    return e
+
+
+def test_an_edge_whose_potency_fields_disagree_decides_nothing():
+    """THE DEFECT: the verdict came from the order of a module constant.
+
+    `_potency` returns the first field present in POTENCY_FIELDS, which
+    begins "ec50_nm", so an edge with EC50 400 nM and IC50 40,000 nM
+    classified ACTIVE -- and would have classified INACTIVE had the
+    tuple been written the other way round. 173 label edges on v0.1 are
+    in this state, 118 of them currently positives.
+    """
+    assert classify(_two_fields(400.0, 40_000.0)) is None
+    assert classify(_two_fields(40_000.0, 400.0)) is None
+
+
+def test_the_verdict_no_longer_depends_on_the_field_order():
+    """Directly: reversing POTENCY_FIELDS must change no verdict.
+
+    The property the fix establishes, asserted as a property rather than
+    on one example -- a mutant that special-cased the ec50/ic50 pair
+    would pass the test above and fail this one.
+    """
+    pairs = [(400.0, 40_000.0), (40_000.0, 400.0), (200.0, 300.0),
+             (20_000.0, 30_000.0), (10_000.0, 10_000.0)]
+    original = L.POTENCY_FIELDS
+    try:
+        before = [classify(_two_fields(a, b)) for a, b in pairs]
+        L.POTENCY_FIELDS = tuple(reversed(original))
+        after = [classify(_two_fields(a, b)) for a, b in pairs]
+    finally:
+        L.POTENCY_FIELDS = original
+    assert before == after, (
+        f"reversing POTENCY_FIELDS changed {sum(x != y for x, y in zip(before, after))} "
+        f"of {len(pairs)} verdicts: {before} vs {after}")
+
+
+def test_fields_that_agree_still_decide():
+    """The fix must not refuse an edge whose fields agree.
+
+    A mutant returning None for every multi-field edge would pass both
+    tests above while deleting 1,405 sound labels -- the 1,578 edges
+    carrying two fields less the 173 that disagree.
+    """
+    assert classify(_two_fields(200.0, 300.0)) == "active"
+    assert classify(_two_fields(20_000.0, 30_000.0)) == "inactive"
+
+
+def test_a_single_field_edge_is_untouched():
+    assert classify(_act("d", 200.0)) == "active"
+    assert classify(_act("d", 50_000.0)) == "inactive"
+
+
+def test_contested_is_about_the_verdict_not_the_values():
+    """Two very different numbers on the same side of the cut are not a
+    contradiction, and two close numbers straddling it are.
+
+    This is the distinction the fix rests on: the cut is what the label
+    means, so 200 nM against 300 nM agree completely while 9,999 nM
+    against 10,001 nM do not.
+    """
+    assert L.contested_potency(_two_fields(1.0, 9_000.0), 10_000.0, 10_000.0) is False
+    assert L.contested_potency(_two_fields(9_999.0, 10_001.0), 10_000.0, 10_000.0) is True
+
+
+def test_a_contested_edge_is_counted_in_the_label_stats(tmp_path):
+    """Dropped AND counted, the rule this module states for ambiguity.
+
+    Without the counter a contested edge is indistinguishable from an
+    edge with no potency value at all, and the two have different
+    remedies: one needs a judgement about which assay to read, the other
+    needs data.
+    """
+    r = _release(tmp_path, [_two_fields(400.0, 40_000.0), _act("A", 200.0)])
+    lab = build_labels(r)
+    assert lab.positives[V] == {"A"}
+    assert lab.stats["contested_potency"] == 1
+    assert lab.stats["undecidable"] == 1
+
+
+def test_the_release_has_the_contested_edges_the_docstring_claims():
+    """The figures in `contested_potency`'s docstring, re-derived.
+
+    A number in a comment with no way back to the data is the defect
+    this repository keeps finding, and this docstring carries five.
+    """
+    release = Path(__file__).resolve().parents[1] / "data/releases/v0.1"
+    if not (release / "edges.jsonl").exists():
+        pytest.skip("release v0.1 is not built in this checkout")
+    multi = contested = active = inactive = 0
+    for line in (release / "edges.jsonl").read_text().splitlines():
+        if not line.strip():
+            continue
+        e = json.loads(line)
+        if e["predicate"] != "HAS_ANTIVIRAL_ACTIVITY_AGAINST":
+            continue
+        if len(L.potency_fields(e)) < 2:
+            continue
+        multi += 1
+        if not L.contested_potency(e, 10_000.0, 10_000.0):
+            continue
+        contested += 1
+        # Which side the OLD code would have put it on: the first field.
+        if L._verdict(e, 10_000.0, 10_000.0) == "active":
+            active += 1
+        else:
+            inactive += 1
+    doc = L.contested_potency.__doc__
+    for figure in (f"{multi:,}", f"{contested:>8,}".strip(),
+                   f"{active:>8,}".strip(), f"{inactive:>8,}".strip()):
+        assert figure in doc, (
+            f"the docstring does not state {figure}; measured "
+            f"multi={multi:,} contested={contested} active={active} "
+            f"inactive={inactive}")
+
+
+def test_the_protein_layer_has_no_contested_edges():
+    """The claim that justified leaving chembl.py alone, asserted.
+
+    chembl.py calls classify() on single rows before merge_edges runs, so
+    a contradiction cannot arise there -- it is created by the merge, and
+    only the label predicate is read afterwards. If an INHIBITS edge ever
+    becomes contested, routing it to a predicate by its first potency
+    field is the same defect in the features, and this fails.
+    """
+    release = Path(__file__).resolve().parents[1] / "data/releases/v0.1"
+    if not (release / "edges.jsonl").exists():
+        pytest.skip("release v0.1 is not built in this checkout")
+    bad = []
+    for line in (release / "edges.jsonl").read_text().splitlines():
+        if not line.strip():
+            continue
+        e = json.loads(line)
+        if e["predicate"] not in ("INHIBITS", "MEASURED_INACTIVE_AGAINST"):
+            continue
+        if L.contested_potency(e, 10_000.0, 10_000.0):
+            bad.append(e["edge_id"])
+    assert not bad, (
+        f"{len(bad)} protein-layer edges have contested potency fields, so "
+        f"the predicate they were routed to depends on POTENCY_FIELDS order: "
+        f"{bad[:5]}")
+
+
 def _release(tmp_path, edges):
     (tmp_path / "nodes.jsonl").write_text("")
     (tmp_path / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in edges))
