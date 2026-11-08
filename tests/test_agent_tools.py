@@ -1243,7 +1243,7 @@ def test_the_release_contains_the_cases_a4_is_about():
 
     pairs = cross_virus = no_own_potency = not_an_ic50 = changed = 0
     genuinely_not_an_ic50 = 0
-    for compound, rows in inhibits.items():
+    for _compound, rows in inhibits.items():
         reported = old_best(rows)
         if reported is None:
             continue
