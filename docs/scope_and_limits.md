@@ -46,6 +46,22 @@ Seven coronaviruses and nine flaviviruses, built from
 edges. **8 of the 16 viruses have no dependency factor at all** and are
 therefore absent from the overlap analysis entirely.
 
+**"Antiviral activity edges" is the predicate's name, not a description of
+its contents.** `HAS_ANTIVIRAL_ACTIVITY_AGAINST` means "this compound was
+measured against this virus", and `kgav.labels.classify` over those 26,278
+edges reads **20,238 inactive (77.0%)**, 5,525 active (21.0%) and 515 that
+decide nothing. Three quarters of this predicate is evidence that a compound
+does NOT work -- which is the most valuable part of it, because measured
+inactives are the negatives every evaluation here depends on, and they are
+also what makes the name misleading to anyone reading it from outside.
+
+The inactives are not routed to `MEASURED_INACTIVE_AGAINST` because the cut
+is a protocol parameter: `hard_negatives.py --inactive-above-nm` varies it
+and records the value used. Routing by verdict at ingest would put an
+evaluation threshold into the graph's topology. The schema's `doc` for the
+predicate says all of this, and `tests/test_agent_activity_sentence.py`
+re-derives the share from the release so the figure cannot rot.
+
 ### Why each of the eight is absent
 
 Not one reason but three, and the distinction matters:

@@ -28,6 +28,19 @@ from kgav import virus_register
 from kgav.agent import guards
 from kgav.baselines import qualifier_ok
 
+# THE VERDICT COMES FROM ONE PLACE (fix-list L1). The agent used to
+# render every HAS_ANTIVIRAL_ACTIVITY_AGAINST edge as "shows activity
+# against", dropping `relation` entirely -- and 20,238 of the 26,278
+# edges carrying that predicate, 77.0%, are measurements of INACTIVITY.
+# A second copy of the threshold logic here would be the two-
+# implementations failure this repository keeps finding, so classify()
+# is imported and the predicate name is not trusted.
+from kgav.labels import (
+    DEFAULT_ACTIVE_BELOW_NM,
+    DEFAULT_INACTIVE_ABOVE_NM,
+    classify,
+)
+
 # The significance threshold, imported rather than restated: the
 # landscape already declares one and two different alphas in one
 # answer would be indefensible.
@@ -442,6 +455,80 @@ class GraphTools:
             return ", moderate"
         return ", WEAK — above 1 uM and probably not a real mechanism"
 
+    def _activity_sentence(self, e: dict, s: str, o: str) -> str:
+        """One HAS_ANTIVIRAL_ACTIVITY_AGAINST edge, saying what it measured.
+
+        THE PREDICATE NAME IS WRONG FOR MOST OF ITS INSTANCES (fix-list
+        L1). On release v0.1, `classify` over the 26,278 edges carrying
+        it reads:
+
+            inactive    20,238   77.0%
+            active       5,525   21.0%
+            undecidable    515    2.0%
+
+        and this template rendered all of them as "shows activity
+        against {o} (EC50 ... nM)", dropping `relation`. So an edge
+        reading "EC50 > 50000 nM" -- a screen reporting that it tested
+        to 50 uM and saw nothing -- was presented to the user as
+        evidence of activity, with the bound's own number quoted as if
+        it were a measured potency. That is the single most misleading
+        sentence the agent could produce from this graph, and it could
+        produce it about three quarters of the label set.
+
+        WHY THE PREDICATE IS NOT RENAMED INSTEAD. The obvious fix is to
+        route inactives to MEASURED_INACTIVE_AGAINST at ingest, as the
+        protein layer does. At the ORGANISM level that would be wrong:
+        `inactive_above_nm` is a protocol parameter, varied by
+        `hard_negatives.py --inactive-above-nm` and recorded in its
+        output, so routing by verdict would bake an evaluation threshold
+        into the graph's topology and the predicate would stop matching
+        the verdict the moment the threshold moved. The predicate means
+        "this compound was measured against this virus"; what the
+        measurement SAYS is `classify`'s job, and it stays there.
+
+        The thresholds are the module defaults and are named in the
+        sentence, because a verdict quoted without the cut it was taken
+        at is not reproducible by the reader.
+        """
+        q = e.get("qualifiers") or {}
+        verdict = classify(e, DEFAULT_INACTIVE_ABOVE_NM,
+                           DEFAULT_ACTIVE_BELOW_NM)
+        relation = q.get("relation") or "="
+        value = next((float(q[f]) for f in ("ec50_nm", "ic50_nm")
+                      if q.get(f) is not None), None)
+        # The measurement, with its relation, never without.
+        if value is None:
+            shown = ""
+        else:
+            unit = "uM" if value >= 1000 else "nM"
+            num = value / 1000 if unit == "uM" else value
+            shown = f" ({relation} {num:,.4g} {unit})".replace("(= ", "(")
+
+        if verdict == "inactive":
+            return (f"{s} was MEASURED AGAINST {o} AND FOUND INACTIVE"
+                    f"{shown}"
+                    f" -- not evidence of activity")
+        if verdict == "active":
+            # EXPLICIT, not a conditional expression spanning a `+`:
+            # "A + B if c else C" parses as "(A + B) if c else C", which
+            # is right here and reads as though it were not.
+            if value is None:
+                return f"{s} shows activity against {o}"
+            return (f"{s} shows activity against {o}{shown}"
+                    + self._potency_note(value))
+        # TWO WAYS TO DECIDE NOTHING, and they are not the same thing to
+        # a reader. A bound below the inactivity floor is a measurement
+        # that fails to settle the question; a missing value is no
+        # measurement. Saying "a bound below the floor" about an edge
+        # carrying no bound was the first version of this branch.
+        if value is None:
+            return (f"{s} was measured against {o} and no potency value "
+                    f"was recorded, so the edge decides nothing")
+        return (f"{s} was measured against {o} and the result decides "
+                f"nothing{shown} -- a bound below the "
+                f"{DEFAULT_INACTIVE_ABOVE_NM / 1000:,.0f} uM inactivity "
+                f"floor proves neither activity nor its absence")
+
     def _verbalise(self, e: dict) -> str:
         """One edge as a sentence with its provenance inline.
 
@@ -487,8 +574,7 @@ class GraphTools:
             "BELONGS_TO": lambda: f"{o} carries the gene {s}",
             "PARTICIPATES_IN": lambda: f"{s} participates in {o}",
             "HAS_ANTIVIRAL_ACTIVITY_AGAINST": lambda: (
-                f"{s} shows activity against {o}"
-                + (f" (EC50 {q['ec50_nm']:.0f} nM)" if q.get("ec50_nm") else "")),
+                self._activity_sentence(e, s, o)),
             "CHEMICALLY_SIMILAR_TO": lambda: (
                 f"{s} is structurally similar to {o} "
                 f"(Tanimoto {q.get('tanimoto_ecfp4', 0):.2f})"),

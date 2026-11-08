@@ -567,6 +567,33 @@ edge_classes:
     required_qualifiers: [nct_id, status]
 
   - predicate: HAS_ANTIVIRAL_ACTIVITY_AGAINST
+    # THE NAME IS WRONG FOR MOST OF ITS INSTANCES, AND THAT IS DELIBERATE
+    # (fix-list L1). This edge means "this compound WAS MEASURED against
+    # this virus", not "this compound works". On release v0.1,
+    # kgav.labels.classify over the 26,278 edges carrying it reads:
+    #
+    #     inactive    20,238   77.0%   censored or exact, above 10 uM
+    #     active       5,525   21.0%
+    #     undecidable    515    2.0%   a bound below the floor
+    #
+    # So three quarters of this predicate is evidence of INACTIVITY, and
+    # any consumer reading the predicate name as a claim of activity is
+    # reading the opposite of the measurement. classify() is the only
+    # thing that decides which; `relation` and the potency fields are
+    # what it reads.
+    #
+    # WHY THE INACTIVES ARE NOT ROUTED TO MEASURED_INACTIVE_AGAINST, as
+    # the protein layer routes INHIBITS. The cut is a PROTOCOL parameter:
+    # `hard_negatives.py --inactive-above-nm` varies it and records the
+    # value it used. Routing by verdict at ingest would bake an
+    # evaluation threshold into the graph's topology, and the predicate
+    # would stop matching the verdict the moment the threshold moved.
+    # The graph records what was measured; the threshold stays in the
+    # evaluation.
+    doc: >
+      a compound measured against a virus, ACTIVE OR INACTIVE. 77.0% of
+      these edges on v0.1 are measurements of inactivity; read
+      kgav.labels.classify, never the predicate name.
     symmetric: false
     subject: SmallMolecule
     object: OrganismTaxon
