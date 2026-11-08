@@ -374,6 +374,7 @@ class Orchestrator:
         # other viruses.
         verdict = guards.check(
             intent, virus, calibration=self.tools.calibration_for(virus),
+            temporal=self.tools.temporal_for(virus),
             routes=self.tools.routes_for(virus))
 
         # AN ASSUMED VIRUS IS SAID OUT LOUD. The fallback above is silent,

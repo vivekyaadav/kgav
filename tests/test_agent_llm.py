@@ -149,3 +149,117 @@ def test_the_payload_carries_no_prompt():
 def json_dumps(obj) -> str:
     import json
     return json.dumps(obj, default=str)
+
+
+# ------------------------------------- A8: every failure is ModelUnavailable
+# Marked *(suspected)* in the audit; measured, with only urllib.error.URLError
+# caught, against four stub servers:
+#
+#   non-JSON body            -> JSONDecodeError ESCAPED
+#   read timeout             -> TimeoutError ESCAPED
+#   HTTP 500                 -> handled, but told the user to check whether a
+#                               service that had just answered was running
+#   JSON with no "response"  -> returned "" as if it were an answer
+#
+# The timeout is the sharpest: the class SETS timeout=180 and catches
+# URLError, but a read timeout raises socket.timeout -- TimeoutError since
+# 3.10 -- straight out of urlopen unwrapped. The one failure it configures
+# for was the one it did not handle.
+
+import http.server
+import threading
+import time
+
+
+def _stub(handler_cls):
+    srv = http.server.HTTPServer(("127.0.0.1", 0), handler_cls)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, f"http://127.0.0.1:{srv.server_address[1]}"
+
+
+class _Quiet(http.server.BaseHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
+
+
+class _NotJson(_Quiet):
+    def do_POST(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html")
+        self.end_headers()
+        self.wfile.write(b"<html>a proxy error page</html>")
+
+
+class _ServerError(_Quiet):
+    def do_POST(self):
+        self.send_response(500)
+        self.end_headers()
+        self.wfile.write(b"boom")
+
+
+class _NeverAnswers(_Quiet):
+    def do_POST(self):
+        # Three seconds, against a one-second client timeout. Thirty made
+        # the suite 30s slower, because shutdown() waits for the handler
+        # and the point is only to outlast the client.
+        time.sleep(3)
+
+
+class _NoResponseField(_Quiet):
+    def do_POST(self):
+        import json as _json
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(_json.dumps({"error": "model not found"}).encode())
+
+
+class _Good(_Quiet):
+    def do_POST(self):
+        import json as _json
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(_json.dumps({"response": "  the answer  "}).encode())
+
+
+@pytest.mark.parametrize("handler,timeout,expect", [
+    (_NotJson, 5, "not"),
+    (_ServerError, 5, "HTTP 500"),
+    (_NeverAnswers, 1, "did not reply within 1s"),
+    (_NoResponseField, 5, "model not found"),
+])
+def test_every_adapter_failure_is_model_unavailable(handler, timeout, expect):
+    """ModelUnavailable is the right class for all of them: its own
+    docstring says the caller should fall back to printing the brief
+    unsynthesised, which is still useful, and that is as true of a garbled
+    reply as of an unreachable socket. A crash loses the brief too."""
+    srv, host = _stub(handler)
+    try:
+        with pytest.raises(ModelUnavailable) as got:
+            OllamaModel(host=host, timeout=timeout)("hello")
+        assert expect in str(got.value), str(got.value)
+    finally:
+        srv.shutdown()
+
+
+def test_an_http_error_does_not_blame_the_service_for_being_down():
+    """It answered. "Is the service running? systemctl status ollama" sends
+    the reader after the wrong thing."""
+    srv, host = _stub(_ServerError)
+    try:
+        with pytest.raises(ModelUnavailable) as got:
+            OllamaModel(host=host, timeout=5)("hello")
+        assert "Is the service running" not in str(got.value)
+    finally:
+        srv.shutdown()
+
+
+def test_a_good_reply_is_returned_stripped():
+    """The other half: a check that rejects everything is an adapter that
+    never answers."""
+    srv, host = _stub(_Good)
+    try:
+        assert OllamaModel(host=host, timeout=5)("hello") == "the answer"
+    finally:
+        srv.shutdown()

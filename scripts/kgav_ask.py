@@ -170,12 +170,26 @@ def main() -> int:
     # does not cover resolves to None -- reported as uncalibrated rather than
     # borrowing another virus's numbers.
     cals: dict[str, object] = {}
+    # AND THE PROSPECTIVE SECTION OF THE SAME FILE (fix-list A7).
+    # guards.check's refusal for a candidate-generation question quotes the
+    # temporal calibration, and nothing had ever loaded one -- so the
+    # sentence a user got was the no-measurement branch, which until today
+    # asserted "every scorer performs at chance" regardless. Read from the
+    # same document, by the same loader, with section="temporal": a file
+    # whose temporal column is empty yields an unusable calibration and the
+    # refusal then says so instead of inventing a verdict.
+    temporal: dict[str, object] = {}
     if args.results.exists():
         try:
             labels = (kgav_calibration.available_viruses(args.results)
                       if args.all_viruses else [args.virus_label])
             for label in labels:
                 cals[label] = kgav_calibration.load(args.results, label)
+            for label in (kgav_calibration.available_viruses(
+                    args.results, section="temporal")
+                    if args.all_viruses else [args.virus_label]):
+                temporal[label] = kgav_calibration.load(
+                    args.results, label, section="temporal")
         except (OSError, ValueError, KeyError) as exc:
             print(f"note: could not read {args.results.name} ({exc}); "
                   f"routes will be reported as uncalibrated", file=sys.stderr)
@@ -212,6 +226,7 @@ def main() -> int:
               "reported as unmeasured. `make check-results` says which.",
               file=sys.stderr)
     orch = Orchestrator(GraphTools(args.release, calibration=cals or None,
+                                   temporal=temporal or None,
                                    landscape=land, reach=reach))
 
     model = None

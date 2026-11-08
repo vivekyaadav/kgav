@@ -152,15 +152,36 @@ def test_prospective_queries_are_refused():
     assert "novel chemical matter" in v.reason, "the durable reason, not a number"
 
 
-def test_the_refusal_quotes_no_figure_without_a_calibration():
-    """Absent a measured run, the limit is stated without a number. A figure
-    with no run behind it is what _channel_caveat and direct_acting_caveat
-    were each rewritten to remove."""
+def test_the_refusal_claims_no_result_without_a_calibration():
+    """A VERDICT WITH NO FIGURE IS STILL A VERDICT (fix-list A7).
+
+    This test used to assert the defect. It required that the
+    no-calibration branch quote no AUC and DO say "every scorer performs
+    at chance", under the docstring "absent a measured run, the limit is
+    stated without a number" -- which treats a number as the only thing
+    that can be unsupported. No caller passed `temporal` at all, so the
+    sentence every user actually got asserted a measurement that had never
+    been loaded, and called it measured in the same breath.
+
+    What the branch must now do: describe the split, say that nothing was
+    loaded, and state no result either way.
+    """
     import re
     reason = check(QueryKind.PROSPECT).reason
-    assert "every scorer performs at chance" in reason
     assert not re.search(r"AUC \d", reason), \
         f"quoted an AUC with no calibration supplied:\n{reason}"
+    for claim in ("every scorer performs at chance",
+                  "no scorer was even evaluable",
+                  "which clears chance",
+                  "measured rather than assumed"):
+        assert claim not in reason, (
+            f"the refusal asserts {claim!r} with no prospective measurement "
+            f"loaded:\n{reason}")
+    assert "temporal split" in reason, "the split's design is still the framing"
+    assert "no scorer performance" in reason.lower()
+    # The durable reason has to survive the withdrawal, or the refusal is
+    # left resting on nothing at all.
+    assert "novel chemical matter" in reason
 
 
 def test_the_refusal_quotes_the_measured_figure_when_given_one():
@@ -1019,3 +1040,55 @@ def test_the_pathway_caveat_quotes_the_rows_own_threshold():
     assert "6.8" in said, said
     assert " 3," not in said and "below 3" not in said, (
         "the caveat still quotes the uncorrected threshold")
+
+
+# --------------------- A7: the refusal's figure has to reach the refusal
+# guards.check has taken a `temporal` argument all along, and nothing passed
+# it: the orchestrator supplied `calibration` and `routes` only, so the
+# branch every user reached was the one with no measurement in it. Both ends
+# are tested here -- the sentence, and the wiring that feeds it.
+
+
+def test_the_tools_expose_the_prospective_calibration_separately(tmp_path):
+    """Keyed by the same rule as the cross-sectional one, through the same
+    indexer, so the two cannot be looked up differently."""
+    import json
+    from kgav.agent.tools import GraphTools
+    V = "NCBITaxon:2697049"
+    nodes = [{"id": V, "class": "OrganismTaxon",
+              "properties": {"label": "SARS-CoV-2", "family": "Coronaviridae",
+                             "baltimore_class": "IV", "is_enveloped": True}}]
+    (tmp_path / "nodes.jsonl").write_text(json.dumps(nodes[0]))
+    (tmp_path / "edges.jsonl").write_text("")
+    cross = _real_cal(0.577, 0.514, 0.639, protocol="cross-sectional")
+    temp = _real_cal(0.502, 0.470, 0.534, protocol="post-2021")
+    for cal in (cross, temp):
+        cal.virus = V
+    g = GraphTools(tmp_path, calibration={V: cross}, temporal={V: temp})
+    assert g.calibration_for(V) is cross
+    assert g.temporal_for(V) is temp
+    assert g.temporal_for("NCBITaxon:11060") is None, (
+        "a virus the prospective run did not cover must resolve to None, "
+        "not to another virus's numbers")
+
+
+def test_a_tools_object_given_no_prospective_run_has_none(tmp_path):
+    import json
+    from kgav.agent.tools import GraphTools
+    (tmp_path / "nodes.jsonl").write_text(json.dumps(
+        {"id": "NCBITaxon:2697049", "class": "OrganismTaxon",
+         "properties": {"label": "SARS-CoV-2", "family": "Coronaviridae",
+                        "baltimore_class": "IV", "is_enveloped": True}}))
+    (tmp_path / "edges.jsonl").write_text("")
+    g = GraphTools(tmp_path)
+    assert g.temporal_for("NCBITaxon:2697049") is None
+
+
+def test_the_refusal_states_which_scorer_and_which_protocol():
+    """The measured branch, which no caller could reach before."""
+    cal = _real_cal(0.510, 0.486, 0.533, protocol="post-2021")
+    reason = check(QueryKind.PROSPECT, temporal=cal).reason
+    assert "0.510" in reason and "post-2021" in reason
+    assert "measured rather than assumed" in reason, (
+        "the claim and the figure have to travel together; either without "
+        "the other is what A7 was about")

@@ -77,13 +77,63 @@ class OllamaModel:
             f"{self.host}/api/generate",
             data=json.dumps(payload).encode(),
             headers={"Content-Type": "application/json"})
+        # EVERY WAY THIS CAN FAIL ENDS AS ModelUnavailable (fix-list A8,
+        # which was marked *(suspected)* and is not). Measured against four
+        # stub servers, with only `urllib.error.URLError` caught:
+        #
+        #   non-JSON body            -> JSONDecodeError ESCAPED
+        #   read timeout             -> TimeoutError ESCAPED
+        #   HTTP 500                 -> handled, but misdescribed
+        #   JSON with no "response"  -> returned "" as if it were an answer
+        #
+        # The timeout is the sharpest: this class SETS timeout=180 and
+        # catches URLError, but a read timeout raises socket.timeout --
+        # TimeoutError since 3.10 -- straight out of urlopen without being
+        # wrapped. The one failure the adapter configures for was the one
+        # it did not handle, and it crashed the CLI rather than falling
+        # back to the brief.
+        #
+        # ModelUnavailable is the right class for all of them: its own
+        # docstring says the caller should fall back to printing the brief
+        # unsynthesised, which is still useful, and that is true of a
+        # garbled reply exactly as it is of an unreachable socket.
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as r:
-                return json.loads(r.read().decode()).get("response", "").strip()
+                body = r.read().decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as e:
+            # The service ANSWERED. Telling the user to check whether it is
+            # running sends them after the wrong thing.
+            raise ModelUnavailable(
+                f"ollama at {self.host} returned HTTP {e.code} ({e.reason}) "
+                f"for model {self.model!r}") from e
+        except TimeoutError as e:
+            raise ModelUnavailable(
+                f"ollama at {self.host} did not reply within "
+                f"{self.timeout}s. A longer prompt or a larger model needs a "
+                f"larger timeout; raise OllamaModel.timeout") from e
         except urllib.error.URLError as e:
             raise ModelUnavailable(
                 f"cannot reach ollama at {self.host}: {e}. Is the service "
                 f"running? `systemctl status ollama`") from e
+        try:
+            doc = json.loads(body)
+        except json.JSONDecodeError as e:
+            raise ModelUnavailable(
+                f"ollama at {self.host} replied with something that is not "
+                f"JSON ({len(body):,} bytes starting {body[:60]!r})") from e
+        if not isinstance(doc, dict):
+            raise ModelUnavailable(
+                f"ollama at {self.host} replied with a JSON "
+                f"{type(doc).__name__}, not an object")
+        # A REPORTED FAILURE IS NOT AN EMPTY ANSWER. `.get("response", "")`
+        # turned {"error": "model not found"} into "" -- an empty ANSWER
+        # block printed under a heading, with the reason discarded.
+        if "response" not in doc:
+            raise ModelUnavailable(
+                f"ollama at {self.host} returned no `response` field"
+                + (f": {doc['error']}" if doc.get("error") else
+                   f"; keys were {sorted(doc)}"))
+        return str(doc["response"]).strip()
 
     def available(self) -> tuple[bool, str]:
         try:

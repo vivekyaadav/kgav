@@ -600,26 +600,67 @@ def classify_intent(text: str) -> QueryKind:
     return QueryKind.UNKNOWN
 
 
-def _measured_at_chance(temporal) -> str:
-    """The temporal result, from the run that measured it, or no figure."""
+#: The temporal split's design, quoted in every branch below because it is
+#: what makes the refusal's reasoning legible whether or not a figure exists.
+_SPLIT = ("under a temporal split — training on evidence published before "
+          "2022 and testing on compounds measured after")
+
+
+def _temporal_sentence(temporal) -> str:
+    """The temporal result as a complete clause, or the absence of one.
+
+    RENAMED FROM `_measured_at_chance`, because that is what it used to
+    claim with nothing behind it (fix-list A7). With `temporal` absent it
+    returned the bare string "every scorer performs at chance", and
+    `check` interpolated that into "the limit is measured rather than
+    assumed. Under a temporal split ... every scorer performs at chance."
+    No caller passed `temporal` -- the orchestrator supplied `calibration`
+    and `routes` and nothing else -- so the sentence a user actually got
+    asserted a measurement that had never been loaded, and asserted that
+    it was measured in the same breath.
+
+    The old test pinned the defect rather than the property. It asserted
+    that the no-calibration branch quotes no AUC and DOES say "every
+    scorer performs at chance", under the docstring "absent a measured
+    run, the limit is stated without a number" -- which treats a number
+    as the only thing that can be unsupported. A verdict with no figure
+    is still a verdict.
+
+    So the claim and the figure now travel together: three branches state
+    a measurement and say it is one, and the fourth states that none was
+    loaded. The durable reason for the refusal is the coverage argument
+    that follows in `check`, which needs no AUC -- compounds enter
+    screening because they are novel chemical matter, which is exactly
+    what a prior-evidence graph cannot represent.
+    """
     if temporal is None or not getattr(temporal, "usable", False):
-        return "every scorer performs at chance"
+        # THE SPLIT IS STILL DESCRIBED. It is the protocol's design, not a
+        # result, and the refusal's reasoning is unreadable without it --
+        # which is what test_the_general_limit_is_still_stated_for_a_route
+        # less_virus was protecting when it required "temporal split" in
+        # this text. What is withdrawn is the VERDICT, not the framing.
+        return (f"No scorer performance has been loaded for this release, "
+                f"so none is quoted here: {_SPLIT}, this release carries no "
+                f"measured prospective result, and the limit below rests on "
+                f"coverage rather than on a scorer's AUC.")
     evaluable = [c for c in temporal.channels.values() if c.evaluable]
     if not evaluable:
-        return ("no scorer was even evaluable — each reaches too few of the "
-                "post-cutoff actives for a measured performance")
+        return (f"The limit is measured rather than assumed: {_SPLIT}, no "
+                f"scorer was even evaluable — each reaches too few of the "
+                f"post-cutoff actives for a measured performance.")
     best = max(evaluable, key=lambda c: c.auc)
     if best.discriminates:
         # Stated rather than suppressed: if a channel ever clears chance
         # prospectively, a refusal built on "every scorer is at chance" has
         # stopped being true and the person is entitled to know that before
         # being refused.
-        return (f"the strongest scorer reaches AUC {best.auc:.3f} "
-                f"[{best.ci_lo:.3f}, {best.ci_hi:.3f}] under "
-                f"{temporal.protocol}, which clears chance")
-    return (f"every scorer performs at chance — the strongest is "
-            f"{best.name} at AUC {best.auc:.3f} "
-            f"[{best.ci_lo:.3f}, {best.ci_hi:.3f}] under {temporal.protocol}")
+        return (f"Measured, {_SPLIT}, the strongest scorer reaches AUC "
+                f"{best.auc:.3f} [{best.ci_lo:.3f}, {best.ci_hi:.3f}] under "
+                f"{temporal.protocol}, which clears chance.")
+    return (f"The limit is measured rather than assumed: {_SPLIT}, every "
+            f"scorer performs at chance — the strongest is {best.name} at "
+            f"AUC {best.auc:.3f} [{best.ci_lo:.3f}, {best.ci_hi:.3f}] under "
+            f"{temporal.protocol}.")
 
 
 def _is_validated(calibration) -> bool:
@@ -727,10 +768,8 @@ def check(kind: QueryKind, virus: str | None = None,
         return Verdict(
             allowed=False,
             reason=(
-                "This graph cannot support prospective candidate generation, and "
-                "the limit is measured rather than assumed. Under a temporal "
-                "split — training on evidence published before 2022 and testing "
-                f"on compounds measured after — {_measured_at_chance(temporal)}. "
+                "This graph cannot support prospective candidate generation. "
+                f"{_temporal_sentence(temporal)} "
                 "The reason is that the large majority of compounds screened "
                 "after the cutoff do not appear anywhere in the graph built "
                 "before it, and the fraction differs by virus — which is why "

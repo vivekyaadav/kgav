@@ -114,7 +114,8 @@ class GraphTools:
 
     def __init__(self, release: Path, name_index: dict[str, str] | None = None,
                  calibration=None, landscape=None,
-                 reach: dict[str, int] | None = None):
+                 reach: dict[str, int] | None = None,
+                 temporal=None):
         # MEASURED REACH PER VIRUS, {display label: held-out positives the
         # metapaths reach}, or None for "not measured".
         #
@@ -165,6 +166,16 @@ class GraphTools:
         # never to another virus's numbers.
         self._calibrations: dict[str, object] = {}
         self._pending_calibration = calibration
+        # THE PROSPECTIVE CALIBRATION, WHICH NOTHING SUPPLIED (fix-list A7).
+        # guards.check has taken a `temporal` argument all along and its
+        # PROSPECT refusal quotes it; the orchestrator passed `calibration`
+        # and `routes` and nothing else, so the one branch a user could
+        # actually reach was the one with no measurement in it -- which then
+        # asserted "every scorer performs at chance" anyway. Same shape as
+        # the four guards.check calls below, kept in the same place and
+        # looked up the same way, so the two cannot be keyed differently.
+        self._pending_temporal = temporal
+        self._temporal: dict[str, object] = {}
         # METAPATH CONSTRAINTS, READ FROM THE SCHEMA RATHER THAN RESTATED.
         #
         # _find_paths enumerates M1 and M2 as its own loops. M1 applied NO
@@ -303,6 +314,8 @@ class GraphTools:
         # caller holding the release -- so neither form can be assumed.
         self._index_calibrations(self._pending_calibration)
         del self._pending_calibration
+        self._index_calibrations(self._pending_temporal, into=self._temporal)
+        del self._pending_temporal
 
     def family_of(self, virus: str) -> str | None:
         """The viral family of a taxon, from the graph's own OrganismTaxon.
@@ -329,12 +342,19 @@ class GraphTools:
                 return True
         return False
 
-    def _index_calibrations(self, calibration) -> None:
+    def _index_calibrations(self, calibration, into=None) -> None:
+        """Index a Calibration or a {virus: Calibration} mapping.
+
+        `into` chooses the store, so the cross-sectional and prospective
+        calibrations are keyed by exactly the same rule rather than by two
+        copies of it.
+        """
+        store = self._calibrations if into is None else into
         if calibration is None:
             return
         if hasattr(calibration, "channels"):          # one Calibration
             key = getattr(calibration, "virus", "") or ""
-            self._calibrations[key] = calibration
+            store[key] = calibration
             return
         for key, cal in dict(calibration).items():
             # A MIS-KEYED MAP IS A SILENT WRONG-FIGURE GENERATOR, which is the
@@ -346,7 +366,7 @@ class GraphTools:
                 raise ValueError(
                     f"calibration keyed under {key!r} was measured on {own!r}; "
                     f"a calibration must be keyed by the virus it measured")
-            self._calibrations[key] = cal
+            store[key] = cal
 
     def routes_for(self, virus: str) -> guards.VirusRoutes:
         """Which feature channels this release holds for one virus.
@@ -422,7 +442,19 @@ class GraphTools:
         branch, and "its reliability is unknown" is weaker than a figure and
         true, where another virus's figure is neither.
         """
-        for key, cal in self._calibrations.items():
+        return self._lookup(self._calibrations, virus)
+
+    def temporal_for(self, virus: str):
+        """The PROSPECTIVE calibration measured on this virus, or None.
+
+        guards.check's PROSPECT refusal quotes it. None is the honest
+        branch there too, and since 2026-11-09 it reads as one: it used to
+        state "every scorer performs at chance" with nothing loaded.
+        """
+        return self._lookup(self._temporal, virus)
+
+    def _lookup(self, store: dict, virus: str):
+        for key, cal in store.items():
             if self._same_virus(key, virus):
                 return cal
         return None
