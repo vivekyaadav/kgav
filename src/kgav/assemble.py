@@ -340,7 +340,52 @@ def merge_edges(a: dict, b: dict, derive: DeriveFn | None = None,
         merged_quals[name] = resolve_qualifier(name, hi, merged_quals.get(name),
                                                stats)
     out["qualifiers"] = derive(a["predicate"], merged_quals) if derive else merged_quals
+    _drop_orphaned_potency_range(out["qualifiers"], stats)
     return out
+
+
+#: The four qualifiers host_targets writes together to say what spread sits
+#: behind its potency (fix-list P13).
+_RANGE_QUALS = ("potency_spread_field", "potency_n",
+                "potency_min_nm", "potency_max_nm")
+
+
+def _drop_orphaned_potency_range(quals: dict, stats: Counter | None) -> None:
+    """Remove a potency range that no longer describes the edge's potency.
+
+    THE RANGE IS A STATEMENT ABOUT ANOTHER QUALIFIER, so it survives only
+    as long as that qualifier does. host_targets writes it over the rows it
+    collapsed; gtop writes a potency and no range; and on a shared triple
+    the earlier layer in LAYER_PRECEDENCE wins each qualifier
+    independently, so gtop's ic50_nm can land beside host_targets' range.
+
+    Measured on the release of 2026-11-09 before this ran: **544 of 14,381
+    TARGETS edges (3.78%)** carried a range that did not contain the field
+    it named. The case that found it is
+    MTNBRBDFNSGQKB-GXTWGEPZSA-N -> P24941, where gtop's ic50_nm of
+    1.159999966621399 sat beside host_targets' [1.1, 1.1].
+
+    DROPPED RATHER THAN RECOMPUTED, because there is nothing to recompute
+    from: the losing layer's rows are not on the edge. An absent range
+    means "not recorded", which is true; a present one that contradicts
+    its own number is the defect fix-list A4 was about, one layer up.
+
+    A BETTER FIX EXISTS AND IS BIGGER: have gtop emit its own range, so
+    whichever potency wins brings the spread that belongs to it. That
+    recovers the 544 rather than discarding them, and is filed rather than
+    smuggled in here.
+    """
+    named = quals.get("potency_spread_field")
+    if named is None:
+        return
+    lo, hi, point = (quals.get("potency_min_nm"), quals.get("potency_max_nm"),
+                     quals.get(named))
+    if point is not None and lo is not None and hi is not None and lo <= point <= hi:
+        return
+    for q in _RANGE_QUALS:
+        quals.pop(q, None)
+    if stats is not None:
+        stats["potency_range_orphaned_by_merge"] += 1
 
 
 class Assembly:

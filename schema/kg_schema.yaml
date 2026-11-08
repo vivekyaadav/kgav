@@ -76,6 +76,12 @@ enums:
   # NEGATIVE result; coercing it to a number inverts its meaning. 10,766 of
   # 17,366 coronavirus IC50 records are censored, so this is not an edge case.
   activity_relation: ["=", ">", "<", ">=", "<=", "~"]
+  # The potency qualifiers a TARGETS edge can carry, named so
+  # potency_spread_field can only point at one of them. Declared as an enum
+  # rather than left as a free string because "which number does this range
+  # describe" is answerable wrongly, and a typo would answer it wrongly in
+  # silence.
+  potency_field: ["ic50_nm", "ec50_nm", "ki_nm", "kd_nm"]
   # ChEMBL has no chain-level coronavirus targets: every activity maps to the
   # whole replicase polyprotein. 72% can be resolved to a specific nsp from the
   # assay description. This records which, so an unresolved edge is never
@@ -481,6 +487,47 @@ edge_classes:
       # WHICH ASSAY (fix-list V6). ChEMBL's assay CHEMBL id is already in
       # the hosttargets dedup key and reached no edge.
       assay_id:   {type: string, doc: "the source's own assay identifier"}
+      # THE SPREAD BEHIND THE POTENCY ABOVE (fix-list P13, option b).
+      #
+      # host_targets collapses the rows sharing one (compound, target,
+      # assay type) key into one edge and keeps the FIRST row's value by
+      # activity_id. That choice is deterministic and arbitrary, and
+      # nothing on the edge said so. Measured on chembl_37 over 19,020
+      # keys: 7,257 have more than one row, 5,517 of those disagree --
+      # spread median 6.67x, p90 182x, max 55,625x -- and 4,296 keep a
+      # value that is not the median. They are not replicates of one
+      # experiment either: 7,116 come from DIFFERENT assays.
+      #
+      # So the point stays and the spread travels with it. A reader who
+      # needs to know whether 1 nM is the measurement or one of eleven
+      # readings from 1 to 1,000 can now see which.
+      #
+      # THEY DESCRIBE THE ROWS BEHIND THIS EDGE'S OWN POTENCY, not all
+      # evidence for the pair. An edge merged with the gtop layer carries
+      # both sources in its provenance while these three count only the
+      # rows the host-targets layer collapsed -- which is the same scope
+      # ic50_nm and assay_id already have, and is coherent only because
+      # hosttargets outranks gtop in LAYER_PRECEDENCE so the surviving
+      # potency comes from the same rows. test_host_targets.py asserts
+      # that ordering, so a reorder fails rather than quietly decoupling
+      # the spread from the number it describes.
+      # AND WHICH FIELD THE RANGE BELONGS TO, without which the three
+      # below are the A4 defect wearing new names. One (drug, target) pair
+      # can carry an IC50 row AND a Ki row: 3,801 of 14,381 pairs do, and
+      # they merge on (subject, predicate, object), so a single
+      # potency_n/min/max slot would describe one quantity while the edge
+      # states two. These four qualifiers are written together and are
+      # resolved together on merge, so the range always names its own
+      # number.
+      potency_spread_field:
+                      {type: string, enum: potency_field,
+                       doc: "which potency qualifier the range describes"}
+      potency_n:      {type: int, min: 1,
+                       doc: "rows collapsed into this edge's potency"}
+      potency_min_nm: {type: float, min: 0,
+                       doc: "smallest potency among those rows"}
+      potency_max_nm: {type: float, min: 0,
+                       doc: "largest potency among those rows"}
     required_qualifiers: [direction]
 
   - predicate: HOST_FACTOR_FOR

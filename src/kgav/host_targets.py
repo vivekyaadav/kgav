@@ -382,6 +382,16 @@ def ingest_host_targets(em, rows: list[dict], mechanisms: dict[tuple[str, str], 
             # stake -- "the second would land in a different half of a
             # temporal split" -- and ORDER BY fixed the DETERMINISM of that
             # choice without making it the right choice.
+            # THE SPREAD TRAVELS WITH THE POINT (fix-list P13, option b).
+            # The edge keeps the first row's value by activity_id -- a
+            # deterministic, arbitrary choice -- and nothing on the edge
+            # said so. Measured on chembl_37: of 19,020 keys, 7,257 have
+            # more than one row, 5,517 disagree (spread median 6.67x, p90
+            # 182x, max 55,625x) and 4,296 keep a non-median value; 7,116
+            # of the replicate sets come from DIFFERENT assays, so they are
+            # not repeats of one experiment. The point is unchanged and the
+            # range is now readable beside it.
+            prev["values"].append(nm)
             year = str(int(r["year"])) if r.get("year") else None
             if year and (prev["date"] == PLACEHOLDER_DATE
                          or year < prev["date"]):
@@ -407,6 +417,10 @@ def ingest_host_targets(em, rows: list[dict], mechanisms: dict[tuple[str, str], 
                       **({"assay_id": str(r["assay"])}
                          if r.get("assay") else {})},
             "pmids": {cite} if cite else set(),
+            # Every converted value for this key, in activity_id order, so
+            # values[0] IS the potency the edge carries.
+            "values": [nm],
+            "potency_field": QUANT_FIELD[r["standard_type"]],
         }
         stats["edges"] += 1
 
@@ -428,6 +442,26 @@ def ingest_host_targets(em, rows: list[dict], mechanisms: dict[tuple[str, str], 
             stats["with_publication"] += 1
         else:
             stats["no_publication"] += 1
+        # THE THREE SPREAD QUALIFIERS (fix-list P13, option b). Emitted on
+        # EVERY edge, including the 11,763 keys with a single row, where
+        # they read potency_n=1 and min==max==the value. Emitting them only
+        # for replicates would make their absence mean two things -- one
+        # measurement, or a layer that predates this -- and an absent
+        # qualifier is the ambiguity this project keeps paying for.
+        values = rec["values"]
+        # NAMED, so the range cannot be read against the wrong number.
+        # 3,801 of 14,381 (drug, target) pairs carry rows of more than one
+        # standard_type and merge on (subject, predicate, object), so an
+        # unnamed range would describe one quantity on an edge stating two
+        # -- which is fix-list A4 reintroduced under new qualifier names.
+        rec["quals"]["potency_spread_field"] = rec["potency_field"]
+        rec["quals"]["potency_n"] = len(values)
+        rec["quals"]["potency_min_nm"] = float(min(values))
+        rec["quals"]["potency_max_nm"] = float(max(values))
+        if len(values) > 1:
+            stats["edges_collapsing_several_rows"] += 1
+            if min(values) != max(values):
+                stats["edges_whose_rows_disagree"] += 1
         em.edge(rec["drug"], "TARGETS", rec["target"],
                 source=source, date=rec["date"], tier=1,
                 quals=rec["quals"],

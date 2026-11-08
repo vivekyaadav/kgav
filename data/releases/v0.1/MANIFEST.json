@@ -58,7 +58,7 @@
     "hosttargets": {
       "path": "data/releases/v0.1-hosttargets",
       "nodes_sha": "e4dcdef2e47e1d6f",
-      "edges_sha": "87ad1c3866f4aa15",
+      "edges_sha": "6cd92315cbdb031f",
       "sources": {
         "chembl": "chembl_37"
       }
@@ -66,7 +66,7 @@
     "similarity": {
       "path": "data/releases/v0.1-similarity",
       "nodes_sha": "e3b0c44298fc1c14",
-      "edges_sha": "fdb80f5715d081ee",
+      "edges_sha": "262cfc5ef0cceb2b",
       "sources": {
         "rdkit": "2026.03.6"
       }
@@ -133,6 +133,11 @@
     "qualifier_precedence_decided:ic50_nm": 3799,
     "qualifier_precedence_decided:kd_nm": 88,
     "qualifier_precedence_decided:ki_nm": 446,
+    "qualifier_precedence_decided:potency_spread_field": 4416,
+    "qualifier_precedence_decided:potency_n": 2768,
+    "qualifier_precedence_decided:potency_min_nm": 4305,
+    "qualifier_precedence_decided:potency_max_nm": 4319,
+    "potency_range_orphaned_by_merge": 551,
     "qualifier_kept_more_specific:direction": 47,
     "qualifier_irreconcilable:direction": 14
   },
@@ -172,7 +177,7 @@
   "release": "v0.1",
   "hub_cut_degree": 460,
   "code": {
-    "commit": "64d44084ebc7eb9742005f27f7a836952faa5d5d",
+    "commit": "33e95f0d3ac8b698a6943b42d873c056b451d271",
     "dirty": true
   }
 }
