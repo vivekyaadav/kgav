@@ -3,6 +3,7 @@ down-weights promiscuous intermediates, proximity is degree-corrected.
 """
 import json
 import math
+from collections import Counter
 from pathlib import Path
 
 import pytest
@@ -1721,3 +1722,173 @@ def test_readability_is_not_the_confound_verdict():
     assert warning and warning.startswith("BASELINE AT CHANCE"), (
         f"degree at chance with a significant channel is the clean "
         f"condition and confound_warning must say so; got {warning!r}")
+
+
+# ------------------------------------------------- E5: the proximity null
+#
+# `closest()` averaged dist[t] over the targets REACHABLE from the factor
+# set, so the observed value was a mean over subset S of a drug's targets --
+# while the null drew a degree-matched replacement for every slot in the full
+# set T and averaged whichever of THOSE happened to be reachable. The
+# z-score compared a quantity over S against a null matched to T.
+#
+# Reachability is uneven across the very bins it matches on (SARS-CoV-2,
+# v0.1 of 2026-11-09: 7 of 1,765 proteins reachable in bin 2^0, 34% in 2^1,
+# 99% in 2^5), so a low-degree target's replacement almost never
+# contributed a term and a high-degree one almost always did. The fixture
+# below is that shape in miniature.
+
+_PPI = {"detection_method": "two hybrid"}
+_HF = {"direction": "dependency", "screen_type": "CRISPRko", "cell_line": "x"}
+_TG = {"direction": "inhibitor", "assay_type": "binding", "ic50_nm": 50.0}
+
+
+def _proximity_release(tmp_path, decoys: int = 0, shuffle: bool = False,
+                       unreachable_target: bool = True):
+    """A graph with one reachable and one unreachable drug target.
+
+    DA targets A2 (distance 1) and U1 (unreachable); DB targets A2 alone.
+    Both drugs therefore have the SAME observed value over the SAME slot,
+    and A2's degree is identical in both cases because both TARGETS edges
+    are in the one graph. C1 and C2 sit in A2's degree bin at differing
+    distances so the matched pool has spread; without them the null is
+    degenerate and the drug is refused, which is its own test below.
+
+    `decoys` adds unreachable proteins INTO A2's degree bin. They are
+    eligible under the old pool and not under the new one, so a score that
+    moves when they appear is a score whose null is not matched to the
+    observation.
+    """
+    nodes = [{"id": V, "class": "OrganismTaxon",
+              "properties": {"label": "SARS-CoV-2", "family": "Coronaviridae",
+                             "baltimore_class": "IV", "is_enveloped": True}}]
+    edges = []
+    for f in ("F1", "F2"):
+        nodes.append(_prot(f"UniProtKB:{f}", False, sym=f))
+        edges.append(_e(f"UniProtKB:{f}", "HOST_FACTOR_FOR", V, _HF))
+    for n in ("A1", "A2", "A3", "A4"):           # distance 1
+        nodes.append(_prot(f"UniProtKB:{n}", False, sym=n))
+        edges.append(_e(f"UniProtKB:{n}", "PHYSICALLY_INTERACTS_WITH",
+                        "UniProtKB:F1", _PPI))
+    for n in ("B1", "B2", "B3", "B4"):           # distance 2
+        nodes.append(_prot(f"UniProtKB:{n}", False, sym=n))
+        edges.append(_e(f"UniProtKB:{n}", "PHYSICALLY_INTERACTS_WITH",
+                        "UniProtKB:A1", _PPI))
+    nodes.append(_prot("UniProtKB:C1", False, sym="C1"))
+    edges += [_e("UniProtKB:C1", "PHYSICALLY_INTERACTS_WITH", "UniProtKB:A1", _PPI),
+              _e("UniProtKB:C1", "PHYSICALLY_INTERACTS_WITH", "UniProtKB:A3", _PPI)]
+    nodes.append(_prot("UniProtKB:C2", False, sym="C2"))
+    edges += [_e("UniProtKB:C2", "PHYSICALLY_INTERACTS_WITH", "UniProtKB:F2", _PPI),
+              _e("UniProtKB:C2", "PHYSICALLY_INTERACTS_WITH", "UniProtKB:A4", _PPI)]
+    nodes.append(_prot("UniProtKB:U1", False, sym="U1"))
+    for i in range(decoys):
+        # degree 2, same bin as A2's 3, and in a component of its own
+        a, b = f"UniProtKB:X{i}a", f"UniProtKB:X{i}b"
+        nodes += [_prot(a, False, sym=f"X{i}a"), _prot(b, False, sym=f"X{i}b")]
+        edges += [_e(a, "PHYSICALLY_INTERACTS_WITH", b, _PPI),
+                  _e(b, "PHYSICALLY_INTERACTS_WITH", a, _PPI)]
+    nodes += [_drug("CHEMBL:DA"), _drug("CHEMBL:DB")]
+    edges += [_e("CHEMBL:DA", "TARGETS", "UniProtKB:A2", _TG),
+              _e("CHEMBL:DB", "TARGETS", "UniProtKB:A2", _TG)]
+    if unreachable_target:
+        edges.append(_e("CHEMBL:DA", "TARGETS", "UniProtKB:U1", _TG))
+    if shuffle:
+        edges = list(reversed(edges))
+        nodes = nodes[:1] + list(reversed(nodes[1:]))
+    (tmp_path / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in nodes))
+    (tmp_path / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in edges))
+    return tmp_path
+
+
+def _prox(tmp_path, schema, **kw):
+    release = _proximity_release(tmp_path, **kw)
+    g = Graph.load(release, symmetry=schema.symmetry())
+    stats = Counter()
+    return network_proximity(g, V, schema.retrieval_limits, n_random=50,
+                             stats=stats), stats
+
+
+def test_an_unreachable_target_does_not_change_the_score(
+        tmp_path, schema, tmp_path_factory):
+    """THE PROPERTY E5 IS ABOUT. A target that cannot reach the factor set
+    contributes nothing to the observed mean, so it must contribute nothing
+    to the null either -- and then ONE DRUG scores the same whether or not
+    it carries such a target. It did not: the extra slot drew an extra null
+    term, which tightened the null's spread and so inflated the z-score.
+
+    COMPARED ACROSS TWO GRAPHS, NOT BETWEEN TWO DRUGS. The first version
+    of this test asserted DA == DB -- same observation, same slot -- and it
+    passed while the RNG was one stream shared across the drug loop, for
+    the wrong reason: both drugs drew from the same continuing stream. Once
+    each drug seeds its own RNG from its id, two DIFFERENT drugs have two
+    independent nulls and differ by Monte Carlo noise, correctly. The
+    property only holds for one drug against itself, so that is what is
+    measured: DA's seed is fixed by its id, so an ignored target must leave
+    its score bit-identical.
+    """
+    with_it, stats = _prox(tmp_path, schema)
+    other = tmp_path_factory.mktemp("no_unreachable")
+    without, clean = _prox(other, schema, unreachable_target=False)
+    assert set(with_it) == {"CHEMBL:DA", "CHEMBL:DB"}, stats
+    assert with_it["CHEMBL:DA"] == without["CHEMBL:DA"], (
+        f"DA scores {with_it['CHEMBL:DA']:.6f} with an unreachable target "
+        f"and {without['CHEMBL:DA']:.6f} without it, so the target it "
+        f"cannot reach is still moving its null")
+    assert stats["drug_with_an_unreachable_target"] == 1
+    assert stats["target_slots_outside_the_observation"] == 1
+    assert clean["drug_with_an_unreachable_target"] == 0
+
+
+def test_an_unreachable_protein_in_the_matched_bin_cannot_enter_the_null(
+        tmp_path, schema, tmp_path_factory):
+    """The pool restriction, as a property rather than as a line of code.
+
+    The decoys are unreachable proteins in the target's own degree bin:
+    eligible under a pool of all degree-matched proteins, ineligible under
+    one of degree-matched REACHABLE proteins. A score that moves when they
+    appear is a score drawing terms the observation could never have drawn.
+    """
+    base, _ = _prox(tmp_path, schema)
+    other = tmp_path_factory.mktemp("decoys")
+    with_decoys, _ = _prox(other, schema, decoys=6)
+    assert base == with_decoys, (
+        "adding unreachable proteins to the target's degree bin moved the "
+        "scores, so the null is still sampling outside what the "
+        "observation could reach")
+
+
+def test_the_score_does_not_depend_on_the_write_order_of_the_release(
+        tmp_path, schema, tmp_path_factory):
+    """One RNG was consumed across the whole drug loop, so a drug's null
+    came from wherever the stream had reached -- and `g.out`'s iteration
+    order is the order edges.jsonl was written in. That is the dependency
+    that moved SARS-CoV M1's lift from 2.08 to 0.83 when the release was
+    written canonically, in a different scorer, for the same reason."""
+    straight, _ = _prox(tmp_path, schema)
+    other = tmp_path_factory.mktemp("reversed")
+    reversed_, _ = _prox(other, schema, shuffle=True)
+    assert straight == reversed_, (
+        "reversing the order of nodes.jsonl and edges.jsonl changed the "
+        "proximity scores, which are supposed to describe the graph")
+
+
+def test_a_degenerate_matched_pool_is_refused_rather_than_scored_zero(
+        tmp_path, schema):
+    """`sd > 0 else 0.0` wrote a neutral score for a drug whose null could
+    not vary, and a neutral score ranks above every negatively-scored drug.
+
+    The fixture is the same graph with C1 and C2 removed, which leaves A2
+    alone in its degree bin: the pool has one member, every sample is that
+    member, and the null has no spread at all.
+    """
+    release = _proximity_release(tmp_path)
+    kept = [ln for ln in (release / "edges.jsonl").read_text().splitlines()
+            if "UniProtKB:C1" not in ln and "UniProtKB:C2" not in ln]
+    (release / "edges.jsonl").write_text("\n".join(kept))
+    g = Graph.load(release, symmetry=schema.symmetry())
+    stats = Counter()
+    prox = network_proximity(g, V, schema.retrieval_limits, n_random=50,
+                             stats=stats)
+    assert prox == {}, f"a drug was scored from a null with no spread: {prox}"
+    assert stats["unscored_null_has_no_spread"] == 2
+    assert 0.0 not in prox.values()

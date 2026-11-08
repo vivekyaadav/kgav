@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -297,10 +298,30 @@ def run_one(args, schema, g, held, labels, dwpc, names, virus) -> None:
               "controls below still stand:\n  evidence for a named compound "
               "does not require a ranking.")
     print("\ncomputing network proximity")
-    prox = network_proximity(g, virus, schema.retrieval_limits)
+    # EVERY GATE REPORTED (E7's demand, and E5 added three more of them).
+    # This printed "N drugs scored" and nothing about the drugs it did not
+    # score -- which hid that 223 of 4,130 have no target reachable from
+    # the factor set at all, and that two were being handed a neutral 0.0
+    # from a null with no spread.
+    prox_stats: Counter = Counter()
+    prox = network_proximity(g, virus, schema.retrieval_limits,
+                             stats=prox_stats)
     if prox:
         scorers["proximity"] = prox
     print(f"  {len(prox):,} drugs scored")
+    for k, label in (
+            ("drug_with_an_unreachable_target",
+             "scored drug(s) with a target unreachable from the factor set"),
+            ("target_slots_outside_the_observation",
+             "target slot(s) outside the observation, and so outside the null"),
+            ("unscored_no_reachable_target",
+             "unscored: no target reaches the factor set"),
+            ("unscored_no_degree_matched_reachable_protein",
+             "unscored: no degree-matched reachable protein for some slot"),
+            ("unscored_null_has_no_spread",
+             "unscored: the matched null has no spread")):
+        if prox_stats[k]:
+            print(f"    {prox_stats[k]:>7,}  {label}")
 
     # THE RANGE, NOT ONE DRAW (fix-list E2). rank() has no tiebreak and
     # Python's sort is stable, so where a tie block straddles k which of

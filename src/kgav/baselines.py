@@ -1399,15 +1399,79 @@ def _bfs_distances(g: Graph, sources: set[str], predicate: str,
 
 
 def network_proximity(g: Graph, virus: str, limits: dict,
-                      n_random: int = 100, seed: int = 0) -> dict[str, float]:
+                      n_random: int = 100, seed: int = 0,
+                      stats: Counter | None = None) -> dict[str, float]:
     """Z-scored closest distance from a drug's targets to the virus's host
     factors, against degree-matched random target sets.
 
     The z-score is what makes this a real baseline rather than a restatement of
     degree: a drug whose targets are close to the host factors only because it
     has many well-connected targets scores near zero.
+
+    THE NULL WAS MATCHED TO A DIFFERENT TARGET SET THAN THE OBSERVATION
+    (fix-list E5). `closest()` averaged over the targets that are REACHABLE
+    from the factor set, so the observed value was a mean over subset S of a
+    drug's targets T -- while the null drew a degree-matched replacement for
+    every slot in T and averaged whichever of THOSE happened to be reachable.
+    The z-score compared a quantity over S against a null matched to T.
+
+    It is not a rounding difference, because reachability is wildly uneven
+    across the degree bins it matches on. Measured on SARS-CoV-2, v0.1 of
+    2026-11-09, over 20,416 non-viral proteins and 15,071 reachable:
+
+        bin   reachable / in bin        bin   reachable / in bin
+        2^0       7 /  1,765   ( 0%)    2^5   2,293 /  2,327   (99%)
+        2^1     766 /  2,267   (34%)    2^6   1,088 /  1,094   (99%)
+        2^2   2,550 /  3,911   (65%)    2^7     445 /    448   (99%)
+        2^3   4,143 /  4,720   (88%)    2^8     143 /    150   (95%)
+        2^4   3,504 /  3,726   (94%)    2^9       2 /      8   (25%)
+
+    So a low-degree target's replacement was almost never reachable and its
+    null term simply vanished, while a high-degree target's almost always
+    was. 896 of 3,907 scored drugs (23%) have at least one unreachable
+    target, 1,574 target slots of 17,725.
+
+    THE SAMPLING POOL IS NOW THE PROTEINS THE OBSERVATION COULD HAVE DRAWN:
+    degree-matched AND reachable, over the slots the observation used. Every
+    null sample then has exactly as many terms as the observed mean, which
+    `closest`'s old signature could not express -- it returned None for "no
+    reachable target" and a mean over an unknown number of terms otherwise.
+
+    MEASURED EFFECT, with the Monte Carlo noise separated from it. Seeding
+    one RNG for the whole run made this unmeasurable at first: changing how
+    many draws a drug consumes shifts the stream for every drug after it, so
+    drugs with no unreachable target appeared to move too. Per-drug seeding,
+    median z shift against the old null:
+
+        unreachable targets dropped     0        1        2       4+
+        drugs                       3,011      547      214       70
+        shift                      +0.0000  +0.0631  +0.2076  +0.2574
+        reseed-only control        -0.0108  -0.0062  -0.0046  -0.0164
+
+    Every shift is positive and the unaffected drugs move by exactly zero:
+    the old null PENALISED drugs with unreachable targets, because the extra
+    terms tightened its spread and so inflated the z-score against them.
+    On SARS-CoV-2 this moves the published baseline from Hits@10/50/100
+    0/2/4, MRR 0.0769 to 1/3/6, MRR 0.1111 -- and DENV-2 the other way,
+    6 -> 5 at k=100, which is what a bias correction looks like rather than
+    a uniform improvement.
+
+    AND THE SCORES DEPENDED ON THE ORDER edges.jsonl WAS WRITTEN IN. One
+    `random.Random(seed)` was consumed across the whole drug loop, so a
+    drug's null came from wherever the stream had reached by the time the
+    loop got to it, and `g.out`'s iteration order is file order. Each drug
+    now seeds its own RNG from its id. That is what makes the first
+    property testable at all: before it, two drugs with the same observed
+    value and the same target slots scored 0.0978 and 0.1562 for no reason
+    but their position.
+
+    A DEGENERATE NULL IS REFUSED, NOT SCORED 0.0. `sd > 0 else 0.0` wrote a
+    neutral score for a drug whose null could not vary, which then ranks
+    above every negatively-scored drug; and `by_bin[...] or proteins`
+    silently abandoned degree matching when a bin was empty. Both are now
+    counted refusals. On this release they cost 2 drugs and 0 respectively.
     """
-    rng = random.Random(seed)
+    counts: Counter = stats if stats is not None else Counter()
     blocked = _hub_set(g, limits)
 
     factors = {n for n, _e in g.inv.get(("HOST_FACTOR_FOR", virus), [])
@@ -1418,13 +1482,24 @@ def network_proximity(g: Graph, virus: str, limits: dict,
 
     proteins = [n for n, d in g.nodes.items()
                 if d["class"] == "Protein" and not d["properties"].get("is_viral")]
-    by_bin: dict[int, list[str]] = defaultdict(list)
-    for p in proteins:
-        by_bin[int(math.log2(g.degree.get(p, 1) or 1))].append(p)
 
-    def closest(targets: list[str]) -> float | None:
-        ds = [dist[t] for t in targets if t in dist]
-        return sum(ds) / len(ds) if ds else None
+    def bin_of(node: str) -> int:
+        return int(math.log2(g.degree.get(node, 1) or 1))
+
+    # Only the reachable half is kept: an unreachable draw contributes no
+    # distance, so including it in the pool is what made the null's term
+    # count depend on the degree bin it was matched on.
+    # SORTED, because rng.choice picks by INDEX. The pool was built by
+    # iterating g.nodes, whose order is the order nodes.jsonl was written
+    # in, so reversing the release file handed the same RNG draw a
+    # different protein: measured, DA went 0.1857 -> -0.0 and DB 0.1857 ->
+    # 0.0343 on reversing a 23-line fixture. Per-drug seeding alone did not
+    # fix the order dependence -- it only moved it from the stream to the
+    # pool, which is why the test reverses the FILE and not the loop.
+    reachable_by_bin: dict[int, list[str]] = defaultdict(list)
+    for p in sorted(proteins):
+        if p in dist:
+            reachable_by_bin[bin_of(p)].append(p)
 
     drug_targets: dict[str, list[str]] = defaultdict(list)
     for (pred, drug), edges in g.out.items():
@@ -1433,24 +1508,52 @@ def network_proximity(g: Graph, virus: str, limits: dict,
 
     out: dict[str, float] = {}
     for drug, targets in drug_targets.items():
-        obs = closest(targets)
-        if obs is None:
+        # sorted for the same reason as the pools: the draw order follows
+        # this list, and the target order follows edges.jsonl.
+        reached = sorted(t for t in targets if t in dist)
+        if not reached:
+            counts["unscored_no_reachable_target"] += 1
             continue
-        null: list[float] = []
-        for _ in range(n_random):
-            sample = []
-            for t in targets:
-                bucket = by_bin[int(math.log2(g.degree.get(t, 1) or 1))] or proteins
-                sample.append(rng.choice(bucket))
-            v = closest(sample)
-            if v is not None:
-                null.append(v)
-        if len(null) < 10:
+        if len(reached) < len(targets):
+            counts["drug_with_an_unreachable_target"] += 1
+            counts["target_slots_outside_the_observation"] += (
+                len(targets) - len(reached))
+        obs = sum(dist[t] for t in reached) / len(reached)
+        pools = [reachable_by_bin[bin_of(t)] for t in reached]
+        if not all(pools):
+            # No degree-matched reachable protein exists for some slot. The
+            # old code fell back to the whole protein set here, which is a
+            # null matched on nothing while still being called
+            # degree-matched.
+            counts["unscored_no_degree_matched_reachable_protein"] += 1
             continue
+        # ONE RNG PER DRUG, DERIVED FROM ITS ID. A single stream shared
+        # across the loop made a drug's score depend on WHERE IT SAT in
+        # `g.out`'s iteration order, which follows the order edges.jsonl was
+        # written in -- the same dependency that moved SARS-CoV M1's lift
+        # from 2.08 to 0.83 when the release was written canonically, found
+        # again here and in the same shape. It also made the property below
+        # untestable: two drugs with identical observations and identical
+        # slots scored 0.0978 and 0.1562 purely because one drew second.
+        #
+        # Seeded from a STRING, not a tuple: random.Random hashes str via
+        # sha512, while hash() of a tuple containing a str is salted per
+        # process, so a tuple seed would be reproducible within one run and
+        # not across two.
+        rng = random.Random(f"{seed}:{drug}")
+        null = [sum(dist[rng.choice(pool)] for pool in pools) / len(pools)
+                for _ in range(n_random)]
         mu = sum(null) / len(null)
         sd = (sum((x - mu) ** 2 for x in null) / len(null)) ** 0.5
-        # Negated so that higher is better, consistent with the other scorers.
-        out[drug] = -((obs - mu) / sd) if sd > 0 else 0.0
+        if sd <= 0:
+            counts["unscored_null_has_no_spread"] += 1
+            continue
+        # Negated so that higher is better, consistent with the other
+        # scorers. The `+ 0.0` turns -0.0 into 0.0: a drug sitting exactly
+        # on the null mean is a real score, and printing it as -0.0 in a
+        # results file invites a reader to think it is a sentinel.
+        out[drug] = -((obs - mu) / sd) + 0.0
+        counts["scored"] += 1
     return out
 
 
