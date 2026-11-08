@@ -365,6 +365,32 @@ def ingest_host_targets(em, rows: list[dict], mechanisms: dict[tuple[str, str], 
             if cite and cite not in prev["pmids"]:
                 prev["pmids"].add(cite)
                 stats["duplicate_added_publication"] += 1
+            # THE EARLIEST ASSERTION WINS THE DATE, because that is what the
+            # field is called (fix-list P8). The edge took its date from the
+            # first row by activity_id -- ChEMBL's insertion order -- which
+            # is stable across rebuilds and is not the same thing as first
+            # asserted. Measured on chembl_37 over 19,020 keys:
+            #
+            #   766  keep a year LATER than their earliest assertion,
+            #        54 of them by ten years or more
+            #   143  keep an UNDATED row while a dated sibling exists, so
+            #        the edge gets the 1970 placeholder although the year
+            #        is known
+            #    71  change which side of a 2021 cutoff they fall on
+            #
+            # The docstring on query_host_activities already names the
+            # stake -- "the second would land in a different half of a
+            # temporal split" -- and ORDER BY fixed the DETERMINISM of that
+            # choice without making it the right choice.
+            year = str(int(r["year"])) if r.get("year") else None
+            if year and (prev["date"] == PLACEHOLDER_DATE
+                         or year < prev["date"]):
+                # The placeholder is compared by identity, not by value:
+                # "2014" < "1970-01-01" is False lexically, so a `<` alone
+                # would let the placeholder beat every real year.
+                stats["date_moved_earlier" if prev["date"] != PLACEHOLDER_DATE
+                      else "date_recovered_from_a_dated_duplicate"] += 1
+                prev["date"] = year
             continue
 
         pending[key] = {

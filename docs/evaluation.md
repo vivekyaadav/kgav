@@ -121,7 +121,7 @@ this table is empty and the paragraph below is what the decomposition says
 instead. Five cells were here on 2026-11-08 and all five were the
 similarity leak.
 
-**ACROSS ALL 69 TEMPORAL AUC CELLS, 53 EQUAL THEIR OWN IMPUTATION FLOOR TO
+**ACROSS ALL 69 TEMPORAL AUC CELLS, 52 EQUAL THEIR OWN IMPUTATION FLOOR TO
 FOUR DECIMAL PLACES.** The median deviation from the floor is **exactly
 zero**, the largest anywhere is 0.0067, and the largest floor-to-ceiling
 span any scorer had to work in is 0.0353. On SARS-CoV-2 under `include`:
@@ -1105,14 +1105,14 @@ release of 2026-11-08:
 | scorer | pool | pos | lift | p | AUC [95% CI] | |
 |---|---|---|---|---|---|---|
 | M1 | 284 | 8 | 0.36 | 0.9706 | 0.501 [0.478, 0.525] | ~ties |
-| M2 | 1,200 | 17 | 1.41 | 0.4209 | 0.506 [0.483, 0.530] |  |
-| M3 | 1,146 | 13 | 2.64 | 0.0970 | 0.505 [0.481, 0.528] |  |
-| M4 | 3,870 | 27 | 2.87 | 0.1532 | 0.510 [0.486, 0.533] | (!) |
+| M2 | 1,206 | 18 | 1.34 | 0.4479 | 0.506 [0.483, 0.530] |  |
+| M3 | 1,155 | 14 | 2.48 | 0.1138 | 0.505 [0.481, 0.529] | ~ties |
+| M4 | 3,885 | 29 | 2.68 | 0.1705 | 0.510 [0.487, 0.534] | (!) |
 | M6 | 255 | 0 | 0.00 | — | 0.500 [0.476, 0.524] | (!) |
 | M7 | 66 | 0 | 0.00 | — | 0.500 [0.476, 0.524] | (!) |
 | M8 | 24 | 0 | 0.00 | — | 0.500 [0.476, 0.524] | (!) |
-| **COMBINED** | 4,452 | 32 | 2.78 | 0.1608 | 0.510 [0.486, 0.534] | (!) |
-| degree | 5,922 | 57 | 1.04 | 0.6230 | 0.516 [0.493, 0.540] | ~ties (!) |
+| **COMBINED** | 4,467 | 34 | 2.63 | 0.1760 | 0.511 [0.487, 0.534] | (!) |
+| degree | 5,937 | 59 | 1.01 | 0.6348 | 0.517 [0.494, 0.541] | ~ties (!) |
 
 **Every figure in that table moved, and the two that matter moved in
 opposite directions.** COMBINED's lift fell from 3.36 (p=0.0154,

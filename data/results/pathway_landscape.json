@@ -1,5 +1,5 @@
 {
-  "measured_on": "2026-11-08",
+  "measured_on": "2026-11-09",
   "measured_by": "scripts/pathway_landscape.py",
   "release": "v0.1",
   "permutations": 2000,
@@ -347,13 +347,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "3356fae68afdf18d",
-      "edges_sha": "8597824ec26a3090"
+      "edges_sha": "b27dc6dc08d73b5b"
     },
     "code": {
-      "commit": "fc652b65184f16b7312b571ad7f6148e08223b5e",
+      "commit": "64d44084ebc7eb9742005f27f7a836952faa5d5d",
       "dirty": true
     },
     "schema_version": null,
-    "generated_utc": "2026-11-08T17:07:43+00:00"
+    "generated_utc": "2026-11-08T19:23:54+00:00"
   }
 }

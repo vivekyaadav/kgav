@@ -408,3 +408,94 @@ def test_the_phase_filter_cost_is_a_number_now(db):
     loose = gate_census(db, min_phase=0)
     assert loose["kept"] > strict["kept"]
     assert loose["kept"] - strict["kept"] == strict["dropped_max_phase_below_2"]
+
+
+# ----------------------- P8: "first asserted" has to mean first asserted
+#
+# About three rows share each (compound, target, assay type) key and the
+# first one by activity_id set the edge's value, relation, direction AND
+# DATE. ORDER BY activity_id made that choice deterministic across rebuilds
+# -- query_host_activities' docstring says why, naming the stake: "the
+# second would land in a different half of a temporal split" -- but ChEMBL's
+# insertion order is not the same thing as first asserted.
+#
+# Measured on chembl_37 over 19,020 keys: 766 kept a year LATER than their
+# earliest assertion (54 by ten years or more), 143 kept an UNDATED row
+# while a dated sibling existed, and 71 changed which side of a 2021 cutoff
+# they fall on. On the layer: 453 of 14,381 edges move, 350 earlier and 103
+# off the placeholder, and undated falls 2,090 -> 1,987.
+
+
+def _dup_rows(years, values=None, types="IC50"):
+    """Rows sharing one (compound, target, assay type) key.
+
+    In activity_id order, which is the order query_host_activities returns
+    and therefore the order the dedup sees.
+    """
+    values = values or [50.0] * len(years)
+    return [{"compound": "CHEMBL1", "max_phase": 4, "smiles": "C",
+             "inchikey": "AAAAAAAAAAAAAA-BBBBBBBBBB-C",
+             "accession": "Q9BYF1", "standard_type": types,
+             "standard_value": v, "standard_units": "nM",
+             "standard_relation": "=", "pchembl_value": 7.0,
+             "chembl_assay_type": "B", "assay": f"CHEMBL_A{i}",
+             "year": y, "pubmed_id": 1000 + i}
+            for i, (y, v) in enumerate(zip(years, values))]
+
+
+def _emit_dups(rows):
+    em = Emit()
+    stats = ingest_host_targets(em, rows, {}, {ACE2}, "infores:chembl")
+    return em, stats
+
+
+def test_the_date_is_the_earliest_of_the_collapsed_rows():
+    """The kept row is still the first by activity_id for value, relation
+    and direction; only the date is taken from the earliest assertion."""
+    em, stats = _emit_dups(_dup_rows([2019, 2011, 2016]))
+    assert stats["edges"] == 1 and stats["duplicate"] == 2
+    assert em.edges[0]["first_asserted_date"] == "2011"
+    assert stats["date_moved_earlier"] == 1
+    # the value still comes from the first row, which is a separate choice
+    assert em.edges[0]["qualifiers"]["ic50_nm"] == 50.0
+
+
+def test_a_dated_duplicate_rescues_an_undated_kept_row():
+    """143 keys took the 1970 placeholder while a sibling carried a year.
+    An undated edge is excluded or specially handled by every temporal
+    protocol, so this is not cosmetic."""
+    em, stats = _emit_dups(_dup_rows([None, 2014]))
+    assert em.edges[0]["first_asserted_date"] == "2014"
+    assert stats["date_recovered_from_a_dated_duplicate"] == 1
+    assert stats["date_moved_earlier"] == 0, (
+        "recovering from the placeholder is counted separately from moving "
+        "an existing year, because they are different events")
+
+
+def test_an_undated_duplicate_does_not_overwrite_a_year():
+    em, stats = _emit_dups(_dup_rows([2014, None]))
+    assert em.edges[0]["first_asserted_date"] == "2014"
+    assert not stats["date_moved_earlier"]
+    assert not stats["date_recovered_from_a_dated_duplicate"]
+
+
+def test_the_placeholder_is_not_compared_by_value():
+    """"2014" < "1970-01-01" is False lexically, so a bare `<` would let
+    the placeholder beat every real year. The branch tests it by identity;
+    this is the case that catches a regression to `<` alone."""
+    em, _ = _emit_dups(_dup_rows([None, 1971]))
+    assert em.edges[0]["first_asserted_date"] == "1971", (
+        "the 1970 placeholder won a comparison against a real year")
+
+
+def test_a_real_1970_is_a_year_and_not_the_placeholder():
+    em, stats = _emit_dups(_dup_rows([1975, 1970]))
+    assert em.edges[0]["first_asserted_date"] == "1970"
+    assert stats["date_moved_earlier"] == 1
+
+
+def test_every_row_undated_still_leaves_the_placeholder():
+    em, stats = _emit_dups(_dup_rows([None, None]))
+    from kgav.temporal import PLACEHOLDER_DATE
+    assert em.edges[0]["first_asserted_date"] == PLACEHOLDER_DATE
+    assert not stats["date_recovered_from_a_dated_duplicate"]

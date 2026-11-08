@@ -3,12 +3,12 @@
   "undated_policy": "include",
   "overlap_policy": "keep",
   "stats": {
-    "edge_train": 203492,
-    "edge_dropped_future": 149417,
+    "edge_train": 203600,
+    "edge_dropped_future": 149394,
     "label_train_active": 2317,
     "held_out_not_a_label": 2421,
     "label_test_inactive": 6772,
-    "undated_kept": 10702,
+    "undated_kept": 10617,
     "label_train_inactive": 13467,
     "label_undecidable": 546,
     "label_test_active": 2915,
@@ -28,7 +28,7 @@
     "ceiling: 27/30 test compounds for NCBITaxon:11089 have no pre-2021 evidence",
     "ceiling: 69/77 test compounds for NCBITaxon:11137 have no pre-2021 evidence",
     "ceiling: 36/50 test compounds for NCBITaxon:1335626 have no pre-2021 evidence",
-    "ceiling: 1,337/1,396 test compounds for NCBITaxon:2697049 have no pre-2021 evidence",
+    "ceiling: 1,335/1,396 test compounds for NCBITaxon:2697049 have no pre-2021 evidence",
     "ceiling: 4/5 test compounds for NCBITaxon:277944 have no pre-2021 evidence",
     "ceiling: 145/148 test compounds for NCBITaxon:31631 have no pre-2021 evidence",
     "ceiling: 560/567 test compounds for NCBITaxon:64320 have no pre-2021 evidence",
@@ -44,13 +44,13 @@
     "release": {
       "id": "v0.1",
       "nodes_sha": "3356fae68afdf18d",
-      "edges_sha": "8597824ec26a3090"
+      "edges_sha": "b27dc6dc08d73b5b"
     },
     "code": {
-      "commit": "fc652b65184f16b7312b571ad7f6148e08223b5e",
+      "commit": "64d44084ebc7eb9742005f27f7a836952faa5d5d",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-08T16:54:33+00:00"
+    "generated_utc": "2026-11-08T19:10:18+00:00"
   }
 }

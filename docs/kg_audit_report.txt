@@ -822,7 +822,7 @@ Three distinct capabilities, in increasing order of what they claim.
     channel takes the host partners of viral proteins, which is a larger
     and much softer set.
 
-    RESULT ON RELEASE v0.1, run 2026-11-08, degree_basis=study, 2,000
+    RESULT ON RELEASE v0.1, run 2026-11-09, degree_basis=study, 2,000
     permutations, seed 0: 22 rows tested, 44 tests with both directions,
     Bonferroni alpha 0.00114. ZERO rows clear it. The uncorrected version
     of the same test would have reported six. DENV-1's interactome

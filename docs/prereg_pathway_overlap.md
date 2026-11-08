@@ -11,21 +11,27 @@ hard-negatives analysis and not to this one, and is left out rather than
 listed here for completeness.
 
 Date drafted: 2026-11-02. Release: v0.1 (78,789 nodes / 392,363 edges,
-`nodes_sha` 3356fae68afdf18d, `edges_sha` 8597824ec26a3090). Scripts:
+`nodes_sha` 3356fae68afdf18d, `edges_sha` b27dc6dc08d73b5b). Scripts:
 `scripts/pathway_landscape.py`, read by `src/kgav/landscape.py`.
 
-**The release identification has now been updated three times -- 2026-11-08,
-and twice on 2026-11-09 -- and the analysis was not re-registered any of
-them**, because no rebuild has touched it.
-`data/results/pathway_landscape.json` was regenerated against each new
-release and differs from the previously committed version in **three
-fields, all provenance**: the code commit, the timestamp and `edges_sha`.
-Every measured figure -- every p-value, every overlap ratio, every
-degree-matched null -- is byte-identical, checked field by field rather
-than asserted. Each rebuild moved only
-`HAS_ANTIVIRAL_ACTIVITY_AGAINST` (two edges added by L4, 261 removed by
-L5), and this analysis does not read that predicate: it reads `TARGETS`,
-`HOST_FACTOR_FOR` and `PARTICIPATES_IN`, none of which moved. A registration that quoted a release no longer on disk would be
+**The release identification has now been updated four times -- 2026-11-08
+and three times on 2026-11-09 -- and the analysis was not re-registered any
+of them**, because no rebuild has changed a measured figure.
+`data/results/pathway_landscape.json` is regenerated against each new
+release and differs from the previously committed version only in its
+**provenance and its own run date**: the code commit, the timestamp,
+`edges_sha` and `measured_on`. Every p-value, every overlap ratio and every
+degree-matched null is byte-identical, checked field by field rather than
+asserted.
+
+The fourth rebuild is the first one that touched a predicate this analysis
+DOES read. P8 moved `first_asserted_date` on 453 `TARGETS` edges -- 350
+earlier, 103 off the 1970 placeholder -- and the figures did not move,
+because this analysis reads the drugged proteome as a SET and dates nothing:
+it asks which human proteins carry a `TARGETS` edge at all, not when the
+edge was asserted. The earlier rebuilds moved only
+`HAS_ANTIVIRAL_ACTIVITY_AGAINST` (two edges added by L4, 261 removed by L5),
+which it does not read. A registration that quoted a release no longer on disk would be
 unverifiable, which is what `tests/test_landscape.py::
 test_the_quoted_release_matches_the_census` exists to prevent; it caught
 this.
