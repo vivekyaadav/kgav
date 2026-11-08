@@ -167,21 +167,210 @@ def test_the_share_of_combineds_margin_that_is_coverage_is_the_files_own():
     assert f"{m['auc'] - floor:.4f}" in flat
 
 
-def test_the_temporal_protocol_still_cannot_be_decomposed():
-    """The half of B2 that is not done, asserted so it cannot be
-    forgotten or quietly claimed. When temporal_split.py starts recording
-    coverages this fails, and the document must then either decompose
-    that table too or say why not."""
+# ------------------------------------------------ the temporal decomposition
+TEMPORAL_MARKER = "<!-- TABLE: temporal_auc_decomposition"
+TEMPORAL_HEADER = ["policy", "virus", "scorer", "cov_pos", "cov_neg",
+                   "floor", "AUC", "ceiling", "skill"]
+POLICIES = ("include", "computed_only", "exclude")
+
+
+def temporal_rows() -> dict[tuple[str, str, str], list[str]]:
+    """(policy, virus, scorer) -> rendered cells, for every temporal cell
+    whose AUC interval excludes 0.5.
+
+    WHICH ROWS BELONG HERE IS DERIVED, not listed. The table's claim is
+    "every temporal cell that clears chance", so a cell that starts
+    clearing must appear and one that stops must go; a hand-written row
+    set would make the claim unfalsifiable, which is the defect the
+    cross-sectional table had for three weeks.
+
+    The coverages come from `auc_coverage_pos` / `auc_coverage_neg`.
+    THOSE FIELDS WERE ALWAYS THERE. On 2026-11-08 this document, the
+    prereg and the fix list all stated that `temporal_split.py` records
+    `auc_n_pos` and `auc_n_neg` "but not the coverages", so the one
+    interval in this project excluding chance had "no known floor
+    beneath it". It had a floor equal to its AUC to four decimals. The
+    claim was wrong by one grep over the writer, not the data.
+    """
+    out = {}
+    for policy in POLICIES:
+        path = ROOT / "data" / "results" / f"temporal_2021_{policy}.json"
+        if not path.exists():
+            continue
+        for virus, channels in json.loads(path.read_text())["results"].items():
+            for scorer, m in channels.items():
+                if not isinstance(m, dict) or m.get("auc_ci_lo") is None:
+                    continue
+                if m["auc_ci_lo"] <= 0.5:
+                    continue
+                n_pos, n_neg = m["auc_n_pos"], m["auc_n_neg"]
+                cp, cn = m["auc_coverage_pos"], m["auc_coverage_neg"]
+                rp, rn = round(cp * n_pos), round(cn * n_neg)
+                floor = auc_floor(rp, rn, n_pos, n_neg)
+                ceiling = auc_ceiling(rp, rn, n_pos, n_neg)
+                skill = auc_skill(m["auc"], floor, ceiling)
+                out[(policy, virus, scorer)] = [
+                    f"{cp:.1%}", f"{cn:.1%}", f"{floor:.4f}",
+                    f"{m['auc']:.4f}", f"{ceiling:.4f}",
+                    "n/a" if skill is None else f"{skill:.1%}"]
+    return out
+
+
+def parse_temporal() -> dict[tuple[str, str, str], list[str]]:
+    """The table as the document prints it, or {} when it prints none.
+
+    EMPTY IS A STATE THE DOCUMENT MUST ASSERT, not one it may fall into
+    by leaving a table out. On 2026-11-09 the C4 fix removed all five
+    temporal cells that cleared chance, so there is no table -- and a
+    parser that simply found no rows would read the same whether the
+    document said so or whether somebody had deleted the section.
+    """
+    text = DOC.read_text()
+    assert TEMPORAL_MARKER in text, "the temporal decomposition lost its marker"
+    body = text.split(TEMPORAL_MARKER, 1)[1]
+    lines = [ln.strip() for ln in body.splitlines()]
+    if not any(ln.startswith("| policy |") for ln in lines):
+        flat = " ".join(body.split())
+        assert "No temporal cell has an AUC interval excluding 0.5" in flat, (
+            "the temporal decomposition prints no table and the document "
+            "does not say that no temporal cell clears chance")
+        return {}
+    start = next(i for i, ln in enumerate(lines) if ln.startswith("| policy |"))
+    header = [c.strip() for c in lines[start].strip("|").split("|")]
+    assert header == TEMPORAL_HEADER, header
+    rows = {}
+    for line in lines[start + 2:]:
+        if not line.startswith("|"):
+            break
+        cells = [c.strip().strip("*") for c in line.strip("|").split("|")]
+        assert len(cells) == 9, f"expected 9 columns: {line}"
+        key = (cells[0], cells[1], cells[2])
+        assert key not in rows, f"{key} appears twice"
+        rows[key] = cells[3:]
+    return rows
+
+
+@pytest.fixture(scope="module")
+def temporal_tables():
+    if not (ROOT / "data/results/temporal_2021_include.json").exists():
+        pytest.skip("the temporal split is not built in this checkout")
+    return parse_temporal(), temporal_rows()
+
+
+def test_the_temporal_table_lists_exactly_the_cells_that_clear_chance(
+        temporal_tables):
+    doc, got = temporal_tables
+    assert set(doc) == set(got), (
+        f"only in the document: {sorted(set(doc) - set(got))}; "
+        f"only in the results: {sorted(set(got) - set(doc))}")
+
+
+@pytest.mark.parametrize("column", range(6))
+def test_every_temporal_cell_matches_the_results(temporal_tables, column):
+    doc, got = temporal_tables
+    labels = ["cov_pos", "cov_neg", "floor", "AUC", "ceiling", "skill"]
+    bad = {k: (doc[k][column], got[k][column])
+           for k in sorted(set(doc) & set(got))
+           if doc[k][column] != got[k][column]}
+    assert not bad, (
+        f"{labels[column]} is stale -- document vs re-derived: " +
+        "; ".join(f"{k}: {d!r} != {g!r}" for k, (d, g) in bad.items()))
+
+
+def test_the_temporal_auc_is_a_coverage_statistic():
+    """THE FINDING THAT REPLACED THE ONE BELOW, on 2026-11-09.
+
+    Most temporal AUC cells equal their own imputation floor exactly, and
+    none of them has more than a few hundredths of AUC available between
+    floor and ceiling. The document's claim -- that the tie-safe AUC on
+    this protocol CANNOT separate, rather than merely does not -- rests
+    on those two numbers, so both are derived here.
+    """
+    cells = []
+    for policy in POLICIES:
+        path = ROOT / "data" / "results" / f"temporal_2021_{policy}.json"
+        if not path.exists():
+            continue
+        for channels in json.loads(path.read_text())["results"].values():
+            if not isinstance(channels, dict):
+                continue
+            for m in channels.values():
+                if not isinstance(m, dict) or m.get("auc") is None:
+                    continue
+                if m.get("auc_coverage_pos") is None:
+                    continue
+                n_pos, n_neg = m["auc_n_pos"], m["auc_n_neg"]
+                rp = round(m["auc_coverage_pos"] * n_pos)
+                rn = round(m["auc_coverage_neg"] * n_neg)
+                floor = auc_floor(rp, rn, n_pos, n_neg)
+                cells.append((m["auc"], floor,
+                              auc_ceiling(rp, rn, n_pos, n_neg)))
+    if not cells:
+        pytest.skip("the temporal split is not built in this checkout")
+    flat = " ".join(DOC.read_text().split())
+    exact = sum(1 for auc, fl, _ in cells if f"{fl:.4f}" == f"{auc:.4f}")
+    assert f"{len(cells)} TEMPORAL AUC CELLS, {exact} EQUAL" in flat.upper(), (
+        f"{exact} of {len(cells)} temporal AUC cells equal their floor to "
+        f"four decimals; the document states a different pair")
+    worst = max(abs(auc - fl) for auc, fl, _ in cells)
+    assert f"{worst:.4f}" in flat, (
+        f"the largest deviation from the floor is {worst:.4f} and the "
+        f"document does not state it")
+    span = max(ce - fl for _, fl, ce in cells)
+    assert f"{span:.4f}" in flat, (
+        f"the largest floor-to-ceiling span is {span:.4f} and the document "
+        f"does not state it")
+
+
+def test_the_one_chance_clearing_ensemble_cell_is_its_own_floor():
+    """THE FINDING OF 2026-11-09, asserted rather than written down.
+
+    COMBINED on the temporal include split is the only non-degree cell
+    in this project whose AUC interval excludes 0.5, and its AUC equals
+    its imputation floor to four decimals with a ceiling 0.0003 above.
+    If a rebuild ever separates those three numbers, the document's
+    "artifact of reach" conclusion stops being true and must be
+    rewritten rather than left standing.
+    """
     path = ROOT / "data" / "results" / "temporal_2021_include.json"
     if not path.exists():
         pytest.skip("the temporal split is not built in this checkout")
-    rows = json.loads(path.read_text())["results"]["SARS-CoV-2"]
-    missing = [s for s, m in rows.items()
-               if isinstance(m, dict) and "auc" in m
-               and "coverage_pos" not in m]
-    assert missing, (
-        "the temporal results now record coverage; the decomposition can "
-        "be computed for that table and the document must do it rather "
-        "than say it cannot")
+    m = json.loads(path.read_text())["results"]["SARS-CoV-2"]["COMBINED"]
+    n_pos, n_neg = m["auc_n_pos"], m["auc_n_neg"]
+    rp = round(m["auc_coverage_pos"] * n_pos)
+    rn = round(m["auc_coverage_neg"] * n_neg)
+    floor = auc_floor(rp, rn, n_pos, n_neg)
+    ceiling = auc_ceiling(rp, rn, n_pos, n_neg)
     flat = " ".join(DOC.read_text().split())
-    assert "does not record them" in flat
+    # STILL ITS FLOOR -- that part never stopped being true, and it is
+    # the whole reason the cell was never a result.
+    assert f"{floor:.4f}" == f"{m['auc']:.4f}", (
+        f"the AUC {m['auc']:.4f} and the floor {floor:.4f} no longer "
+        f"agree to four decimals")
+    assert ceiling - floor < 0.001
+    if m["auc_ci_lo"] > 0.5:
+        # The state this test was written for, 2026-11-08: the cell
+        # cleared chance ON ITS FLOOR. Kept so that a regression which
+        # reintroduces the leak fails here rather than looking like a
+        # discovery.
+        assert "IS its floor" in flat or "equal to its floor" in flat
+        return
+    # 2026-11-09: the C4 fix dropped it below the bar. The document must
+    # record what it used to read, because "an interval excluding chance
+    # that was exactly an imputation floor" is the finding, not a
+    # footnote.
+    assert "0.526 [0.503, 0.549]" in flat, (
+        "this cell no longer clears chance and the document does not "
+        "record that it once did, on a figure equal to its floor")
+
+
+def test_the_withdrawn_claim_about_missing_coverages_is_recorded():
+    """The fields are named `auc_coverage_pos` / `auc_coverage_neg`, and
+    three documents said they did not exist. The retraction stays."""
+    path = ROOT / "data" / "results" / "temporal_2021_include.json"
+    if not path.exists():
+        pytest.skip("the temporal split is not built in this checkout")
+    m = json.loads(path.read_text())["results"]["SARS-CoV-2"]["COMBINED"]
+    assert "auc_coverage_pos" in m and "auc_coverage_neg" in m
+    flat = " ".join(DOC.read_text().split())
+    assert "The fields were there under a different prefix" in flat

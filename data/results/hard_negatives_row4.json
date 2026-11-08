@@ -67,7 +67,9 @@
         "coverage_pos": 0.005107252298263534,
         "coverage_neg": 0.011904761904761904,
         "auc_ceiling": 0.49663164550805,
-        "auc_headroom": -0.0033683544919499986
+        "auc_headroom": -0.0033683544919499986,
+        "auc_floor": 0.4966012451967508,
+        "auc_skill": 0.6000000000007304
       },
       "M2": {
         "n_pos": 979,
@@ -80,7 +82,9 @@
         "coverage_pos": 0.026557711950970377,
         "coverage_neg": 0.08928571428571429,
         "auc_ceiling": 0.4698216109732964,
-        "auc_headroom": -0.03017838902670361
+        "auc_headroom": -0.03017838902670361,
+        "auc_floor": 0.468635998832628,
+        "auc_skill": -0.0128205128204684
       },
       "M3": {
         "n_pos": 979,
@@ -93,7 +97,9 @@
         "coverage_pos": 0.02247191011235955,
         "coverage_neg": 0.08928571428571429,
         "auc_ceiling": 0.46759630818619585,
-        "auc_headroom": -0.03240369181380415
+        "auc_headroom": -0.03240369181380415,
+        "auc_floor": 0.46659309791332265,
+        "auc_skill": -0.00909090909092217
       },
       "M4": {
         "n_pos": 979,
@@ -106,7 +112,9 @@
         "coverage_pos": 0.049029622063329927,
         "coverage_neg": 0.16071428571428573,
         "auc_ceiling": 0.4480975485188968,
-        "auc_headroom": -0.05190245148110317
+        "auc_headroom": -0.05190245148110317,
+        "auc_floor": 0.4441576681745221,
+        "auc_skill": -0.09490740740741833
       },
       "M5": {
         "n_pos": 979,
@@ -119,7 +127,9 @@
         "coverage_pos": 0.03983656792645557,
         "coverage_neg": 0.15476190476190477,
         "auc_ceiling": 0.445619923148013,
-        "auc_headroom": -0.05438007685198698
+        "auc_headroom": -0.05438007685198698,
+        "auc_floor": 0.44253733158227543,
+        "auc_skill": 0.036489151873754455
       },
       "M6": {
         "n_pos": 979,
@@ -132,7 +142,9 @@
         "coverage_pos": 0.014300306435137897,
         "coverage_neg": 0.017857142857142856,
         "auc_ceiling": 0.4983492630964541,
-        "auc_headroom": -0.0016507369035458908
+        "auc_headroom": -0.0016507369035458908,
+        "auc_floor": 0.4982215817889975,
+        "auc_skill": 0.3333333333336232
       },
       "M7": {
         "n_pos": 979,
@@ -145,7 +157,9 @@
         "coverage_pos": 0.043922369765066395,
         "coverage_neg": 0.011904761904761904,
         "auc_ceiling": 0.5162702466073252,
-        "auc_headroom": 0.016270246607325234
+        "auc_headroom": 0.016270246607325234,
+        "auc_floor": 0.5160088039301522,
+        "auc_skill": 0.034883720930074545
       },
       "M8": {
         "n_pos": 979,
@@ -158,7 +172,9 @@
         "coverage_pos": 0.0010214504596527069,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5005107252298263,
-        "auc_headroom": 0.0005107252298263143
+        "auc_headroom": 0.0005107252298263143,
+        "auc_floor": 0.5005107252298263,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 979,
@@ -171,7 +187,9 @@
         "coverage_pos": 0.10827374872318693,
         "coverage_neg": 0.19642857142857142,
         "auc_ceiling": 0.46655661753976363,
-        "auc_headroom": -0.03344338246023637
+        "auc_headroom": -0.03344338246023637,
+        "auc_floor": 0.4559225886473077,
+        "auc_skill": -0.14093767867352372
       },
       "degree": {
         "n_pos": 979,
@@ -184,7 +202,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.05430103604260905
       }
     },
     "DENV-2": {
@@ -199,7 +219,9 @@
         "coverage_pos": 0.0017605633802816902,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5008802816901409,
-        "auc_headroom": 0.0008802816901408717
+        "auc_headroom": 0.0008802816901408717,
+        "auc_floor": 0.5008802816901409,
+        "auc_skill": null
       },
       "M2": {
         "n_pos": 568,
@@ -212,7 +234,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M3": {
         "n_pos": 568,
@@ -225,7 +249,9 @@
         "coverage_pos": 0.0017605633802816902,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5008802816901409,
-        "auc_headroom": 0.0008802816901408717
+        "auc_headroom": 0.0008802816901408717,
+        "auc_floor": 0.5008802816901409,
+        "auc_skill": null
       },
       "M4": {
         "n_pos": 568,
@@ -238,7 +264,9 @@
         "coverage_pos": 0.01232394366197183,
         "coverage_neg": 0.008620689655172414,
         "auc_ceiling": 0.5019047474502185,
-        "auc_headroom": 0.0019047474502185135
+        "auc_headroom": 0.0019047474502185135,
+        "auc_floor": 0.5018516270033997,
+        "auc_skill": -0.7142857142851171
       },
       "M5": {
         "n_pos": 568,
@@ -251,7 +279,9 @@
         "coverage_pos": 0.0017605633802816902,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5008802816901409,
-        "auc_headroom": 0.0008802816901408717
+        "auc_headroom": 0.0008802816901408717,
+        "auc_floor": 0.5008802816901409,
+        "auc_skill": null
       },
       "M6": {
         "n_pos": 568,
@@ -264,7 +294,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M7": {
         "n_pos": 568,
@@ -277,7 +309,9 @@
         "coverage_pos": 0.014084507042253521,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5070422535211268,
-        "auc_headroom": 0.007042253521126751
+        "auc_headroom": 0.007042253521126751,
+        "auc_floor": 0.5070422535211268,
+        "auc_skill": null
       },
       "M8": {
         "n_pos": 568,
@@ -290,7 +324,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 568,
@@ -303,7 +339,9 @@
         "coverage_pos": 0.028169014084507043,
         "coverage_neg": 0.008620689655172414,
         "auc_ceiling": 0.5098955803788247,
-        "auc_headroom": 0.009895580378824653
+        "auc_headroom": 0.009895580378824653,
+        "auc_floor": 0.5097741622146673,
+        "auc_skill": -0.8749999999997714
       },
       "degree": {
         "n_pos": 568,
@@ -316,7 +354,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": -0.005433462846041737
       }
     },
     "Zika": {
@@ -331,7 +371,9 @@
         "coverage_pos": 0.004629629629629629,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5023148148148148,
-        "auc_headroom": 0.0023148148148147696
+        "auc_headroom": 0.0023148148148147696,
+        "auc_floor": 0.5023148148148148,
+        "auc_skill": null
       },
       "M2": {
         "n_pos": 216,
@@ -344,7 +386,9 @@
         "coverage_pos": 0.018518518518518517,
         "coverage_neg": 0.038461538461538464,
         "auc_ceiling": 0.49038461538461536,
-        "auc_headroom": -0.009615384615384637
+        "auc_headroom": -0.009615384615384637,
+        "auc_floor": 0.49002849002849,
+        "auc_skill": -0.5000000000000779
       },
       "M3": {
         "n_pos": 216,
@@ -357,7 +401,9 @@
         "coverage_pos": 0.004629629629629629,
         "coverage_neg": 0.019230769230769232,
         "auc_ceiling": 0.4927439458689459,
-        "auc_headroom": -0.007256054131054124
+        "auc_headroom": -0.007256054131054124,
+        "auc_floor": 0.4926994301994302,
+        "auc_skill": 1.0
       },
       "M4": {
         "n_pos": 216,
@@ -370,7 +416,9 @@
         "coverage_pos": 0.041666666666666664,
         "coverage_neg": 0.09615384615384616,
         "auc_ceiling": 0.47475961538461536,
-        "auc_headroom": -0.025240384615384637
+        "auc_headroom": -0.025240384615384637,
+        "auc_floor": 0.47275641025641024,
+        "auc_skill": 0.3111111111111296
       },
       "M5": {
         "n_pos": 216,
@@ -383,7 +431,9 @@
         "coverage_pos": 0.027777777777777776,
         "coverage_neg": 0.07692307692307693,
         "auc_ceiling": 0.47649572649572647,
-        "auc_headroom": -0.023504273504273532
+        "auc_headroom": -0.023504273504273532,
+        "auc_floor": 0.4754273504273504,
+        "auc_skill": 0.125
       },
       "M6": {
         "n_pos": 216,
@@ -396,7 +446,9 @@
         "coverage_pos": 0.004629629629629629,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5023148148148148,
-        "auc_headroom": 0.0023148148148147696
+        "auc_headroom": 0.0023148148148147696,
+        "auc_floor": 0.5023148148148148,
+        "auc_skill": null
       },
       "M7": {
         "n_pos": 216,
@@ -409,7 +461,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M8": {
         "n_pos": 216,
@@ -422,7 +476,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 216,
@@ -435,7 +491,9 @@
         "coverage_pos": 0.05092592592592592,
         "coverage_neg": 0.09615384615384616,
         "auc_ceiling": 0.4798344017094017,
-        "auc_headroom": -0.020165598290598274
+        "auc_headroom": -0.020165598290598274,
+        "auc_floor": 0.4773860398860399,
+        "auc_skill": 0.181818181818188
       },
       "degree": {
         "n_pos": 216,
@@ -448,7 +506,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.046385327635327656
       }
     },
     "HCoV-OC43": {
@@ -463,7 +523,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M3": {
         "n_pos": 125,
@@ -476,7 +538,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M4": {
         "n_pos": 125,
@@ -489,7 +553,9 @@
         "coverage_pos": 0.04,
         "coverage_neg": 0.037037037037037035,
         "auc_ceiling": 0.5022222222222222,
-        "auc_headroom": 0.0022222222222222365
+        "auc_headroom": 0.0022222222222222365,
+        "auc_floor": 0.5014814814814815,
+        "auc_skill": 0.19999999999997004
       },
       "M5": {
         "n_pos": 125,
@@ -502,7 +568,9 @@
         "coverage_pos": 0.008,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.504,
-        "auc_headroom": 0.0040000000000000036
+        "auc_headroom": 0.0040000000000000036,
+        "auc_floor": 0.504,
+        "auc_skill": null
       },
       "M6": {
         "n_pos": 125,
@@ -515,7 +583,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 125,
@@ -528,7 +598,9 @@
         "coverage_pos": 0.04,
         "coverage_neg": 0.037037037037037035,
         "auc_ceiling": 0.5022222222222222,
-        "auc_headroom": 0.0022222222222222365
+        "auc_headroom": 0.0022222222222222365,
+        "auc_floor": 0.5014814814814815,
+        "auc_skill": 0.19999999999997004
       },
       "degree": {
         "n_pos": 125,
@@ -541,7 +613,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.3075555555555556
       }
     },
     "Yellow fever": {
@@ -556,7 +630,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": -0.0083451202263084
       }
     },
     "SARS-CoV": {
@@ -571,7 +647,9 @@
         "coverage_pos": 0.012195121951219513,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5060975609756098,
-        "auc_headroom": 0.0060975609756097615
+        "auc_headroom": 0.0060975609756097615,
+        "auc_floor": 0.5060975609756098,
+        "auc_skill": null
       },
       "M3": {
         "n_pos": 82,
@@ -584,7 +662,9 @@
         "coverage_pos": 0.07317073170731707,
         "coverage_neg": 0.1875,
         "auc_ceiling": 0.4496951219512195,
-        "auc_headroom": -0.05030487804878048
+        "auc_headroom": -0.05030487804878048,
+        "auc_floor": 0.4428353658536585,
+        "auc_skill": -0.11111111111110661
       },
       "M7": {
         "n_pos": 82,
@@ -597,7 +677,9 @@
         "coverage_pos": 0.06097560975609756,
         "coverage_neg": 0.0625,
         "auc_ceiling": 0.5011432926829268,
-        "auc_headroom": 0.0011432926829267887
+        "auc_headroom": 0.0011432926829267887,
+        "auc_floor": 0.4992378048780488,
+        "auc_skill": -1.0000000000000582
       },
       "M8": {
         "n_pos": 82,
@@ -610,7 +692,9 @@
         "coverage_pos": 0.012195121951219513,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5060975609756098,
-        "auc_headroom": 0.0060975609756097615
+        "auc_headroom": 0.0060975609756097615,
+        "auc_floor": 0.5060975609756098,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 82,
@@ -623,7 +707,9 @@
         "coverage_pos": 0.15853658536585366,
         "coverage_neg": 0.25,
         "auc_ceiling": 0.4740853658536585,
-        "auc_headroom": -0.025914634146341486
+        "auc_headroom": -0.025914634146341486,
+        "auc_floor": 0.45426829268292684,
+        "auc_skill": -0.46153846153846284
       },
       "degree": {
         "n_pos": 82,
@@ -636,7 +722,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.0
       }
     },
     "DENV-1": {
@@ -651,7 +739,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 71,
@@ -664,7 +754,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "degree": {
         "n_pos": 71,
@@ -677,7 +769,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.018309859154929553
       }
     },
     "HCoV-229E": {
@@ -692,7 +786,9 @@
         "coverage_pos": 0.014705882352941176,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5073529411764706,
-        "auc_headroom": 0.007352941176470562
+        "auc_headroom": 0.007352941176470562,
+        "auc_floor": 0.5073529411764706,
+        "auc_skill": null
       },
       "M2": {
         "n_pos": 68,
@@ -705,7 +801,9 @@
         "coverage_pos": 0.04411764705882353,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5220588235294118,
-        "auc_headroom": 0.022058823529411797
+        "auc_headroom": 0.022058823529411797,
+        "auc_floor": 0.5220588235294118,
+        "auc_skill": null
       },
       "M3": {
         "n_pos": 68,
@@ -718,7 +816,9 @@
         "coverage_pos": 0.014705882352941176,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5073529411764706,
-        "auc_headroom": 0.007352941176470562
+        "auc_headroom": 0.007352941176470562,
+        "auc_floor": 0.5073529411764706,
+        "auc_skill": null
       },
       "M4": {
         "n_pos": 68,
@@ -731,7 +831,9 @@
         "coverage_pos": 0.07352941176470588,
         "coverage_neg": 0.08333333333333333,
         "auc_ceiling": 0.49816176470588236,
-        "auc_headroom": -0.0018382352941176405
+        "auc_headroom": -0.0018382352941176405,
+        "auc_floor": 0.4950980392156863,
+        "auc_skill": 1.0
       },
       "M5": {
         "n_pos": 68,
@@ -744,7 +846,9 @@
         "coverage_pos": 0.04411764705882353,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5220588235294118,
-        "auc_headroom": 0.022058823529411797
+        "auc_headroom": 0.022058823529411797,
+        "auc_floor": 0.5220588235294118,
+        "auc_skill": null
       },
       "M6": {
         "n_pos": 68,
@@ -757,7 +861,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M7": {
         "n_pos": 68,
@@ -770,7 +876,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 68,
@@ -783,7 +891,9 @@
         "coverage_pos": 0.07352941176470588,
         "coverage_neg": 0.08333333333333333,
         "auc_ceiling": 0.49816176470588236,
-        "auc_headroom": -0.0018382352941176405
+        "auc_headroom": -0.0018382352941176405,
+        "auc_floor": 0.4950980392156863,
+        "auc_skill": 1.0
       },
       "degree": {
         "n_pos": 68,
@@ -796,7 +906,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.3799019607843137
       }
     },
     "West Nile": {
@@ -811,7 +923,9 @@
         "coverage_pos": 0.015384615384615385,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5076923076923077,
-        "auc_headroom": 0.007692307692307665
+        "auc_headroom": 0.007692307692307665,
+        "auc_floor": 0.5076923076923077,
+        "auc_skill": null
       },
       "M3": {
         "n_pos": 65,
@@ -824,7 +938,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M4": {
         "n_pos": 65,
@@ -837,7 +953,9 @@
         "coverage_pos": 0.03076923076923077,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5153846153846153,
-        "auc_headroom": 0.01538461538461533
+        "auc_headroom": 0.01538461538461533,
+        "auc_floor": 0.5153846153846153,
+        "auc_skill": null
       },
       "M5": {
         "n_pos": 65,
@@ -850,7 +968,9 @@
         "coverage_pos": 0.015384615384615385,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5076923076923077,
-        "auc_headroom": 0.007692307692307665
+        "auc_headroom": 0.007692307692307665,
+        "auc_floor": 0.5076923076923077,
+        "auc_skill": null
       },
       "M7": {
         "n_pos": 65,
@@ -863,7 +983,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 65,
@@ -876,7 +998,9 @@
         "coverage_pos": 0.046153846153846156,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5230769230769231,
-        "auc_headroom": 0.023076923076923106
+        "auc_headroom": 0.023076923076923106,
+        "auc_floor": 0.5230769230769231,
+        "auc_skill": null
       },
       "degree": {
         "n_pos": 65,
@@ -889,7 +1013,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.10635451505016724
       }
     }
   },
@@ -906,7 +1032,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.00980392156862745,
         "auc_ceiling": 0.4950980392156863,
-        "auc_headroom": -0.004901960784313708
+        "auc_headroom": -0.004901960784313708,
+        "auc_floor": 0.4950980392156863,
+        "auc_skill": null
       },
       "M2": {
         "n_pos": 707,
@@ -919,7 +1047,9 @@
         "coverage_pos": 0.0014144271570014145,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5007072135785007,
-        "auc_headroom": 0.0007072135785006761
+        "auc_headroom": 0.0007072135785006761,
+        "auc_floor": 0.5007072135785007,
+        "auc_skill": null
       },
       "M3": {
         "n_pos": 707,
@@ -932,7 +1062,9 @@
         "coverage_pos": 0.0014144271570014145,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5007072135785007,
-        "auc_headroom": 0.0007072135785006761
+        "auc_headroom": 0.0007072135785006761,
+        "auc_floor": 0.5007072135785007,
+        "auc_skill": null
       },
       "M4": {
         "n_pos": 707,
@@ -945,33 +1077,39 @@
         "coverage_pos": 0.005657708628005658,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5028288543140028,
-        "auc_headroom": 0.0028288543140028155
+        "auc_headroom": 0.0028288543140028155,
+        "auc_floor": 0.5028288543140028,
+        "auc_skill": null
       },
       "M6": {
         "n_pos": 707,
         "n_neg": 102,
-        "auc": 0.5035360678925035,
+        "auc": 0.5,
         "evaluable": true,
-        "auc_ci_lo": 0.4436785299304347,
-        "auc_ci_hi": 0.5633936058545723,
+        "auc_ci_lo": 0.44003495485295224,
+        "auc_ci_hi": 0.5599650451470478,
         "imputed": true,
-        "coverage_pos": 0.007072135785007072,
+        "coverage_pos": 0.0,
         "coverage_neg": 0.0,
-        "auc_ceiling": 0.5035360678925035,
-        "auc_headroom": 0.0035360678925034916
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M7": {
         "n_pos": 707,
         "n_neg": 102,
-        "auc": 0.5021424411348698,
+        "auc": 0.5,
         "evaluable": true,
-        "auc_ci_lo": 0.44224207362962803,
-        "auc_ci_hi": 0.5620428086401117,
+        "auc_ci_lo": 0.44003495485295224,
+        "auc_ci_hi": 0.5599650451470478,
         "imputed": true,
-        "coverage_pos": 0.014144271570014143,
-        "coverage_neg": 0.00980392156862745,
-        "auc_ceiling": 0.5022395096652522,
-        "auc_headroom": 0.002239509665252215
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M8": {
         "n_pos": 707,
@@ -984,33 +1122,39 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 707,
         "n_neg": 102,
-        "auc": 0.5014560279557367,
+        "auc": 0.49791302659677733,
         "evaluable": true,
-        "auc_ci_lo": 0.4415347847630121,
-        "auc_ci_hi": 0.5613772711484614,
+        "auc_ci_lo": 0.43788633687073164,
+        "auc_ci_hi": 0.557939716322823,
         "imputed": true,
-        "coverage_pos": 0.02263083451202263,
-        "coverage_neg": 0.0196078431372549,
-        "auc_ceiling": 0.5017333666139723,
-        "auc_headroom": 0.0017333666139722759
+        "coverage_pos": 0.005657708628005658,
+        "coverage_neg": 0.00980392156862745,
+        "auc_ceiling": 0.49795462739551266,
+        "auc_headroom": -0.002045372604487339,
+        "auc_floor": 0.4979268935296891,
+        "auc_skill": -0.5
       },
       "degree": {
         "n_pos": 707,
         "n_neg": 102,
-        "auc": 0.47130931580553015,
+        "auc": 0.4973375488809385,
         "evaluable": true,
-        "auc_ci_lo": 0.4106150476336429,
-        "auc_ci_hi": 0.5320035839774174,
+        "auc_ci_lo": 0.43729409686109266,
+        "auc_ci_hi": 0.5573810009007844,
         "imputed": true,
-        "coverage_pos": 0.2531824611032532,
-        "coverage_neg": 0.3137254901960784,
-        "auc_ceiling": 0.5094433813129212,
-        "auc_headroom": 0.009443381312921217
+        "coverage_pos": 0.033946251768033946,
+        "coverage_neg": 0.0392156862745098,
+        "auc_ceiling": 0.49803089552652746,
+        "auc_headroom": -0.0019691044734725383,
+        "auc_floor": 0.49736528274676206,
+        "auc_skill": -0.04166666666665972
       }
     },
     "HCoV-OC43": {
@@ -1025,7 +1169,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M3": {
         "n_pos": 112,
@@ -1038,7 +1184,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M4": {
         "n_pos": 112,
@@ -1051,7 +1199,9 @@
         "coverage_pos": 0.008928571428571428,
         "coverage_neg": 0.037037037037037035,
         "auc_ceiling": 0.4861111111111111,
-        "auc_headroom": -0.013888888888888895
+        "auc_headroom": -0.013888888888888895,
+        "auc_floor": 0.4859457671957672,
+        "auc_skill": -1.0000000000003357
       },
       "M6": {
         "n_pos": 112,
@@ -1064,7 +1214,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 112,
@@ -1077,20 +1229,24 @@
         "coverage_pos": 0.008928571428571428,
         "coverage_neg": 0.037037037037037035,
         "auc_ceiling": 0.4861111111111111,
-        "auc_headroom": -0.013888888888888895
+        "auc_headroom": -0.013888888888888895,
+        "auc_floor": 0.4859457671957672,
+        "auc_skill": -1.0000000000003357
       },
       "degree": {
         "n_pos": 112,
         "n_neg": 27,
-        "auc": 0.5968915343915344,
+        "auc": 0.4859457671957672,
         "evaluable": true,
-        "auc_ci_lo": 0.48276911404843115,
-        "auc_ci_hi": 0.7110139547346377,
+        "auc_ci_lo": 0.3635724179553456,
+        "auc_ci_hi": 0.6083191164361887,
         "imputed": true,
-        "coverage_pos": 0.26785714285714285,
-        "coverage_neg": 0.07407407407407407,
-        "auc_ceiling": 0.6068121693121693,
-        "auc_headroom": 0.1068121693121693
+        "coverage_pos": 0.008928571428571428,
+        "coverage_neg": 0.037037037037037035,
+        "auc_ceiling": 0.4861111111111111,
+        "auc_headroom": -0.013888888888888895,
+        "auc_floor": 0.4859457671957672,
+        "auc_skill": 0.0
       }
     },
     "Zika": {
@@ -1105,7 +1261,9 @@
         "coverage_pos": 0.009708737864077669,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5048543689320388,
-        "auc_headroom": 0.004854368932038833
+        "auc_headroom": 0.004854368932038833,
+        "auc_floor": 0.5048543689320388,
+        "auc_skill": null
       },
       "M2": {
         "n_pos": 103,
@@ -1118,7 +1276,9 @@
         "coverage_pos": 0.02912621359223301,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5145631067961165,
-        "auc_headroom": 0.014563106796116498
+        "auc_headroom": 0.014563106796116498,
+        "auc_floor": 0.5145631067961165,
+        "auc_skill": null
       },
       "M3": {
         "n_pos": 103,
@@ -1131,7 +1291,9 @@
         "coverage_pos": 0.009708737864077669,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5048543689320388,
-        "auc_headroom": 0.004854368932038833
+        "auc_headroom": 0.004854368932038833,
+        "auc_floor": 0.5048543689320388,
+        "auc_skill": null
       },
       "M4": {
         "n_pos": 103,
@@ -1144,20 +1306,24 @@
         "coverage_pos": 0.02912621359223301,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5145631067961165,
-        "auc_headroom": 0.014563106796116498
+        "auc_headroom": 0.014563106796116498,
+        "auc_floor": 0.5145631067961165,
+        "auc_skill": null
       },
       "M6": {
         "n_pos": 103,
         "n_neg": 20,
-        "auc": 0.5048543689320388,
+        "auc": 0.5,
         "evaluable": true,
-        "auc_ci_lo": 0.36634634521024373,
-        "auc_ci_hi": 0.6433623926538339,
+        "auc_ci_lo": 0.361182991631797,
+        "auc_ci_hi": 0.638817008368203,
         "imputed": true,
-        "coverage_pos": 0.009708737864077669,
+        "coverage_pos": 0.0,
         "coverage_neg": 0.0,
-        "auc_ceiling": 0.5048543689320388,
-        "auc_headroom": 0.004854368932038833
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M7": {
         "n_pos": 103,
@@ -1170,33 +1336,39 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 103,
         "n_neg": 20,
-        "auc": 0.5242718446601942,
+        "auc": 0.5194174757281553,
         "evaluable": true,
-        "auc_ci_lo": 0.38716469494944905,
-        "auc_ci_hi": 0.6613789943709393,
+        "auc_ci_lo": 0.3819354409569412,
+        "auc_ci_hi": 0.6568995104993695,
         "imputed": true,
-        "coverage_pos": 0.04854368932038835,
+        "coverage_pos": 0.038834951456310676,
         "coverage_neg": 0.0,
-        "auc_ceiling": 0.5242718446601942,
-        "auc_headroom": 0.024271844660194164
+        "auc_ceiling": 0.5194174757281553,
+        "auc_headroom": 0.01941747572815533,
+        "auc_floor": 0.5194174757281553,
+        "auc_skill": null
       },
       "degree": {
         "n_pos": 103,
         "n_neg": 20,
-        "auc": 0.5485436893203883,
+        "auc": 0.5194174757281553,
         "evaluable": true,
-        "auc_ci_lo": 0.41355625433266663,
-        "auc_ci_hi": 0.68353112430811,
+        "auc_ci_lo": 0.3819354409569412,
+        "auc_ci_hi": 0.6568995104993695,
         "imputed": true,
-        "coverage_pos": 0.0970873786407767,
+        "coverage_pos": 0.038834951456310676,
         "coverage_neg": 0.0,
-        "auc_ceiling": 0.5485436893203883,
-        "auc_headroom": 0.04854368932038833
+        "auc_ceiling": 0.5194174757281553,
+        "auc_headroom": 0.01941747572815533,
+        "auc_floor": 0.5194174757281553,
+        "auc_skill": null
       }
     },
     "DENV-2": {
@@ -1211,7 +1383,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M2": {
         "n_pos": 82,
@@ -1224,7 +1398,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M3": {
         "n_pos": 82,
@@ -1237,7 +1413,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M4": {
         "n_pos": 82,
@@ -1250,7 +1428,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.043478260869565216,
         "auc_ceiling": 0.4782608695652174,
-        "auc_headroom": -0.021739130434782594
+        "auc_headroom": -0.021739130434782594,
+        "auc_floor": 0.4782608695652174,
+        "auc_skill": null
       },
       "M6": {
         "n_pos": 82,
@@ -1263,7 +1443,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M7": {
         "n_pos": 82,
@@ -1276,7 +1458,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 82,
@@ -1289,20 +1473,24 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.043478260869565216,
         "auc_ceiling": 0.4782608695652174,
-        "auc_headroom": -0.021739130434782594
+        "auc_headroom": -0.021739130434782594,
+        "auc_floor": 0.4782608695652174,
+        "auc_skill": null
       },
       "degree": {
         "n_pos": 82,
         "n_neg": 23,
-        "auc": 0.46394485683987274,
+        "auc": 0.46208907741251326,
         "evaluable": true,
-        "auc_ci_lo": 0.3284524309375234,
-        "auc_ci_hi": 0.5994372827422221,
+        "auc_ci_lo": 0.3265508011000562,
+        "auc_ci_hi": 0.5976273537249703,
         "imputed": true,
-        "coverage_pos": 0.10975609756097561,
-        "coverage_neg": 0.17391304347826086,
-        "auc_ceiling": 0.4774655355249205,
-        "auc_headroom": -0.022534464475079508
+        "coverage_pos": 0.012195121951219513,
+        "coverage_neg": 0.08695652173913043,
+        "auc_ceiling": 0.46314952279957583,
+        "auc_headroom": -0.03685047720042417,
+        "auc_floor": 0.4626193001060445,
+        "auc_skill": -0.9999999999998953
       }
     },
     "Yellow fever": {
@@ -1317,7 +1505,9 @@
         "coverage_pos": 0.047619047619047616,
         "coverage_neg": 0.09090909090909091,
         "auc_ceiling": 0.4805194805194805,
-        "auc_headroom": -0.019480519480519487
+        "auc_headroom": -0.019480519480519487,
+        "auc_floor": 0.47835497835497837,
+        "auc_skill": 1.0
       }
     }
   },
@@ -1569,7 +1759,7 @@
         "missing_predicates": []
       },
       "M6": {
-        "drugs_reached": 469,
+        "drugs_reached": 414,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11137",
@@ -1587,7 +1777,7 @@
         "missing_predicates": []
       },
       "M7": {
-        "drugs_reached": 116,
+        "drugs_reached": 76,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11082",
@@ -1627,10 +1817,10 @@
       "edges_sha": "f3bb418a89779e94"
     },
     "code": {
-      "commit": "8ce3e5b8a2ac44013d148e4f49fa035260101c68",
-      "dirty": false
+      "commit": "f1bd3399a746279486c30f7c9c8b803003c0e76e",
+      "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-07T05:03:47+00:00"
+    "generated_utc": "2026-11-08T10:32:06+00:00"
   }
 }

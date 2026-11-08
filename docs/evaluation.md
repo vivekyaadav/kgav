@@ -103,13 +103,63 @@ without either figure meaning anything. `auc_skill` returns `n/a` only when
 the span is exactly zero; a span this small should be read the same way, and
 the `not evaluated` block above is the gate that already does so.
 
-**This is fix-list item B2, half done.** The decomposition exists for the
-cross-sectional protocol because `evaluate_against_negatives` records both
-coverages. `scripts/temporal_split.py` does not record them, so the same
-decomposition cannot be computed for the temporal table -- where COMBINED's
-0.526 [0.503, 0.549] is the one interval in this project that excludes
-chance without a known floor beneath it. That is the next measurement, not
-a conclusion.
+**And the same decomposition applies to the temporal table, where it
+leaves nothing behind.** `scripts/temporal_split.py` records the coverages
+as `auc_coverage_pos` and `auc_coverage_neg`, so nothing new had to be
+measured.
+
+<!-- TABLE: temporal_auc_decomposition — asserted cell-by-cell by
+     tests/test_auc_decomposition.py against the temporal results files.
+     The rows are exactly the (policy, virus, scorer) cells whose
+     `auc_ci_lo` exceeds 0.5, derived; on this release there are none, and
+     the test asserts that the document says so rather than printing a
+     table. floor and ceiling are kgav.labels.auc_floor and auc_ceiling on
+     the recorded coverages. Do not hand-edit. -->
+
+**No temporal cell has an AUC interval excluding 0.5 on this release**, so
+this table is empty and the paragraph below is what the decomposition says
+instead. Five cells were here on 2026-11-08 and all five were the
+similarity leak.
+
+**ACROSS ALL 69 TEMPORAL AUC CELLS, 53 EQUAL THEIR OWN IMPUTATION FLOOR TO
+FOUR DECIMAL PLACES.** The median deviation from the floor is **exactly
+zero**, the largest anywhere is 0.0067, and the largest floor-to-ceiling
+span any scorer had to work in is 0.0320. On SARS-CoV-2 under `include`:
+
+    scorer     cov_pos  cov_neg    floor      AUC   ceiling
+    COMBINED      2.0%     0.3%   0.5086   0.5086    0.5086
+    degree        4.1%     0.8%   0.5162   0.5162    0.5163
+
+Both are their floors to four decimals. **The temporal AUC is a coverage
+statistic.** A scorer on this split reaches 2-4% of the test positives and
+a smaller fraction of the test negatives, the gap between those two numbers
+is the whole figure, and ranking quality inside the reached set has at most
+0.032 of room to show itself and demonstrably uses none of it.
+
+That is a stronger negative than "no channel separates". It says the
+tie-safe AUC, on this protocol, **cannot** separate: the statistic is
+dominated by imputation before any scorer is applied, so a future channel
+could rank its reached set perfectly and still read 0.509.
+
+**Before the C4 fix, COMBINED read 0.526 [0.503, 0.549] here -- an interval
+excluding chance, and equal to its floor of 0.5263 to four decimals, with a
+ceiling of 0.5266.** It cleared the bar on a number its reach produced by
+itself. Degree read 0.555 against a floor of 0.5526, and SARS-CoV degree
+read 0.8343 -- the largest AUC anywhere in this project -- against a floor
+of 0.8169 from an 88.4%-vs-25.0% coverage gap. All three are gone, and they
+were never results.
+
+**One correction to record here.** The replacement text written on
+2026-11-08 said degree "reaches every compound so none of its figure is
+imputed". That is true CROSS-sectionally, where degree's floor is exactly
+0.5, and false temporally: degree can only reach what the pre-2021 graph
+holds, so it has a coverage asymmetry like any channel. And a paragraph in
+this document, in `docs/prereg_temporal_auc.md` and in the fix list said
+`temporal_split.py` "records `auc_n_pos` and `auc_n_neg` but not the
+coverages", so the row "cannot be told apart from its own imputation
+floor". The fields were there under a different prefix; the claim was wrong
+by one `grep`, and the thing it called unmeasurable is the sharpest
+measurement in this section.
 
 **The temporal protocol was the first non-null this project produced. On
 2026-10-12 it was found NOT DETERMINED, and on 2026-10-14 a tie-safe metric
@@ -117,18 +167,24 @@ found no result in it either.** M1's Hits@100 on the SARS-CoV-2 train2021
 split can take any value from 0 to 8 of its 8 positives depending on the
 order drugs were inserted into a dict. The ROC AUC does not read a cut and
 is invariant to that order, and on the same split (`--undated include`, the
-one the rest of the pipeline reads) it reads **0.526 [0.503, 0.549] for
-COMBINED and 0.555 [0.533, 0.578] for degree** — and NEITHER contains
-chance. The section below reports all three numbers.
+one the rest of the pipeline reads) it reads **0.509 [0.486, 0.532] for
+COMBINED and 0.516 [0.493, 0.539] for degree** — both containing chance,
+and both equal to their own imputation floor to four decimal places. The
+section below reports all three numbers and the floor under each.
 
-**That sentence said "0.512 for COMBINED and 0.504 for degree — both
-containing chance" until 2026-11-08, and both halves were wrong.** The pair
-came from a release two rebuilds earlier and nothing re-derived them,
-because the temporal table is the one results table in this document with
-no test behind it — the defect every other table here has a test file to
-prevent. The current figures are the opposite result: on the tie-safe
-metric the temporal split separates labelled from unlabelled compounds for
-BOTH scorers, degree more strongly than the ensemble.
+**THIS PAIR OF FIGURES HAS NOW BEEN WRONG, RIGHT FOR THE WRONG REASON, AND
+RIGHT, IN THREE DAYS.** It read "0.512 for COMBINED and 0.504 for degree —
+both containing chance" until 2026-11-08, from a release two rebuilds
+earlier that nothing re-derived; the temporal table was the one results
+table in this document with no test behind it. Re-derived, it became 0.526
+and 0.555, NEITHER containing chance — and that reversal was itself an
+artifact, because the similarity layer was leaking post-cutoff compounds
+into the 2021 graph (C4 below). With that fixed it is 0.509 and 0.516, both
+containing chance again. The original CONCLUSION was right the whole time
+and both of its numbers were wrong; one correction replaced them with
+figures that were accurate and misleading, and only the decomposition and
+the leak fix together got to a statement that holds. Every figure in that
+sentence is now re-derived by `tests/test_temporal_table.py`.
 
 The one-line version of every table here:
 
@@ -138,33 +194,48 @@ The one-line version of every table here:
 > There are seven such cells on this release and they are all of those
 > two scorers:
 >
->     cross-sectional   SARS-CoV-2   degree    0.577 [0.514, 0.639]
->                       SARS-CoV-2   COMBINED  0.575 [0.512, 0.637]
->     temporal include  SARS-CoV-2   degree    0.555 [0.533, 0.578]
->                       SARS-CoV-2   COMBINED  0.526 [0.503, 0.549]
->                       SARS-CoV     degree    0.834 [0.674, 0.995]
->     temporal          SARS-CoV-2   degree    0.554 [0.531, 0.576]
->     computed_only     SARS-CoV     degree    0.834 [0.674, 0.995]
+>     run                  virus        scorer    AUC [95% CI]           floor  from reach
+>     cross-sectional      SARS-CoV-2   COMBINED  0.575 [0.512, 0.637]   0.5645       86%
+>                          SARS-CoV-2   degree    0.577 [0.514, 0.639]   0.5000        0%
+>
+> **Two cells, and the third column is how much of each margin above
+> chance is the imputation floor rather than the ranking.** Degree has no
+> floor at all, because it is the only scorer here that reaches every
+> compound in both classes; 86% of COMBINED's is reach.
+>
+> **Five of these cells were temporal until 2026-11-09 and are gone.**
+> They were: SARS-CoV-2 COMBINED 0.526, SARS-CoV-2 degree 0.555 and
+> SARS-CoV degree 0.834 under `include`, and the latter two again under
+> `computed_only`. Every one of them was an artifact of the similarity
+> layer leaking post-cutoff compounds into the 2021 training graph --
+> fix-list C4, measured below -- and dating a computed edge by when its
+> endpoints first appear removes all five. **Nothing in the temporal
+> protocol now has an AUC interval excluding chance.**
 >
 > Cross-sectionally degree and COMBINED are **0.002 apart**, and that
-> number is not the comparison it looks like: 86% of COMBINED's margin
-> above chance is its coverage asymmetry and none of degree's is. Read
-> the decomposition table above -- normalised for reach they use 15.0%
-> and 15.3% of the span available to them, which is the defensible
-> version of "indistinguishable".
+> number is not the comparison it looks like either. Normalised for reach
+> they use 15.0% and 15.3% of the span available to them, which is the
+> defensible version of "indistinguishable". Both decomposition tables are
+> above.
 >
-> **This claim said "two scorers do, both only cross-sectionally and both
-> on SARS-CoV-2" until 2026-11-08, and the second half was false when it
-> was written.** Five of the seven cells above are temporal, two of them
-> are SARS-CoV rather than SARS-CoV-2, and the pre-rebuild results files
-> carry every one of them -- the artifact diff confirms the SET of seven is
-> identical before and after the 2026-11-07 rebuild and L7, with only the
-> figures inside it moving, degree's cross-sectional one most of all. The
-> claim was not overtaken by a later run; it never described any run.
-> Nothing re-derived it: the census of which cells
-> clear chance existed in no test, so a sentence enumerating them could
-> say anything. `tests/test_evaluation_table.py` now derives the whole set
-> from every results file and asserts this block lists exactly it.
+> **THIS CLAIM IS BACK TO WHAT IT SAID, AND THE ROUND TRIP IS THE POINT.**
+> For weeks it read "two scorers do, both only cross-sectionally and both
+> on SARS-CoV-2". On 2026-11-08 the census was derived for the first time
+> and that was **false**: seven cells cleared chance, five of them
+> temporal and two on SARS-CoV, and the pre-rebuild results files carried
+> every one of them, so the sentence had never described any run. The
+> claim was corrected to enumerate all seven. On 2026-11-09 fixing the
+> similarity leak removed the five temporal cells, and the enumeration is
+> two cells, both cross-sectional, both SARS-CoV-2 -- the original words,
+> true for the first time.
+>
+> **A sentence that is right today and was wrong yesterday, with the same
+> words, is the argument for deriving it.** Nothing re-derived this census
+> before 2026-11-08; a sentence enumerating the cells could say anything,
+> and for two releases it said something that happened to be false and is
+> now accidentally correct. `tests/test_evaluation_table.py` derives the
+> whole set from every results file and asserts this block lists exactly
+> it, both ways, so neither state can be reached again by assertion.
 >
 > That second scorer was missing from this claim until 2026-11-07, and the
 > claim was wrong without it: it read "the only scorer that ever did is
@@ -214,20 +285,23 @@ The one-line version of every table here:
 > block at the cut, so the hit count ranges over 0 to 8 and the lift over
 > 0.00 to 2.84.
 >
-> **The temporal protocol removes the confound on the metric it was built
-> for, and no channel separates under it either.** Degree's Hits@100 lift
-> there is 0.44 at p=0.9723 -- indistinguishable from random, and in fact
-> below it -- against a cross-sectional 10.02 at p<.0001 for SARS-CoV. That
-> is the control working. It does NOT put degree at chance on every metric:
-> degree's tie-safe AUC on the same split is 0.555 [0.533, 0.578], which
-> excludes 0.5, so study volume still separates the classes when the whole
-> ranking is read rather than its first 100. Both statements are true of
-> the same run because lift reads a cut and AUC does not, and this document
-> asserted only the first of them -- "degree is at chance on it" -- until
-> 2026-11-08. Under that condition no channel separates either, which is a
-> different and better-supported statement than "everything is confounded"
-> -- but it is a statement about Hits@k, not about the protocol as a
-> whole.
+> **The temporal protocol removes the confound on both metrics, and no
+> channel separates under it either.** Degree's Hits@100 lift there is 0.93
+> at p=0.6628 against a cross-sectional 10.02 at p<.0001 for SARS-CoV, and
+> its tie-safe AUC is 0.516 [0.493, 0.539], containing chance. That is the
+> control working, and it is a better-supported statement than "everything
+> is confounded".
+>
+> **It was not true of the AUC between 2026-11-08 and 2026-11-09**, and
+> this document said so at length: degree read 0.555 [0.533, 0.578] there,
+> excluding chance, and the paragraph argued carefully that "degree is at
+> chance on it" held of the LIFT and not of the AUC, because lift reads a
+> cut and AUC does not. That distinction is sound and was the wrong
+> explanation. The real cause was the similarity leak (C4): with
+> post-cutoff compounds removed from the 2021 graph, degree's AUC falls to
+> 0.516 and contains chance, so both metrics agree after all. **A correct
+> piece of reasoning about the wrong data produced a wrong conclusion**,
+> which is why the figures are now derived and the leak has a test.
 
 Five figures for M1 -- 0.779, 0.673, 0.622, and then two protocols under which
 the channel reaches too few positives to be evaluated at all -- are reported
@@ -559,11 +633,12 @@ random on those labels says nothing about mechanism -- only beating *degree*
 does. `confound_warning()` prints the verdict under every table, both ways:
 
     CONFOUNDED            degree is itself significant -- SARS-CoV and
-                          MERS-CoV cross-sectionally, and MERS-CoV,
-                          SARS-CoV and Zika temporally (both the
-                          computed_only and include policies). EIGHT
-                          (run, virus) pairs, the largest verdict class in
-                          both tables
+                          MERS-CoV cross-sectionally, and the same two
+                          temporally under all three undated policies.
+                          EIGHT (run, virus) pairs, the largest verdict
+                          class in both tables. Zika held this verdict
+                          temporally until 2026-11-09 and is now below
+                          the reachability floor instead
     BASELINE AT CHANCE    degree is indistinguishable from random AND a
                           TRUSTWORTHY, DETERMINED channel is significant --
                           **NO (run, virus) pair on this release**. The
@@ -574,9 +649,13 @@ does. `confound_warning()` prints the verdict under every table, both ways:
     BASELINE NOT          the degree row's own Hits@k is an interval, so no
     DETERMINED            comparison against it can be read -- including
                           every ratio in the vs-deg column, which divides
-                          by it. FOUR pairs: cross-sectional SARS-CoV-2,
-                          and temporally SARS-CoV-2 under computed_only,
-                          SARS-CoV-2 under include and DENV-2 under include
+                          by it. TWO pairs, both SARS-CoV-2: the
+                          cross-sectional run and the temporal `include`
+                          run. It was four on 2026-11-08; DENV-2 under
+                          include and SARS-CoV-2 under computed_only both
+                          fell out when the similarity leak was fixed --
+                          DENV-2 below the reachability floor, and
+                          computed_only's degree hit count off its tie
     (nothing)             neither, so there is nothing to report
 
 **BASELINE AT CHANCE now holds nowhere, and the way it left is the finding
@@ -894,9 +973,17 @@ prospective cases -- and `--overlap-policy keep` reproduces the refusal.
 
 ### SARS-CoV-2, cutoff 2021, undated=include
 
-231 of 1,575 post-2021 compounds exist in the pre-2021 graph: a **14.7%
-ceiling on recall**. `p` is the exact hypergeometric tail, P(hits >= observed)
-under random ranking -- the lift equivalent of the AUC intervals above.
+**64 of 1,580 post-2021 compounds exist in the pre-2021 graph: a 4.1%
+ceiling on recall.** `p` is the exact hypergeometric tail, P(hits >=
+observed) under random ranking -- the lift equivalent of the AUC intervals
+above.
+
+That ceiling read **14.7% (231 of 1,575)** until 2026-11-09, and the
+difference is the similarity leak: 167 of those 231 compounds "existed" in
+the pre-2021 graph only through a `CHEMICALLY_SIMILAR_TO` edge computed
+over the whole release and stamped with the placeholder date. A prospective
+protocol cannot see 14.7% of its test set; it can see 4.1%. Every figure
+below is on the 4.1%.
 
 The figures below are from 2026-10-12, after M1 was constrained to resolved
 targets (`INHIBITS.target_resolution = chain_from_assay_description`), which
@@ -957,14 +1044,14 @@ release of 2026-11-08:
 | scorer | pool | pos | lift | p | AUC [95% CI] | |
 |---|---|---|---|---|---|---|
 | M1 | 284 | 8 | 0.36 | 0.9706 | 0.501 [0.478, 0.524] | ~ties |
-| M2 | 1,200 | 17 | 1.41 | 0.4209 | 0.505 [0.482, 0.528] | |
-| M3 | 1,146 | 13 | 2.64 | 0.0970 | 0.504 [0.481, 0.527] | |
+| M2 | 1,200 | 17 | 1.41 | 0.4209 | 0.505 [0.482, 0.528] |  |
+| M3 | 1,146 | 13 | 2.64 | 0.0970 | 0.504 [0.481, 0.527] |  |
 | M4 | 3,870 | 27 | 2.87 | 0.1532 | 0.509 [0.486, 0.532] | (!) |
-| M6 | 288 | 24 | 0.96 | 0.6388 | 0.508 [0.485, 0.531] | |
-| M7 | 121 | 46 | 1.03 | 0.4107 | 0.512 [0.489, 0.535] | ~ties |
+| M6 | 255 | 0 | 0.00 | — | 0.500 [0.477, 0.523] | (!) |
+| M7 | 65 | 0 | 0.00 | — | 0.500 [0.477, 0.523] | (!) |
 | M8 | 79 | 0 | 0.00 | — | 0.500 [0.477, 0.523] | (!) |
-| **COMBINED** | 4,586 | 96 | 2.39 | 0.0574 | **0.526 [0.503, 0.549]** | |
-| degree | 6,749 | 464 | 0.44 | 0.9723 | **0.555 [0.533, 0.578]** | ~ties |
+| **COMBINED** | 4,506 | 32 | 2.82 | 0.1578 | 0.509 [0.486, 0.532] | (!) |
+| degree | 5,969 | 64 | 0.93 | 0.6628 | 0.516 [0.493, 0.539] | ~ties |
 
 **Every figure in that table moved, and the two that matter moved in
 opposite directions.** COMBINED's lift fell from 3.36 (p=0.0154,
@@ -990,38 +1077,56 @@ cannot reach. At n=1,580/982 the interval half-width is 0.023, so the bar
 COMBINED's 0.526 clears it with 0.003 to spare. The prereg's arithmetic was done carefully and shown in
 full; it was done on the reach count, which is the denominator of the LIFT.
 
-**So the honest reading of that row is not "the ensemble separates".** Two
-things are now true of COMBINED on this split and only the first is a
-result: its interval excludes 0.5, and it reaches 96 of 1,580 test
-positives, 6.1%. The other 93.9% carry the imputed floor. An AUC computed
-that way rises above chance whenever a scorer reaches a larger fraction of
-the positives than of the negatives, with no ranking skill inside the
-reached set at all, and the arithmetic of that floor is exact: if reached
-compounds all outrank unreached ones and are internally unordered, the AUC
-is `0.5 + (coverage_pos - coverage_neg) / 2`. 0.526 is what that formula
-gives for a coverage gap of 5.2 points. **Whether COMBINED's gap is 5.2
-points is not recorded**: `scripts/temporal_split.py` writes `auc_n_pos`
-and `auc_n_neg` but not the coverages, which the cross-sectional protocol
-does write and this document reads for every other table. Until it does,
-this row cannot be told apart from its own imputation floor, and nothing
-is claimed for it.
+**AND IT NO LONGER CLEARS THE BAR AT ALL, ON A GRAPH WITH THE LEAK
+REMOVED.** COMBINED now reaches 32 of 1,580 test positives, 2.0%, and 3 of
+982 test negatives, 0.3%, and reads **0.509 [0.486, 0.532]** -- below the
+0.523 bar and containing chance. The arithmetic of its floor is exact: if
+reached compounds all outrank unreached ones and are internally unordered,
+the AUC is `0.5 + (coverage_pos - coverage_neg) / 2`.
 
-**Degree reads 0.555 [0.533, 0.578] on the same split, and that too is a
-correction.** This paragraph said "degree reads 0.504 on the same split,
-which is the point -- the temporal protocol removes the confound it was
-built to remove, degree is at chance here". Degree's interval excludes 0.5
-on this split, by a wider margin than COMBINED's, and degree reaches every
-compound so none of its figure is imputed. What the protocol removes is
-degree's LIFT advantage: 0.44 at p=0.9723 here against 10.02 at p<.0001
-cross-sectionally for SARS-CoV. That is a real and large effect and it is
-the control working -- on Hits@k. It does not make degree at chance on the
-AUC, and this document asserted that it did.
+    coverage gap   2.0% - 0.3%           =  1.72 points
+    floor          0.5 + 0.0086          =  0.5086
+    measured AUC                            0.5086
+    ceiling, ranking the reached set
+      PERFECTLY                             0.5086
+
+**Floor, measurement and ceiling agree to four decimal places.** There is
+nothing between what COMBINED's reach gives it for free and the best it
+could possibly do, so the figure contains no ranking at all.
+
+**On the leaking graph it DID clear the bar, and on exactly the same
+arithmetic.** It read 0.526 [0.503, 0.549] against a floor of 0.5263 and a
+ceiling of 0.5266: an interval excluding chance, a bar cleared by 0.003,
+and not one thousandth of it from the ranking. **That is the clearest case
+this project has produced of a protocol returning a significant result with
+no information in it**, and it is recorded here rather than deleted because
+the decomposition caught it one day before the leak fix did, by a different
+route, and either alone would have been enough.
+
+**Degree reads 0.516 [0.493, 0.539] on the same split, and has needed three
+corrections.** The original text said "degree reads 0.504 on the same
+split, which is the point -- the temporal protocol removes the confound it
+was built to remove, degree is at chance here", on a figure from a release
+two rebuilds earlier. On 2026-11-08 the re-derived figure was 0.555
+[0.533, 0.578], which excludes chance, and the replacement text argued that
+the protocol removes degree's LIFT advantage and not its AUC. It also
+claimed degree "reaches every compound so none of its figure is imputed" --
+true cross-sectionally, where degree's floor is exactly 0.5, and false
+temporally, where degree reaches only what the pre-2021 graph holds. With
+the leak fixed degree reads 0.516 against a floor of 0.5162, containing
+chance, so the original CONCLUSION was right and every figure and every
+mechanism offered for it was wrong.
+
+What the protocol does remove, and this part has held throughout, is
+degree's lift advantage: 0.93 at p=0.6628 here against 10.02 at p<.0001
+cross-sectionally for SARS-CoV.
 
 The pre-registered decision rule survives all of this intact, which is the
 argument for having written it down: *"Claim a result for COMBINED only if
 its interval clears 0.5 AND the degree baseline on the same split does
-not."* The first condition is now met and the second is not. **No result is
-claimed**, by the rule as written, with no amendment and no judgement call
+not."* On the leaking graph the first condition was met and the second was
+not; on the fixed graph neither is. **No result is claimed**, by the rule
+as written, under either graph, with no amendment and no judgement call
 after seeing the number.
 
 WHY M1 AND NOT THE OTHERS. On the full release M1 resolves **12 distinct
@@ -1034,36 +1139,44 @@ those ties was pre-registered, implemented, measured and NOT ADOPTED --
 `docs/prereg_m1_potency.md` carries the predictions and the verdict.
 
 The same table's MERS-CoV rows do NOT qualify: M4 reaches p=0.0013 there, but
-degree reaches p=0.0115 on the same labels, so that virus is still inside the
-confound even temporally.
+degree reaches p=0.0015 on the same labels at a nearly identical lift --
+12.79 against M4's 12.83 -- so that virus is still inside the confound even
+temporally, and the channel and the null hypothesis are not separable on it
+at all.
 
-**What that does and does not establish.** **51** scorer/virus rows were
-evaluated in this run, so a 0.05 threshold expects between two and three rows
-at p<0.05 by chance alone. **Eight** are below it: Zika M4, COMBINED and
-degree; MERS-CoV M4, COMBINED and degree; HCoV-OC43 COMBINED; SARS-CoV
-degree. Bonferroni over 51 is alpha=0.00098, and only **Zika COMBINED at
-p=1.95e-05** survives -- and it is flagged `trustworthy: False`, on 4 hits
-from 8 reachable positives in a pool of 4,210. Three of the eight are the
-degree baseline, which is the confound rather than a result.
+**What that does and does not establish.** **23** scorer/virus rows were
+evaluated in this run -- down from 51, because twelve of the fifteen viruses
+now fall below the reachability floor -- so a 0.05 threshold expects about
+one row at p<0.05 by chance alone. **Four** are below it: MERS-CoV M4,
+COMBINED and degree, and SARS-CoV degree. Bonferroni over 23 is
+alpha=0.00218, and **all four survive it**: p = 0.001276, 0.001131,
+0.001452 and 0.000683.
 
-**None of the eight is both readable and un-confounded.** Every one of the
-five channel and ensemble rows fails `trustworthy`. Three viruses carry
-them: in Zika and MERS-CoV degree is itself significant, so
-`confound_warning` returns CONFOUNDED for both -- the same verdict the
-cross-sectional table gives them. The third, HCoV-OC43 COMBINED at
-p=0.0496, has a degree row at p=0.4077 and is the one significant row here
-with a baseline at chance; it is **one hit out of two reachable positives**,
-which is why `trustworthy` refuses it and why no verdict is issued. The
-protocol therefore removes the confound on SARS-CoV-2, where degree drops
-to p=0.9723, and does not remove it where degree still separates.
+**And not one of the four is readable.** Every one carries
+`trustworthy: False`. Two of the four are the degree baseline, which is
+the confound rather than a result, and in both viruses carrying the other
+two degree is itself significant, so `confound_warning` returns CONFOUNDED
+for MERS-CoV and SARS-CoV under all three undated policies. **Four rows
+surviving a Bonferroni correction and none of them meaning anything is a
+sharper statement than four rows failing it**, because it is the
+readability gates rather than the multiplicity that refuse them, and those
+gates were fixed before the p-values were in hand.
 
-These figures replace a set measured before the 2026-11-07 rebuild -- 28
-rows, M1 at p=0.020, MERS-CoV M4 at p=0.00048 on 3 hits from 5 positives in a
-pool of 2,682 with lift 16.09. M1 now reads lift 0.36 at p=0.9706, and the
-row that survives correction is a different virus and a different scorer.
-Both sets are written down because the paragraph's conclusion -- suggestive,
-unreplicated, resting on a handful of compounds -- is the one thing that did
-not move.
+The protocol removes the confound on SARS-CoV-2, where degree drops to
+lift 0.93 at p=0.6628 and an AUC of 0.516 containing chance, and does not
+remove it on MERS-CoV and SARS-CoV, where degree still separates.
+
+**These figures replace two earlier sets, and the shrinking family is the
+story.** Before the 2026-11-07 rebuild: 28 rows, M1 at p=0.020, MERS-CoV M4
+at p=0.00048 on 3 hits from 5 positives, lift 16.09. On 2026-11-08: 51 rows,
+eight significant, only Zika COMBINED at p=1.95e-05 surviving correction.
+Today: 23 rows, four significant, all four surviving and all four
+unreadable. **Zika is not in this run at all** -- with the similarity leak
+removed it reaches 7 pre-2021 compounds of 580 test positives, below the
+floor of 10 -- so the row that survived correction yesterday was computed
+on a virus this protocol cannot evaluate. All three sets are written down
+because the paragraph's conclusion -- suggestive, unreplicated, resting on
+a handful of compounds -- is the one thing that has not moved.
 
 ### Two implementations of one rule, again
 

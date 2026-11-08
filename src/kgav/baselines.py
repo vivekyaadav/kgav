@@ -115,6 +115,15 @@ class Graph:
         # load-time accounting: edges seen, skipped as held-out, dropped as
         # publication-coincident with a label. Empty unless load() filled it.
         self.stats: Counter = Counter()
+        #: predicate -> traversable edges of it in this release. A
+        #: predicate missing from here is absent from the graph, which is
+        #: a different thing from a channel emitting no paths and has to
+        #: be reported as such.
+        self.predicate_counts: Counter = Counter()
+        #: (predicate, source) -> traversable edges. See the note at the
+        #: use site: a present predicate can still be missing the subset
+        #: a metapath walks.
+        self.predicate_sources: Counter = Counter()
 
     def neighbours(self, predicate: str, node: str, reverse: bool = False
                    ) -> list[tuple[str, dict]]:
@@ -188,22 +197,38 @@ class Graph:
             # The degree BASELINE is a different question. It is the null
             # hypothesis -- "can a compound's activity be predicted from how
             # well studied it is" -- and a null that counts the held-out
-            # label edges is reading the answer sheet. Measured on v0.1:
-            # 57.6% of labelled compounds' degree IS label edges, and 15,982
-            # of 21,589 (74.0%) have NO other degree at all, so the baseline
-            # ranked three quarters of the compounds purely by how often
-            # they appear in the answer sheet.
+            # label edges is reading the answer sheet.
             #
-            # THE OLD COMMENT HERE HAD THE DIRECTION BACKWARDS, and so did
-            # the fix list. It said excluding label edges "would make the
-            # degree baseline easier to beat than it really is". Measured on
-            # SARS-CoV-2, 2,020 positives against 10,956 measured negatives:
-            # degree AUC is 0.598 counting label edges and 0.613 without
-            # them. Removing them makes the baseline STRONGER -- both
-            # positives and negatives carry label edges, so they added
-            # shared noise. Fixing this therefore raises the bar every
-            # channel is measured against, which is the conservative
-            # direction.
+            # THE DIRECTION HAS BEEN WRONG TWICE HERE, AND THE SECOND
+            # TIME WAS THIS COMMENT. The original said excluding label
+            # edges "would make the degree baseline easier to beat than it
+            # really is". The replacement, written 2026-11-07, said the
+            # opposite: "degree AUC is 0.598 counting label edges and
+            # 0.613 without them. Removing them makes the baseline
+            # STRONGER ... which is the conservative direction." That spot
+            # measurement was taken over the raw label set and is not the
+            # published protocol.
+            #
+            # MEASURED IN THE PROTOCOL THAT SHIPS -- single-screen,
+            # publication-disjoint, 89 positives against 7,343 negatives,
+            # which is the cell docs/evaluation.md quotes -- the baseline
+            # got WEAKER: 0.616 [0.553, 0.678] -> 0.577 [0.514, 0.639],
+            # with every reasoning channel and the COMBINED ensemble
+            # unchanged to three decimals. Hits@k lifts collapsed across
+            # every virus: HCoV-NL63 50.77 -> 0.00, HCoV-229E 6.29
+            # (significant) -> 4.20 (not), SARS-CoV 11.69 -> 10.02. The
+            # verdict census moved CONFOUNDED 10 -> 8 and BASELINE AT
+            # CHANCE 1 -> 0.
+            #
+            # So this fix LOWERS the bar, and the conservative-direction
+            # argument for it was wrong. The argument that stands is
+            # simpler and does not depend on which way the number moves:
+            # a null hypothesis that reads the held-out answers is not a
+            # null hypothesis. Measured on v0.1: 57.6% of labelled
+            # compounds' degree IS label edges, and 15,982 of 21,589
+            # (74.0%) have no other degree at all, so the baseline ranked
+            # three quarters of the compounds purely by how often they
+            # appear in the answer sheet.
             g.degree[e["subject"]] += 1
             g.degree[e["object"]] += 1
             g.stats["edges_seen"] += 1
@@ -220,6 +245,24 @@ class Graph:
             g.out[(p, e["subject"])].append((e["object"], e))
             g.inv[(p, e["object"])].append((e["subject"], e))
             g.stats["traversable"] += 1
+            # PER-PREDICATE, so "this release holds no X" is a fact the
+            # caller can read rather than one it has to infer from a
+            # channel's absence (fix-list C2/C7). The 2021 training graph
+            # holds 0 of the 141,019 STRING edges -- every one is dated to
+            # the v12 release, 2023-08-28 -- so M5, whose middle hop is a
+            # host-host PPI, silently disappeared from the temporal
+            # protocol with nothing recording why.
+            g.predicate_counts[p] += 1
+            # AND BY SOURCE, because a predicate being present is not the
+            # same as the SUBSET a metapath needs being present. The 2021
+            # training graph holds 11,744 PHYSICALLY_INTERACTS_WITH edges
+            # and every one is virus-host, from VirHostNet, IntAct, MINT
+            # and DIP; all 141,019 host-host edges are STRING's and STRING
+            # publishes no per-interaction date, so each carries the v12
+            # release date of 2023-08-28. M3's middle hop is virus-host
+            # and runs; M5's is host-host and cannot. A predicate-level
+            # census alone would report both as available.
+            g.predicate_sources[(p, str(e.get("primary_knowledge_source")))] += 1
         return g
 
     def klass(self, nid: str) -> str | None:
@@ -880,16 +923,32 @@ def degree_relative(per: dict[str, dict], degree_key: str = DEGREE_KEY) -> None:
     WHY A P-VALUE IS NOT ENOUGH. lift_pvalue's null is RANDOM RANKING, so it
     answers "could this ordering have arisen by chance" and nothing else. It
     cannot see a confound that inflates the scorer and the labels together --
-    which is the confound this project spent its whole evaluation on: 94.9% of
-    compounds share a PMID between their INHIBITS edge and their antiviral
-    label, and degree IS study volume.
+    which is the confound this project spent its whole evaluation on: 92.0%
+    of compounds with evidence on both sides share a PMID between their
+    INHIBITS edge and their antiviral label (1,020 of 1,109; the figure was
+    94.9% on an earlier release and nothing re-derived it here), and degree
+    IS study volume.
 
     So a p-value makes the UNCONTROLLED protocol look full of discoveries. On
-    v0.1, compare_metapaths reports p < 0.0001 for SARS-CoV M1 -- and p <
-    0.0001 for degree on the same labels, at 9.51 lift against M1's 2.10. In
-    every cross-sectional virus where a channel cleared 0.05, degree cleared
-    it too; there is not one exception. The comparison that carries
-    information is channel against DEGREE, not channel against random.
+    v0.1, compare_metapaths reports p < 0.0001 for SARS-CoV M1 -- and p =
+    3.1e-05 for degree on the same labels, at 10.02 lift against M1's
+    undetermined 2.08. The comparison that carries information is channel
+    against DEGREE, not channel against random.
+
+    THIS DOCSTRING CARRIED THE D2 MISCOUNT. It said "in every
+    cross-sectional virus where a channel cleared 0.05, degree cleared it
+    too; there is not one exception", and so did docs/evaluation.md and
+    docs/prereg_temporal_auc.md. Re-measured 2026-11-08: five
+    cross-sectional viruses have a channel at p<0.05 -- SARS-CoV-2 (M7),
+    DENV-2 (M1, M4, M5), Zika (M5), West Nile (M4), MERS-CoV (M4, M5) --
+    and degree clears it in ONE of them, MERS-CoV. The sentence had
+    counted the viruses where DEGREE was significant and called them the
+    viruses where a CHANNEL was.
+
+    That does not weaken the argument for this column, and the reason is
+    worth keeping: four of those five viruses fail `trustworthy` or
+    `hits_determined` on every significant channel, which is a stronger
+    objection than the confound. The column exists for the fifth case.
 
     Degree's own p-value is the diagnostic. If degree is significant, the
     protocol is measuring how much a compound has been studied, and a channel
@@ -906,6 +965,11 @@ def degree_relative(per: dict[str, dict], degree_key: str = DEGREE_KEY) -> None:
     # cell now says so itself.
     base_undetermined = (deg or {}).get("hits_determined") is False
     for name, m in per.items():
+        # A channel that could not run holds only its reason (C7). There is
+        # no lift to divide, and writing None into it would make it look
+        # like a comparison that was attempted and refused.
+        if "not_evaluated" in m:
+            continue
         if base_undetermined and name != degree_key:
             m["lift_vs_degree"] = None
             m["beats_degree"] = None

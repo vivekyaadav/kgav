@@ -779,3 +779,48 @@ def test_the_claim_block_enumerates_every_cell_that_clears_chance():
             f"{label} / {virus} / {scorer} reads {rendered} and the claim "
             f"block does not print it")
         assert virus in flat, f"{virus} clears chance and is not named"
+    # AND THE FLOOR BESIDE EVERY ONE OF THEM. An interval excluding 0.5 is
+    # not a result when the imputation floor sits on top of it: the
+    # temporal COMBINED cell equals its own floor to four decimals. A
+    # census that prints the interval and not the floor is the sentence
+    # this project kept having to retract, one column short.
+    for (label, virus, scorer), floor in sorted(floors_of(got).items()):
+        assert f"{floor:.4f}" in flat, (
+            f"{label} / {virus} / {scorer} has an imputation floor of "
+            f"{floor:.4f} and the claim block does not print it")
+
+
+def floors_of(cells: dict) -> dict[tuple[str, str, str], float]:
+    """The imputation floor of each cell that clears chance.
+
+    The two protocols name the coverage fields differently --
+    `coverage_pos` cross-sectionally, `auc_coverage_pos` temporally --
+    which is the whole reason three documents claimed on 2026-11-08 that
+    the temporal coverages were not recorded at all. Both spellings are
+    read here so that neither protocol can lose its floor silently.
+    """
+    from kgav.labels import auc_floor
+    out = {}
+    for label, (name, key) in CLEAR_RUNS.items():
+        path = ROOT / "data" / "results" / name
+        if not path.exists():
+            continue
+        for virus, channels in json.loads(path.read_text())[key].items():
+            if not isinstance(channels, dict):
+                continue
+            for scorer, m in channels.items():
+                if not isinstance(m, dict):
+                    continue
+                if (label, virus, scorer) not in cells:
+                    continue
+                if "coverage_pos" in m:
+                    n_pos, n_neg = m["n_pos"], m["n_neg"]
+                    c_p, c_n = m["coverage_pos"], m["coverage_neg"]
+                else:
+                    n_pos, n_neg = m["auc_n_pos"], m["auc_n_neg"]
+                    c_p, c_n = m["auc_coverage_pos"], m["auc_coverage_neg"]
+                out[(label, virus, scorer)] = auc_floor(
+                    round(c_p * n_pos), round(c_n * n_neg), n_pos, n_neg)
+    assert len(out) == len(cells), (
+        f"no floor could be computed for {sorted(set(cells) - set(out))}")
+    return out

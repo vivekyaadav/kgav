@@ -87,6 +87,44 @@ def _is_computed(edge: dict) -> bool:
     return bool(srcs) and srcs <= COMPUTED_SOURCES
 
 
+def node_first_year(lines: list[str]) -> dict[str, int]:
+    """node -> the earliest year any DATED edge mentions it.
+
+    One pass over the release before the split is built, because an
+    undated computed edge's date depends on nodes that may be introduced
+    anywhere in the file.
+
+    Undated edges contribute nothing: a node known only through undated
+    edges has no first appearance to read, and `derived_year` returns
+    None for it rather than guessing. That is the conservative direction
+    here -- an edge whose endpoints cannot be dated keeps whatever the
+    `undated_policy` would have done with it.
+    """
+    first: dict[str, int] = {}
+    for line in lines:
+        if not line.strip():
+            continue
+        e = json.loads(line)
+        y = edge_year(e)
+        if y is None:
+            continue
+        for node in (e["subject"], e["object"]):
+            if node not in first or y < first[node]:
+                first[node] = y
+    return first
+
+
+def derived_year(edge: dict, first_seen: dict[str, int]) -> int | None:
+    """When an undated computed edge's two endpoints both existed.
+
+    `max` of the two `first_seen` years, or None if either endpoint has
+    no dated edge anywhere -- in which case nothing has been established
+    and the caller falls back to its undated policy.
+    """
+    years = [first_seen.get(edge["subject"]), first_seen.get(edge["object"])]
+    return None if any(y is None for y in years) else max(years)
+
+
 def edge_year(edge: dict) -> int | None:
     """None when the date is the 1970 placeholder rather than a real year."""
     d = edge.get("first_asserted_date") or ""
@@ -114,6 +152,10 @@ class Split:
     train_negatives: dict[str, set[str]] = field(default_factory=dict)
     stats: Counter = field(default_factory=Counter)
     violations: list[str] = field(default_factory=list)
+    #: (predicate, source) -> undated edges the policy admitted. Which
+    #: edges `undated_policy` is actually deciding for, so the choice can
+    #: be audited instead of inferred: see the note at its use site.
+    undated_census: Counter = field(default_factory=Counter)
 
 
 def build_split(release: Path, cutoff: int, held_out: set[str],
@@ -182,12 +224,38 @@ def build_split(release: Path, cutoff: int, held_out: set[str],
     # within each of them before the sets are handed out.
     pos: dict[str, dict[str, set[str]]] = {"train": {}, "test": {}}
     neg: dict[str, dict[str, set[str]]] = {"train": {}, "test": {}}
-    for line in (Path(release) / "edges.jsonl").read_text().splitlines():
+    lines = (Path(release) / "edges.jsonl").read_text().splitlines()
+    first_seen = node_first_year(lines)
+    for line in lines:
         if not line.strip():
             continue
         e = json.loads(line)
         pred = e["predicate"]
         year = edge_year(e)
+        # A COMPUTED EDGE IS NO OLDER THAN WHAT IT WAS COMPUTED OVER
+        # (fix-list C4). The similarity layer ran over the whole release
+        # and every one of its edges carries the placeholder date, so all
+        # 3,149 of them landed in the 2021 training graph -- including the
+        # ones joining compounds nothing had measured until 2024. 1,141 of
+        # the 2,726 compounds those edges reach were first labelled after
+        # 2021, and M6 and M7 walked straight through them.
+        #
+        # The date an undated computed edge should carry is the point at
+        # which both of its endpoints existed: max over the endpoints of
+        # the earliest year any edge mentions them. Earliest per node,
+        # because a compound exists from its first appearance anywhere;
+        # latest across the pair, because the pair does not exist until
+        # both do. Label edges count towards a node's first appearance --
+        # they are evidence the compound existed, which is a different
+        # thing from evidence of what it does, and using them here only
+        # ever REMOVES edges from the training graph.
+        if year is None and _is_computed(e):
+            derived = derived_year(e, first_seen)
+            if derived is not None:
+                year = derived
+                s.stats["computed_dated_from_endpoints"] += 1
+                if derived > cutoff:
+                    s.stats["computed_dropped_future_endpoint"] += 1
         # STRIPPING AND LABELLING ARE DIFFERENT QUESTIONS. A held-out edge
         # that is not a label is dropped from the training graph here and
         # becomes neither a positive nor a negative.
@@ -221,6 +289,14 @@ def build_split(release: Path, cutoff: int, held_out: set[str],
                 s.stats["undated_dropped"] += 1
                 continue
             s.stats["undated_kept_computed" if computed else "undated_kept"] += 1
+            # WHICH EDGES THE POLICY IS DECIDING FOR, by predicate and
+            # source (fix-list C3/C6). `include` is the default and the
+            # policy docs/evaluation.md reports, and under it 5,306
+            # unknown-date TARGETS edges enter the 2021 training graph --
+            # 3,601 of them the whole Guide to PHARMACOLOGY layer, which
+            # is what doubled M4 and M5's reach. That was inferable only
+            # by walking the release by hand.
+            s.undated_census[(pred, str(e.get("primary_knowledge_source")))] += 1
             s.train_edges.append(e)
             continue
 

@@ -50,7 +50,9 @@
         "coverage_pos": 0.033707865168539325,
         "coverage_neg": 0.00667302192564347,
         "auc_ceiling": 0.5136298882831161,
-        "auc_headroom": 0.013629888283116065
+        "auc_headroom": 0.013629888283116065,
+        "auc_floor": 0.513517421621448,
+        "auc_skill": 0.1972789115639073
       },
       "M2": {
         "n_pos": 89,
@@ -63,7 +65,9 @@
         "coverage_pos": 0.12359550561797752,
         "coverage_neg": 0.112351899768487,
         "auc_ceiling": 0.5125648978542585,
-        "auc_headroom": 0.012564897854258517
+        "auc_headroom": 0.012564897854258517,
+        "auc_floor": 0.5056218029247452,
+        "auc_skill": 0.26325068870523
       },
       "M3": {
         "n_pos": 89,
@@ -76,7 +80,9 @@
         "coverage_pos": 0.1797752808988764,
         "coverage_neg": 0.10104861773117255,
         "auc_ceiling": 0.5484463534023843,
-        "auc_headroom": 0.048446353402384346
+        "auc_headroom": 0.048446353402384346,
+        "auc_floor": 0.539363331583852,
+        "auc_skill": 0.12988544474392555
       },
       "M4": {
         "n_pos": 89,
@@ -89,7 +95,9 @@
         "coverage_pos": 0.34831460674157305,
         "coverage_neg": 0.27672613373280674,
         "auc_ceiling": 0.5839881137275124,
-        "auc_headroom": 0.08398811372751236
+        "auc_headroom": 0.08398811372751236,
+        "auc_floor": 0.5357942365043832,
+        "auc_skill": 0.21705930911861673
       },
       "M5": {
         "n_pos": 89,
@@ -102,7 +110,9 @@
         "coverage_pos": 0.29213483146067415,
         "coverage_neg": 0.20972354623450906,
         "auc_ceiling": 0.5718394190293592,
-        "auc_headroom": 0.0718394190293592
+        "auc_headroom": 0.0718394190293592,
+        "auc_floor": 0.5412056426130826,
+        "auc_skill": 0.14285714285714027
       },
       "M6": {
         "n_pos": 89,
@@ -115,7 +125,9 @@
         "coverage_pos": 0.056179775280898875,
         "coverage_neg": 0.02505787825139589,
         "auc_ceiling": 0.5162648214993413,
-        "auc_headroom": 0.016264821499341275
+        "auc_headroom": 0.016264821499341275,
+        "auc_floor": 0.5155609485147515,
+        "auc_skill": -0.00869565217399671
       },
       "M7": {
         "n_pos": 89,
@@ -128,7 +140,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0036769712651504834,
         "auc_ceiling": 0.4981615143674248,
-        "auc_headroom": -0.0018384856325752152
+        "auc_headroom": -0.0018384856325752152,
+        "auc_floor": 0.4981615143674248,
+        "auc_skill": null
       },
       "M8": {
         "n_pos": 89,
@@ -141,7 +155,9 @@
         "coverage_pos": 0.011235955056179775,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5056179775280899,
-        "auc_headroom": 0.005617977528089901
+        "auc_headroom": 0.005617977528089901,
+        "auc_floor": 0.5056179775280899,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 89,
@@ -154,7 +170,9 @@
         "coverage_pos": 0.43820224719101125,
         "coverage_neg": 0.3092741386354351,
         "auc_ceiling": 0.6322263655518441,
-        "auc_headroom": 0.13222636555184408
+        "auc_headroom": 0.13222636555184408,
+        "auc_floor": 0.5644640542777881,
+        "auc_skill": 0.15013153586469213
       },
       "degree": {
         "n_pos": 89,
@@ -167,7 +185,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.15338769477007075
       }
     }
   },
@@ -420,7 +440,7 @@
         "missing_predicates": []
       },
       "M6": {
-        "drugs_reached": 469,
+        "drugs_reached": 414,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11137",
@@ -438,7 +458,7 @@
         "missing_predicates": []
       },
       "M7": {
-        "drugs_reached": 116,
+        "drugs_reached": 76,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11082",
@@ -478,10 +498,10 @@
       "edges_sha": "f3bb418a89779e94"
     },
     "code": {
-      "commit": "8ce3e5b8a2ac44013d148e4f49fa035260101c68",
-      "dirty": false
+      "commit": "f1bd3399a746279486c30f7c9c8b803003c0e76e",
+      "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-07T05:03:52+00:00"
+    "generated_utc": "2026-11-08T10:32:11+00:00"
   }
 }

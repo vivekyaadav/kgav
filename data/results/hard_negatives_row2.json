@@ -57,7 +57,9 @@
         "coverage_pos": 0.3639506172839506,
         "coverage_neg": 0.017529443987948506,
         "auc_ceiling": 0.6764005126280302,
-        "auc_headroom": 0.17640051262803025
+        "auc_headroom": 0.17640051262803025,
+        "auc_floor": 0.673210586648001,
+        "auc_skill": 0.01028239484395022
       },
       "M2": {
         "n_pos": 2025,
@@ -70,7 +72,9 @@
         "coverage_pos": 0.028148148148148148,
         "coverage_neg": 0.0923947776864786,
         "auc_ceiling": 0.4691770561760519,
-        "auc_headroom": -0.030822943823948123
+        "auc_headroom": -0.030822943823948123,
+        "auc_floor": 0.46787668523083475,
+        "auc_skill": -0.028344081547730805
       },
       "M3": {
         "n_pos": 2025,
@@ -83,7 +87,9 @@
         "coverage_pos": 0.02666666666666667,
         "coverage_neg": 0.0775130101342098,
         "auc_ceiling": 0.4756103350680179,
-        "auc_headroom": -0.02438966493198208
+        "auc_headroom": -0.02438966493198208,
+        "auc_floor": 0.47457682826622843,
+        "auc_skill": 0.047245124983638885
       },
       "M4": {
         "n_pos": 2025,
@@ -96,7 +102,9 @@
         "coverage_pos": 0.05283950617283951,
         "coverage_neg": 0.23436501415137406,
         "auc_ceiling": 0.4154291118167073,
-        "auc_headroom": -0.08457088818329273
+        "auc_headroom": -0.08457088818329273,
+        "auc_floor": 0.40923724601073275,
+        "auc_skill": 0.024017999847089383
       },
       "M5": {
         "n_pos": 2025,
@@ -109,7 +117,9 @@
         "coverage_pos": 0.04691358024691358,
         "coverage_neg": 0.17346845613074044,
         "auc_ceiling": 0.4407915752265854,
-        "auc_headroom": -0.05920842477341459
+        "auc_headroom": -0.05920842477341459,
+        "auc_floor": 0.43672256205808657,
+        "auc_skill": 0.011445983379501227
       },
       "M6": {
         "n_pos": 2025,
@@ -122,7 +132,9 @@
         "coverage_pos": 0.025185185185185185,
         "coverage_neg": 0.027937551355792935,
         "auc_ceiling": 0.49897562311695426,
-        "auc_headroom": -0.0010243768830457411
+        "auc_headroom": -0.0010243768830457411,
+        "auc_floor": 0.49862381691469615,
+        "auc_skill": 0.05677303601173734
       },
       "M7": {
         "n_pos": 2025,
@@ -135,7 +147,9 @@
         "coverage_pos": 0.11160493827160493,
         "coverage_neg": 0.013512279740710308,
         "auc_ceiling": 0.5498003478386326,
-        "auc_headroom": 0.04980034783863263
+        "auc_headroom": 0.04980034783863263,
+        "auc_floor": 0.5490463292654473,
+        "auc_skill": 0.2592681176752547
       },
       "M8": {
         "n_pos": 2025,
@@ -148,7 +162,9 @@
         "coverage_pos": 0.0004938271604938272,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5002469135802469,
-        "auc_headroom": 0.0002469135802468658
+        "auc_headroom": 0.0002469135802468658,
+        "auc_floor": 0.5002469135802469,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 2025,
@@ -161,7 +177,9 @@
         "coverage_pos": 0.542716049382716,
         "coverage_neg": 0.29060531361270886,
         "auc_ceiling": 0.7049134517517609,
-        "auc_headroom": 0.2049134517517609
+        "auc_headroom": 0.2049134517517609,
+        "auc_floor": 0.6260553678850036,
+        "auc_skill": -0.17154171801572088
       },
       "degree": {
         "n_pos": 2025,
@@ -174,7 +192,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.22584632656028614
       }
     },
     "DENV-2": {
@@ -189,7 +209,9 @@
         "coverage_pos": 0.04206500956022945,
         "coverage_neg": 0.004898758981058132,
         "auc_ceiling": 0.5186861584612714,
-        "auc_headroom": 0.018686158461271418
+        "auc_headroom": 0.018686158461271418,
+        "auc_floor": 0.5185831252895856,
+        "auc_skill": 0.46666666666709766
       },
       "M2": {
         "n_pos": 1046,
@@ -202,7 +224,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M3": {
         "n_pos": 1046,
@@ -215,7 +239,9 @@
         "coverage_pos": 0.0019120458891013384,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5009560229445507,
-        "auc_headroom": 0.0009560229445506607
+        "auc_headroom": 0.0009560229445506607,
+        "auc_floor": 0.5009560229445507,
+        "auc_skill": null
       },
       "M4": {
         "n_pos": 1046,
@@ -228,7 +254,9 @@
         "coverage_pos": 0.02390057361376673,
         "coverage_neg": 0.0013063357282821686,
         "auc_ceiling": 0.5113127300293613,
-        "auc_headroom": 0.011312730029361284
+        "auc_headroom": 0.011312730029361284,
+        "auc_floor": 0.5112971189427423,
+        "auc_skill": -0.3600000000028447
       },
       "M5": {
         "n_pos": 1046,
@@ -241,7 +269,9 @@
         "coverage_pos": 0.0076481835564053535,
         "coverage_neg": 0.0006531678641410843,
         "auc_ceiling": 0.5035000056199912,
-        "auc_headroom": 0.0035000056199911977
+        "auc_headroom": 0.0035000056199911977,
+        "auc_floor": 0.5034975078461321,
+        "auc_skill": 0.8750000000111121
       },
       "M6": {
         "n_pos": 1046,
@@ -254,7 +284,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M7": {
         "n_pos": 1046,
@@ -267,7 +299,9 @@
         "coverage_pos": 0.044933078393881457,
         "coverage_neg": 0.006858262573481384,
         "auc_ceiling": 0.51919148933513,
-        "auc_headroom": 0.01919148933513004
+        "auc_headroom": 0.01919148933513004,
+        "auc_floor": 0.5190374079102,
+        "auc_skill": 0.310030395136765
       },
       "M8": {
         "n_pos": 1046,
@@ -280,7 +314,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 1046,
@@ -293,7 +329,9 @@
         "coverage_pos": 0.11089866156787763,
         "coverage_neg": 0.012736773350751143,
         "auc_ceiling": 0.5497871896672091,
-        "auc_headroom": 0.049787189667209075
+        "auc_headroom": 0.049787189667209075,
+        "auc_floor": 0.5490809441085632,
+        "auc_skill": 0.3919098143235848
       },
       "degree": {
         "n_pos": 1046,
@@ -306,7 +344,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.13594290338735604
       }
     },
     "Zika": {
@@ -321,7 +361,9 @@
         "coverage_pos": 0.037467700258397935,
         "coverage_neg": 0.001918649270913277,
         "auc_ceiling": 0.5178104691816341,
-        "auc_headroom": 0.017810469181634092
+        "auc_headroom": 0.017810469181634092,
+        "auc_floor": 0.5177745254937424,
+        "auc_skill": 0.041379310343102126
       },
       "M2": {
         "n_pos": 774,
@@ -334,7 +376,9 @@
         "coverage_pos": 0.006459948320413436,
         "coverage_neg": 0.0015349194167306216,
         "auc_ceiling": 0.5024674722018955,
-        "auc_headroom": 0.002467472201895471
+        "auc_headroom": 0.002467472201895471,
+        "auc_floor": 0.5024625144518414,
+        "auc_skill": -0.2000000000134362
       },
       "M3": {
         "n_pos": 774,
@@ -347,7 +391,9 @@
         "coverage_pos": 0.0012919896640826874,
         "coverage_neg": 0.0007674597083653108,
         "auc_ceiling": 0.5002627607528641,
-        "auc_headroom": 0.0002627607528641329
+        "auc_headroom": 0.0002627607528641329,
+        "auc_floor": 0.5002622649778586,
+        "auc_skill": 1.0
       },
       "M4": {
         "n_pos": 774,
@@ -360,7 +406,9 @@
         "coverage_pos": 0.027131782945736434,
         "coverage_neg": 0.005372217958557176,
         "auc_ceiling": 0.510952661419384,
-        "auc_headroom": 0.010952661419384002
+        "auc_headroom": 0.010952661419384002,
+        "auc_floor": 0.5108797824935897,
+        "auc_skill": 0.3095238095235556
       },
       "M5": {
         "n_pos": 774,
@@ -373,7 +421,9 @@
         "coverage_pos": 0.014211886304909561,
         "coverage_neg": 0.002686108979278588,
         "auc_ceiling": 0.5057819760005235,
-        "auc_headroom": 0.005781976000523548
+        "auc_headroom": 0.005781976000523548,
+        "auc_floor": 0.5057628886628155,
+        "auc_skill": -0.07792207792449518
       },
       "M6": {
         "n_pos": 774,
@@ -386,7 +436,9 @@
         "coverage_pos": 0.0012919896640826874,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5006459948320413,
-        "auc_headroom": 0.0006459948320413078
+        "auc_headroom": 0.0006459948320413078,
+        "auc_floor": 0.5006459948320413,
+        "auc_skill": null
       },
       "M7": {
         "n_pos": 774,
@@ -399,7 +451,9 @@
         "coverage_pos": 0.011627906976744186,
         "coverage_neg": 0.001918649270913277,
         "auc_ceiling": 0.504865783790537,
-        "auc_headroom": 0.004865783790537037
+        "auc_headroom": 0.004865783790537037,
+        "auc_floor": 0.5048546288529154,
+        "auc_skill": -0.022222222216250573
       },
       "M8": {
         "n_pos": 774,
@@ -412,7 +466,9 @@
         "coverage_pos": 0.0012919896640826874,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5006459948320413,
-        "auc_headroom": 0.0006459948320413078
+        "auc_headroom": 0.0006459948320413078,
+        "auc_floor": 0.5006459948320413,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 774,
@@ -425,7 +481,9 @@
         "coverage_pos": 0.07622739018087855,
         "coverage_neg": 0.00844205679201842,
         "auc_ceiling": 0.5342144246729372,
-        "auc_headroom": 0.03421442467293723
+        "auc_headroom": 0.03421442467293723,
+        "auc_floor": 0.53389266669443,
+        "auc_skill": 0.014637904468639166
       },
       "degree": {
         "n_pos": 774,
@@ -438,7 +496,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.08209240849480715
       }
     },
     "West Nile": {
@@ -453,7 +513,9 @@
         "coverage_pos": 0.019083969465648856,
         "coverage_neg": 0.00949367088607595,
         "auc_ceiling": 0.5048857377524398,
-        "auc_headroom": 0.004885737752439834
+        "auc_headroom": 0.004885737752439834,
+        "auc_floor": 0.5047951492897864,
+        "auc_skill": 0.0
       },
       "M3": {
         "n_pos": 262,
@@ -466,7 +528,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M4": {
         "n_pos": 262,
@@ -479,7 +543,9 @@
         "coverage_pos": 0.011450381679389313,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5057251908396947,
-        "auc_headroom": 0.005725190839694694
+        "auc_headroom": 0.005725190839694694,
+        "auc_floor": 0.5057251908396947,
+        "auc_skill": null
       },
       "M5": {
         "n_pos": 262,
@@ -492,7 +558,9 @@
         "coverage_pos": 0.003816793893129771,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5019083969465649,
-        "auc_headroom": 0.001908396946564861
+        "auc_headroom": 0.001908396946564861,
+        "auc_floor": 0.5019083969465649,
+        "auc_skill": null
       },
       "M7": {
         "n_pos": 262,
@@ -505,7 +573,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 262,
@@ -518,7 +588,9 @@
         "coverage_pos": 0.030534351145038167,
         "coverage_neg": 0.00949367088607595,
         "auc_ceiling": 0.5106652816697266,
-        "auc_headroom": 0.010665281669726578
+        "auc_headroom": 0.010665281669726578,
+        "auc_floor": 0.5105203401294811,
+        "auc_skill": 0.375
       },
       "degree": {
         "n_pos": 262,
@@ -531,7 +603,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.05849598995071981
       }
     },
     "DENV-3": {
@@ -546,7 +620,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 213,
@@ -559,7 +635,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "degree": {
         "n_pos": 213,
@@ -572,7 +650,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": -0.0014331603657029568
       }
     },
     "DENV-1": {
@@ -587,7 +667,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 195,
@@ -600,7 +682,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "degree": {
         "n_pos": 195,
@@ -613,7 +697,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.055242860120908954
       }
     },
     "HCoV-OC43": {
@@ -628,7 +714,9 @@
         "coverage_pos": 0.006097560975609756,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5030487804878049,
-        "auc_headroom": 0.0030487804878048808
+        "auc_headroom": 0.0030487804878048808,
+        "auc_floor": 0.5030487804878049,
+        "auc_skill": null
       },
       "M3": {
         "n_pos": 164,
@@ -641,7 +729,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M4": {
         "n_pos": 164,
@@ -654,7 +744,9 @@
         "coverage_pos": 0.036585365853658534,
         "coverage_neg": 0.014285714285714285,
         "auc_ceiling": 0.511411149825784,
-        "auc_headroom": 0.01141114982578395
+        "auc_headroom": 0.01141114982578395,
+        "auc_floor": 0.5111498257839722,
+        "auc_skill": 0.3333333333330501
       },
       "M5": {
         "n_pos": 164,
@@ -667,7 +759,9 @@
         "coverage_pos": 0.012195121951219513,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5060975609756098,
-        "auc_headroom": 0.0060975609756097615
+        "auc_headroom": 0.0060975609756097615,
+        "auc_floor": 0.5060975609756098,
+        "auc_skill": null
       },
       "M6": {
         "n_pos": 164,
@@ -680,7 +774,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 164,
@@ -693,7 +789,9 @@
         "coverage_pos": 0.036585365853658534,
         "coverage_neg": 0.014285714285714285,
         "auc_ceiling": 0.511411149825784,
-        "auc_headroom": 0.01141114982578395
+        "auc_headroom": 0.01141114982578395,
+        "auc_floor": 0.5111498257839722,
+        "auc_skill": 0.3333333333330501
       },
       "degree": {
         "n_pos": 164,
@@ -706,7 +804,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.23885017421602783
       }
     },
     "DENV-4": {
@@ -721,7 +821,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.05540564849793128
       }
     },
     "SARS-CoV": {
@@ -736,7 +838,9 @@
         "coverage_pos": 0.1513157894736842,
         "coverage_neg": 0.06315789473684211,
         "auc_ceiling": 0.5488573407202216,
-        "auc_headroom": 0.04885734072022163
+        "auc_headroom": 0.04885734072022163,
+        "auc_floor": 0.5440789473684211,
+        "auc_skill": -0.3985507246377059
       },
       "M3": {
         "n_pos": 152,
@@ -749,7 +853,9 @@
         "coverage_pos": 0.09210526315789473,
         "coverage_neg": 0.06315789473684211,
         "auc_ceiling": 0.5173822714681441,
-        "auc_headroom": 0.017382271468144084
+        "auc_headroom": 0.017382271468144084,
+        "auc_floor": 0.5144736842105263,
+        "auc_skill": 0.30952380952382225
       },
       "M7": {
         "n_pos": 152,
@@ -762,7 +868,9 @@
         "coverage_pos": 0.11842105263157894,
         "coverage_neg": 0.11578947368421053,
         "auc_ceiling": 0.5081717451523545,
-        "auc_headroom": 0.008171745152354526
+        "auc_headroom": 0.008171745152354526,
+        "auc_floor": 0.5013157894736842,
+        "auc_skill": 0.17171717171718529
       },
       "M8": {
         "n_pos": 152,
@@ -775,7 +883,9 @@
         "coverage_pos": 0.006578947368421052,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5032894736842105,
-        "auc_headroom": 0.003289473684210509
+        "auc_headroom": 0.003289473684210509,
+        "auc_floor": 0.5032894736842105,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 152,
@@ -788,7 +898,9 @@
         "coverage_pos": 0.35526315789473684,
         "coverage_neg": 0.23157894736842105,
         "auc_ceiling": 0.60297783933518,
-        "auc_headroom": 0.10297783933518001
+        "auc_headroom": 0.10297783933518001,
+        "auc_floor": 0.5618421052631579,
+        "auc_skill": 0.0496632996632988
       },
       "degree": {
         "n_pos": 152,
@@ -801,7 +913,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.40027700831024937
       }
     },
     "Yellow fever": {
@@ -816,7 +930,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.015738641135466525
       }
     },
     "MERS-CoV": {
@@ -831,7 +947,9 @@
         "coverage_pos": 0.015037593984962405,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5075187969924813,
-        "auc_headroom": 0.007518796992481258
+        "auc_headroom": 0.007518796992481258,
+        "auc_floor": 0.5075187969924813,
+        "auc_skill": null
       },
       "M2": {
         "n_pos": 133,
@@ -844,7 +962,9 @@
         "coverage_pos": 0.05263157894736842,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5263157894736842,
-        "auc_headroom": 0.02631578947368418
+        "auc_headroom": 0.02631578947368418,
+        "auc_floor": 0.5263157894736842,
+        "auc_skill": null
       },
       "M3": {
         "n_pos": 133,
@@ -857,7 +977,9 @@
         "coverage_pos": 0.03007518796992481,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5150375939849624,
-        "auc_headroom": 0.015037593984962405
+        "auc_headroom": 0.015037593984962405,
+        "auc_floor": 0.5150375939849624,
+        "auc_skill": null
       },
       "M4": {
         "n_pos": 133,
@@ -870,7 +992,9 @@
         "coverage_pos": 0.14285714285714285,
         "coverage_neg": 0.12195121951219512,
         "auc_ceiling": 0.519163763066202,
-        "auc_headroom": 0.019163763066202044
+        "auc_headroom": 0.019163763066202044,
+        "auc_floor": 0.5104529616724739,
+        "auc_skill": 0.5789473684210567
       },
       "M5": {
         "n_pos": 133,
@@ -883,7 +1007,9 @@
         "coverage_pos": 0.10526315789473684,
         "coverage_neg": 0.024390243902439025,
         "auc_ceiling": 0.5417201540436457,
-        "auc_headroom": 0.04172015404364571
+        "auc_headroom": 0.04172015404364571,
+        "auc_floor": 0.540436456996149,
+        "auc_skill": 0.4285714285714409
       },
       "M6": {
         "n_pos": 133,
@@ -896,7 +1022,9 @@
         "coverage_pos": 0.03007518796992481,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5150375939849624,
-        "auc_headroom": 0.015037593984962405
+        "auc_headroom": 0.015037593984962405,
+        "auc_floor": 0.5150375939849624,
+        "auc_skill": null
       },
       "M7": {
         "n_pos": 133,
@@ -909,7 +1037,9 @@
         "coverage_pos": 0.06015037593984962,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5300751879699248,
-        "auc_headroom": 0.03007518796992481
+        "auc_headroom": 0.03007518796992481,
+        "auc_floor": 0.5300751879699248,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 133,
@@ -922,7 +1052,9 @@
         "coverage_pos": 0.24812030075187969,
         "coverage_neg": 0.12195121951219512,
         "auc_ceiling": 0.5782138272510544,
-        "auc_headroom": 0.07821382725105441
+        "auc_headroom": 0.07821382725105441,
+        "auc_floor": 0.5630845406198423,
+        "auc_skill": 0.3818181818181869
       },
       "degree": {
         "n_pos": 133,
@@ -935,7 +1067,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.3289932147441774
       }
     },
     "HCoV-229E": {
@@ -950,7 +1084,9 @@
         "coverage_pos": 0.05785123966942149,
         "coverage_neg": 0.033707865168539325,
         "auc_ceiling": 0.513046708143746,
-        "auc_headroom": 0.013046708143745978
+        "auc_headroom": 0.013046708143745978,
+        "auc_floor": 0.512071687250441,
+        "auc_skill": 0.0
       },
       "M2": {
         "n_pos": 121,
@@ -963,7 +1099,9 @@
         "coverage_pos": 0.04132231404958678,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5206611570247934,
-        "auc_headroom": 0.02066115702479343
+        "auc_headroom": 0.02066115702479343,
+        "auc_floor": 0.5206611570247934,
+        "auc_skill": null
       },
       "M3": {
         "n_pos": 121,
@@ -976,7 +1114,9 @@
         "coverage_pos": 0.008264462809917356,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5041322314049587,
-        "auc_headroom": 0.004132231404958664
+        "auc_headroom": 0.004132231404958664,
+        "auc_floor": 0.5041322314049587,
+        "auc_skill": null
       },
       "M4": {
         "n_pos": 121,
@@ -989,7 +1129,9 @@
         "coverage_pos": 0.0743801652892562,
         "coverage_neg": 0.011235955056179775,
         "auc_ceiling": 0.5319899712136689,
-        "auc_headroom": 0.031989971213668866
+        "auc_headroom": 0.031989971213668866,
+        "auc_floor": 0.5315721051165382,
+        "auc_skill": 1.0
       },
       "M5": {
         "n_pos": 121,
@@ -1002,7 +1144,9 @@
         "coverage_pos": 0.05785123966942149,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5289256198347108,
-        "auc_headroom": 0.02892561983471076
+        "auc_headroom": 0.02892561983471076,
+        "auc_floor": 0.5289256198347108,
+        "auc_skill": null
       },
       "M6": {
         "n_pos": 121,
@@ -1015,7 +1159,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M7": {
         "n_pos": 121,
@@ -1028,7 +1174,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 121,
@@ -1041,7 +1189,9 @@
         "coverage_pos": 0.11570247933884298,
         "coverage_neg": 0.0449438202247191,
         "auc_ceiling": 0.5379793852725415,
-        "auc_headroom": 0.03797938527254152
+        "auc_headroom": 0.03797938527254152,
+        "auc_floor": 0.5353793295570619,
+        "auc_skill": 0.5714285714285836
       },
       "degree": {
         "n_pos": 121,
@@ -1054,7 +1204,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.29835639335128605
       }
     },
     "TBEV": {
@@ -1069,7 +1221,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 72,
@@ -1082,7 +1236,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "degree": {
         "n_pos": 72,
@@ -1095,7 +1251,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": -0.04957264957264962
       }
     },
     "JEV": {
@@ -1110,7 +1268,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 21,
@@ -1123,7 +1283,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "degree": {
         "n_pos": 21,
@@ -1136,7 +1298,9 @@
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
-        "auc_headroom": 0.5
+        "auc_headroom": 0.5,
+        "auc_floor": 0.5,
+        "auc_skill": 0.04761904761904767
       }
     }
   },
@@ -1153,7 +1317,9 @@
         "coverage_pos": 0.006309148264984227,
         "coverage_neg": 0.004016064257028112,
         "auc_ceiling": 0.5011592109763977,
-        "auc_headroom": 0.0011592109763977065
+        "auc_headroom": 0.0011592109763977065,
+        "auc_floor": 0.501146542003978,
+        "auc_skill": 0.0
       },
       "M2": {
         "n_pos": 1585,
@@ -1166,7 +1332,9 @@
         "coverage_pos": 0.011356466876971609,
         "coverage_neg": 0.002008032128514056,
         "auc_ceiling": 0.5046856194494065,
-        "auc_headroom": 0.004685619449406486
+        "auc_headroom": 0.004685619449406486,
+        "auc_floor": 0.5046742173742288,
+        "auc_skill": 0.722222222223845
       },
       "M3": {
         "n_pos": 1585,
@@ -1179,7 +1347,9 @@
         "coverage_pos": 0.008832807570977918,
         "coverage_neg": 0.001004016064257028,
         "auc_ceiling": 0.5039188298937073,
-        "auc_headroom": 0.003918829893707287
+        "auc_headroom": 0.003918829893707287,
+        "auc_floor": 0.5039143957533605,
+        "auc_skill": 0.0
       },
       "M4": {
         "n_pos": 1585,
@@ -1192,33 +1362,39 @@
         "coverage_pos": 0.01829652996845426,
         "coverage_neg": 0.007028112449799197,
         "auc_ceiling": 0.5056985037943572,
-        "auc_headroom": 0.0056985037943572125
+        "auc_headroom": 0.0056985037943572125,
+        "auc_floor": 0.5056342087593275,
+        "auc_skill": 0.31034482758608783
       },
       "M6": {
         "n_pos": 1585,
         "n_neg": 996,
-        "auc": 0.5070664360913686,
+        "auc": 0.4994979919678715,
         "evaluable": true,
-        "auc_ci_lo": 0.484211552632442,
-        "auc_ci_hi": 0.5299213195502952,
+        "auc_ci_lo": 0.47661398080957923,
+        "auc_ci_hi": 0.5223820031261638,
         "imputed": true,
-        "coverage_pos": 0.015141955835962145,
+        "coverage_pos": 0.0,
         "coverage_neg": 0.001004016064257028,
-        "auc_ceiling": 0.5070765712693044,
-        "auc_headroom": 0.007076571269304388
+        "auc_ceiling": 0.4994979919678715,
+        "auc_headroom": -0.0005020080321285203,
+        "auc_floor": 0.4994979919678715,
+        "auc_skill": null
       },
       "M7": {
         "n_pos": 1585,
         "n_neg": 996,
-        "auc": 0.5120063851620995,
+        "auc": 0.5,
         "evaluable": true,
-        "auc_ci_lo": 0.4891739814506715,
-        "auc_ci_hi": 0.5348387888735275,
+        "auc_ci_lo": 0.47711772162030824,
+        "auc_ci_hi": 0.5228822783796918,
         "imputed": true,
-        "coverage_pos": 0.029022082018927444,
-        "coverage_neg": 0.0050200803212851405,
-        "auc_ceiling": 0.5120738474402341,
-        "auc_headroom": 0.012073847440234098
+        "coverage_pos": 0.0,
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M8": {
         "n_pos": 1585,
@@ -1231,33 +1407,39 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 1585,
         "n_neg": 996,
-        "auc": 0.5225203653731646,
+        "auc": 0.5047546653490935,
         "evaluable": true,
-        "auc_ci_lo": 0.4997449165093819,
-        "auc_ci_hi": 0.5452958142369473,
+        "auc_ci_lo": 0.48189020256206544,
+        "auc_ci_hi": 0.5276191281361216,
         "imputed": true,
-        "coverage_pos": 0.061829652996845424,
-        "coverage_neg": 0.01706827309236948,
-        "auc_ceiling": 0.5229083526535163,
-        "auc_headroom": 0.022908352653516317
+        "coverage_pos": 0.02145110410094637,
+        "coverage_neg": 0.012048192771084338,
+        "auc_ceiling": 0.5048306791836115,
+        "auc_headroom": 0.004830679183611464,
+        "auc_floor": 0.504701455664931,
+        "auc_skill": 0.4117647058823529
       },
       "degree": {
         "n_pos": 1585,
         "n_neg": 996,
-        "auc": 0.5512048192771084,
+        "auc": 0.5113453815261044,
         "evaluable": true,
-        "auc_ci_lo": 0.5286477534863246,
-        "auc_ci_hi": 0.5737618850678922,
+        "auc_ci_lo": 0.488509811202197,
+        "auc_ci_hi": 0.5341809518500119,
         "imputed": true,
-        "coverage_pos": 0.294006309148265,
-        "coverage_neg": 0.19678714859437751,
-        "auc_ceiling": 0.5775379118999658,
-        "auc_headroom": 0.07753791189996584
+        "coverage_pos": 0.0416403785488959,
+        "coverage_neg": 0.019076305220883535,
+        "auc_ceiling": 0.5116792089493621,
+        "auc_headroom": 0.011679208949362141,
+        "auc_floor": 0.5112820366640062,
+        "auc_skill": 0.15948963317386197
       }
     },
     "Zika": {
@@ -1272,7 +1454,9 @@
         "coverage_pos": 0.0034482758620689655,
         "coverage_neg": 0.0003969829297340214,
         "auc_ceiling": 0.5015263309194946,
-        "auc_headroom": 0.0015263309194946117
+        "auc_headroom": 0.0015263309194946117,
+        "auc_floor": 0.5015256464661675,
+        "auc_skill": 0.5
       },
       "M2": {
         "n_pos": 580,
@@ -1285,7 +1469,9 @@
         "coverage_pos": 0.006896551724137931,
         "coverage_neg": 0.0003969829297340214,
         "auc_ceiling": 0.5032511533038562,
-        "auc_headroom": 0.003251153303856169
+        "auc_headroom": 0.003251153303856169,
+        "auc_floor": 0.5032497843972019,
+        "auc_skill": 0.0
       },
       "M3": {
         "n_pos": 580,
@@ -1298,7 +1484,9 @@
         "coverage_pos": 0.0017241379310344827,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5008620689655172,
-        "auc_headroom": 0.0008620689655172153
+        "auc_headroom": 0.0008620689655172153,
+        "auc_floor": 0.5008620689655172,
+        "auc_skill": null
       },
       "M4": {
         "n_pos": 580,
@@ -1311,59 +1499,69 @@
         "coverage_pos": 0.008620689655172414,
         "coverage_neg": 0.0015879317189360857,
         "auc_ceiling": 0.5035232235013894,
-        "auc_headroom": 0.0035232235013894497
+        "auc_headroom": 0.0035232235013894497,
+        "auc_floor": 0.5035163789681182,
+        "auc_skill": 0.8
       },
       "M6": {
         "n_pos": 580,
         "n_neg": 2519,
-        "auc": 0.5008620689655172,
+        "auc": 0.5,
         "evaluable": true,
-        "auc_ci_lo": 0.47479012060190534,
-        "auc_ci_hi": 0.5269340173291291,
+        "auc_ci_lo": 0.47393737143176434,
+        "auc_ci_hi": 0.5260626285682357,
         "imputed": true,
-        "coverage_pos": 0.0017241379310344827,
+        "coverage_pos": 0.0,
         "coverage_neg": 0.0,
-        "auc_ceiling": 0.5008620689655172,
-        "auc_headroom": 0.0008620689655172153
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M7": {
         "n_pos": 580,
         "n_neg": 2519,
-        "auc": 0.499801508535133,
+        "auc": 0.5,
         "evaluable": true,
-        "auc_ci_lo": 0.47374103973835185,
-        "auc_ci_hi": 0.5258619773319142,
+        "auc_ci_lo": 0.47393737143176434,
+        "auc_ci_hi": 0.5260626285682357,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.0003969829297340214,
-        "auc_ceiling": 0.499801508535133,
-        "auc_headroom": -0.0001984914648670011
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 580,
         "n_neg": 2519,
-        "auc": 0.5057162119615063,
+        "auc": 0.5050502388742112,
         "evaluable": true,
-        "auc_ci_lo": 0.47959361801691275,
-        "auc_ci_hi": 0.5318388059060999,
+        "auc_ci_lo": 0.4789344089864802,
+        "auc_ci_hi": 0.5311660687619422,
         "imputed": true,
-        "coverage_pos": 0.013793103448275862,
-        "coverage_neg": 0.0023818975784041284,
-        "auc_ceiling": 0.505722029814787,
-        "auc_headroom": 0.0057220298147869775
+        "coverage_pos": 0.01206896551724138,
+        "coverage_neg": 0.001984914648670107,
+        "auc_ceiling": 0.5050540033675104,
+        "auc_headroom": 0.005054003367510385,
+        "auc_floor": 0.5050420254342857,
+        "auc_skill": 0.6857142857142857
       },
       "degree": {
         "n_pos": 580,
         "n_neg": 2519,
-        "auc": 0.5130932499212879,
+        "auc": 0.5044537377996194,
         "evaluable": true,
-        "auc_ci_lo": 0.48689966047864813,
-        "auc_ci_hi": 0.5392868393639277,
+        "auc_ci_lo": 0.47834401617256556,
+        "auc_ci_hi": 0.5305634594266733,
         "imputed": true,
-        "coverage_pos": 0.034482758620689655,
-        "coverage_neg": 0.00833664152441445,
-        "auc_ceiling": 0.5132167937468344,
-        "auc_headroom": 0.013216793746834377
+        "coverage_pos": 0.01206896551724138,
+        "coverage_neg": 0.0031758634378721714,
+        "auc_ceiling": 0.5044657157328442,
+        "auc_headroom": 0.0044657157328441555,
+        "auc_floor": 0.5044465510396846,
+        "auc_skill": 0.375
       }
     },
     "DENV-2": {
@@ -1378,7 +1576,9 @@
         "coverage_pos": 0.004347826086956522,
         "coverage_neg": 0.00037257824143070045,
         "auc_ceiling": 0.5019884338754617,
-        "auc_headroom": 0.0019884338754616593
+        "auc_headroom": 0.0019884338754616593,
+        "auc_floor": 0.5019876239227629,
+        "auc_skill": 0.0
       },
       "M2": {
         "n_pos": 230,
@@ -1391,7 +1591,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M3": {
         "n_pos": 230,
@@ -1404,7 +1606,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M4": {
         "n_pos": 230,
@@ -1417,7 +1621,9 @@
         "coverage_pos": 0.008695652173913044,
         "coverage_neg": 0.00037257824143070045,
         "auc_ceiling": 0.5041631568716387,
-        "auc_headroom": 0.004163156871638707
+        "auc_headroom": 0.004163156871638707,
+        "auc_floor": 0.5041615369662412,
+        "auc_skill": -1.0000000000685363
       },
       "M6": {
         "n_pos": 230,
@@ -1430,46 +1636,54 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M7": {
         "n_pos": 230,
         "n_neg": 2684,
-        "auc": 0.49981371087928467,
+        "auc": 0.5,
         "evaluable": true,
-        "auc_ci_lo": 0.4609374841596826,
-        "auc_ci_hi": 0.5386899375988867,
+        "auc_ci_lo": 0.4611197047588076,
+        "auc_ci_hi": 0.5388802952411924,
         "imputed": true,
         "coverage_pos": 0.0,
-        "coverage_neg": 0.00037257824143070045,
-        "auc_ceiling": 0.49981371087928467,
-        "auc_headroom": -0.00018628912071533277
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5,
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 230,
         "n_neg": 2684,
-        "auc": 0.5059628717682887,
+        "auc": 0.5061483509363053,
         "evaluable": true,
-        "auc_ci_lo": 0.4669560616380514,
-        "auc_ci_hi": 0.544969681898526,
+        "auc_ci_lo": 0.467137721115947,
+        "auc_ci_hi": 0.5451589807566636,
         "imputed": true,
         "coverage_pos": 0.013043478260869565,
-        "coverage_neg": 0.0011177347242921013,
-        "auc_ceiling": 0.5059701613425776,
-        "auc_headroom": 0.005970161342577551
+        "coverage_neg": 0.0007451564828614009,
+        "auc_ceiling": 0.5061540206051967,
+        "auc_headroom": 0.006154020605196653,
+        "auc_floor": 0.5061491608890041,
+        "auc_skill": -0.16666666667428182
       },
       "degree": {
         "n_pos": 230,
         "n_neg": 2684,
-        "auc": 0.5370780146439448,
+        "auc": 0.5144608954837038,
         "evaluable": true,
-        "auc_ci_lo": 0.4975288704935078,
-        "auc_ci_hi": 0.5766271587943818,
+        "auc_ci_lo": 0.4752862663099729,
+        "auc_ci_hi": 0.5536355246574347,
         "imputed": true,
-        "coverage_pos": 0.0782608695652174,
-        "coverage_neg": 0.004098360655737705,
-        "auc_ceiling": 0.5372416250890948,
-        "auc_headroom": 0.03724162508909479
+        "coverage_pos": 0.030434782608695653,
+        "coverage_neg": 0.0014903129657228018,
+        "auc_ceiling": 0.5144949134970518,
+        "auc_headroom": 0.014494913497051787,
+        "auc_floor": 0.5144722348214864,
+        "auc_skill": -0.4999999999975523
       }
     },
     "West Nile": {
@@ -1484,7 +1698,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.010471204188481676,
         "auc_ceiling": 0.49476439790575916,
-        "auc_headroom": -0.005235602094240843
+        "auc_headroom": -0.005235602094240843,
+        "auc_floor": 0.49476439790575916,
+        "auc_skill": null
       },
       "M3": {
         "n_pos": 181,
@@ -1497,7 +1713,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M4": {
         "n_pos": 181,
@@ -1510,7 +1728,9 @@
         "coverage_pos": 0.0055248618784530384,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5027624309392266,
-        "auc_headroom": 0.002762430939226568
+        "auc_headroom": 0.002762430939226568,
+        "auc_floor": 0.5027624309392266,
+        "auc_skill": null
       },
       "M7": {
         "n_pos": 181,
@@ -1523,7 +1743,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 181,
@@ -1536,20 +1758,24 @@
         "coverage_pos": 0.0055248618784530384,
         "coverage_neg": 0.010471204188481676,
         "auc_ceiling": 0.4975557548234069,
-        "auc_headroom": -0.002444245176593085
+        "auc_headroom": -0.002444245176593085,
+        "auc_floor": 0.49752682884498567,
+        "auc_skill": 1.0
       },
       "degree": {
         "n_pos": 181,
         "n_neg": 191,
-        "auc": 0.49000607445546845,
+        "auc": 0.49245031963206154,
         "evaluable": true,
-        "auc_ci_lo": 0.4312597907392223,
-        "auc_ci_hi": 0.5487523581717146,
+        "auc_ci_lo": 0.4336953167571952,
+        "auc_ci_hi": 0.5512053225069279,
         "imputed": true,
-        "coverage_pos": 0.022099447513812154,
-        "coverage_neg": 0.041884816753926704,
-        "auc_ceiling": 0.4905701310346822,
-        "auc_headroom": -0.009429868965317778
+        "coverage_pos": 0.011049723756906077,
+        "coverage_neg": 0.02617801047120419,
+        "auc_ceiling": 0.49258048653495706,
+        "auc_headroom": -0.007419513465042937,
+        "auc_floor": 0.49243585664285094,
+        "auc_skill": 0.09999999999988486
       }
     },
     "HCoV-OC43": {
@@ -1564,7 +1790,9 @@
         "coverage_pos": 0.006756756756756757,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5033783783783784,
-        "auc_headroom": 0.0033783783783783994
+        "auc_headroom": 0.0033783783783783994,
+        "auc_floor": 0.5033783783783784,
+        "auc_skill": null
       },
       "M3": {
         "n_pos": 148,
@@ -1577,7 +1805,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M4": {
         "n_pos": 148,
@@ -1590,7 +1820,9 @@
         "coverage_pos": 0.013513513513513514,
         "coverage_neg": 0.014285714285714285,
         "auc_ceiling": 0.4997104247104247,
-        "auc_headroom": -0.00028957528957529455
+        "auc_headroom": -0.00028957528957529455,
+        "auc_floor": 0.4996138996138996,
+        "auc_skill": 0.0
       },
       "M6": {
         "n_pos": 148,
@@ -1603,7 +1835,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 148,
@@ -1616,20 +1850,24 @@
         "coverage_pos": 0.013513513513513514,
         "coverage_neg": 0.014285714285714285,
         "auc_ceiling": 0.4997104247104247,
-        "auc_headroom": -0.00028957528957529455
+        "auc_headroom": -0.00028957528957529455,
+        "auc_floor": 0.4996138996138996,
+        "auc_skill": 0.0
       },
       "degree": {
         "n_pos": 148,
         "n_neg": 70,
-        "auc": 0.5514478764478764,
+        "auc": 0.5030405405405406,
         "evaluable": true,
-        "auc_ci_lo": 0.4707241965163611,
-        "auc_ci_hi": 0.6321715563793917,
+        "auc_ci_lo": 0.42083822212384325,
+        "auc_ci_hi": 0.5852428589572379,
         "imputed": true,
-        "coverage_pos": 0.23648648648648649,
-        "coverage_neg": 0.14285714285714285,
-        "auc_ceiling": 0.5637065637065637,
-        "auc_headroom": 0.06370656370656369
+        "coverage_pos": 0.02027027027027027,
+        "coverage_neg": 0.014285714285714285,
+        "auc_ceiling": 0.5031370656370656,
+        "auc_headroom": 0.003137065637065617,
+        "auc_floor": 0.502992277992278,
+        "auc_skill": 0.3333333333338445
       }
     },
     "HCoV-229E": {
@@ -1644,7 +1882,9 @@
         "coverage_pos": 0.02564102564102564,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5128205128205128,
-        "auc_headroom": 0.012820512820512775
+        "auc_headroom": 0.012820512820512775,
+        "auc_floor": 0.5128205128205128,
+        "auc_skill": null
       },
       "M3": {
         "n_pos": 78,
@@ -1657,7 +1897,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "M4": {
         "n_pos": 78,
@@ -1670,7 +1912,9 @@
         "coverage_pos": 0.038461538461538464,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5192307692307693,
-        "auc_headroom": 0.019230769230769273
+        "auc_headroom": 0.019230769230769273,
+        "auc_floor": 0.5192307692307693,
+        "auc_skill": null
       },
       "M6": {
         "n_pos": 78,
@@ -1683,7 +1927,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 78,
@@ -1696,20 +1942,24 @@
         "coverage_pos": 0.038461538461538464,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5192307692307693,
-        "auc_headroom": 0.019230769230769273
+        "auc_headroom": 0.019230769230769273,
+        "auc_floor": 0.5192307692307693,
+        "auc_skill": null
       },
       "degree": {
         "n_pos": 78,
         "n_neg": 32,
-        "auc": 0.578125,
+        "auc": 0.5512820512820513,
         "evaluable": true,
-        "auc_ci_lo": 0.4631710612042358,
-        "auc_ci_hi": 0.6930789387957642,
+        "auc_ci_lo": 0.43442647982214505,
+        "auc_ci_hi": 0.6681376227419575,
         "imputed": true,
-        "coverage_pos": 0.32051282051282054,
-        "coverage_neg": 0.1875,
-        "auc_ceiling": 0.5965544871794872,
-        "auc_headroom": 0.09655448717948723
+        "coverage_pos": 0.10256410256410256,
+        "coverage_neg": 0.0,
+        "auc_ceiling": 0.5512820512820513,
+        "auc_headroom": 0.05128205128205132,
+        "auc_floor": 0.5512820512820513,
+        "auc_skill": null
       }
     },
     "DENV-1": {
@@ -1724,7 +1974,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 71,
@@ -1737,7 +1989,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "degree": {
         "n_pos": 71,
@@ -1750,7 +2004,9 @@
         "coverage_pos": 0.028169014084507043,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5140845070422535,
-        "auc_headroom": 0.014084507042253502
+        "auc_headroom": 0.014084507042253502,
+        "auc_floor": 0.5140845070422535,
+        "auc_skill": null
       }
     },
     "DENV-3": {
@@ -1765,7 +2021,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "COMBINED": {
         "n_pos": 70,
@@ -1778,7 +2036,9 @@
         "coverage_pos": 0.0,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5,
-        "auc_headroom": 0.0
+        "auc_headroom": 0.0,
+        "auc_floor": 0.5,
+        "auc_skill": null
       },
       "degree": {
         "n_pos": 70,
@@ -1791,7 +2051,9 @@
         "coverage_pos": 0.02857142857142857,
         "coverage_neg": 0.02531645569620253,
         "auc_ceiling": 0.5019891500904159,
-        "auc_headroom": 0.001989150090415892
+        "auc_headroom": 0.001989150090415892,
+        "auc_floor": 0.501627486437613,
+        "auc_skill": 1.0
       }
     },
     "DENV-4": {
@@ -1806,22 +2068,26 @@
         "coverage_pos": 0.029850746268656716,
         "coverage_neg": 0.0,
         "auc_ceiling": 0.5149253731343284,
-        "auc_headroom": 0.014925373134328401
+        "auc_headroom": 0.014925373134328401,
+        "auc_floor": 0.5149253731343284,
+        "auc_skill": null
       }
     },
     "Yellow fever": {
       "degree": {
         "n_pos": 30,
         "n_neg": 51,
-        "auc": 0.5133986928104575,
+        "auc": 0.5316993464052288,
         "evaluable": true,
-        "auc_ci_lo": 0.38217002208323025,
-        "auc_ci_hi": 0.6446273635376847,
+        "auc_ci_lo": 0.4003264037396871,
+        "auc_ci_hi": 0.6630722890707704,
         "imputed": true,
         "coverage_pos": 0.1,
-        "coverage_neg": 0.0784313725490196,
-        "auc_ceiling": 0.5147058823529411,
-        "auc_headroom": 0.014705882352941124
+        "coverage_neg": 0.0392156862745098,
+        "auc_ceiling": 0.5323529411764706,
+        "auc_headroom": 0.032352941176470584,
+        "auc_floor": 0.5303921568627451,
+        "auc_skill": 0.6666666666666666
       }
     }
   },
@@ -2073,7 +2339,7 @@
         "missing_predicates": []
       },
       "M6": {
-        "drugs_reached": 483,
+        "drugs_reached": 419,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11137",
@@ -2091,7 +2357,7 @@
         "missing_predicates": []
       },
       "M7": {
-        "drugs_reached": 232,
+        "drugs_reached": 161,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11082",
@@ -2131,10 +2397,10 @@
       "edges_sha": "f3bb418a89779e94"
     },
     "code": {
-      "commit": "8ce3e5b8a2ac44013d148e4f49fa035260101c68",
-      "dirty": false
+      "commit": "f1bd3399a746279486c30f7c9c8b803003c0e76e",
+      "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-07T04:59:18+00:00"
+    "generated_utc": "2026-11-08T10:27:26+00:00"
   }
 }

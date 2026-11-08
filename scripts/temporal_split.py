@@ -80,6 +80,55 @@ def _results_name(args) -> str:
     return name + ".json"
 
 
+def absence_reason(name: str, metapath: dict, graph) -> dict:
+    """Why a channel produced no score, as a record rather than a gap.
+
+    Returns the metapath's predicates split into those the training graph
+    holds and those it does not. An empty `missing_predicates` means the
+    channel was traversable and simply reached nothing for this virus;
+    a non-empty one means the channel could not run.
+
+    Written for M5 on the 2021 split, whose middle hop is a host-host
+    PHYSICALLY_INTERACTS_WITH. The full release holds 153,533 of those,
+    141,019 from STRING -- and STRING publishes no per-interaction date,
+    so every row carries the v12 release date of 2023-08-28 and none of
+    them survives a 2021 cutoff. The 11,744 that do survive are all
+    virus-host, from VirHostNet, IntAct, MINT and DIP, which is why M3
+    (virus-host PPI) still runs and M5 (host-host) cannot.
+    """
+    hops = [h for h in metapath.get("path", []) if h.isupper()
+            or h.startswith("<")]
+    preds = []
+    for hop in hops:
+        bare = hop.lstrip("<")
+        if bare not in preds:
+            preds.append(bare)
+    held = {p: int(graph.predicate_counts.get(p, 0)) for p in preds}
+    missing = sorted(p for p, n in held.items() if n == 0)
+    # BY SOURCE TOO, because "the predicate is present" is weaker than it
+    # sounds. M5 hops host-host over PHYSICALLY_INTERACTS_WITH and the
+    # 2021 graph holds 11,744 of those -- all virus-host, every host-host
+    # edge being STRING's and dated to the v12 release. So this record
+    # carries the source breakdown and the reason says only what the
+    # census can support: a present predicate does not establish that the
+    # subset a metapath walks is present.
+    by_source = {f"{p}|{src}": int(n)
+                 for (p, src), n in sorted(graph.predicate_sources.items())
+                 if p in held}
+    if missing:
+        reason = "the training graph holds no " + ", ".join(missing) + " edge"
+    else:
+        reason = ("every predicate of this metapath is present in the "
+                  "training graph, so the channel emitted no path for this "
+                  "virus -- see predicate_sources, since a predicate can be "
+                  "present while the subset this metapath walks is not")
+    return {"metapath": metapath.get("path", []),
+            "predicate_edges_in_training_graph": held,
+            "predicate_sources": by_source,
+            "missing_predicates": missing,
+            "reason": reason}
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
@@ -194,6 +243,24 @@ def main() -> int:
             if sc:
                 scorers[name] = sc
                 per[name] = evaluate(sc, test_pos, args.k)
+            else:
+                # A CHANNEL THAT SCORES NOTHING SAYS SO, AND SAYS WHY
+                # (fix-list C7). `if sc:` alone dropped the channel from
+                # the output entirely, so M5 was absent from every
+                # SARS-CoV-2 temporal table ever published and a reader
+                # could not tell an unevaluated channel from one that was
+                # evaluated and found null.
+                #
+                # The two reasons are not the same finding. A metapath
+                # whose predicates are all present but which reaches no
+                # compound of this virus is a measurement. A metapath
+                # hopping over a predicate the TRAINING graph does not
+                # hold has not been tested at all -- and on the 2021 split
+                # that is the ordinary case, because every STRING edge is
+                # dated to the v12 release and lands after any cutoff
+                # before 2023.
+                per[name] = {"not_evaluated": absence_reason(
+                    name, s.metapaths.get(name, {}), g)}
         scorers["COMBINED"] = combine(dwpc, virus)
         scorers["degree"] = deg
         per["COMBINED"] = evaluate(scorers["COMBINED"], test_pos, args.k)
@@ -212,6 +279,12 @@ def main() -> int:
         # against positives alone while the measured negatives sat unused.
         test_neg = split.test_negatives.get(virus, set())
         for name, row in per.items():
+            # A not_evaluated row has no scorer to measure. It is kept in
+            # `per` so the channel appears in the output with its reason,
+            # and skipped here rather than filtered out of `per`, because
+            # filtering is how it came to be missing in the first place.
+            if "not_evaluated" in row:
+                continue
             a = evaluate_against_negatives(scorers[name], test_pos, test_neg)
             # The per-channel gate is the SAME constant the virus-level gate
             # above uses, applied to the positives this channel actually
@@ -233,6 +306,11 @@ def main() -> int:
               f"{'exp':>7} {'lift':>11} {'p':>7} {'vs deg':>7} {'mrr':>7} "
               f"{'AUC [95% CI]':>22}")
         for name, m in per.items():
+            if "not_evaluated" in m:
+                why = m["not_evaluated"]
+                print(f"    {name:<10} NOT EVALUATED — "
+                      f"{why['reason']}")
+                continue
             flag = "" if m["trustworthy"] else " (!)"
             # The hits column carries the RANGE where a tie block straddles
             # k, because the single figure there is one draw from it. On
@@ -255,6 +333,19 @@ def main() -> int:
                    "overlap_policy": args.overlap_policy,
                    "reachability_floor": MIN_REACHED_POSITIVES,
                    "stats": dict(split.stats), "audits": problems,
+                   # WHAT THE UNDATED POLICY ADMITTED, by predicate and
+                   # source (fix-list C3/C6), and what the TRAINING GRAPH
+                   # ended up holding per predicate (C2/C7). Both were
+                   # walkable only by hand before: the 2021 graph holds 0
+                   # of the 141,019 STRING edges, every one dated to the
+                   # v12 release, so M5 could not run and nothing said so.
+                   "undated_census": {f"{p}|{src}": n for (p, src), n
+                                      in sorted(split.undated_census.items())},
+                   "training_graph_predicates": dict(
+                       sorted(g.predicate_counts.items())),
+                   "training_graph_predicate_sources": {
+                       f"{p}|{src}": n for (p, src), n
+                       in sorted(g.predicate_sources.items())},
                    "already_known": split.violations,
                    "results": results}, args.release, s.version)
     print(f"\nwrote {args.results}")

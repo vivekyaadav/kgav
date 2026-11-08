@@ -278,20 +278,126 @@ five cross-sectional viruses have a channel at p<0.05 and degree clears it
 in one of them. The sentence counted the viruses where DEGREE was
 significant.
 
-## What is still not measured
+## 0.526 IS the imputation floor
 
-COMBINED reaches 96 of 1,580 test positives, 6.1%, and the other 93.9%
-carry the imputed floor. An AUC computed that way exceeds 0.5 whenever a
-scorer reaches a larger fraction of the positives than of the negatives,
-with no ranking skill inside the reached set: if reached compounds all
-outrank unreached ones and are internally unordered, the AUC is exactly
-`0.5 + (coverage_pos - coverage_neg) / 2`. 0.526 is what a coverage gap of
-5.2 points gives.
+COMBINED reaches 96 of 1,580 test positives, 6.1%, and 8 of 982 test
+negatives, 0.8%. The other 93.9% of the positives carry the imputed floor.
+An AUC computed that way exceeds 0.5 whenever a scorer reaches a larger
+fraction of the positives than of the negatives, with no ranking skill
+inside the reached set at all: if reached compounds all outrank unreached
+ones and are internally unordered, the AUC is exactly
+`0.5 + (coverage_pos - coverage_neg) / 2`.
 
-**Whether that is what 0.526 is cannot be determined from the results
-file.** `scripts/temporal_split.py` writes `auc_n_pos` and `auc_n_neg` but
-not `coverage_pos` and `coverage_neg`, which the cross-sectional protocol
-writes and `docs/evaluation.md` reads for every other table. Until it does,
-this row cannot be distinguished from its own imputation floor. No
-prediction is made here about which it is; the measurement is a change to
-the script, not a judgement.
+    coverage gap            6.1% - 0.8%  =  5.26 points
+    floor  0.5 + 0.0526                  =  0.5263
+    measured AUC                            0.5263
+    ceiling, ranking the reached set
+      PERFECTLY                             0.5266
+
+**The floor equals the measured AUC to four decimal places, and the
+ceiling is three ten-thousandths above it.** COMBINED could not have
+scored above 0.5266 however well it ranked, and it scored what its reach
+alone produces. The interval [0.503, 0.549] excludes 0.5 because n is
+1,580/982, not because anything was separated. `kgav.labels.auc_floor` and
+`auc_ceiling` compute both figures and
+`tests/test_auc_decomposition.py::test_the_one_chance_clearing_ensemble_cell_is_its_own_floor`
+fails if a later release pulls the three numbers apart.
+
+**The decision rule's first condition should never have been read as met.**
+It said *claim a result for COMBINED only if its interval clears 0.5 AND
+the degree baseline on the same split does not*. The interval clears 0.5,
+and what clears it is the imputation. The rule still reaches the right
+answer here, for the second reason rather than the first, but a bar stated
+on an imputed AUC without a floor beside it can be cleared by a scorer that
+reaches nothing well. **Any successor to this registration must state the
+floor and the ceiling before the run, not only the interval bar.** That is
+the one amendment to the methodology this run earns.
+
+**This section said the opposite on 2026-11-08**, under the heading "What
+is still not measured": that `temporal_split.py` "writes `auc_n_pos` and
+`auc_n_neg` but not `coverage_pos` and `coverage_neg`", so the row "cannot
+be distinguished from its own imputation floor" and the measurement was "a
+change to the script". The script records them as `auc_coverage_pos` and
+`auc_coverage_neg`. The claim was wrong by a prefix, and the thing it
+called unmeasurable is the sharpest number in this file. Recorded rather
+than deleted, because a registration that quietly drops a wrong statement
+about its own data cannot be audited on how it found it.
+
+---
+
+# Amendment, 2026-11-09: the result was a leak, and the floor caught it first
+
+The 2026-11-08 amendment above is kept as written. One day later the
+similarity layer was found to be leaking post-cutoff compounds into the
+2021 training graph (fix-list C4), and with that fixed **no scorer on any
+undated policy has an AUC interval excluding 0.5.**
+
+## What leaked
+
+Every `CHEMICALLY_SIMILAR_TO` edge carries the placeholder date, because
+the layer is computed rather than curated, so all 3,149 of them entered
+the 2021 graph under `include`. The layer was computed over the whole
+release, so those edges join compounds nothing had measured until 2024.
+
+An undated computed edge is no older than what it was computed over.
+`kgav.temporal.derived_year` now dates one by the later of its two
+endpoints' first appearances -- earliest per node, because a compound
+exists from its first appearance anywhere; latest across the pair, because
+the pair does not exist until both do. Measured on v0.1:
+
+    computed edges, undated                 3,173
+      datable from their endpoints          2,864
+      of those, endpoint after the cutoff   1,412   <- removed
+      endpoints nothing can date              309   <- policy still decides
+
+So **44% of the computed layer in the training graph was post-cutoff.**
+
+## What it was holding up
+
+    SARS-CoV-2 test compounds reachable   231 (14.7%)  ->  64 (4.1%)
+    evaluable viruses, include             7           ->  3
+    COMBINED AUC                           0.526 [0.503, 0.549]
+                                                       ->  0.509 [0.486, 0.532]
+    degree AUC                             0.555 [0.533, 0.578]
+                                                       ->  0.516 [0.493, 0.539]
+    cells with an interval excluding 0.5   5           ->  0
+
+`exclude` moved the other way, 1 evaluable virus to 3, because 1,452
+computed edges are now genuinely dated pre-cutoff instead of being
+discarded as dateless. A fix that only ever removed evidence would be
+suspicious; this one removes post-cutoff edges and admits pre-cutoff ones,
+which is what dating them means.
+
+## The decomposition got there first, by a different route
+
+The 2026-11-08 amendment had already established that COMBINED's 0.526 was
+its own imputation floor to four decimals, with a ceiling of 0.5266 --
+that it cleared the bar on a figure its reach produced by itself. The leak
+fix now puts it below the bar. **Two independent findings, one day apart,
+and either alone retires the result.** That is the argument for reporting a
+floor beside every imputed AUC: the decomposition did not need to know why
+the coverage gap was there.
+
+Across all 69 temporal AUC cells on this release, 53 equal their floor to
+four decimal places, the median deviation is exactly zero, the largest is
+0.0067, and the largest floor-to-ceiling span any scorer had is 0.0320.
+**The tie-safe AUC on this protocol cannot separate**, whatever scorer is
+applied to it: a channel could rank its reached set perfectly and still
+read 0.509.
+
+## The methodology amendment stands and gets sharper
+
+The 2026-11-08 amendment required that any successor registration state
+the floor and the ceiling before the run, not only the interval bar. That
+is now the binding requirement rather than a suggestion, and it is not
+enough on its own. **A successor must also state the minimum reach at
+which the AUC will be read**, because a bar on an imputed AUC is cleared
+by coverage asymmetry alone and the floor only reveals that afterwards.
+`MIN_REACHED_POSITIVES = 10` gates the LIFT and gates the AUC only through
+`auc_evaluable`; on this split COMBINED passes it at 32 reached positives
+and still has 0.0000 of span between floor and ceiling.
+
+## Decision
+
+Unchanged, and now for the simplest possible reason. **No result is
+claimed for COMBINED**: its interval contains 0.5.

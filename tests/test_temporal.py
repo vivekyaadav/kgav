@@ -11,6 +11,10 @@ from kgav.temporal import audit, build_split, edge_year, write_split
 V = "NCBITaxon:2697049"
 OLD = "INCHIKEY:OLD"
 NEW = "INCHIKEY:NEW"
+#: a compound no DATED edge mentions, so its first appearance
+#: cannot be read and `derived_year` returns None for any
+#: computed edge touching it. See _with_similarity_source.
+UNDATABLE = "INCHIKEY:UNDATABLE"
 
 
 def _e(s, p, o, date, q=None, src="s", tier=1):
@@ -85,7 +89,14 @@ def test_future_evidence_is_removed_from_the_training_graph(release, held):
     compound whose nsp5 activity was published in 2023 with an M1 path built
     from 2023 evidence predicting a 2023 label."""
     s = build_split(release, 2021, held)
-    assert s.stats["edge_dropped_future"] == 1
+    # TWO, since 2026-11-09: the 2023 INHIBITS edge, and the undated
+    # similarity edge joining OLD to NEW, which `derived_year` dates to
+    # 2023 because that is when NEW first appears. The second is counted
+    # in both `edge_dropped_future` (the total) and
+    # `computed_dropped_future_endpoint` (the reason), deliberately --
+    # one is the tally, the other says which rule removed it.
+    assert s.stats["edge_dropped_future"] == 2
+    assert s.stats["computed_dropped_future_endpoint"] == 1
     for e in s.train_edges:
         y = edge_year(e)
         assert y is None or y <= 2021
@@ -121,21 +132,76 @@ def test_held_out_predicates_never_enter_the_training_graph(release, held):
 
 # ------------------------------------------------------------ undated policy
 def test_undated_include_keeps_computed_and_real(release, held):
+    """`include` now decides only for edges NOTHING could date.
+
+    The similarity edge is no longer one of them: it is computed, its
+    endpoints are datable, and the later of them is 2023, so it leaves
+    the training graph before any policy is consulted. The dateless
+    TARGETS edge is curated rather than computed, so no derivation
+    applies and the policy admits it -- which is fix-list C3, and the
+    release's 5,306 such TARGETS edges are now counted by source in
+    `undated_census`.
+    """
     s = build_split(release, 2021, held, "include")
-    assert s.stats["undated_kept_computed"] == 1   # similarity
+    assert s.stats["undated_kept_computed"] == 0
     assert s.stats["undated_kept"] == 1            # the dateless TARGETS edge
+    assert s.undated_census[("TARGETS", "s")] == 1
+
+
+def test_a_computed_edge_between_two_old_compounds_is_kept_and_dated(
+        release, held):
+    """The other half of the C4 rule, and the half that could silently
+    not work: derivation must KEEP a computed edge whose endpoints are
+    both pre-cutoff, dating it rather than dropping it.
+
+    A mutant that dropped every datable computed edge would pass every
+    other test in this file, because the base fixture's one computed
+    edge happens to be post-cutoff.
+    """
+    rows = []
+    for line in (release / "edges.jsonl").read_text().splitlines():
+        e = json.loads(line)
+        if e["predicate"] == "CHEMICALLY_SIMILAR_TO":
+            # OLD -> NSP5: both first appear in 2020.
+            e["object"] = "UniProtKB:NSP5"
+        rows.append(json.dumps(e))
+    (release / "edges.jsonl").write_text("\n".join(rows))
+    s = build_split(release, 2021, held, "include")
+    assert s.stats["computed_dated_from_endpoints"] == 1
+    assert s.stats["computed_dropped_future_endpoint"] == 0
+    assert s.stats["undated_kept_computed"] == 0
+    kept = [e for e in s.train_edges
+            if e["predicate"] == "CHEMICALLY_SIMILAR_TO"]
+    assert len(kept) == 1, "a datable pre-cutoff computed edge was dropped"
 
 
 def test_undated_exclude_drops_everything_dateless(release, held):
-    """Conservative: an unknown date may be post-cutoff."""
+    """Conservative: an unknown date may be post-cutoff.
+
+    ONE now, not two. The similarity edge is dated from its endpoints
+    and dropped as future before `exclude` sees it, so only the curated
+    dateless TARGETS edge reaches this branch. `exclude` and the
+    derivation rule agree on the similarity edge and disagree on
+    nothing, which is the property worth having: a fix that made a
+    conservative policy LESS conservative would show up here.
+    """
     s = build_split(release, 2021, held, "exclude")
-    assert s.stats["undated_dropped"] == 2
+    assert s.stats["undated_dropped"] == 1
     assert all(edge_year(e) is not None for e in s.train_edges)
 
 
 def test_undated_computed_only_keeps_similarity_but_not_unknown_dates(release, held):
+    """`computed_only` is now reached by far fewer edges, and that is the
+    point of C4 rather than a weakening of this policy.
+
+    On v0.1 it decided for 3,173 computed edges; derivation dates 2,864
+    of them first, leaving 309 whose endpoints nothing can place. The
+    fixture's similarity edge is datable, so it is gone before this
+    policy applies and the curated dateless TARGETS edge is still
+    dropped.
+    """
     s = build_split(release, 2021, held, "computed_only")
-    assert s.stats["undated_kept_computed"] == 1
+    assert s.stats["undated_kept_computed"] == 0
     assert s.stats["undated_dropped"] == 1
 
 
@@ -599,11 +665,28 @@ def test_the_auc_describes_the_same_scorer_the_lift_describes():
 # merged forms the graph does not yet contain.
 def _with_similarity_source(release, src: str):
     """The same release with the CHEMICALLY_SIMILAR_TO edge's curator
-    field rewritten. Returns the directory, so build_split reads it the
-    way it reads any other release."""
+    field rewritten, and that edge re-pointed at a compound no DATED
+    edge mentions. Returns the directory, so build_split reads it the
+    way it reads any other release.
+
+    WHY THE SECOND HALF. Since 2026-11-09 an undated computed edge is
+    dated from its endpoints before any policy is consulted (fix-list
+    C4), and in the base fixture that lands it at 2023 and drops it --
+    correctly, since NEW's first dated edge is 2023. These tests are
+    about whether `_is_computed` recognises a curator string, which is
+    only ever asked when derivation returns nothing. So the edge points
+    at UNDATABLE, a compound whose only edge is this one: that is a real
+    case, 309 of the 3,173 computed edges on v0.1.
+    """
     out = release.parent / f"rel_{abs(hash(src))}"
     out.mkdir()
-    (out / "nodes.jsonl").write_text((release / "nodes.jsonl").read_text())
+    nodes = (release / "nodes.jsonl").read_text().splitlines()
+    nodes.append(json.dumps(
+        {"id": UNDATABLE, "class": "SmallMolecule",
+         "properties": {"smiles": "CC", "inchikey_skel": "UN",
+                        "is_approved": False, "salt_collapsed": False,
+                        "stereo_collapsed": False}}))
+    (out / "nodes.jsonl").write_text("\n".join(nodes))
     rows = []
     for line in (release / "edges.jsonl").read_text().splitlines():
         if not line.strip():
@@ -611,6 +694,7 @@ def _with_similarity_source(release, src: str):
         e = json.loads(line)
         if e["predicate"] == "CHEMICALLY_SIMILAR_TO":
             e["primary_knowledge_source"] = src
+            e["object"] = UNDATABLE
         rows.append(json.dumps(e))
     (out / "edges.jsonl").write_text("\n".join(rows))
     return out
@@ -627,6 +711,10 @@ def test_a_duplicated_computed_source_is_still_computed(release, held):
     assert s.stats["undated_kept_computed"] == 1, (
         "a computed edge whose source was named twice was dropped")
     assert s.stats["undated_dropped"] == 1
+    # AND DERIVATION DID NOT FIRE, which is what makes this a test of the
+    # curator string rather than of the C4 rule: UNDATABLE has no dated
+    # edge, so there is nothing to derive from.
+    assert s.stats["computed_dated_from_endpoints"] == 0
 
 
 def test_a_computed_edge_a_curator_also_witnesses_is_not_computed(release,
