@@ -46,6 +46,14 @@ from kgav.labels import auc_interval
 MARKER = "<!-- BLOCK: claim_channels"
 VIRUS = "SARS-CoV-2"
 CHANNELS = [f"M{i}" for i in range(1, 9)]
+#: The two scorers that are NOT reasoning channels but DO have a line in
+#: the block. COMBINED's was never checked by this file, so it sat at
+#: 0.575 [0.512, 0.637] after the release moved it to 0.573 [0.510, 0.635]
+#: -- and the census block ten lines further down carried the right one,
+#: so the document disagreed with itself. `scripts/diagnose_doc_figures.py`
+#: found it once that script stopped matching figures by value (D5); no
+#: test could, because this list stopped at M8.
+NON_CHANNELS = ["COMBINED", "degree"]
 
 #: Only as far as the channel count can reach. A missing word must fail
 #: loudly rather than fall back to a digit the document does not use.
@@ -59,7 +67,11 @@ def channels() -> dict[str, dict]:
     doc = json.loads(RESULTS.read_text())
     per = doc["cross_sectional"][VIRUS]
     out = {}
-    for name in CHANNELS + ["degree"]:
+    # COMBINED TOO. The fixture built every M-channel plus degree, so
+    # `chans["COMBINED"]` raised KeyError and the block's COMBINED line
+    # was unreachable by any assertion here -- which is why it went
+    # stale while the census block below it did not.
+    for name in CHANNELS + NON_CHANNELS:
         m = per[name]
         lo, hi = auc_interval(m["auc"], m["n_pos"], m["n_neg"])
         out[name] = {"auc": m["auc"], "lo": lo, "hi": hi,
@@ -249,3 +261,28 @@ def test_a_partial_block_does_not_silently_parse_as_complete(bad):
 def test_the_parser_raises_rather_than_returning_an_empty_degree():
     with pytest.raises(AssertionError):
         parsed_degree("    not  M3 reaches 9\n")
+
+
+@pytest.mark.parametrize("scorer", NON_CHANNELS)
+def test_the_block_prints_the_baseline_and_ensemble_intervals(scorer, chans):
+    """COMBINED and degree, asserted like every M-channel.
+
+    `parsed_degree` covered `degree` alone. COMBINED had a line in the
+    block, a figure in it, and nothing reading either.
+    """
+    cell = fmt_auc(chans[scorer])
+    body = block()
+    assert f"{scorer} {cell}" in " ".join(body.split()), (
+        f"the block does not print {scorer} as {cell}")
+
+
+def test_the_gap_between_them_is_the_one_the_results_give(chans):
+    """The block states how far COMBINED sits below degree, and that
+    difference is a third number which can disagree with the two it comes
+    from -- it read "0.002" while the two figures beside it implied
+    0.004."""
+    gap = chans["degree"]["auc"] - chans["COMBINED"]["auc"]
+    flat = " ".join(DOC.read_text().split())
+    assert f"{gap:.3f} below" in flat or f"{gap:.3f} apart" in flat, (
+        f"degree leads COMBINED by {gap:.3f}; the document states a "
+        f"different gap")

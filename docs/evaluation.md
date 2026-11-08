@@ -37,8 +37,8 @@ the one this document carried on 2026-10-31, not a weaker one.
     baseline    degree   0.577 [0.514, 0.639]   clear of 0.5, and it is the
                                                 null hypothesis, not a
                                                 reasoning channel
-    ensemble    COMBINED 0.575 [0.512, 0.637]   reaches 39 of 89. Also clear
-                                                of 0.5, and 0.002 below
+    ensemble    COMBINED 0.573 [0.510, 0.635]   reaches 39 of 89. Also clear
+                                                of 0.5, and 0.004 below
                                                 degree -- see the
                                                 decomposition below before
                                                 reading that as a tie
@@ -83,13 +83,13 @@ have contributed.
 every compound in both classes, so it has no coverage asymmetry at all and
 every one of its 0.0767 points above chance is ranking. COMBINED's margin
 above chance is 0.0746, of which **0.0645 -- 89% -- is its coverage gap**
-and 0.0081 is ranking. The two raw numbers are two thousandths apart and
+and 0.0081 is ranking. The two raw numbers are four thousandths apart and
 they are not measuring the same thing.
 
 **Normalised, the finding survives and gets a reason.** The fraction of the
-available span each scorer used is 15.0% for COMBINED and 15.3% for degree,
+available span each scorer used is 11.9% for COMBINED and 15.3% for degree,
 and the four evaluated channels run 13.0% to 26.3%. **Every scorer on this
-graph, the null hypothesis included, extracts between 13% and 27% of the
+graph, the null hypothesis included, extracts between 12% and 27% of the
 separation its own coverage allows, and none of them is distinguishable
 from the others on that measure.** That is a sharper
 statement than either "degree wins" or "they tie": the differences between
@@ -212,7 +212,7 @@ The one-line version of every table here:
 > endpoints first appear removes all five. **Nothing in the temporal
 > protocol now has an AUC interval excluding chance.**
 >
-> Cross-sectionally degree and COMBINED are **0.002 apart**, and that
+> Cross-sectionally degree and COMBINED are **0.004 apart**, and that
 > number is not the comparison it looks like either. Normalised for reach
 > they use 11.9% and 15.3% of the span available to them, which is the
 > defensible version of "indistinguishable". Both decomposition tables are

@@ -487,15 +487,15 @@ def auc_floor(reached_pos: int, reached_neg: int,
     imputed AUC that reflects the ranking.
 
     WHY IT IS NEEDED. On release v0.1, SARS-CoV-2, the cross-sectional
-    protocol reads degree 0.5767 and the COMBINED ensemble 0.5746 -- two
+    protocol reads degree 0.5767 and the COMBINED ensemble 0.5725 -- four
     thousandths apart, which reads as "the graph ties with counting
     edges". It is not a comparison. degree reaches every compound in both
     classes, so its floor is exactly 0.5 and all 0.0767 of its margin is
     ranking. COMBINED reaches 43.8% of the positives and 30.9% of the
-    negatives, and that gap ALONE scores 0.5645: 86% of its margin above
+    negatives, and that gap ALONE scores 0.5645: 89% of its margin above
     chance is the imputation, not the paths. Normalised by what each had
     available -- (auc - floor) / (ceiling - floor) -- they read 15.3% and
-    15.0%, which is the defensible version of "indistinguishable".
+    11.9%, which is the defensible version of "indistinguishable".
 
     THE MODEL, spelled out, because the formula is only obvious once:
     every reached compound outranks every unreached one; the reached
@@ -673,7 +673,7 @@ def evaluate_against_negatives(scores: dict[str, float], pos: set[str],
             # AND WHAT IT SCORED FOR FREE. auc_headroom measures the gap
             # from CHANCE to the ceiling, which overstates what a
             # low-coverage scorer had to play for: its floor is not 0.5.
-            # See auc_floor -- 86% of COMBINED's cross-sectional margin
+            # See auc_floor -- 89% of COMBINED's cross-sectional margin
             # above chance is its coverage asymmetry.
             "auc_floor": floor,
             "auc_skill": auc_skill(auc, floor, ceiling)}

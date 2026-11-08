@@ -42,17 +42,52 @@ from pathlib import Path
 INTERVAL = re.compile(r"([0-9]\.[0-9]{3}) \[([0-9]\.[0-9]{2,3}), ?([0-9]\.[0-9]{2,3})\]")
 
 
-def _numbers(obj, out: set[str]) -> None:
-    """Every float in a results file, at both printed precisions."""
+#: The three fields that together ARE an interval-shaped figure. A match
+#: has to find all three on ONE cell, not three numbers somewhere in a
+#: file -- see `_cells`.
+AUC_TRIPLE = ("auc", "auc_ci_lo", "auc_ci_hi")
+
+
+def _cells(obj, path: tuple[str, ...] = ()) -> list[tuple[str, tuple[str, ...]]]:
+    """Every (rendered interval, path) an results file actually states.
+
+    MATCHING BY VALUE WAS THE DEFECT (fix-list D5). This function
+    replaced a `_numbers` walk that flattened every float in a file into
+    one set, after which a figure counted as "present" if its three
+    digits appeared ANYWHERE -- not as an AUC beside its own bounds, not
+    on the same cell, not even for the same virus or protocol.
+
+    MEASURED on 2026-11-09, and the diagnostic was vouching for figures
+    this document had just RETRACTED: the withdrawn temporal COMBINED
+    interval 0.526 [0.503, 0.549] read as present in
+    hard_negatives_row2.json, a cross-sectional file with no temporal
+    content, because those three numbers each occur in it somewhere. So
+    did the withdrawn degree interval 0.555 [0.533, 0.578], in
+    hard_negatives_row1.json. A check that confirms a retracted number
+    is worse than no check: it argues against the correction.
+
+    The path is kept and printed, so a figure matching the WRONG cell is
+    visible rather than merely counted -- "present in
+    hard_negatives.json" says nothing, while
+    "cross_sectional/SARS-CoV-2/M4" can be read against the sentence.
+    """
+    out: list[tuple[str, tuple[str, ...]]] = []
     if isinstance(obj, dict):
-        for v in obj.values():
-            _numbers(v, out)
+        have = [k for k in AUC_TRIPLE if isinstance(obj.get(k), float)]
+        if len(have) == len(AUC_TRIPLE):
+            a, lo, hi = (obj[k] for k in AUC_TRIPLE)
+            # Both bound precisions the document uses, because an older
+            # table writes [0.49, 0.54] and a newer one [0.486, 0.532].
+            for places in (2, 3):
+                out.append((f"{a:.3f} [{lo:.{places}f}, {hi:.{places}f}]",
+                            path))
+        for k, v in obj.items():
+            if k not in AUC_TRIPLE:
+                out.extend(_cells(v, path + (str(k),)))
     elif isinstance(obj, list):
-        for v in obj:
-            _numbers(v, out)
-    elif isinstance(obj, float):
-        out.add(f"{obj:.3f}")
-        out.add(f"{obj:.2f}")
+        for i, v in enumerate(obj):
+            out.extend(_cells(v, path + (f"[{i}]",)))
+    return out
 
 
 def main() -> int:
@@ -70,15 +105,24 @@ def main() -> int:
         print(f"no results in {args.results}", file=sys.stderr)
         return 2
 
-    per_file: dict[str, set[str]] = {}
+    # figure -> ["file cross_sectional/SARS-CoV-2/M4", ...]
+    where_stated: dict[str, list[str]] = {}
+    n_cells = 0
     for p in files:
         try:
             doc = json.loads(p.read_text())
         except json.JSONDecodeError:                 # pragma: no cover
             continue
-        seen: set[str] = set()
-        _numbers(doc, seen)
-        per_file[p.name] = seen
+        for figure, path in _cells(doc):
+            n_cells += 1
+            where_stated.setdefault(figure, []).append(
+                f"{p.name} {'/'.join(path)}" if path else p.name)
+    if not n_cells:
+        print(f"no AUC cells found in {args.results}. Every results file "
+              f"would read as stale, which is a defect in this script "
+              f"rather than in the document -- {AUC_TRIPLE} are the fields "
+              f"it looks for.", file=sys.stderr)
+        return 2
 
     text = args.doc.read_text()
     lines = text.splitlines()
@@ -86,11 +130,10 @@ def main() -> int:
     for m in INTERVAL.finditer(text):
         point, lo, hi = m.groups()
         line_no = text[:m.start()].count("\n") + 1
-        # All three parts must appear in ONE file. A point estimate alone
-        # collides constantly -- 0.504 is in half the files -- and matching
-        # it would report everything as current.
-        where = [n for n, nums in per_file.items()
-                 if {point, lo, hi} <= nums]
+        # ONE CELL, not one file. The three parts must be the auc and its
+        # OWN bounds on a single record -- see _cells for what matching by
+        # value instead let through.
+        where = where_stated.get(f"{point} [{lo}, {hi}]", [])
         row = (m.group(0), line_no, lines[line_no - 1].strip()[:72], where)
         (found if where else missing).append(row)
 
