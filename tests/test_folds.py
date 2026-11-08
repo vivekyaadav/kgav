@@ -1312,3 +1312,85 @@ def test_the_fold_edge_survives_computed_only_and_membership_does_not():
               "predicate": "MEMBER_OF_CLASS"}
     assert _is_computed(fold) is True
     assert _is_computed(member) is False
+
+
+# ----------------------------- P6: "unknown" is not "none"
+#
+# `a_nuc = a.catalytic_type in NUCLEOPHILES.values()` is False for both
+# "unknown" and "none", so two unknowns fell through to MOTIF mode and came
+# out ALLOWED-weak with catalytic_type_match=True -- the qualifier M8
+# constrains on, and therefore traverses.
+#
+# catalytic_machinery's own docstring names the distinction and the reason:
+# "None means the fetch failed. The two produce different types --
+# 'unknown' against 'none' -- and conflating them would report a network
+# outage as a chain with no catalytic machinery." The gate conflated them,
+# so a failed UniProt fetch would have quietly ADDED M8 hops.
+#
+# LATENT ON v0.1, NOT LIVE: all 24 cached chains resolve to cysteine (10),
+# serine (6) or none (8), no pair reaches the branch, and the layer rebuilds
+# byte-identical. These tests are the only thing that exercises it.
+
+_P6_SHARED = [("IPR009003", "Peptidase S1, PA clan"),
+           ("G3DSA:2.40.10.10", "Trypsin-like serine proteases")]
+
+
+def test_two_unknown_catalytic_types_do_not_license_a_transfer():
+    """Both ends unresolved, same role, a shared fold entry. Under the old
+    branch this was MOTIF mode and allowed."""
+    a = _chain("A pro", "coronaviridae", "protease", "unknown", "", _P6_SHARED)
+    b = _chain("B pro", "flaviviridae", "protease", "unknown", "", _P6_SHARED)
+    g = gate(a, b)
+    assert not g.allowed
+    assert g.mode == "refused"
+    assert g.catalytic_type_match is False
+    assert "unknown is not the same claim as none" in g.reason
+
+
+def test_one_unknown_end_is_enough_to_refuse():
+    a = _chain("A pro", "coronaviridae", "protease", "cysteine", "C100", _P6_SHARED)
+    b = _chain("B pro", "flaviviridae", "protease", "unknown", "", _P6_SHARED)
+    assert not gate(a, b).allowed
+    assert not gate(b, a).allowed, "the refusal has to be symmetric"
+
+
+def test_none_versus_none_is_still_motif_mode():
+    """The branch this must NOT break. "none" is a resolved finding -- no
+    catalytic nucleophile -- and polymerase comparison depends on it."""
+    a = _chain("A pol", "coronaviridae", "polymerase", "none", "", _P6_SHARED)
+    b = _chain("B pol", "flaviviridae", "polymerase", "none", "", _P6_SHARED)
+    g = gate(a, b)
+    assert g.allowed and g.mode == "motif" and g.strength == "weak"
+    assert g.catalytic_type_match is True
+
+
+def test_a_role_mismatch_still_outranks_the_unknown_refusal():
+    """Both refusals are correct; the role one says more, so it keeps
+    priority and the reason names the artifact rather than the gap."""
+    a = _chain("A pro", "coronaviridae", "protease", "unknown", "", _P6_SHARED)
+    b = _chain("B pol", "flaviviridae", "polymerase", "unknown", "", _P6_SHARED)
+    g = gate(a, b)
+    assert not g.allowed
+    assert "different target roles" in g.reason
+
+
+def test_an_unnamed_annotated_nucleophile_is_unknown_not_absent():
+    """The second route to "unknown", and the worse of the two: an
+    explicitly annotated nucleophile whose residue NUCLEOPHILES does not
+    name -- a lysine or tyrosine -- is a real nucleophile. Reading it as
+    the absence of one is a property of the data, not of the network."""
+    from kgav.folds import decide_machinery
+    assert "K" not in NUCLEOPHILES, (
+        "lysine is now a named nucleophile; pick another unnamed residue "
+        "for this fixture rather than deleting the case"
+    )
+    # decide_machinery, not catalytic_machinery: the pure half, so this
+    # needs no network. The split exists for exactly that reason.
+    _res, nuc, cat, basis = decide_machinery([(100, "K", "Nucleophile")])
+    assert nuc == "K100" and basis == "annotated"
+    assert cat == "unknown", (
+        "an annotated nucleophile this module cannot name must read as "
+        "unknown, never as none")
+    a = _chain("A pro", "coronaviridae", "protease", cat, nuc, _P6_SHARED)
+    b = _chain("B pro", "flaviviridae", "protease", "cysteine", "C100", _P6_SHARED)
+    assert not gate(a, b).allowed

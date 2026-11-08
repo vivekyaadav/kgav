@@ -634,6 +634,39 @@ def gate(a: ResolvedChain, b: ResolvedChain) -> GateResult:
                           f"fold similarity between them is an artifact "
                           f"whatever the catalytic type says")
 
+    # "unknown" IS NOT "none", AND THIS BRANCH USED TO TREAT THEM ALIKE
+    # (fix-list P6). `a_nuc` is False for both, so two unknowns fell through
+    # to MOTIF mode and came out ALLOWED-weak with catalytic_type_match=True
+    # -- which M8 constrains on and therefore traverses.
+    #
+    # catalytic_machinery's own docstring names the distinction and the
+    # reason: "`sites` is [(position, residue, description)]; None means the
+    # fetch failed. The two produce different types -- 'unknown' against
+    # 'none' -- and conflating them would report a network outage as a chain
+    # with no catalytic machinery." The gate then conflated them, so a
+    # failed UniProt fetch would have quietly ADDED M8 hops rather than
+    # removing them.
+    #
+    # Two routes reach "unknown" and both matter. `sites is None` is the
+    # outage. `NUCLEOPHILES.get(aa, "unknown")` is the other and is worse:
+    # an explicitly annotated nucleophile whose residue this module does not
+    # name -- a lysine or tyrosine nucleophile -- is a real catalytic
+    # nucleophile being read as the absence of one, which is a property of
+    # the data rather than of the network.
+    #
+    # LATENT ON v0.1 AND NOT LIVE: all 24 cached chains resolve to cysteine
+    # (10), serine (6) or none (8), so no pair reaches this branch and the
+    # layer rebuilds byte-identical. The 5 `classes_mixed_catalytic_type`
+    # TargetClass nodes marked unknown are a class-level verdict over
+    # disagreeing members and never reach gate().
+    if "unknown" in (a.catalytic_type, b.catalytic_type):
+        return GateResult(False, "refused", False, shared, "none",
+                          f"catalytic machinery is unresolved for at least "
+                          f"one target ({a.catalytic_type} vs "
+                          f"{b.catalytic_type}); unknown is not the same "
+                          f"claim as none, and a fold match cannot be "
+                          f"licensed by a missing measurement")
+
     if a_nuc != b_nuc:
         return GateResult(False, "refused", False, shared, "none",
                           f"one target has a catalytic nucleophile "
