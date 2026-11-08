@@ -1,7 +1,10 @@
 """The shared-PMID confound, held to the file it comes from.
 
-WHAT THIS IS FOR. "92.2% of labelled compounds share a publication between
-the evidence edge and the label it was supposed to predict" is the single
+WHAT THIS IS FOR. "92.0% of labelled compounds share a publication between
+the evidence edge and the label it was supposed to predict" -- 1,020 of
+1,109 on the release of 2026-11-09, and derived below rather than typed
+here, which is the only reason this docstring may state it at all -- is the
+single
 most load-bearing figure in docs/evaluation.md: it is the reason that
 document calls its own M1 result partly self-scoring, and the reason
 kg_audit_report.txt splits its two questions the way it does.
@@ -85,7 +88,7 @@ def test_the_shared_pmid_claim_is_the_files_own(c):
 
 
 def test_the_denominator_of_the_claim_is_stated(c):
-    """92.2% IS CONDITIONAL and the condition is the hole: it is the share
+    """THE FIGURE IS CONDITIONAL and the condition is the hole: it is the share
     among compounds where BOTH sides cite a publication, not among all
     labelled compounds. The script's own comment records quoting it
     without that qualifier as a past mistake, so the document has to
@@ -180,7 +183,7 @@ def test_the_counts_partition_the_population(c):
 
 
 def test_unwithholdable_is_the_two_cases_with_no_evidence_pmid(c):
-    """Not "everything outside the 92.2% denominator": a compound whose
+    """Not "everything outside that denominator": a compound whose
     LABEL carries no PMID still has a withholdable evidence edge. Folding
     it in would overstate the control's blind spot."""
     assert c["unwithholdable"] == (c["evidence_has_no_pmid"]

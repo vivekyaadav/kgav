@@ -990,13 +990,32 @@ post-cutoff, so the 92.0% shared-PMID confound that took cross-sectional M1 to
 0.499 cannot occur. That is why it can show something the cross-sectional
 protocol cannot.
 
-It had been refusing to run. `audit()`'s L5 check found 19 SARS-CoV-2
-compounds on both sides of the cutoff and aborted; the NCATS CPE layer is one
-screen under one publication dated 2020, so every label it contributes routes
-to train, and ChEMBL re-measured 19 of them in 2022-2024.
-`diagnose_temporal_leak.py` split them 19/19 by source with no mixed case, so
-they are now dropped from the TEST set -- already-known compounds are not
-prospective cases -- and `--overlap-policy keep` reproduces the refusal.
+It had been refusing to run. `audit()`'s L5 check found SARS-CoV-2 compounds
+on both sides of the cutoff and aborted; the NCATS CPE layer is one screen
+under one publication dated 2020, so every label it contributes routes to
+train, and ChEMBL re-measured some of them in 2022-2024.
+`diagnose_temporal_leak.py` split them by source with no mixed case.
+Already-known compounds are not prospective cases, so they leave the TEST
+set, and `--overlap-policy keep` reproduces the refusal.
+
+<!-- FIGURE: overlap_census -->
+**32 (virus, compound) pairs cross the cutoff; 18 leave the test set and 14
+stay.** This paragraph read "19 SARS-CoV-2 compounds ... split them 19/19 by
+source ... so they are now dropped from the TEST set" until 2026-11-09, and
+every number in it was wrong (fix-list C8). Re-derived on v0.1 at cutoff
+2021: the overlap is **32** pairs, all SARS-CoV-2; **18** agree on polarity
+across the cutoff and are dropped, as 5 positive and 13 negative labels;
+**14 disagree -- every one inactive before the cutoff and active after --
+and those are KEPT.** The filter matches positives against train positives
+and negatives against train negatives, so a changed answer survives it.
+That behaviour is deliberate and it is not what the phrase "measured on
+both sides" suggests: re-measuring inactive as inactive tells the test side
+nothing, while inactive-then-active is the most informative prospective case
+the protocol can hold. It is also the case whose pre-cutoff answer is in the
+literature and wrong, so whether the 14 belong in a prospective test set is
+a protocol choice rather than a measurement, and not one to settle after
+reading the AUCs below. Unchanged, stated, and re-derived by
+`tests/test_overlap_policy.py`.
 
 ### SARS-CoV-2, cutoff 2021, undated=include
 

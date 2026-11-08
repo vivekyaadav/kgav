@@ -158,6 +158,58 @@ class Split:
     undated_census: Counter = field(default_factory=Counter)
 
 
+def drop_already_known(test_pos: dict[str, set[str]],
+                       test_neg: dict[str, set[str]],
+                       train_pos: dict[str, set[str]],
+                       train_neg: dict[str, set[str]],
+                       cutoff: int) -> tuple[Counter, list[str]]:
+    """Apply `overlap_policy="drop-from-test"` to one pair of label sets.
+
+    A compound the pre-cutoff literature already answered is not a
+    prospective test case, so it leaves the TEST set and stays in train.
+    Dropped from test and not from train because the direction matters: the
+    protocol asks what the pre-cutoff graph could have predicted, and
+    removing the pre-cutoff measurement instead would delete evidence that
+    genuinely existed at the time.
+
+    IT DROPS ONLY THE REPEATS, NOT EVERY OVERLAP -- positives against train
+    positives and negatives against train negatives, so a compound whose
+    answer CHANGED across the cutoff survives. That is the right behaviour
+    and it is not what the word "overlap" suggests, which is why it is said
+    here: re-measuring inactive as inactive tells the test side nothing,
+    while inactive-then-active is the single most informative prospective
+    case the protocol can contain. On v0.1 at cutoff 2021 the two differ by
+    almost half the overlap -- see `tests/test_overlap_policy.py`, which
+    re-derives every figure in this docstring from the release rather than
+    trusting it.
+
+    ONE IMPLEMENTATION, TWO CALLERS. `build_split` cuts the graph and
+    `scripts/hard_negatives.py` builds its own temporal test set from
+    `labels.build_labels`; the second applied no overlap policy at all while
+    its results file reported `overlap_policy: "drop-from-test"`, copied
+    from the training graph's stamp (fix-list C8). A reported policy nothing
+    applies is worse than an absent one, so the loop lives here and both
+    sides call it. The same reasoning is already written down one function
+    up for the selectivity filter, where a second hand-written copy of a
+    loop is how two sides came to differ without anyone deciding they
+    should.
+    """
+    stats: Counter = Counter()
+    messages: list[str] = []
+    for kind, test_side, train_side in (("positive", test_pos, train_pos),
+                                        ("negative", test_neg, train_neg)):
+        for virus in sorted(test_side):
+            already = test_side[virus] & train_side.get(virus, set())
+            if already:
+                stats[f"test_{kind}_already_known_dropped"] += len(already)
+                test_side[virus] -= already
+                messages.append(
+                    f"{len(already):,} {kind} test compounds for {virus} "
+                    f"were already measured pre-{cutoff} and left the "
+                    f"test set")
+    return stats, messages
+
+
 def build_split(release: Path, cutoff: int, held_out: set[str],
                 undated_policy: str = "include",
                 inactive_above_nm: float = DEFAULT_INACTIVE_ABOVE_NM,
@@ -191,9 +243,11 @@ def build_split(release: Path, cutoff: int, held_out: set[str],
       computed_only  keep only undated edges from a computed source
 
     overlap_policy:
-      drop-from-test  a compound measured on both sides leaves the TEST set
-                      (default: it is already known, so it is not a
-                      prospective case)
+      drop-from-test  a compound measured on both sides WITH THE SAME
+                      ANSWER leaves the TEST set (default: it is already
+                      known, so it is not a prospective case). A compound
+                      whose answer changed across the cutoff stays -- see
+                      drop_already_known, which says why
       keep            leave the overlap in place, so audit()'s L5 check fails
                       and the protocol refuses -- the previous behaviour,
                       kept for reproducing the refusal
@@ -334,34 +388,37 @@ def build_split(release: Path, cutoff: int, held_out: set[str],
     #
     # WHAT MADE THIS FIRE. The NCATS CPE layer is one screen under one
     # publication (PMID:33708112) dated 2020, so every label it contributes
-    # routes to train at any cutoff from 2020 on. 19 of those compounds were
-    # re-measured by ChEMBL papers in 2022-2024 and so also appeared in test.
-    # diagnose_temporal_leak.py showed the split by source as 19/19 clean --
-    # ncats-opendata on the train side, chembl on the test side, not one mixed
-    # case -- so this is a screen's publication date meeting the cutoff, not
-    # re-measurement disagreement. All 19 agreed on polarity across both
-    # sources, which is why dropping them costs no information: the test side
-    # learns nothing from a compound whose answer the train side already has.
+    # routes to train at any cutoff from 2020 on, and ChEMBL papers of
+    # 2022-2024 re-measured some of those compounds, which put them in test
+    # as well.
     #
-    # Dropped from TEST and not from TRAIN because the direction matters: the
-    # protocol asks what the pre-cutoff graph could have predicted, and
-    # removing the pre-cutoff measurement instead would delete evidence that
-    # genuinely existed at the time.
+    # THE COUNT AND THE REASON HERE WERE BOTH WRONG, 2026-11-09 (fix-list
+    # C8). This comment read "19 of those compounds ... All 19 agreed on
+    # polarity across both sources, which is why dropping them costs no
+    # information". Re-derived on v0.1 at cutoff 2021: 32 (virus, compound)
+    # pairs overlap the cutoff, 18 agree on polarity and 14 DISAGREE --
+    # every one of the 14 inactive before and active after. So the
+    # no-information justification is false for 44% of the overlap, and the
+    # loop below never dropped those 14 anyway: it matches positives against
+    # train positives and negatives against train negatives, so a changed
+    # answer survives. The code was right and its stated reason was not,
+    # which is the harder of the two to notice.
+    #
+    # WHETHER THE 14 SHOULD SURVIVE IS A PROTOCOL QUESTION, NOT A BUG. They
+    # are the hardest prospective cases the split contains -- a compound the
+    # pre-cutoff screen called inactive and a later assay called active --
+    # and they are also the cases where the pre-cutoff answer is in the
+    # literature and wrong. Keeping them is defensible and so is dropping
+    # them; it is not mine to pick after seeing the AUCs, so the behaviour
+    # is unchanged, said out loud, and re-derived by a test.
     if overlap_policy not in {"drop-from-test", "keep"}:
         raise ValueError(f"unknown overlap_policy {overlap_policy!r}")
     if overlap_policy == "drop-from-test":
-        for kind, test_side, train_side in (
-                ("positive", s.test_labels, s.train_labels),
-                ("negative", s.test_negatives, s.train_negatives)):
-            for virus in sorted(test_side):
-                already = test_side[virus] & train_side.get(virus, set())
-                if already:
-                    s.stats[f"test_{kind}_already_known_dropped"] += len(already)
-                    test_side[virus] -= already
-                    s.violations.append(
-                        f"{len(already):,} {kind} test compounds for {virus} "
-                        f"were already measured pre-{cutoff} and left the "
-                        f"test set")
+        stats, messages = drop_already_known(
+            s.test_labels, s.test_negatives,
+            s.train_labels, s.train_negatives, cutoff)
+        s.stats.update(stats)
+        s.violations.extend(messages)
     return s
 
 

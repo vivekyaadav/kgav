@@ -418,6 +418,48 @@ def run_protocol(args, cache: GraphCache, schema) -> int:
                            args)
         print(f"post-{args.cutoff} labels: {test_labels.stats['active']:,} active, "
               f"{test_labels.stats['inactive']:,} inactive")
+        # THE OVERLAP POLICY THIS FILE REPORTS IS NOW THE ONE IT APPLIES
+        # (fix-list C8). `train_split` below is copied from the training
+        # graph's own stamp, so the results file has been stating
+        # `overlap_policy: "drop-from-test"` beside a temporal column that
+        # applied no overlap policy of any kind: the stamp describes how
+        # temporal_split.py cut the GRAPH, and these test labels come from
+        # build_labels, which knows nothing about a cutoff beyond the year
+        # window. A reader could not tell the difference, and a reported
+        # policy nothing applies is worse than an absent one.
+        #
+        # Through kgav.temporal.drop_already_known, the same function
+        # build_split calls, for the reason _filter_labels exists: a second
+        # hand-written copy of a loop is how two sides come to differ
+        # without anyone deciding they should.
+        #
+        # THE PRE-CUTOFF SIDE IS NOT RESTRICTED BY SOURCE OR SELECTIVITY,
+        # deliberately. "Already known" is a fact about the literature, not
+        # about which screen this run chose to label from -- a compound
+        # ChEMBL answered in 2019 is not prospective in 2022 just because
+        # --label-source names the panel. It is also the conservative
+        # direction (it can only drop more) and it is what build_split
+        # compares against, which keeps the two protocols' word for one
+        # thing the same thing.
+        overlap_policy = (derived_policy(args.train).get("overlap_policy")
+                          or "drop-from-test")
+        pre_labels = build_labels(args.release, year_to=args.cutoff,
+                                  inactive_above_nm=args.inactive_above_nm)
+        if overlap_policy == "drop-from-test":
+            from kgav.temporal import drop_already_known
+            ov_stats, ov_msgs = drop_already_known(
+                test_labels.positives, test_labels.negatives,
+                pre_labels.positives, pre_labels.negatives, args.cutoff)
+            for m in ov_msgs:
+                print(f"  {m}")
+            if not ov_msgs:
+                print(f"  no test compound was already measured pre-{args.cutoff}")
+        else:
+            ov_stats = {}
+            print(f"  overlap_policy={overlap_policy!r}: compounds measured on "
+                  f"both sides of {args.cutoff} are left in the test set")
+        temporal_notes["overlap_policy"] = overlap_policy
+        temporal_notes["already_known_dropped"] = dict(ov_stats)
         # Same index, built from the FULL release: a label is a label wherever
         # it sits, and an edge in the pre-cutoff graph citing the paper that
         # reported the post-cutoff label is leakage across the split, not
