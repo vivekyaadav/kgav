@@ -55,6 +55,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from kgav.assemble import resolve_qualifier
+from kgav.normalize_bio import UniProtResolver
 
 GTOP_SOURCE = "infores:guidetopharmacology"
 GTOP_TIER = 1
@@ -404,7 +405,8 @@ def ingest_interactions(em, rows: list[dict], inchikeys: dict[str, str],
                         known_proteins: set[str] | None = None,
                         compounds: CompoundIndex | None = None,
                         ligand_chembl: Mapping[str, str] | None = None,
-                        default_date: str = "1970-01-01") -> Counter:
+                        default_date: str = "1970-01-01",
+                        accessions: UniProtResolver | None = None) -> Counter:
     """Emit TARGETS edges for human interactions whose ligand has a key.
 
     `compounds`, when given, restricts to molecules already in the graph
@@ -430,8 +432,39 @@ def ingest_interactions(em, rows: list[dict], inchikeys: dict[str, str],
             continue
         pid = f"UniProtKB:{acc}"
         if known_proteins is not None and pid not in known_proteins:
-            stats["protein_not_in_graph"] += 1
-            continue
+            # WHY IT DID NOT JOIN, NOT JUST THAT IT DID NOT (fix-list P3).
+            # One counter stood here, and it could not tell "this protein is
+            # not in our proteome" from "UniProt renamed it and we never
+            # noticed". normalize_bio.UniProtResolver returns exactly that
+            # distinction -- primary / secondary / demerged / deleted /
+            # malformed -- and was reached by nothing but its own test,
+            # while data/raw/refs/sec_ac.txt (1,159,114 accessions) and
+            # delac_sp.txt (1,912) were downloaded on every build and read
+            # by no code at all.
+            #
+            # AND THE RECOVERY IS COUNTED PER ROUTE, which is the rule the
+            # compound join below already states: "a join that recovers
+            # edges by a looser key has to be auditable". A secondary
+            # accession whose primary IS in the graph is a row this layer
+            # was dropping for a reason that is not about the protein.
+            #
+            # ON THE RELEASE OF 2026-11-09 THIS RECOVERS NOTHING: all
+            # 19,313 human single-accession rows join directly, and 0 of
+            # the graph's 20,888 UniProtKB nodes carry a secondary or
+            # deleted accession. That is what makes it safe to add now --
+            # the behaviour is unchanged and the blind spot is named -- and
+            # it is why the counters matter more than the recovery: a
+            # future GtoP release citing a renamed accession becomes a
+            # line of output instead of a silent subtraction.
+            got = accessions.resolve(acc) if accessions is not None else None
+            if got is not None:
+                stats[f"not_in_graph_accession_{got.status}"] += 1
+                if got.curie and got.curie in known_proteins:
+                    stats["recovered_via_secondary_accession"] += 1
+                    pid = got.curie
+            if pid not in known_proteins:
+                stats["protein_not_in_graph"] += 1
+                continue
         lid = (r.get(C_LIGAND_ID) or "").strip()
         key = inchikeys.get(lid)
         if not key:

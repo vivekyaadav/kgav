@@ -29,7 +29,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from kgav.emit import Emit  # noqa: E402
+from kgav.emit import Emit
+from kgav.normalize_bio import UniProtResolver  # noqa: E402
 from kgav.gtop import (  # noqa: E402
     GTOP_SOURCE,
     INTERACTION_COLUMNS,
@@ -67,6 +68,14 @@ def graph_ids(release: Path) -> tuple[set[str], CompoundIndex]:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--raw", type=Path, default=ROOT / "data" / "raw" / "gtop")
+    # UniProt's own secondary and deleted accession lists. Already
+    # downloaded for every build and, until 2026-11-09, read by nothing:
+    # normalize_bio.UniProtResolver was reached only by its own test. See
+    # gtop.ingest_interactions on what they are used for and why the
+    # recovery they enable is zero rows today.
+    ap.add_argument("--refs", type=Path, default=ROOT / "data" / "raw" / "refs",
+                    help="directory holding sec_ac.txt and delac_sp.txt; an "
+                         "absent file degrades to the old behaviour")
     ap.add_argument("--release", type=Path,
                     default=ROOT / "data" / "releases" / "v0.1")
     ap.add_argument("--out", type=Path,
@@ -127,11 +136,25 @@ def main(argv=None) -> int:
           f"{len(compounds.by_chembl):,} ChEMBL ids)")
 
     em = Emit()
+    accessions = UniProtResolver(args.refs / "sec_ac.txt",
+                                 args.refs / "delac_sp.txt")
+    print(f"uniprot aliases: {len(accessions.secondary):,} secondary, "
+          f"{len(accessions.deleted):,} deleted"
+          + ("" if accessions.secondary else
+             f"  (no lists under {args.refs}; unjoined accessions will not "
+             f"be classified)"))
     s = ingest_interactions(
         em, rows, keys, known_proteins=proteins,
         compounds=None if args.mint else compounds,
-        ligand_chembl=chembl)
+        ligand_chembl=chembl, accessions=accessions)
 
+    # WHY A ROW DID NOT JOIN, reported rather than summed into one number.
+    for k in sorted(k for k in s if k.startswith("not_in_graph_accession_")):
+        print(f"  {s[k]:>7,}  unjoined accession was "
+              f"{k.removeprefix('not_in_graph_accession_')}")
+    if s["recovered_via_secondary_accession"]:
+        print(f"  {s['recovered_via_secondary_accession']:>7,}  recovered "
+              f"through a secondary accession's primary")
     print(f"\n{s['edges']:,} TARGETS edges")
     for k in ("direction_inhibitor", "direction_agonist",
               "direction_modulator", "direction_unknown"):

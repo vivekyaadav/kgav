@@ -874,3 +874,105 @@ def test_no_affinity_reported_is_distinguished_from_unreadable():
     stats = ingest_interactions(em, [row], KEYS, PROTS, IDX)
     assert stats["no_affinity_reported"] == 1
     assert stats["affinity_unit_unmapped"] == 0
+
+
+# ------------------------- P3: why an accession did not join, not just that
+#
+# One counter stood where the protein lookup failed -- `protein_not_in_graph`
+# -- and it could not tell "this protein is not in our proteome" from
+# "UniProt renamed it and we never noticed". normalize_bio.UniProtResolver
+# returns exactly that distinction and was reached by nothing but its own
+# test, while data/raw/refs/sec_ac.txt (1,159,114 accessions) and
+# delac_sp.txt (1,912) were downloaded on every build and read by no code.
+#
+# THE AUDIT'S OWN REMEDY WOULD HAVE RECOVERED NOTHING. It said "use the
+# alias index in chembl, host_targets, gtop"; four of the five ingests
+# already use AliasIndex, and all 19,313 human single-accession rows in
+# GtoPdb 2026.3.1 join directly -- 0 of the graph's 20,888 UniProtKB nodes
+# carry a secondary or deleted accession. The behaviour below is therefore
+# unchanged on this release, verified byte-identical, and what is added is
+# the ability to SAY SO next time.
+
+
+def _resolver(secondary=None, deleted=()):
+    """A UniProtResolver with its lists injected rather than downloaded."""
+    from kgav.normalize_bio import UniProtResolver
+    r = UniProtResolver()
+    r.secondary = {k: list(v) for k, v in (secondary or {}).items()}
+    r.deleted = set(deleted)
+    return r
+
+
+def test_a_secondary_accession_joins_through_its_primary():
+    """The row GtoP cites by an old name. The protein IS in the graph; it
+    was being dropped for a reason that is not about the protein."""
+    em = Emit()
+    s = ingest_interactions(
+        em, [_inter(**{"Target UniProt ID": "Q00001"})], KEYS, PROTS, IDX,
+        accessions=_resolver(secondary={"Q00001": ["P04637"]}))
+    assert s["edges"] == 1, dict(s)
+    assert s["recovered_via_secondary_accession"] == 1
+    assert s["not_in_graph_accession_secondary"] == 1
+    assert s["protein_not_in_graph"] == 0
+    assert em.edges[0]["object"] == "UniProtKB:P04637", (
+        "the edge has to point at the canonical node, not the old id")
+
+
+def test_a_deleted_accession_is_named_as_deleted_and_dropped():
+    em = Emit()
+    s = ingest_interactions(
+        em, [_inter(**{"Target UniProt ID": "Q00002"})], KEYS, PROTS, IDX,
+        accessions=_resolver(deleted={"Q00002"}))
+    assert s["edges"] == 0
+    assert s["not_in_graph_accession_deleted"] == 1
+    assert s["protein_not_in_graph"] == 1, (
+        "a withdrawn entry is still an unjoined row and must stay in the "
+        "accounting")
+    assert s["recovered_via_secondary_accession"] == 0
+
+
+def test_a_demerged_accession_is_not_resolved_silently():
+    """UniProtResolver returns no curie for an accession that maps to
+    several primaries, because picking one depends on which isoform the
+    source meant. The row is dropped and the reason is named."""
+    em = Emit()
+    s = ingest_interactions(
+        em, [_inter(**{"Target UniProt ID": "Q00003"})], KEYS, PROTS, IDX,
+        accessions=_resolver(secondary={"Q00003": ["P04637", "P04638"]}))
+    assert s["edges"] == 0
+    assert s["not_in_graph_accession_demerged"] == 1
+    assert s["recovered_via_secondary_accession"] == 0
+
+
+def test_an_absent_protein_is_still_just_absent():
+    """Not every miss is an alias. A primary accession the proteome does
+    not hold must read as a missing protein, which is what the single
+    counter always meant and now means only this."""
+    em = Emit()
+    s = ingest_interactions(
+        em, [_inter(**{"Target UniProt ID": "P99999"})], KEYS, PROTS, IDX,
+        accessions=_resolver())
+    assert s["edges"] == 0
+    assert s["protein_not_in_graph"] == 1
+    assert s["not_in_graph_accession_primary"] == 1
+    assert s["recovered_via_secondary_accession"] == 0
+
+
+def test_without_the_lists_the_behaviour_is_exactly_the_old_one():
+    """The lists are a download. An absent file must degrade to the old
+    counter rather than change what joins -- which is also what makes the
+    layer byte-identical on the release of 2026-11-09."""
+    em = Emit()
+    s = ingest_interactions(
+        em, [_inter(**{"Target UniProt ID": "Q00001"})], KEYS, PROTS, IDX)
+    assert s["edges"] == 0
+    assert s["protein_not_in_graph"] == 1
+    assert not [k for k in s if k.startswith("not_in_graph_accession_")], (
+        "a classification was reported with no accession lists loaded")
+
+
+def test_the_resolver_is_no_longer_reached_only_by_its_own_test():
+    """The defect in one line. `UniProtResolver` is imported by gtop now;
+    before 2026-11-09 the only module that named it was tests/."""
+    import kgav.gtop as gtop_module
+    assert gtop_module.UniProtResolver is not None
