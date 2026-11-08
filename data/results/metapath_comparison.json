@@ -2410,6 +2410,34 @@
       "missing_predicates": []
     }
   },
+  "correction": {
+    "uncorrected_alpha": 0.05,
+    "families": {
+      "readable_cells": {
+        "n": 10,
+        "alpha": 0.005,
+        "survivors": [
+          "SARS-CoV-2 M7"
+        ]
+      },
+      "cells_computed": {
+        "n": 61,
+        "alpha": 0.000819672131147541,
+        "survivors": []
+      },
+      "cells_planned": {
+        "n": 120,
+        "alpha": 0.0004166666666666667,
+        "survivors": []
+      },
+      "planned_plus_baselines": {
+        "n": 150,
+        "alpha": 0.0003333333333333334,
+        "survivors": []
+      }
+    },
+    "note": "the family is reported, not chosen: this project fixes a correction family in a pre-registration before the p-values are in hand, and these were not"
+  },
   "provenance": {
     "release": {
       "id": "v0.1",
@@ -2417,10 +2445,10 @@
       "edges_sha": "f3bb418a89779e94"
     },
     "code": {
-      "commit": "f1bd3399a746279486c30f7c9c8b803003c0e76e",
+      "commit": "8db681f698df2948b9536684e9992a9cc748cfea",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-08T10:23:44+00:00"
+    "generated_utc": "2026-11-08T10:55:41+00:00"
   }
 }

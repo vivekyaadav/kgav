@@ -29,6 +29,8 @@ from kgav.baselines import (
     p_cell,
     vs_degree_cell,
     undetermined_note,
+    CORRECTION_FAMILIES,
+    correction_families,
 )
 from kgav.labels import build_labels
 from kgav.provenance import write_results
@@ -181,8 +183,22 @@ def main() -> int:
             print(f"    {name:<10} {why}")
 
     args.out.mkdir(parents=True, exist_ok=True)
+    # MULTIPLE TESTING, DERIVED (fix-list E1). docs/evaluation.md reports a
+    # sensitivity over four candidate families and all four sizes were typed
+    # by hand; nothing could recompute one. The family is reported rather
+    # than chosen -- see baselines.correction_families.
+    correction = correction_families(results, len(s.metapaths))
+    print("\n=== multiple-testing sensitivity "
+          "(family reported, not chosen -- see the prereg)")
+    for name in CORRECTION_FAMILIES:
+        f = correction["families"][name]
+        surv = ", ".join(f["survivors"]) or "none"
+        print(f"    {name:<24} n={f['n']:>4}  alpha={f['alpha']:.5f}  "
+              f"survives: {surv}")
+
     write_results(args.out / "metapath_comparison.json",
-                  {"per_virus": results, "metapath_reach": reach},
+                  {"per_virus": results, "metapath_reach": reach,
+                   "correction": correction},
                   args.release, s.version)
     print(f"\nwrote {args.out / 'metapath_comparison.json'}")
     return 0

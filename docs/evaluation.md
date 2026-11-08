@@ -597,6 +597,19 @@ strictest. This document has never declared one for this table, which is
 itself the defect; the sensitivity is given rather than a choice made after
 seeing the number:
 
+<!-- TABLE: correction_sensitivity — asserted cell-by-cell by
+     tests/test_correction_families.py against the `correction` block in
+     data/results/metapath_comparison.json, which
+     kgav.baselines.correction_families derives. Do not hand-edit.
+
+     ALL FOUR SIZES WERE TYPED BY HAND until 2026-11-09 and nothing could
+     recompute one. Three were right. The fourth, `cells_computed` at 61,
+     had a definition written down nowhere: it is every (virus, metapath)
+     cell the run PRODUCED, which is not every cell with a p-value (34)
+     and not every cell planned (120). Three readings, three numbers, and
+     the one the table meant was unrecorded. The verdict column is derived
+     too -- `clears` iff the cell's p is below that family's alpha. -->
+
 | family | n | alpha | M7 at p=0.001655 |
 |---|---|---|---|
 | readable cells only | 10 | 0.00500 | clears, by a factor of 3 |
@@ -607,6 +620,20 @@ seeing the number:
 Correcting over cells that could be read is the defensible choice -- an
 unreadable cell yields no inference, so it is not a test -- but the family
 belongs in the prereg, before the next run, not here after this one.
+
+**The temporal protocol now reports the same four families**, from the same
+function, and they are much smaller because twelve of fifteen viruses fall
+below the reachability floor: **2, 17, 24 and 30**, for thresholds of
+0.02500, 0.00294, 0.00208 and 0.00167. No readable cell survives any of
+them, which is a different statement from the four significant rows noted
+earlier -- those four clear even the strictest family here and every one of
+them fails `trustworthy`. **A row can survive a multiplicity correction and
+still be unreadable**, and the correction is the weaker of the two gates.
+
+One implementation, called by both scripts, for the reason this repository
+keeps rediscovering: the paragraph above has quoted a family of 28, then
+51, then 23 rows on three successive releases, each time re-derived by hand
+from stdout.
 
 **What M7 is matters more than its p-value.** M7 is `SmallMolecule
 -CHEMICALLY_SIMILAR_TO-> SmallMolecule -INHIBITS-> Protein -ENCODED_BY->

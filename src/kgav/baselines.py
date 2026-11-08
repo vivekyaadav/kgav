@@ -1467,3 +1467,87 @@ def mrr(ranked: list[tuple[str, float]], positives: set[str]) -> float:
         if d in positives:
             return 1.0 / i
     return 0.0
+
+
+# ------------------------------------------------- multiple-testing (E1)
+#: The families `docs/evaluation.md` reports a sensitivity over, smallest
+#: first. NAMES AND DEFINITIONS LIVE HERE, not in the document, because
+#: the four numbers beside them were typed by hand and three releases went
+#: by without anything able to recompute one of them.
+CORRECTION_FAMILIES = ("readable_cells", "cells_computed", "cells_planned",
+                       "planned_plus_baselines")
+
+
+def correction_families(per_virus: dict, n_metapaths: int,
+                        alpha: float = SIGNIFICANCE) -> dict:
+    """Bonferroni family sizes and thresholds for one cross-sectional run.
+
+    THE FAMILY IS NOT CHOSEN HERE, and that is deliberate. This project's
+    standing rule is that a correction family is fixed in a
+    pre-registration before a p-value is in hand; choosing one now, with
+    the p-values on screen, is the ordering the rule exists to forbid. So
+    all four are reported and the decision is left to the prereg --
+    exactly the stance `landscape.powerless_depletion` takes about its
+    six empty-rejection rows.
+
+    The four, and why each is arguable:
+
+      readable_cells          cells that are BOTH `trustworthy` and
+                              `hits_determined`. An unreadable cell
+                              yields no inference, so it is not a test.
+                              The defensible choice, and the smallest.
+      cells_computed          every (virus, metapath) cell the run
+                              actually produced -- i.e. where the channel
+                              emitted a pool at all. Wider, because a
+                              cell can be computed and then refused.
+      cells_planned           viruses x metapaths, whether or not a cell
+                              came back. Corrects for the experiment as
+                              designed rather than as it happened.
+      planned_plus_baselines  the above plus COMBINED and degree per
+                              virus. Widest, and only right if the
+                              baselines are treated as hypotheses rather
+                              than as controls.
+
+    `survivors` is scoped to READABLE cells under every family, because an
+    unreadable cell surviving a correction is still unreadable, and
+    listing one would invite the reader to count it.
+    """
+    # A METRIC ROW, NOT A PLACEHOLDER. The temporal output records a
+    # refused virus as {"not_evaluable": {...}} and a channel that could
+    # not run as {"not_evaluated": {...}} (C7), both of which are dicts
+    # sitting where a channel would be. Counting them would inflate the
+    # family with tests nobody performed -- the exact error `n_tests` in
+    # landscape.py is written to avoid in the other direction.
+    singles = [(v, n, m) for v, ch in per_virus.items()
+               for n, m in (ch.items() if isinstance(ch, dict) else ())
+               if n not in (DEGREE_KEY, "COMBINED") and isinstance(m, dict)
+               and ("lift" in m or "auc" in m)]
+    readable = [(v, n, m) for v, n, m in singles
+                if m.get("hits_determined") and m.get("trustworthy")]
+    # VIRUSES THE RUN ACTUALLY SCORED. A virus refused for too few
+    # reachable positives contributes no test, so counting it in the
+    # PLANNED families would correct for an experiment that was not
+    # performed. On the temporal split that is twelve of fifteen.
+    n_viruses = sum(1 for ch in per_virus.values()
+                    if isinstance(ch, dict) and "not_evaluable" not in ch)
+    sizes = {
+        "readable_cells": len(readable),
+        "cells_computed": len(singles),
+        "cells_planned": n_viruses * n_metapaths,
+        "planned_plus_baselines": n_viruses * n_metapaths + 2 * n_viruses,
+    }
+    out = {}
+    for name in CORRECTION_FAMILIES:
+        n = max(1, sizes[name])
+        bar = alpha / n
+        out[name] = {
+            "n": sizes[name],
+            "alpha": bar,
+            "survivors": sorted(
+                f"{v} {chan}" for v, chan, m in readable
+                if m.get("p_value") is not None and m["p_value"] < bar),
+        }
+    return {"uncorrected_alpha": alpha, "families": out,
+            "note": ("the family is reported, not chosen: this project fixes "
+                     "a correction family in a pre-registration before the "
+                     "p-values are in hand, and these were not")}

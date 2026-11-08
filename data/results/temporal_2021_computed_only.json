@@ -74,6 +74,32 @@
     "TARGETS|infores:chembl": 8552,
     "TARGETS|infores:chembl|infores:guidetopharmacology": 2741
   },
+  "correction": {
+    "uncorrected_alpha": 0.05,
+    "families": {
+      "readable_cells": {
+        "n": 1,
+        "alpha": 0.05,
+        "survivors": []
+      },
+      "cells_computed": {
+        "n": 17,
+        "alpha": 0.0029411764705882353,
+        "survivors": []
+      },
+      "cells_planned": {
+        "n": 24,
+        "alpha": 0.0020833333333333333,
+        "survivors": []
+      },
+      "planned_plus_baselines": {
+        "n": 30,
+        "alpha": 0.0016666666666666668,
+        "survivors": []
+      }
+    },
+    "note": "the family is reported, not chosen: this project fixes a correction family in a pre-registration before the p-values are in hand, and these were not"
+  },
   "already_known": [
     "5 positive test compounds for NCBITaxon:2697049 were already measured pre-2021 and left the test set",
     "14 negative test compounds for NCBITaxon:2697049 were already measured pre-2021 and left the test set"
@@ -1123,10 +1149,10 @@
       "edges_sha": "f3bb418a89779e94"
     },
     "code": {
-      "commit": "f1bd3399a746279486c30f7c9c8b803003c0e76e",
+      "commit": "8db681f698df2948b9536684e9992a9cc748cfea",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-08T10:17:46+00:00"
+    "generated_utc": "2026-11-08T10:49:42+00:00"
   }
 }

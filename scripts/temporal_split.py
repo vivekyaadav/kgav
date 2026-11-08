@@ -9,8 +9,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.baselines import (
+    CORRECTION_FAMILIES,
     Graph,
     combine,
+    correction_families,
     confound_warning,
     degree_ranking,
     degree_relative,
@@ -327,6 +329,15 @@ def main() -> int:
             print(f"    ! {note}")
         results[label] = per
 
+    correction = correction_families(results, len(s.metapaths))
+    print("\n=== multiple-testing sensitivity "
+          "(family reported, not chosen -- see the prereg)")
+    for name in CORRECTION_FAMILIES:
+        f = correction["families"][name]
+        surv = ", ".join(f["survivors"]) or "none"
+        print(f"    {name:<24} n={f['n']:>4}  alpha={f['alpha']:.5f}  "
+              f"survives: {surv}")
+
     args.results.mkdir(parents=True, exist_ok=True)
     write_results(args.results / _results_name(args),
                   {"cutoff": args.cutoff, "undated_policy": args.undated,
@@ -346,6 +357,13 @@ def main() -> int:
                    "training_graph_predicate_sources": {
                        f"{p}|{src}": n for (p, src), n
                        in sorted(g.predicate_sources.items())},
+                   # MULTIPLE TESTING, DERIVED (fix-list E1). The same
+                   # helper as the cross-sectional run, so the two
+                   # protocols cannot drift to different family
+                   # definitions -- which they would, since this one's
+                   # paragraph in docs/evaluation.md has quoted 28, 51 and
+                   # 23 rows on three successive releases.
+                   "correction": correction,
                    "already_known": split.violations,
                    "results": results}, args.release, s.version)
     print(f"\nwrote {args.results}")
