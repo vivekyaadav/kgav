@@ -1,6 +1,15 @@
 data/raw/*
 data/interim/*
-data/releases/*
+# ONE LEVEL DEEPER, SO THE NEGATION BELOW CAN APPLY (fix-list P12).
+# This was `data/releases/*`, which ignores the release DIRECTORY -- and git
+# never descends into an ignored directory, so the MANIFEST.json rule under
+# it could never re-include anything. Zero manifests were tracked, which is
+# the one artifact recording a release's LAYER hashes and per-class counts;
+# docs/kg_release_census.txt is committed but holds only the top-level
+# nodes_sha and edges_sha. Verified with `git check-ignore -v` rather than
+# by reading the pattern, because reading the pattern is what produced the
+# broken one.
+data/releases/*/*
 !data/**/.gitkeep
 !data/releases/**/MANIFEST.json
 !data/releases/smoke/

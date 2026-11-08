@@ -945,15 +945,37 @@ def test_hub_exclusion_is_claimed_for_exactly_the_gated_metapaths(text):
         assert name in line, f"{name} gates hubs and is not in: {line}"
 
 
-def test_no_manifest_is_claimed_as_tracked(text):
-    """It said data/releases is gitignored "except MANIFEST.json and the
-    smoke release". Nothing named MANIFEST.json is tracked at all."""
+def test_the_manifest_claim_matches_what_git_tracks(text):
+    """THIS TEST USED TO ASSERT ONE OF THE TWO STATES, AND THE STATE MOVED.
+
+    It was `assert not tracked` plus `"except MANIFEST.json" not in text`,
+    written when the report claimed a manifest was tracked and none was --
+    `data/releases/*` ignored the directory and a negation cannot reach
+    inside an ignored one, so `!data/releases/**/MANIFEST.json` was inert.
+    P12 fixed the depth on 2026-11-09, the report's original claim became
+    TRUE, and this test failed for the sentence being right.
+
+    A document check belongs between the document and the world, not
+    against a state that was true on the day it was written. So it now
+    compares the two in whichever direction they point, and fails only
+    when they disagree.
+    """
     import subprocess
     out = subprocess.run(["git", "ls-files", "data/releases"], cwd=ROOT,
                          capture_output=True, text=True).stdout
     tracked = [ln for ln in out.splitlines() if "MANIFEST.json" in ln]
-    assert not tracked, f"a MANIFEST.json IS tracked now: {tracked}"
-    assert "except MANIFEST.json" not in text
+    claims_tracked = "except the smoke release and each release's" in text
+    denies_tracked = "NO MANIFEST.json is" in text
+    assert claims_tracked != denies_tracked, (
+        "the report says both or neither about MANIFEST.json; this check "
+        "cannot compare a claim it cannot read")
+    if tracked:
+        assert claims_tracked, (
+            f"{tracked} is tracked and the report still says no manifest is")
+    else:
+        assert denies_tracked, (
+            "no MANIFEST.json is tracked and the report claims one is -- "
+            "which is the state this test was originally written for")
 
 
 def test_the_provenance_requirement_is_credited_where_it_lives(text):

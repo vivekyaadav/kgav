@@ -193,11 +193,16 @@ DIRECTORY LAYOUT
                       could move is re-derived here
     data/raw/         sources as they arrived            (gitignored)
     data/releases/    assembled graphs                   (gitignored,
-                      except the smoke release). NO MANIFEST.json is
-                      tracked: the line here claimed one was for months,
-                      so the commit that assembled v0.1 is unpublished
-                      and web/'s one factual claim is tested against a
-                      file that is not in the repository.
+                      except the smoke release and each release's
+                      MANIFEST.json). The manifest became tracked on
+                      2026-11-09 and for months before that this line
+                      claimed it already was: `data/releases/*` ignored
+                      the DIRECTORY, and a negation cannot reach inside
+                      an ignored directory, so `!data/releases/**/
+                      MANIFEST.json` was inert. Fixing the depth makes
+                      the claim true -- which is why the test that
+                      guarded it now asserts the document and `git
+                      ls-files` AGREE rather than asserting either state.
     data/results/     every measured figure              (TRACKED, on
                       purpose: a result that exists only on the machine
                       that produced it is not evidence for anything)
