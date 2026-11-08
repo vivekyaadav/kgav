@@ -19,7 +19,7 @@ context window with ubiquitin.
 from __future__ import annotations
 
 import json
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -49,6 +49,18 @@ from kgav.schema import load_schema
 
 MAX_NEIGHBOURS = 50
 MAX_PATHS = 20
+
+#: Direct-acting potency fields, in the order they are PREFERRED -- not
+#: compared by value. The convention is labels.POTENCY_FIELDS', whose
+#: `_potency` reads the first field present rather than the smallest
+#: number; taking a minimum across these instead lets a binding constant
+#: stand in for a functional inhibition, and it wins because binding
+#: constants read lower. See GraphTools._best_direct_potency (fix-list A4).
+POTENCY_PREFERENCE = ("ic50_nm", "ki_nm", "kd_nm")
+
+#: How each is named to a reader. A Ki printed as an IC50 is a different
+#: measurement under a borrowed name.
+POTENCY_NAMES = {"ic50_nm": "IC50", "ki_nm": "Ki", "kd_nm": "Kd"}
 MAX_SUBGRAPH_EDGES = 100
 # Pathways LISTED by pathways(), not pathways considered. Every one found is
 # counted and the overflow is reported with how many of it carry a dependency
@@ -230,6 +242,13 @@ class GraphTools:
         # the spread is read from the pre-assembly layer.
         self.si_range: dict[tuple[str, str], list[float]] = {}
         self.si_cell: dict[tuple[str, str], str] = {}
+        # WHICH PREDICATE CARRIED THESE, counted rather than assumed. triage
+        # orders compounds by the selectivity index, and on this release
+        # every index sits on a HAS_ANTIVIRAL_ACTIVITY_AGAINST edge -- a
+        # held-out evaluation label (fix-list A3). Derived so that a layer
+        # emitting the index on some other predicate produces no answer-
+        # sheet caveat, instead of one that is no longer true.
+        self.si_predicate_counts: Counter = Counter()
         si_layer = release.parent / (release.name + "-selectivity") / "edges.jsonl"
         if si_layer.exists():
             for line in si_layer.read_text().splitlines():
@@ -238,6 +257,7 @@ class GraphTools:
                 e = json.loads(line)
                 si = (e.get("qualifiers") or {}).get("selectivity_index")
                 if si is not None:
+                    self.si_predicate_counts[e["predicate"]] += 1
                     self.si_range.setdefault((e["subject"], e["object"]), []).append(si)
                     cl = (e.get("qualifiers") or {}).get("cell_line")
                     if cl:
@@ -828,14 +848,72 @@ class GraphTools:
                                            self._label(e["object"]), detail)))
         return out
 
-    def _best_direct_potency(self, compound: str) -> float | None:
-        """Most potent INHIBITS measurement, in nM."""
-        vals = [q[k]
-                for e in self.out.get(("INHIBITS", compound), [])
-                for q in [e.get("qualifiers") or {}]
-                for k in ("ic50_nm", "ki_nm", "kd_nm")
-                if q.get(k) is not None]
-        return min(vals) if vals else None
+    def _inhibits_against(self, compound: str, virus: str) -> list[dict]:
+        """The compound's INHIBITS edges whose protein belongs to THIS virus.
+
+        The same walk M1 makes in `_find_paths` -- INHIBITS, ENCODED_BY,
+        BELONGS_TO -- but unbounded, because a potency is a minimum over
+        every measurement and not a sample of routes.
+        """
+        out: list[dict] = []
+        for e1 in self.out.get(("INHIBITS", compound), []):
+            for e2 in self.out.get(("ENCODED_BY", e1["object"]), []):
+                if any(e3["object"] == virus
+                       for e3 in self.out.get(("BELONGS_TO", e2["object"]), [])):
+                    out.append(e1)
+                    break
+        return out
+
+    def _best_direct_potency(self, compound: str,
+                             virus: str) -> tuple[float, str] | None:
+        """Most potent INHIBITS measurement against `virus`: (nM, field).
+
+        TWO DEFECTS, AND IT WAS PRINTED TO A USER AS "best direct IC50"
+        (fix-list A4).
+
+        IT WAS NOT VIRUS-SCOPED. It took the minimum over every INHIBITS
+        edge the compound has, whatever virus the protein belongs to, and
+        the triage caller then printed it beside a named virus. Measured on
+        v0.1 of 2026-11-09 over 3,823 (compound, virus) pairs: **133 report
+        a potency measured against a different virus**, and 4 report one
+        for a virus whose scoped set holds no potency at all. 132 compounds
+        inhibit proteins of several viruses, which is what makes the error
+        reachable rather than theoretical.
+
+        Scope and preference together, 258 of the pairs change the number
+        they report -- more than the 133 above, because the preference order
+        also overrides a smaller binding constant where both quantities
+        describe the same virus.
+
+        AND IT MIXED THREE QUANTITIES UNDER ONE NAME. ic50_nm, ki_nm and
+        kd_nm went into one `min`, so a binding constant competed with a
+        functional inhibition -- and won, because binding constants read
+        lower. **439 of the 3,823 pairs have a best value that is not an
+        IC50 and was labelled one.** Under the preference order below only
+        312 pairs have no IC50 at all, and those now say Ki or Kd. The
+        worst case found is
+        FZNWILPXXNKETO-YADHBBJMSA-N against HCoV-229E: reported as 18 nM
+        from a Kd, where its scoped functional IC50 is 2,560 nM -- 142
+        times more potent, in the wrong units, against the wrong virus.
+
+        A PREFERENCE ORDER, NOT A MINIMUM, which is the convention this
+        project already uses: labels.POTENCY_FIELDS is read in declaration
+        order by `_potency`, taking the first field present rather than the
+        smallest value. So the most potent IC50 is reported when any IC50
+        exists, and a Ki or Kd is reported ONLY when no IC50 does -- named
+        as what it is, because the alternative is the 18 nM above.
+        """
+        edges = self._inhibits_against(compound, virus)
+        # `name`, not `field`: dataclasses.field is imported at module level
+        # and a loop variable of that name shadows it (ruff F402). The same
+        # slip was caught in labels.py earlier the same day.
+        for name in POTENCY_PREFERENCE:
+            vals = [q[name] for e in edges
+                    for q in [e.get("qualifiers") or {}]
+                    if q.get(name) is not None]
+            if vals:
+                return float(min(vals)), name
+        return None
 
     def _selectivity_for(self, compound: str, virus: str) -> str:
         """Selectivity as a RANGE, not a single value.
@@ -941,7 +1019,9 @@ class GraphTools:
         # direct-acting evidence, then selectivity. Host-directed routes are
         # reported for context and contribute zero.
         for r in scored:
-            r["best_potency_nm"] = self._best_direct_potency(r["compound"])
+            best = self._best_direct_potency(r["compound"], virus)
+            r["best_potency_nm"] = None if best is None else best[0]
+            r["best_potency_field"] = None if best is None else best[1]
             r["selectivity_index"] = self.si_range.get(
                 (r["compound"], virus), [None])[0] \
                 if self.si_range.get((r["compound"], virus)) else None
@@ -978,7 +1058,11 @@ class GraphTools:
         scored.sort(key=key)
         lines = []
         for i, r in enumerate(scored, 1):
-            pot = (f"best direct IC50 {r['best_potency_nm']:.0f} nM"
+            # THE QUANTITY IS NAMED. This read "best direct IC50" for every
+            # row, including the 439 (compound, virus) pairs whose best
+            # value is a Ki or a Kd -- see _best_direct_potency.
+            pot = (f"best direct {POTENCY_NAMES[r['best_potency_field']]} "
+                   f"{r['best_potency_nm']:.0f} nM"
                    if r["best_potency_nm"] is not None else "no direct-acting data")
             si = (f", SI {r['selectivity_index']:.0f}"
                   if r["selectivity_index"] is not None else ", SI unknown")
@@ -986,6 +1070,27 @@ class GraphTools:
                          f"({r['direct_acting_routes']} direct-acting, "
                          f"{r['host_directed_routes']} host-directed routes)")
         warns = list(verdict.warnings)
+        # THE ORDER IS PARTLY READ OFF THE ANSWER SHEET, AND SAID SO
+        # (fix-list A3). The selectivity index this sorts on is a qualifier
+        # of the selectivity layer's edges, and on this release every one of
+        # them is a HAS_ANTIVIRAL_ACTIVITY_AGAINST edge -- the evaluation's
+        # own labels. _held_out_warnings covers a tool that RETURNS such an
+        # edge; nothing covered a tool that merely SORTS on one, so triage
+        # ranked on the answer and printed no caveat at all.
+        #
+        # Counted from what the ranking actually used, per predicate, and
+        # only for predicates the schema holds out -- so a release whose
+        # selectivity index sits elsewhere produces no claim about labels.
+        used_si = sum(1 for r in scored if r["selectivity_index"] is not None)
+        held_si = {p: n for p, n in self.si_predicate_counts.items()
+                   if p in self._held_out}
+        if used_si and held_si:
+            warns.append(guards.caveat(
+                "held_out_label",
+                guards.held_out_qualifier_caveat(
+                    sum(held_si.values()),
+                    ", ".join(sorted(held_si)),
+                    "selectivity index")))
         warns.append(guards.caveat(
             "ranking",
             # Describes the sort key above, in its actual order. The previous

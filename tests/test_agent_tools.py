@@ -1014,3 +1014,298 @@ def test_only_a_stated_direction_counts_as_directed(tmp_path, direction,
             if (e.get("qualifiers") or {}).get("direction")
             not in (None, "", "unknown", "contested"))
     assert bool(n) is counts
+
+
+# ------------------------- A3/A4: what triage ranks on, and what it calls it
+#
+# A4. `_best_direct_potency` took the minimum over EVERY INHIBITS edge the
+# compound has, whatever virus the protein belonged to, across ic50_nm,
+# ki_nm and kd_nm together -- and the caller printed the result as "best
+# direct IC50" beside a named virus. Measured on v0.1 of 2026-11-09 over
+# 3,823 (compound, virus) pairs: 133 reported a potency measured against a
+# DIFFERENT virus, 4 reported one for a virus whose own edges hold no
+# potency at all, and 439 reported a Ki or a Kd under the name IC50.
+#
+# A3. triage orders compounds by the selectivity index, which is a
+# qualifier of the selectivity layer's edges -- every one of them a
+# HAS_ANTIVIRAL_ACTIVITY_AGAINST edge, the evaluation's own labels.
+# `_held_out_warnings` covers a tool that RETURNS such an edge; nothing
+# covered a tool that merely SORTS on one.
+
+V2 = "NCBITaxon:11137"          # HCoV-229E, a second virus in the register
+
+
+def _two_virus_graph(tmp_path, *, with_selectivity: bool,
+                     ic50_on_v2: float | None = 2560.0,
+                     ic50_on_v1: float | None = None):
+    """One compound inhibiting a protein of each of two viruses.
+
+    The numbers are the shape of the worst real case:
+    FZNWILPXXNKETO-YADHBBJMSA-N was reported at 18 nM against HCoV-229E
+    from a Kd measured on a SARS-CoV-2 protein, where its own scoped
+    functional IC50 is 2,560 nM.
+    """
+    release = tmp_path / "rel"
+    release.mkdir()
+
+    def prot(pid, taxon, fam):
+        return {"id": pid, "class": "Protein",
+                "properties": {"taxon_id": taxon, "is_viral": True,
+                               "sequence_hash": "h", "reviewed": True,
+                               "protein_family": fam}}
+
+    def gene(gid, taxon):
+        return {"id": gid, "class": "Gene",
+                "properties": {"symbol": "rep", "taxon_id": taxon,
+                               "is_viral": True}}
+
+    def taxon(tid, label, fam):
+        return {"id": tid, "class": "OrganismTaxon",
+                "properties": {"label": label, "family": fam,
+                               "baltimore_class": "IV", "is_enveloped": True}}
+    nodes = [
+        taxon(V, "SARS-CoV-2", "Coronaviridae"),
+        taxon(V2, "HCoV-229E", "Coronaviridae"),
+        prot("UniProtKB:P1", V, "nsp5"), gene("KGAV:G1", V),
+        prot("UniProtKB:P2", V2, "nsp5"), gene("KGAV:G2", V2),
+        {"id": DRUG, "class": "SmallMolecule",
+         "properties": {"smiles": "C", "inchikey_skel": "NIRMA",
+                        "chembl_id": "thecompound", "is_approved": True,
+                        "label": "thecompound", "salt_collapsed": False,
+                        "stereo_collapsed": False}},
+    ]
+
+    def e(s, p, o, q=None):
+        if p == "INHIBITS":
+            q = dict(q or {})
+            q.setdefault("target_resolution", "chain_from_assay_description")
+        return {"subject": s, "predicate": p, "object": o,
+                "qualifiers": q or {},
+                "primary_knowledge_source": "infores:chembl",
+                "evidence_tier": 1, "first_asserted_date": "2021-03-04"}
+    edges = [
+        # an 18 nM Kd against virus 1 -- the flattering number
+        e(DRUG, "INHIBITS", "UniProtKB:P1",
+          {"assay_type": "biochemical", "kd_nm": 18.0}),
+        e("UniProtKB:P1", "ENCODED_BY", "KGAV:G1"),
+        e("KGAV:G1", "BELONGS_TO", V),
+        e("UniProtKB:P2", "ENCODED_BY", "KGAV:G2"),
+        e("KGAV:G2", "BELONGS_TO", V2),
+    ]
+    # virus 2's own edge: present with an IC50, present without a potency
+    # at all, or absent entirely -- the three cases the measurements found.
+    if ic50_on_v2 is not None:
+        edges.insert(1, e(DRUG, "INHIBITS", "UniProtKB:P2",
+                          {"assay_type": "biochemical",
+                           "ic50_nm": ic50_on_v2}))
+    else:
+        edges.insert(1, e(DRUG, "INHIBITS", "UniProtKB:P2",
+                          {"assay_type": "biochemical"}))
+    # a second readout on virus 1's OWN protein, to test the preference
+    # order where both quantities describe the same virus.
+    if ic50_on_v1 is not None:
+        edges.append(e(DRUG, "INHIBITS", "UniProtKB:P1",
+                       {"assay_type": "biochemical", "ic50_nm": ic50_on_v1}))
+    (release / "nodes.jsonl").write_text(
+        "\n".join(json.dumps(n) for n in nodes))
+    (release / "edges.jsonl").write_text(
+        "\n".join(json.dumps(x) for x in edges))
+    if with_selectivity:
+        layer = tmp_path / "rel-selectivity"
+        layer.mkdir()
+        layer.joinpath("edges.jsonl").write_text(json.dumps(
+            e(DRUG, "HAS_ANTIVIRAL_ACTIVITY_AGAINST", V2,
+              {"assay_type": "cell_based_antiviral", "ec50_nm": 100.0,
+               "selectivity_index": 50.0, "selectivity_verified": True})))
+    return GraphTools(release)
+
+
+def test_the_potency_is_the_one_measured_against_this_virus(tmp_path):
+    """The compound has an 18 nM Kd on a SARS-CoV-2 protein and a 2,560 nM
+    IC50 on an HCoV-229E protein. Asked about HCoV-229E it must report
+    2,560, and asked about SARS-CoV-2 it must report 18 -- not 18 for
+    both, which is what a minimum over every edge gives."""
+    g = _two_virus_graph(tmp_path, with_selectivity=False)
+    assert g._best_direct_potency(DRUG, V2) == (2560.0, "ic50_nm")
+    assert g._best_direct_potency(DRUG, V) == (18.0, "kd_nm")
+
+
+def test_a_binding_constant_is_not_printed_as_an_ic50(tmp_path):
+    """"best direct IC50 18 nM" for a Kd is a different measurement under a
+    borrowed name, and 18 against 2,560 is the size of the difference."""
+    g = _two_virus_graph(tmp_path, with_selectivity=False)
+    line = g.triage([DRUG], V2).verbalised[0]
+    assert "best direct IC50 2560 nM" in line, line
+    other = g.triage([DRUG], V).verbalised[0]
+    assert "best direct Kd 18 nM" in other, other
+    assert "IC50" not in other, "a Kd is still being called an IC50"
+
+
+def test_an_ic50_is_preferred_over_a_lower_binding_constant(tmp_path):
+    """A PREFERENCE ORDER, NOT A MINIMUM -- labels.POTENCY_FIELDS' own
+    convention, where `_potency` reads the first field present rather than
+    the smallest number. Both readouts describe virus 1 here: the 18 nM Kd
+    and a 9,000 nM IC50. The IC50 wins although it is five hundred times
+    larger, because they are not the same quantity and the smaller one is
+    not the better measurement."""
+    g = _two_virus_graph(tmp_path, with_selectivity=False, ic50_on_v1=9000.0)
+    assert g._best_direct_potency(DRUG, V) == (9000.0, "ic50_nm")
+    assert "best direct IC50 9000 nM" in g.triage([DRUG], V).verbalised[0]
+
+
+def test_the_potency_has_no_value_for_a_virus_with_no_measurement(tmp_path):
+    """4 real (compound, virus) pairs had no potency on any edge of their
+    own and were given one from another virus. Absence must read as
+    absence."""
+    g = _two_virus_graph(tmp_path, with_selectivity=False, ic50_on_v2=None)
+    # The route to virus 2 exists -- so triage runs rather than refusing --
+    # and its edge carries no potency field at all.
+    assert g._best_direct_potency(DRUG, V2) is None
+    assert "no direct-acting data" in g.triage([DRUG], V2).verbalised[0]
+
+
+def test_triage_says_the_order_came_from_the_answer_sheet(tmp_path):
+    """A3. The selectivity index that decides the order is a qualifier of a
+    held-out label edge, and triage printed no caveat about it."""
+    from kgav.agent.verify import caveat_labels
+    g = _two_virus_graph(tmp_path, with_selectivity=True)
+    assert g.si_predicate_counts == {"HAS_ANTIVIRAL_ACTIVITY_AGAINST": 1}
+    r = g.triage([DRUG], V2)
+    assert "ANSWER SHEET" in caveat_labels(r.warnings), (
+        f"triage ranked on a held-out label's qualifier without saying so: "
+        f"{caveat_labels(r.warnings)}")
+    text = " ".join(str(w) for w in r.warnings)
+    assert "HAS_ANTIVIRAL_ACTIVITY_AGAINST" in text
+    assert "answer sheet" in text
+
+
+def test_no_answer_sheet_caveat_when_the_order_used_no_selectivity(tmp_path):
+    """Not unconditional decoration: with no selectivity layer there is no
+    label-derived quantity in the sort, and the caveat must be absent. A
+    caveat attached to everything is a caveat a reader stops reading."""
+    from kgav.agent.verify import caveat_labels
+    g = _two_virus_graph(tmp_path, with_selectivity=False)
+    r = g.triage([DRUG], V2)
+    assert "ANSWER SHEET" not in caveat_labels(r.warnings)
+
+
+def test_the_caveat_follows_the_schema_and_not_a_hardcoded_predicate(tmp_path):
+    """Derived, so a release whose selectivity index sits on a predicate
+    the schema does NOT hold out produces no claim about labels."""
+    from kgav.agent.verify import caveat_labels
+    g = _two_virus_graph(tmp_path, with_selectivity=True)
+    assert set(g.si_predicate_counts) <= set(g._held_out), (
+        "this fixture's selectivity index is not on a held-out predicate, "
+        "so the test below would pass vacuously")
+    g._held_out = frozenset()
+    assert "ANSWER SHEET" not in caveat_labels(g.triage([DRUG], V2).warnings)
+
+
+def test_the_release_contains_the_cases_a4_is_about():
+    """The fixtures above are miniatures; this is the measurement.
+
+    Every figure is parsed out of `_best_direct_potency`'s own docstring
+    and recomputed from the release, for the reason test_landscape.py
+    states: a check written with the same literals it is checking cannot
+    survive the event it exists for. A rebuild that moves these counts
+    fails here and names the docstring.
+    """
+    import re
+    from collections import defaultdict
+    from kgav.agent.tools import GraphTools, POTENCY_PREFERENCE
+
+    release = Path(__file__).resolve().parents[1] / "data/releases/v0.1"
+    if not (release / "edges.jsonl").exists():
+        pytest.skip("release v0.1 is not built in this checkout")
+
+    inhibits = defaultdict(list)
+    encoded, belongs = defaultdict(list), defaultdict(list)
+    for line in (release / "edges.jsonl").read_text().splitlines():
+        if not line.strip():
+            continue
+        edge = json.loads(line)
+        pred = edge["predicate"]
+        if pred == "INHIBITS":
+            inhibits[edge["subject"]].append(
+                (edge["object"], edge.get("qualifiers") or {}))
+        elif pred == "ENCODED_BY":
+            encoded[edge["subject"]].append(edge["object"])
+        elif pred == "BELONGS_TO":
+            belongs[edge["subject"]].append(edge["object"])
+    virus_of = {p: {t for g in gs for t in belongs.get(g, [])}
+                for p, gs in encoded.items()}
+
+    def old_best(rows):
+        """What the code did: one min over every field and every virus."""
+        vals = [(q[k], k) for _p, q in rows for k in POTENCY_PREFERENCE
+                if q.get(k) is not None]
+        return min(vals) if vals else None
+
+    pairs = cross_virus = no_own_potency = not_an_ic50 = changed = 0
+    genuinely_not_an_ic50 = 0
+    for compound, rows in inhibits.items():
+        reported = old_best(rows)
+        if reported is None:
+            continue
+        for virus in {v for p, _q in rows for v in virus_of.get(p, ())}:
+            scoped = [(p, q) for p, q in rows if virus in virus_of.get(p, ())]
+            pairs += 1
+            best = None
+            for name in POTENCY_PREFERENCE:
+                vals = [q[name] for _p, q in scoped if q.get(name) is not None]
+                if vals:
+                    best = (min(vals), name)
+                    break
+            if best is None:
+                no_own_potency += 1
+                continue
+            # TWO DISTINCT QUANTITIES, and conflating them is how this test
+            # first disagreed with the docstring by 125. "Measured against a
+            # different virus" is the OLD rule applied to the scoped rows
+            # against the old rule applied to all of them -- the scope alone.
+            # "Changed" is the new value against the old one, which also
+            # moves wherever the preference order overrides a smaller
+            # binding constant.
+            scoped_old = old_best(scoped)
+            if scoped_old[0] != reported[0]:
+                cross_virus += 1
+            if best[0] != reported[0]:
+                changed += 1
+            # Again two quantities. Under the OLD rule a binding constant
+            # won on value and was printed as an IC50, which is the defect's
+            # size; under the new one only the pairs with no IC50 anywhere
+            # report a Ki or Kd, and those are named.
+            if scoped_old[1] != "ic50_nm":
+                not_an_ic50 += 1
+            if best[1] != "ic50_nm":
+                genuinely_not_an_ic50 += 1
+
+    doc = " ".join(GraphTools._best_direct_potency.__doc__.split())
+    m = re.search(r"over ([\d,]+) \(compound, virus\) pairs: \*\*([\d,]+) "
+                  r"report a potency measured against a different virus\*\*, "
+                  r"and ([\d,]+) report one", doc)
+    assert m, "the docstring no longer states the pair census as read here"
+    stated = tuple(int(g.replace(",", "")) for g in m.groups())
+    assert (pairs, cross_virus, no_own_potency) == stated, (
+        f"the docstring states {stated} (pairs, cross-virus, no own potency) "
+        f"and the release gives {(pairs, cross_virus, no_own_potency)}")
+    m2 = re.search(r"\*\*([\d,]+) of the ([\d,]+) pairs have a best value "
+                   r"that is not an IC50", doc)
+    assert m2, "the docstring no longer states the non-IC50 count"
+    assert (not_an_ic50, pairs) == tuple(
+        int(g.replace(",", "")) for g in m2.groups()), (
+        f"the docstring states {m2.groups()} and the release gives "
+        f"{(not_an_ic50, pairs)}")
+    m3 = re.search(r"([\d,]+) of the pairs change the number they report", doc)
+    assert m3, "the docstring no longer states how many figures move"
+    assert changed == int(m3.group(1).replace(",", "")), (
+        f"the docstring says {m3.group(1)} pairs change and the release "
+        f"gives {changed:,}")
+    m4 = re.search(r"([\d,]+) pairs have no IC50 at all", doc)
+    assert m4, "the docstring no longer states how many are genuinely not IC50s"
+    assert genuinely_not_an_ic50 == int(m4.group(1).replace(",", "")), (
+        f"the docstring says {m4.group(1)} pairs have no IC50 and the "
+        f"release gives {genuinely_not_an_ic50:,}")
+    assert cross_virus and not_an_ic50, (
+        "neither defect is reachable on this release any more; the "
+        "measurement in that docstring is no longer about anything")

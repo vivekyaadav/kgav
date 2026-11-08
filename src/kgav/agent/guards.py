@@ -817,6 +817,32 @@ def omitted_entities_caveat(omitted: list[str], kept: int) -> str:
             f"ranked last. Ask about the omitted ones separately.")
 
 
+def held_out_qualifier_caveat(n: int, predicate: str, quantity: str) -> str:
+    """Said when a RANKING is ordered by a number read off the answer sheet.
+
+    held_out_caveat above covers a tool that RETURNS a held-out edge. This
+    covers the subtler case the audit found in triage (fix-list A3): the
+    edge is never shown, but one of its qualifiers decides the order the
+    compounds are printed in. The selectivity index lives on the
+    selectivity layer's HAS_ANTIVIRAL_ACTIVITY_AGAINST edges, which are
+    exactly the evaluation's labels, and triage sorts on it -- so the
+    ranking was partly derived from the answer and said nothing about it.
+
+    MARKED, NOT SUPPRESSED, for the reason held_out_caveat gives at
+    length: these are real published measurements, and triage is defined
+    over compounds the user already holds, so there is no recall ceiling
+    to protect. What is wrong is showing the order as if the graph had
+    predicted it.
+    """
+    return (f"the {quantity} that decides this order is carried on "
+            f"{n:,} {predicate} edge{'s' if n != 1 else ''} — the same "
+            f"edges this project holds out as its evaluation labels, its "
+            f"answer sheet. The compounds here were supplied, not "
+            f"retrieved, so nothing is being predicted and nothing leaks; "
+            f"what the order is NOT is independent evidence that the graph "
+            f"would have found them.")
+
+
 def held_out_caveat(counts: dict[str, int]) -> str:
     """Said when a reported edge IS an evaluation label.
 
