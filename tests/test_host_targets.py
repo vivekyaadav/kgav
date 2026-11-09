@@ -684,3 +684,90 @@ def test_the_release_lost_no_range_to_a_merge():
     assert not bare, (
         f"{len(bare):,} TARGETS edge(s) state a potency and no range, so a "
         f"spread was dropped at the merge: {bare[:3]}")
+
+
+# ------------------------------- the analysable-set limit, derived not typed
+ANALYSABLE_FIGURE = "<!-- FIGURE: analysable_set -->"
+
+
+@pytest.mark.skipif(not (ROOT / "data/releases/v0.1/edges.jsonl").exists(),
+                    reason="no release on disk")
+def test_the_documents_analysable_set_is_the_releases():
+    """ALL EIGHT FIGURES RE-DERIVED FROM THE RELEASE.
+
+    The paragraph read 3,002 / 11.8% / 633 / 1,046 / 58 / 108 / 20,536 /
+    1,679 for three days after the GtoPdb layer began contributing TARGETS
+    edges. Nothing was mismeasured: the numbers were right when written and
+    nothing re-derived them when a new source landed. A phase filter, a new
+    drug-target source or a changed pChEMBL floor all move these, which is
+    exactly when a document stops being checkable by reading it.
+    """
+    import json
+    import re
+
+    rel = ROOT / "data/releases/v0.1"
+    doc = (ROOT / "docs" / "scope_and_limits.md").read_text()
+    assert ANALYSABLE_FIGURE in doc, "the analysable-set paragraph lost its marker"
+    body = doc.split(ANALYSABLE_FIGURE, 1)[1]
+    para = " ".join(body.split("\n\n")[0].split())
+    ceiling_para = " ".join(body.split("\n\n")[1].split())
+    heading = [l for l in doc.splitlines() if "analysable set is" in l][0]
+
+    m = re.search(r"Of ([\d,]+) small molecules, \*\*([\d,]+)\*\* carry a "
+                  r"human `TARGETS` edge.*?\*\*([\d,]+)\*\* approved, "
+                  r"\*\*([\d,]+)\*\* clinical, \*\*([\d,]+)\*\* phase 1, "
+                  r"\*\*([\d,]+)\*\* preclinical and \*\*([\d,]+)\*\* unknown",
+                  para)
+    assert m, ("the paragraph no longer states the seven figures in the form "
+               "this test reads; update both together")
+    c = re.search(r"\*\*([\d,]+)\*\* is the ceiling on what one could add — "
+                  r"not ([\d,]+)", ceiling_para)
+    assert c, "the ceiling sentence no longer states its two figures"
+    h = re.search(r"analysable set is ([\d.]+)% of the molecules", heading)
+    assert h, "the heading no longer states the percentage"
+
+    def num(x):
+        return int(x.replace(",", ""))
+
+    targets = set()
+    for line in open(rel / "edges.jsonl"):
+        e = json.loads(line)
+        if e["predicate"] == "TARGETS":
+            targets.add(e["subject"])
+    phase = {}
+    for line in open(rel / "nodes.jsonl"):
+        n = json.loads(line)
+        if n["class"] == "SmallMolecule":
+            phase[n["id"]] = (n.get("properties") or {}).get("max_phase")
+
+    def bucket(p):
+        if p is None:
+            return "unknown"
+        if p == 4:
+            return "approved"
+        if p in (2, 3):
+            return "clinical"
+        if p == 1:
+            return "phase 1"
+        return "preclinical"
+
+    without = {k: 0 for k in
+               ("approved", "clinical", "phase 1", "preclinical", "unknown")}
+    for cid, p in phase.items():
+        if cid not in targets:
+            without[bucket(p)] += 1
+    routed = len(set(phase) & targets)
+
+    derived = (len(phase), routed, without["approved"], without["clinical"],
+               without["phase 1"], without["preclinical"], without["unknown"])
+    assert tuple(num(g) for g in m.groups()) == derived, (
+        f"the document says {tuple(m.groups())}; the release says {derived}")
+
+    ceiling = without["approved"] + without["clinical"]
+    assert (num(c.group(1)), num(c.group(2))) == (ceiling,
+                                                  len(phase) - routed), (
+        f"the document's ceiling sentence says {c.groups()}; the release says "
+        f"{(ceiling, len(phase) - routed)}")
+    assert float(h.group(1)) == round(100 * routed / len(phase), 1), (
+        f"the heading says {h.group(1)}%; the release says "
+        f"{round(100 * routed / len(phase), 1)}%")

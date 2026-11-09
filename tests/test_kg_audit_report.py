@@ -31,6 +31,15 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+# AND THE ROOT ITSELF, because undescribed_curators() imports
+# scripts.write_kg_report. scripts/ has no __init__.py, so that import works
+# only with the repository root on sys.path -- and this file never put it
+# there. `pytest -q tests/test_kg_audit_report.py` failed with
+# ModuleNotFoundError while the full suite passed, because five other test
+# files insert ROOT at import time and one of them sorts earlier. A test
+# that passes only when a different file ran first is not passing for the
+# reason it states. Found 2026-11-10 while verifying an unrelated change.
+sys.path.insert(0, str(ROOT))
 
 REPORT = ROOT / "docs" / "kg_audit_report.txt"
 REGISTER = ROOT / "config" / "viruses.yaml"

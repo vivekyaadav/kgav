@@ -112,16 +112,29 @@ qualification on any mechanistic reading of a path.
 `make data-audit` reports it; `src/kgav/gtop.py` exists to reduce it and
 its input is not downloaded.
 
-### The analysable set is 11.8% of the molecules
+### The analysable set is 16.3% of the molecules
 
-Of 25,383 small molecules, **3,002** carry a human `TARGETS` edge and can
+<!-- FIGURE: analysable_set -->
+Of 25,383 small molecules, **4,130** carry a human `TARGETS` edge and can
 be placed in a pathway. The rest have no human target in this graph:
-633 approved, 1,046 clinical, 58 phase 1, 108 preclinical and 20,536
-unknown.
+**520** approved, **973** clinical, **35** phase 1, **95** preclinical and
+**19,630** unknown.
 
 A curated drug-target source covers the approved and clinical end, so
-**1,679** is the ceiling on what one could add — not 22,381. The
+**1,493** is the ceiling on what one could add — not 21,253. The
 remainder are bulk screening compounds no curated source describes.
+
+**Every figure in this paragraph was wrong until 2026-11-10, and not
+because anyone mismeasured.** It read 3,002 and 11.8%, with the partition
+633 / 1,046 / 58 / 108 / 20,536 and a ceiling of 1,679 — all correct when
+written against a graph whose only drug–target source was ChEMBL. The
+GtoPdb layer then began contributing `TARGETS` edges (3,601 of its own and
+3,164 shared with ChEMBL), 1,128 more molecules became analysable, and
+nothing re-derived the paragraph. This is the rot that
+`evaluation.md`'s *"The figures in this document are not under
+`make check-results`"* section describes, caught in the act. All eight
+figures now come from the release via a test, so the next layer that moves
+them fails the suite instead of ageing them.
 
 ### Two rows in the overlap table carry no statistical weight
 

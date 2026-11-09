@@ -80,6 +80,11 @@ release-validate:
 check-results:
 	python scripts/check_results.py $(or $(RESULTS),data/results)
 
+# WHAT THE max_phase GATE COSTS (fix-list B1). Needs the 30 GB chembl_37
+# sqlite, so it is a diagnostic and not a test; ~20s.
+diagnose-phase-gate:
+	python scripts/diagnose_phase_gate.py
+
 # FETCH THE RAW INPUTS, AND AUDIT WHAT IS ALREADY THERE.
 #
 # data/raw/* is gitignored and was populated by hand, so a fresh clone could

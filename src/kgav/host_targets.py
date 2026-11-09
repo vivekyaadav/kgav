@@ -15,9 +15,18 @@ Only M1 (direct-acting) worked. The entire host-directed channel -- the reason
 the CRISPR and interactome layers exist -- had no entry point.
 
 SCOPE. All compounds at max_phase >= 2 with pChEMBL >= 6 against a human
-SINGLE PROTEIN target: 3,667 drugs, 63,826 activities, 1,670 targets. 504 of
-those targets are already coronavirus dependency factors, which is what makes
-M2 produce real single-hop paths.
+SINGLE PROTEIN target, measured on chembl_37 at 2026-11-10: 3,022 drugs
+(3,003 distinct InChIKeys), 58,817 activities, 1,646 targets. 504 of those
+targets are already coronavirus dependency factors, which is what makes M2
+produce real single-hop paths.
+
+THESE THREE FIGURES READ 3,667 / 63,826 / 1,670 UNTIL 2026-11-10, and the
+cause is not a mismeasurement -- re-running the query without the
+`standard_type IN ('IC50','EC50','Ki','Kd')` gate returns exactly 3,667 /
+63,826 / 1,670. They were right before that gate was added and nothing
+re-derived them afterwards. Recorded with the date and the gates they
+depend on, since the 30 GB sqlite is gitignored and no test can check them;
+`make diagnose-phase-gate` re-derives them in ~20s.
 
 Deliberately NOT restricted to compounds already in the graph. Repurposing
 means proposing drugs nobody tested against the virus; limiting the pool to
