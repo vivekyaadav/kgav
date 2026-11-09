@@ -629,3 +629,98 @@ def test_the_release_carries_the_imputed_flag_and_refuses_what_it_should():
         f"the flag must both refuse and permit verdicts: refused={refused}, "
         f"decided={decided}. All-or-nothing means the rule collapsed into "
         f"dropping or ignoring every imputed edge")
+
+
+# --------------------------- the dose-series policy (fix-list L10, option b)
+def _flagged_release(tmp_path, flagged_nm=50.0):
+    """A release with one flagged ACTIVE edge and one clean one."""
+    rel = tmp_path / "rel"
+    rel.mkdir()
+
+    def edge(subject, nm, flagged):
+        q = {"ec50_nm": nm, "relation": "=", "outside_dose_series": flagged}
+        return {"subject": subject, "predicate": "HAS_ANTIVIRAL_ACTIVITY_AGAINST",
+                "object": "NCBITaxon:2697049", "qualifiers": q,
+                "primary_knowledge_source": "infores:chembl",
+                "evidence_tier": 1, "first_asserted_date": "2021"}
+    (rel / "edges.jsonl").write_text("\n".join(json.dumps(e) for e in [
+        edge("INCHIKEY:CLEAN", 10.0, False),
+        edge("INCHIKEY:FLAGGED", flagged_nm, True),
+        edge("INCHIKEY:FLAGINACT", 80_000.0, True),
+    ]))
+    return rel
+
+
+def test_include_is_the_default_and_keeps_the_flagged_label(tmp_path):
+    """OPTION (b), DECIDED 2026-11-09. The default must reproduce every
+    figure published before the policy existed, or adding the parameter
+    changes the protocol by being added."""
+    from kgav.labels import DEFAULT_DOSE_SERIES_POLICY, build_labels
+    assert DEFAULT_DOSE_SERIES_POLICY == "include"
+    rel = _flagged_release(tmp_path)
+    L = build_labels(rel)
+    assert L.positives["NCBITaxon:2697049"] == {"INCHIKEY:CLEAN",
+                                                "INCHIKEY:FLAGGED"}
+    assert L.negatives["NCBITaxon:2697049"] == {"INCHIKEY:FLAGINACT"}
+    assert L.stats["outside_dose_series_kept"] == 2
+    assert not L.stats["outside_dose_series_excluded"]
+
+
+def test_exclude_drops_them_from_both_classes(tmp_path):
+    from kgav.labels import build_labels
+    rel = _flagged_release(tmp_path)
+    L = build_labels(rel, dose_series_policy="exclude")
+    assert L.positives["NCBITaxon:2697049"] == {"INCHIKEY:CLEAN"}
+    assert L.negatives.get("NCBITaxon:2697049", set()) == set(), (
+        "a flagged INACTIVE edge is as extrapolated as a flagged active "
+        "one; excluding only the positives would be a third policy")
+    assert L.stats["outside_dose_series_excluded"] == 2
+
+
+def test_an_include_run_still_says_how_many_it_kept(tmp_path):
+    """The branch that changes nothing has to be visible, or the 4,839
+    flagged labels are invisible at exactly the point they become labels."""
+    from kgav.labels import build_labels
+    L = build_labels(_flagged_release(tmp_path))
+    assert L.stats["outside_dose_series_kept"] == 2
+    assert L.stats["dose_series_policy:include"] == 1
+
+
+def test_a_misspelled_policy_is_refused_not_defaulted(tmp_path):
+    """Silently reading as `include` would publish figures under a protocol
+    nobody chose -- the rule temporal.build_split's undated_policy states."""
+    from kgav.labels import build_labels
+    with pytest.raises(ValueError, match="dose_series_policy"):
+        build_labels(_flagged_release(tmp_path), dose_series_policy="includ")
+
+
+DOSE_FIGURE = "<!-- FIGURE: dose_series_cost -->"
+
+
+@pytest.mark.skipif(not REAL_RELEASE.exists(), reason="no release on disk")
+def test_the_documents_dose_series_cost_is_the_releases():
+    """FIGURES DERIVED FROM THE RELEASE, not typed. The paragraph states
+    what option (b) costs; both label counts come from build_labels here."""
+    import re
+
+    from kgav.labels import build_labels
+    doc = (REAL_RELEASE.parents[2] / "docs" / "evaluation.md").read_text()
+    assert DOSE_FIGURE in doc, "the dose-series paragraph lost its marker"
+    para = " ".join(doc.split(DOSE_FIGURE, 1)[1].split("\n\n")[0].split())
+    m = re.search(r"\*\*([\d,]+)\*\* label edges carry it.*?"
+                  r"\*\*([\d,]+)\*\* of them positives.*?"
+                  r"positives from \*\*([\d,]+)\*\* to \*\*([\d,]+)\*\* and "
+                  r"negatives from \*\*([\d,]+)\*\* to \*\*([\d,]+)\*\*", para)
+    assert m, ("the paragraph no longer states the five figures in the form "
+               "this test reads; update both together")
+    stated = tuple(int(g.replace(",", "")) for g in m.groups())
+    inc = build_labels(REAL_RELEASE)
+    exc = build_labels(REAL_RELEASE, dose_series_policy="exclude")
+    def total(L, which):
+        return sum(len(v) for v in getattr(L, which).values())
+    derived = (inc.stats["outside_dose_series_kept"],
+               total(inc, "positives") - total(exc, "positives"),
+               total(inc, "positives"), total(exc, "positives"),
+               total(inc, "negatives"), total(exc, "negatives"))
+    assert stated == derived, (
+        f"the paragraph states {stated}; the release gives {derived}")

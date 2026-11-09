@@ -134,6 +134,25 @@ probability about 0.06, and ≤2 of 6.75 about 0.08 — both unremarkable.
 **They must not be read as depletion.** What they establish is that two
 more viruses, in a second family, were examined.
 
+### 4,839 label edges carry an extrapolated potency
+
+ChEMBL's curators flag a value read outside the dose range they tested
+("Falls Outside The Dose Series"). On release v0.1, 4,839 edges carrying a
+label do: 4,691 inactive, 125 undecidable and **23 positives**. The number
+on such an edge is an extrapolation past the concentrations measured, not a
+reading from them.
+
+They are kept, deliberately (fix-list L10, option (b)): the flag is a
+declared qualifier, `outside_dose_series`, so a consumer can exclude them,
+and `build_labels(..., dose_series_policy="exclude")` does it in one
+argument -- costing 23 positives and 4,691 negatives. Excluding them by
+default would delete evidence rather than describe it, which is the same
+choice made for M8's weak fold mode. The cost of the choice is that every
+AUC in `docs/evaluation.md` rests partly on extrapolated potencies.
+
+Until 2026-11-09 the field was read by nothing (fix-list L9), so this limit
+existed and was invisible.
+
 ### What the evidence dates mean differs by source
 
 `make data-timeline` separates three kinds:

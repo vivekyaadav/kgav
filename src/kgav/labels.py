@@ -120,6 +120,30 @@ DEFAULT_INACTIVE_ABOVE_NM = 10_000.0
 DEFAULT_ACTIVE_BELOW_NM = 10_000.0
 
 
+#: Whether a potency ChEMBL flagged as outside its tested dose series may
+#: carry a label (fix-list L10, decided 2026-11-09: option (b), include).
+#:
+#: A flagged value was not read off the concentrations actually tested; it
+#: is an extrapolation past them. On release v0.1, 4,839 label edges carry
+#: the flag -- 4,691 inactive, 125 undecidable and 23 ACTIVE -- so the
+#: published figures rest partly on extrapolated potencies, 23 positives'
+#: worth.
+#:
+#: THE DECISION WAS TO KEEP THEM AND MAKE THE ALTERNATIVE RUNNABLE, for the
+#: reason E6 was decided the same way: excluding them deletes evidence,
+#: while recording the flag makes the weakness legible and leaves the
+#: exclusion to whoever wants it. "A consumer can filter" is only true if
+#: something can, so the policy is a named parameter with a counter on both
+#: branches rather than a sentence in a document.
+#:
+#: DEFAULT IS THE DECISION, not the absence of one: `include` reproduces
+#: every figure published before this existed, and `exclude` is one flag
+#: away. An unknown value is REFUSED rather than treated as `include`,
+#: which is the rule temporal.build_split's undated_policy already states.
+DOSE_SERIES_POLICIES = ("include", "exclude")
+DEFAULT_DOSE_SERIES_POLICY = "include"
+
+
 @dataclass
 class Labels:
     """Per-virus label sets. `negatives` are MEASURED inactive."""
@@ -345,7 +369,8 @@ def build_labels(release: Path, year_from: int | None = None,
                  year_to: int | None = None,
                  inactive_above_nm: float = DEFAULT_INACTIVE_ABOVE_NM,
                  active_below_nm: float = DEFAULT_ACTIVE_BELOW_NM,
-                 sources: set[str] | None = None) -> Labels:
+                 sources: set[str] | None = None,
+                 dose_series_policy: str = DEFAULT_DOSE_SERIES_POLICY) -> Labels:
     """Label sets from the activity edges, optionally restricted by year.
 
     year_from/year_to are inclusive and let the same function produce a
@@ -363,8 +388,22 @@ def build_labels(release: Path, year_from: int | None = None,
     same plates under one protocol over one concentration range, so the
     populations are matched BY CONSTRUCTION rather than by a filter --
     which is what --selectivity-applies both was approximating.
+
+    `dose_series_policy` decides whether an edge ChEMBL flagged as
+    `outside_dose_series` may carry a label (fix-list L10). `include`, the
+    default and the decision taken, keeps them and counts them; `exclude`
+    drops them and counts them. Both branches count, so a run of either
+    says how many labels the question touched -- 4,839 label edges on v0.1,
+    23 of them positives.
     """
+    if dose_series_policy not in DOSE_SERIES_POLICIES:
+        # REFUSED, NOT DEFAULTED. A misspelled policy silently reading as
+        # `include` would publish figures under a protocol nobody chose.
+        raise ValueError(
+            f"dose_series_policy must be one of {DOSE_SERIES_POLICIES}, "
+            f"not {dose_series_policy!r}")
     out = Labels()
+    out.stats["dose_series_policy:" + dose_series_policy] = 1
     active: dict[str, set[str]] = {}
     inactive: dict[str, set[str]] = {}
 
@@ -385,6 +424,16 @@ def build_labels(release: Path, year_from: int | None = None,
         if year_to is not None and (year is None or year > year_to):
             out.stats["out_of_window"] += 1
             continue
+
+        # THE FLAG IS A FACT ABOUT THE MEASUREMENT, so it is read before
+        # the verdict and counted whichever way the policy falls -- an
+        # `include` run that said nothing would leave the 4,839 invisible
+        # at exactly the point where they become labels.
+        if (e.get("qualifiers") or {}).get("outside_dose_series"):
+            if dose_series_policy == "exclude":
+                out.stats["outside_dose_series_excluded"] += 1
+                continue
+            out.stats["outside_dose_series_kept"] += 1
 
         verdict = classify(e, inactive_above_nm, active_below_nm)
         if verdict is None:

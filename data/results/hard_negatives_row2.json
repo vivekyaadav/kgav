@@ -1,11 +1,14 @@
 {
   "inactive_above_nm": 10000.0,
+  "dose_series_policy": "include",
   "selectivity_filter": "all",
   "selectivity_applies": "positives",
   "publication_disjoint": false,
   "label_source": null,
   "label_stats": {
+    "dose_series_policy:include": 1,
     "active": 5232,
+    "outside_dose_series_kept": 4839,
     "inactive": 20239,
     "undecidable": 546,
     "contested_potency": 165,
@@ -2403,10 +2406,10 @@
       "edges_sha": "f8a1ae20bfd89b37"
     },
     "code": {
-      "commit": "e6e7d4d8fd887ff968de4da09e24e97fa51ff85f",
+      "commit": "020bbc49d66b25910cd0c39c73584f7e70a3e6ef",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-09T15:31:29+00:00"
+    "generated_utc": "2026-11-09T16:33:32+00:00"
   }
 }

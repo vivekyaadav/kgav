@@ -1,5 +1,6 @@
 {
   "inactive_above_nm": 10000.0,
+  "dose_series_policy": "include",
   "selectivity_filter": "all",
   "selectivity_applies": "positives",
   "publication_disjoint": true,
@@ -7,6 +8,7 @@
     "infores:ncats-opendata"
   ],
   "label_stats": {
+    "dose_series_policy:include": 1,
     "other_source": 18585,
     "inactive": 7343,
     "active": 89
@@ -500,10 +502,10 @@
       "edges_sha": "f8a1ae20bfd89b37"
     },
     "code": {
-      "commit": "e6e7d4d8fd887ff968de4da09e24e97fa51ff85f",
+      "commit": "020bbc49d66b25910cd0c39c73584f7e70a3e6ef",
       "dirty": true
     },
     "schema_version": "0.13.0",
-    "generated_utc": "2026-11-09T15:36:07+00:00"
+    "generated_utc": "2026-11-09T16:38:16+00:00"
   }
 }

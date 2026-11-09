@@ -22,7 +22,9 @@ from kgav.baselines import (
     label_publication_index,
     metapath_reach,
 )
-from kgav.labels import build_labels, evaluate_against_negatives
+from kgav.labels import (DEFAULT_DOSE_SERIES_POLICY,
+                         DOSE_SERIES_POLICIES, build_labels,
+                         evaluate_against_negatives)
 from kgav.provenance import check_derived, derived_policy, write_results
 from kgav.schema import load_schema
 
@@ -257,6 +259,15 @@ def build_parser(root: Path) -> argparse.ArgumentParser:
                          "still written by the protocol that runs last.")
     ap.add_argument("--cutoff", type=int, default=2021)
     ap.add_argument("--inactive-above-nm", type=float, default=10_000.0)
+    # FIX-LIST L10, OPTION (b). The default IS the decision -- keep the
+    # 4,839 flagged label edges, 23 of them positives -- and the
+    # alternative is one flag away rather than a paragraph in a
+    # document. Recorded into the results file either way, so no
+    # figure here is readable without knowing which protocol made it.
+    ap.add_argument("--dose-series-policy", choices=DOSE_SERIES_POLICIES,
+                    default=DEFAULT_DOSE_SERIES_POLICY,
+                    help="whether a potency ChEMBL flagged as outside "
+                         "its tested dose series may carry a label")
     ap.add_argument("--selectivity", default="all",
                     choices=["all", "selective-only", "verified-only"],
                     help="all: every measured active (the original protocol). "
@@ -319,7 +330,8 @@ def run_protocol(args, cache: GraphCache, schema) -> int:
     if label_sources:
         print(f"labels restricted to {sorted(label_sources)}")
     all_labels = build_labels(args.release, inactive_above_nm=args.inactive_above_nm,
-                              sources=label_sources)
+                              sources=label_sources,
+                              dose_series_policy=args.dose_series_policy)
     if label_sources and not any(all_labels.positives.values()):
         print(f"\nNO POSITIVES from {sorted(label_sources)}. Check the source "
               f"string against\n  the release: a typo here yields an empty "
@@ -403,9 +415,14 @@ def run_protocol(args, cache: GraphCache, schema) -> int:
         print("\n" + "=" * 66)
         print(f"TEMPORAL: pre-{args.cutoff} graph, post-{args.cutoff} measurements")
         print("=" * 66)
+        # THE POLICY APPLIES HERE TOO (fix-list L10), for the reason the
+        # comment below gives about the selectivity filter: a protocol
+        # applied to one side of a temporal split and not the other is not
+        # the protocol anybody asked for.
         test_labels = build_labels(args.release, year_from=args.cutoff + 1,
                                    inactive_above_nm=args.inactive_above_nm,
-                                   sources=label_sources)
+                                   sources=label_sources,
+                                   dose_series_policy=args.dose_series_policy)
         # The selectivity filter must apply here too. Filtering only the
         # cross-sectional labels would report a temporal number computed on a
         # different positive set from the one it is being compared against.
@@ -444,7 +461,8 @@ def run_protocol(args, cache: GraphCache, schema) -> int:
         overlap_policy = (derived_policy(args.train).get("overlap_policy")
                           or "drop-from-test")
         pre_labels = build_labels(args.release, year_to=args.cutoff,
-                                  inactive_above_nm=args.inactive_above_nm)
+                                  inactive_above_nm=args.inactive_above_nm,
+                                  dose_series_policy=args.dose_series_policy)
         if overlap_policy == "drop-from-test":
             from kgav.temporal import drop_already_known
             ov_stats, ov_msgs = drop_already_known(
@@ -493,6 +511,12 @@ def run_protocol(args, cache: GraphCache, schema) -> int:
     args.results.mkdir(parents=True, exist_ok=True)
     write_results(args.results / args.results_name,
                   {"inactive_above_nm": args.inactive_above_nm,
+                   # WHICH LABELS THESE FIGURES REST ON (fix-list L10). On
+                   # `include` -- the decision -- 4,839 flagged label edges
+                   # are in, 23 of them positives, so every AUC here rests
+                   # partly on potencies ChEMBL read outside the
+                   # concentrations it tested. Stated rather than implied.
+                   "dose_series_policy": args.dose_series_policy,
                    "selectivity_filter": args.selectivity,
                    "selectivity_applies": args.selectivity_applies,
                    # THE TWO CONTROLS THAT DECIDE WHAT THESE NUMBERS MEAN, and

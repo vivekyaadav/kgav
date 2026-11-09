@@ -904,6 +904,31 @@ every drug it reaches (11 for SARS-CoV-2, 29 for Zika, 11 for SARS-CoV), as
 does M1 on HCoV-229E across 17. An AUC computed for those is separating
 reached from unreached, not ordering anything within reach.
 
+<!-- FIGURE: dose_series_cost -->
+**Every figure in this document rests partly on potencies ChEMBL read
+outside the concentrations it tested, and that is a decision rather than an
+oversight.** ChEMBL's curators flag such a value in `activity_comment`:
+"Falls Outside The Dose Series" -- the number is an extrapolation past the
+dose range, not a reading from it. `chembl.py` ignored that field entirely
+until 2026-11-09 (fix-list L9); it is now a declared qualifier,
+`outside_dose_series`, on every edge of that layer. On release v0.1
+**4,839** label edges carry it, **23** of them positives. Excluding them
+moves positives from **5,115** to **5,092** and negatives from **18,537**
+to **13,846**.
+
+The protocol keeps them (fix-list L10, option (b), decided 2026-11-09) and
+the alternative is one flag away: `labels.build_labels(...,
+dose_series_policy="exclude")`, or `hard_negatives.py
+--dose-series-policy exclude`, which records the choice in the results
+file it writes. The reasoning is the same as for M8's weak fold mode below:
+excluding the evidence deletes it, while recording the flag makes the
+weakness legible and leaves the exclusion to whoever wants it. An
+`include` run counts what it kept, so the number is never implied by
+silence. What is lost either way: a curator's flag is a fact about one
+source row, and an edge collapses rows -- the flag is sticky through a
+merge, so a flagged edge means AT LEAST ONE contributing row was
+extrapolated, not that all of them were.
+
 <!-- FIGURE: m8_fold_strength -->
 **And M8 is motif-only on this release, which is weaker than the channel
 sounds.** `folds.gate()` makes two kinds of comparison and labels what each
