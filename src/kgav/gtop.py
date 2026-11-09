@@ -54,7 +54,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from kgav.assemble import resolve_qualifier
+from kgav.assemble import POTENCY_FIELD_ORDER, resolve_qualifier
 from kgav.normalize_bio import UniProtResolver
 
 GTOP_SOURCE = "infores:guidetopharmacology"
@@ -83,6 +83,8 @@ C_PMID = "PubMed ID"
 C_AFFINITY = "Original Affinity Median nm"
 C_CHEMBL_ID = "ChEMBL ID"
 C_AFF_UNITS = "Original Affinity Units"
+C_AFF_LOW = "Original Affinity Low nm"
+C_AFF_HIGH = "Original Affinity High nm"
 
 #: GtoP's affinity unit -> the TARGETS qualifier the SCHEMA declares for it.
 #:
@@ -401,6 +403,55 @@ def direction_of(type_value: str, action_value: str = "") -> str:
     return "unknown" if a is not None and a != t else t
 
 
+def _attach_spread(quals: dict, values: dict[str, list[float]],
+                   stats: Counter) -> None:
+    """State the spread behind this edge's potency (fix-list P14).
+
+    WHY IT IS COUNTED AND NOT READ OFF THE SOURCE. GtoPdb exports
+    `Original Affinity Low nm` and `Original Affinity High nm` beside the
+    median, so the obvious implementation is to carry the source's own
+    interval. Measured on 2026.3.1: of the 14,066 rows that state a usable
+    median, **0** state a low or a high. The 940 rows that do state one
+    state no median (counted as `affinity_range_without_median`), so there
+    is no row anywhere in this export where the two coexist. The range
+    therefore comes from collapsing the duplicate rows of one pair -- the
+    same thing host_targets counts -- which is what makes `potency_n` mean
+    ONE thing across both layers: source records collapsed into the named
+    potency, with n=1 implying min == max == the point.
+
+    THE POINT IS THE BOTTOM OF THE RANGE HERE, because the accumulation
+    above keeps the most potent value per type. host_targets' point is its
+    first row's and sits anywhere inside. Both satisfy the only invariant
+    that matters downstream and that assemble enforces: the range contains
+    the qualifier it names.
+
+    ONE RANGE SLOT, SEVERAL MEASUREMENTS. A pair can carry a Ki and an
+    IC50; the edge can describe the spread of one. The field with the most
+    collapsed rows is named, since a field with one row has no spread to
+    report, and ties go to POTENCY_FIELD_ORDER so the choice cannot depend
+    on dict order. What the other field's spread would have said is lost,
+    and `spread_not_recorded_for_another_measured_field` says how often.
+    """
+    if not values:
+        return
+    named = max(values, key=lambda q: (len(values[q]),
+                                       -POTENCY_FIELD_ORDER.index(q)))
+    rows = values[named]
+    quals["potency_spread_field"] = named
+    quals["potency_n"] = len(rows)
+    quals["potency_min_nm"] = float(min(rows))
+    quals["potency_max_nm"] = float(max(rows))
+    if len(rows) > 1:
+        stats["edges_collapsing_several_rows"] += 1
+        if min(rows) != max(rows):
+            stats["edges_whose_rows_disagree"] += 1
+    if len(values) > 1:
+        stats["edge_measures_several_fields_one_spread_kept"] += 1
+        for q, seen in values.items():
+            if q != named and len(seen) > 1 and min(seen) != max(seen):
+                stats["spread_not_recorded_for_another_measured_field"] += 1
+
+
 def ingest_interactions(em, rows: list[dict], inchikeys: dict[str, str],
                         known_proteins: set[str] | None = None,
                         compounds: CompoundIndex | None = None,
@@ -499,11 +550,27 @@ def ingest_interactions(em, rows: list[dict], inchikeys: dict[str, str],
         potency: dict[str, float] = {}
         raw_affinity = (r.get(C_AFFINITY) or "").strip()
         if not raw_affinity:
-            # 10,852 of 24,968 rows report no affinity. Counted so that
-            # "this edge has no potency" can be told from "this edge had
-            # one and it could not be read" -- the distinction the
-            # unmapped-unit counter above exists for.
+            # 10,852 of 24,968 rows in the 2026.3.1 export report no
+            # MEDIAN affinity. Counted so that "this edge has no potency"
+            # can be told from "this edge had one and it could not be read"
+            # -- the distinction the unmapped-unit counter above exists
+            # for. THE COUNTER IS NARROWER THAN THAT FIGURE: it is reached
+            # only by rows that survived the species, accession and
+            # compound-join filters above, which is 3,043 of the 10,852.
             stats["no_affinity_reported"] += 1
+            # AND 940 OF THE 10,852 DO STATE AN AFFINITY (260 of the 3,043
+            # that reach here), as a low and/or a high with no median
+            # between them (fix-list P14). This layer still carries no
+            # number for them: the qualifier the schema declares is a
+            # point, and picking one out of a bare interval would invent a
+            # measurement -- a range without a point is also exactly what
+            # assemble drops, since potency_spread_field has to name a
+            # qualifier that is there. Counted rather than folded into the
+            # line above, which read as if GtoPdb had said nothing about
+            # these rows.
+            if ((r.get(C_AFF_LOW) or "").strip()
+                    or (r.get(C_AFF_HIGH) or "").strip()):
+                stats["affinity_range_without_median"] += 1
         if raw_affinity:
             qual = AFFINITY_UNIT_TO_QUALIFIER.get(
                 (r.get(C_AFF_UNITS) or "").strip().upper())
@@ -545,7 +612,12 @@ def ingest_interactions(em, rows: list[dict], inchikeys: dict[str, str],
         prev = pending.get((cid, pid))
         if prev is None:
             pending[(cid, pid)] = {"direction": direction,
-                                   "potency": potency, "pmids": pmids}
+                                   "potency": potency, "pmids": pmids,
+                                   # Every value seen per measurement type,
+                                   # so the spread behind the point below
+                                   # can be stated (fix-list P14).
+                                   "values": {q: [v]
+                                              for q, v in potency.items()}}
             continue
         stats["duplicate"] += 1
         settled = resolve_qualifier("direction", prev["direction"], direction,
@@ -562,9 +634,11 @@ def ingest_interactions(em, rows: list[dict], inchikeys: dict[str, str],
         for qual, value in potency.items():
             have = prev["potency"].get(qual)
             prev["potency"][qual] = value if have is None else min(have, value)
+            prev["values"].setdefault(qual, []).append(value)
 
     for (cid, pid), rec in pending.items():
         quals = {"direction": rec["direction"], **rec["potency"]}
+        _attach_spread(quals, rec["values"], stats)
         em.edge(cid, "TARGETS", pid, source=GTOP_SOURCE, date=default_date,
                 tier=GTOP_TIER, quals=quals,
                 pmids=sorted(rec["pmids"]) or None)

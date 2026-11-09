@@ -182,9 +182,36 @@ def main(argv=None) -> int:
                       "pairs where GtoP's own rows contradict each other")):
         if s[k]:
             print(f"  {s[k]:7,} {label}")
-    print(f"\n  {s['no_affinity_reported']:7,} row(s) report no affinity at "
-          f"all, which is not the same as\n          an affinity this reader "
-          f"could not express")
+    print(f"\n  {s['no_affinity_reported']:7,} row(s) report no MEDIAN "
+          f"affinity, which is not the same as\n          an affinity this "
+          f"reader could not express")
+    if s["affinity_range_without_median"]:
+        # NOT "no affinity at all". These rows state a low and/or a high
+        # and no median between them, and this layer carries no number for
+        # them: the schema's qualifier is a point, and choosing one out of
+        # a bare interval would invent a measurement (fix-list P14).
+        print(f"  {s['affinity_range_without_median']:7,} of those DO state "
+              f"an affinity -- a low and/or a high with no\n          median. "
+              f"No point is invented from an interval, so they ship with a "
+              f"direction\n          and no number, like the unmapped units "
+              f"below")
+    # THE SPREAD BEHIND THE POINT (fix-list P14). The potency this layer
+    # emits is the most potent value per measurement type; these say what
+    # it was chosen between, so a reader can tell one measurement from a
+    # thousand-fold disagreement.
+    if s["edges_collapsing_several_rows"]:
+        print(f"\n  {s['edges_collapsing_several_rows']:7,} edge(s) collapse "
+              f"several rows into one potency, of which\n          "
+              f"{s['edges_whose_rows_disagree']:,} span rows that disagree. "
+              f"Every edge with a potency states its\n          range, so "
+              f"potency_n=1 means one row rather than an unrecorded spread")
+    if s["edge_measures_several_fields_one_spread_kept"]:
+        print(f"  {s['edge_measures_several_fields_one_spread_kept']:7,} "
+              f"edge(s) hold more than one measurement type and have one\n"
+              f"          range slot; the field with the most rows is named. "
+              f"{s['spread_not_recorded_for_another_measured_field']:,} "
+              f"lose a\n          spread that was measured and cannot be "
+              f"stated")
     if s["affinity_unit_unmapped"]:
         print(f"  {s['affinity_unit_unmapped']:7,} potency value(s) dropped: "
               f"their affinity unit is not in AFFINITY_UNIT_TO_QUALIFIER.")

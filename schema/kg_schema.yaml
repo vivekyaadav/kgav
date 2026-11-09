@@ -503,22 +503,30 @@ edge_classes:
       # readings from 1 to 1,000 can now see which.
       #
       # THEY DESCRIBE THE ROWS BEHIND THIS EDGE'S OWN POTENCY, not all
-      # evidence for the pair. An edge merged with the gtop layer carries
-      # both sources in its provenance while these three count only the
-      # rows the host-targets layer collapsed -- which is the same scope
-      # ic50_nm and assay_id already have, and is coherent only because
-      # hosttargets outranks gtop in LAYER_PRECEDENCE so the surviving
-      # potency comes from the same rows. test_host_targets.py asserts
-      # that ordering, so a reorder fails rather than quietly decoupling
-      # the spread from the number it describes.
+      # evidence for the pair. A merged edge names both layers in its
+      # provenance while these four count only the rows of the layer whose
+      # potency survived -- the same scope ic50_nm and assay_id already
+      # have. host_targets and gtop are the only layers that emit TARGETS
+      # and each writes all four or none, so every name resolves to the
+      # same side and the range comes from the same rows as the number it
+      # describes. Where that ever fails to hold, assemble drops the group
+      # rather than publishing a mix (potency_range_orphaned_by_merge).
+      #
+      # A ROW IS ONE SOURCE RECORD and means the same thing in both layers
+      # -- one ChEMBL activity, one GtoPdb interaction -- so n=1 implies
+      # min == max == the point. GtoPdb's own affinity low/high columns
+      # would have broken that, since a single record could then carry a
+      # span; on 2026.3.1 not one row states a low or a high beside a
+      # median, which test_gtop.py re-derives from the download rather than
+      # taking on trust (fix-list P14).
       # AND WHICH FIELD THE RANGE BELONGS TO, without which the three
       # below are the A4 defect wearing new names. One (drug, target) pair
       # can carry an IC50 row AND a Ki row: 3,801 of 14,381 pairs do, and
       # they merge on (subject, predicate, object), so a single
       # potency_n/min/max slot would describe one quantity while the edge
-      # states two. These four qualifiers are written together and are
-      # resolved together on merge, so the range always names its own
-      # number.
+      # states two. An edge has ONE range slot, so a layer holding two
+      # measurements names the field with the most rows behind it and
+      # counts what it could not record.
       potency_spread_field:
                       {type: string, enum: potency_field,
                        doc: "which potency qualifier the range describes"}

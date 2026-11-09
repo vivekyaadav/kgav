@@ -921,3 +921,74 @@ def test_it_reconciles_nothing_it_cannot_know():
     rather than picking one. The higher layer still wins; the point is
     that the choice is now visible."""
     assert resolve_qualifier("ic50_nm", 900.0, 50.0) == 900.0
+
+
+# ------------------------------------- the four range qualifiers (P13, P14)
+def test_the_potency_field_order_is_the_schemas():
+    """A TIE-BREAK WRITTEN FROM THE LITERALS IT IS CHECKING cannot survive
+    the event it exists for. POTENCY_FIELD_ORDER names the schema's
+    `potency_field` enum, in the schema's order, and gtop._attach_spread
+    indexes it -- so a field added to the enum and not here would raise
+    ValueError, and one removed would leave a tie-break over a name the
+    schema no longer declares."""
+    from kgav.assemble import POTENCY_FIELD_ORDER
+    enum = load_schema(ROOT / "schema" / "kg_schema.yaml").enums["potency_field"]
+    assert list(POTENCY_FIELD_ORDER) == list(enum), (
+        f"the schema declares {list(enum)}; the tie-break uses "
+        f"{list(POTENCY_FIELD_ORDER)}")
+
+
+def test_a_surviving_range_is_one_layers_throughout():
+    """THE GROUP IS INTACT OR GONE, never a mix of two layers' numbers.
+
+    The four names resolve INDEPENDENTLY, one at a time, so nothing in
+    merge_edges makes them travel together; what makes them travel together
+    is that both layers that emit TARGETS write all four or none, and every
+    name then resolves to the same side. That is a property of the layers,
+    not of this function, so it is tested here where a third layer emitting
+    a partial group would break it.
+
+    Without this, a mix could pass the containment check by luck -- gtop's
+    n and min beside host_targets' max, describing no set of rows that was
+    ever measured -- and nothing downstream could see it.
+    """
+    from kgav.assemble import _RANGE_QUALS
+
+    def edge(quals):
+        return {"subject": "INCHIKEY:A", "predicate": "TARGETS",
+                "object": "UniProtKB:P1", "qualifiers": dict(quals),
+                "primary_knowledge_source": "infores:x", "evidence_tier": 1,
+                "first_asserted_date": "2020"}
+    hi = {"ic50_nm": 10.0, "potency_spread_field": "ic50_nm",
+          "potency_n": 2, "potency_min_nm": 10.0, "potency_max_nm": 90.0}
+    lo = {"ic50_nm": 50.0, "ki_nm": 7.0, "potency_spread_field": "ki_nm",
+          "potency_n": 4, "potency_min_nm": 1.0, "potency_max_nm": 7.0}
+    for a, b in ((hi, lo), (lo, hi)):
+        q = merge_edges(edge(a), edge(b), None, Counter())["qualifiers"]
+        kept = {k: q[k] for k in _RANGE_QUALS if k in q}
+        assert kept, "the range was dropped although the winner carried one"
+        assert kept == {k: a[k] for k in _RANGE_QUALS}, (
+            f"the range mixes the two sides: {kept}")
+        assert q["potency_min_nm"] <= q[q["potency_spread_field"]] \
+            <= q["potency_max_nm"]
+
+
+def test_a_layer_that_writes_half_the_group_is_what_the_drop_rule_is_for():
+    """The guarantee above is the layers'. If one ever writes a point with
+    no range -- which is what gtop did until fix-list P14 -- the mix is
+    real, and _drop_orphaned_potency_range is what keeps it out of the
+    release. Both halves are kept honest: this is the case the rule must
+    still catch after P14 made it stop firing on the release."""
+    stats = Counter()
+    a = {"subject": "INCHIKEY:A", "predicate": "TARGETS",
+         "object": "UniProtKB:P1", "qualifiers": {"ic50_nm": 500.0},
+         "primary_knowledge_source": "infores:x", "evidence_tier": 1}
+    b = {**a, "qualifiers": {"ic50_nm": 10.0, "potency_spread_field": "ic50_nm",
+                             "potency_n": 2, "potency_min_nm": 10.0,
+                             "potency_max_nm": 90.0}}
+    q = merge_edges(a, b, None, stats)["qualifiers"]
+    assert q["ic50_nm"] == 500.0
+    from kgav.assemble import _RANGE_QUALS
+    assert not [k for k in _RANGE_QUALS if k in q], (
+        f"a range survived beside a potency it does not describe: {q}")
+    assert stats["potency_range_orphaned_by_merge"] == 1

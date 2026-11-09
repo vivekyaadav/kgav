@@ -976,3 +976,185 @@ def test_the_resolver_is_no_longer_reached_only_by_its_own_test():
     before 2026-11-09 the only module that named it was tests/."""
     import kgav.gtop as gtop_module
     assert gtop_module.UniProtResolver is not None
+
+
+# --------------------------------------- the spread behind the point (P14)
+def test_a_single_row_states_a_range_of_one():
+    """EMITTED ON EVERY EDGE WITH A POTENCY, including the one-row case.
+    Emitting the four only for replicates would make their absence mean two
+    things -- one measurement, or a layer that predates this -- which is the
+    ambiguity host_targets' own comment says this project keeps paying for.
+    """
+    em = Emit()
+    ingest_interactions(em, [_inter()], KEYS, PROTS, IDX)
+    q = em.edges[0]["qualifiers"]
+    assert q["potency_spread_field"] == "ki_nm"
+    assert (q["potency_n"], q["potency_min_nm"], q["potency_max_nm"]) == (
+        1, 40.0, 40.0)
+
+
+def test_duplicate_rows_become_the_range_and_leave_the_point_alone():
+    """The point is the most potent value by the rule stated above this
+    layer's accumulator; P14 adds what that rule was choosing BETWEEN. The
+    point does not move -- that would be a second change hiding inside this
+    one -- it is simply no longer the only thing on the edge."""
+    from collections import Counter
+    em = Emit()
+    s = ingest_interactions(em, [_inter(**{"Original Affinity Median nm": v,
+                                           "PubMed ID": p})
+                                 for v, p in (("40", "1"), ("4000", "2"),
+                                              ("400", "3"))],
+                            KEYS, PROTS, IDX)
+    assert s["edges"] == 1
+    q = em.edges[0]["qualifiers"]
+    assert q["ki_nm"] == 40.0, "the point moved"
+    assert (q["potency_n"], q["potency_min_nm"], q["potency_max_nm"]) == (
+        3, 40.0, 4000.0)
+    assert s["edges_collapsing_several_rows"] == 1
+    assert s["edges_whose_rows_disagree"] == 1
+    assert isinstance(s, Counter)
+
+
+def test_rows_that_agree_are_counted_apart_from_rows_that_do_not():
+    """Three repeats of one number are not a disagreement, and a counter
+    that cannot tell them apart says nothing about the data."""
+    em = Emit()
+    s = ingest_interactions(em, [_inter(**{"PubMed ID": p}) for p in "123"],
+                            KEYS, PROTS, IDX)
+    assert s["edges_collapsing_several_rows"] == 1
+    assert not s["edges_whose_rows_disagree"]
+    q = em.edges[0]["qualifiers"]
+    assert q["potency_n"] == 3 and q["potency_min_nm"] == q["potency_max_nm"]
+
+
+def test_the_named_field_is_the_one_with_rows_behind_it():
+    """ONE RANGE SLOT, TWO MEASUREMENTS. A field with a single row has no
+    spread to report, so naming it would spend the edge's only range slot
+    on the measurement that needed it least."""
+    em = Emit()
+    rows = [_inter(**{"Original Affinity Units": "IC50",
+                      "Original Affinity Median nm": v, "PubMed ID": p})
+            for v, p in (("10", "1"), ("1000", "2"))]
+    rows.append(_inter(**{"Original Affinity Units": "pKi",
+                          "Original Affinity Median nm": "40",
+                          "PubMed ID": "9"}))
+    em2 = Emit()
+    s = ingest_interactions(em, rows, KEYS, PROTS, IDX)
+    # and the same answer with the rows the other way round
+    s2 = ingest_interactions(em2, list(reversed(rows)), KEYS, PROTS, IDX)
+    for emit, stats in ((em, s), (em2, s2)):
+        q = emit.edges[0]["qualifiers"]
+        assert q["ic50_nm"] == 10.0 and q["ki_nm"] == 40.0, (
+            "both measurements belong on the edge; only the RANGE is one")
+        assert q["potency_spread_field"] == "ic50_nm"
+        assert (q["potency_min_nm"], q["potency_max_nm"]) == (10.0, 1000.0)
+        assert stats["edge_measures_several_fields_one_spread_kept"] == 1
+        # the ki has one row, so no spread was lost with it
+        assert not stats["spread_not_recorded_for_another_measured_field"]
+
+
+def test_a_spread_that_could_not_be_recorded_is_counted():
+    em = Emit()
+    rows = [_inter(**{"Original Affinity Units": u,
+                      "Original Affinity Median nm": v, "PubMed ID": p})
+            for u, v, p in (("IC50", "10", "1"), ("IC50", "30", "2"),
+                            ("IC50", "90", "3"),
+                            ("pKi", "40", "4"), ("pKi", "4000", "5"))]
+    s = ingest_interactions(em, rows, KEYS, PROTS, IDX)
+    q = em.edges[0]["qualifiers"]
+    assert q["potency_spread_field"] == "ic50_nm"
+    assert s["spread_not_recorded_for_another_measured_field"] == 1, (
+        "the Ki spans 40-4000 nM and the edge cannot say so; an edge that "
+        "loses a measured spread has to be countable")
+
+
+def test_a_tie_is_broken_by_the_declared_order_not_by_dict_order():
+    """Two fields with one row each cannot be separated by row count, and
+    `max` over a dict would then return whichever key was inserted first --
+    which is file order, the defect this layer's accumulator exists for."""
+    from kgav.assemble import POTENCY_FIELD_ORDER
+    named = []
+    for order in (("pKd", "IC50"), ("IC50", "pKd")):
+        em = Emit()
+        ingest_interactions(
+            em, [_inter(**{"Original Affinity Units": u,
+                           "Original Affinity Median nm": "7",
+                           "PubMed ID": str(i)})
+                 for i, u in enumerate(order)], KEYS, PROTS, IDX)
+        named.append(em.edges[0]["qualifiers"]["potency_spread_field"])
+    assert named == ["ic50_nm", "ic50_nm"], (
+        f"the named field followed row order: {named}")
+    assert POTENCY_FIELD_ORDER.index("ic50_nm") < POTENCY_FIELD_ORDER.index(
+        "kd_nm"), "the tie-break above no longer matches the declared order"
+
+
+def test_every_unit_this_layer_maps_is_a_field_the_range_can_name():
+    """_attach_spread indexes POTENCY_FIELD_ORDER to break ties, so a unit
+    mapped to a field outside it raises ValueError nine minutes into a
+    rebuild -- the same shape of failure the unit table's own comment
+    records from `affinity_nm`."""
+    from kgav.assemble import POTENCY_FIELD_ORDER
+    assert set(AFFINITY_UNIT_TO_QUALIFIER.values()) <= set(POTENCY_FIELD_ORDER)
+
+
+def test_an_affinity_stated_only_as_a_range_is_named_not_folded_away():
+    """940 rows on 2026.3.1 state a low and/or a high with no median. The
+    layer carries no number for them -- a point out of a bare interval
+    would be invented -- but `no_affinity_reported` read as if GtoPdb had
+    said nothing about them."""
+    em = Emit()
+    s = ingest_interactions(em, [_inter(**{
+        "Original Affinity Median nm": "",
+        "Original Affinity Low nm": "10",
+        "Original Affinity High nm": "100"})], KEYS, PROTS, IDX)
+    assert s["edges"] == 1
+    assert s["no_affinity_reported"] == 1
+    assert s["affinity_range_without_median"] == 1
+    q = em.edges[0]["qualifiers"]
+    assert "ki_nm" not in q, "a point was invented from an interval"
+    assert "potency_min_nm" not in q, (
+        "a range with no point is what assemble drops: potency_spread_field "
+        "has to name a qualifier that is on the edge")
+    # a row with neither is still only the first counter
+    em2 = Emit()
+    s2 = ingest_interactions(em2, [_inter(**{
+        "Original Affinity Median nm": ""})], KEYS, PROTS, IDX)
+    assert s2["no_affinity_reported"] == 1
+    assert not s2["affinity_range_without_median"]
+
+
+def test_the_export_never_states_a_median_and_a_range_on_one_row():
+    """THE MEASUREMENT _attach_spread RESTS ON, re-derived from the
+    download rather than quoted from it. If GtoPdb ever ships both on one
+    row, the range should come from the source's own interval instead of
+    from counting duplicates -- and `potency_n` would stop meaning the same
+    thing it means in host_targets, which is the reason this is a test and
+    not a comment."""
+    import re
+    from kgav.gtop import _attach_spread
+    path = ROOT / "data" / "raw" / "gtop" / "interactions.csv"
+    if not path.exists():
+        pytest.skip("the GtoP download is not in this checkout")
+    both = medians = ranges_only = 0
+    for r in _rows(path, INTERACTION_COLUMNS):
+        med = (r.get("Original Affinity Median nm") or "").strip()
+        span = ((r.get("Original Affinity Low nm") or "").strip()
+                or (r.get("Original Affinity High nm") or "").strip())
+        unit = (r.get("Original Affinity Units") or "").strip().upper()
+        if med and unit in AFFINITY_UNIT_TO_QUALIFIER:
+            medians += 1
+            both += bool(span)
+        elif not med and span:
+            ranges_only += 1
+    assert both == 0, (
+        f"{both} rows state a median AND an interval; _attach_spread says "
+        f"none do, and builds the range by counting duplicates instead")
+    doc = " ".join(_attach_spread.__doc__.split())
+    m = re.search(r"of the ([\d,]+) rows that state a usable median, "
+                  r"\*\*(\d+)\*\* state a low or a high\. The ([\d,]+) rows",
+                  doc)
+    assert m, "the docstring no longer states the census in the form read here"
+    if file_version(path) == "2026.3.1":
+        got = (medians, both, ranges_only)
+        want = tuple(int(g.replace(",", "")) for g in m.groups())
+        assert got == want, f"docstring says {want}, the download gives {got}"

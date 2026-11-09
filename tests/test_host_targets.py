@@ -639,3 +639,48 @@ def test_the_release_keeps_the_invariant_through_assembly():
             f"[{q['potency_min_nm']}, {q['potency_max_nm']}]")
         checked += 1
     assert checked, "no TARGETS edge carries a range; the layer is not in"
+
+
+def test_the_release_lost_no_range_to_a_merge():
+    """FIX-LIST P14's CLAIM, where it can be observed.
+
+    host_targets and gtop are the only layers that emit TARGETS and each
+    now writes a range over its own rows, so whichever potency wins a merge
+    brings the spread belonging to it. The test above says a surviving
+    range describes its own number; this one says none had to be dropped to
+    make that true -- which is the whole difference between P13's rule and
+    P14's fix.
+
+    Before P14, 551 edges arrived here with a potency and no range,
+    counted into the MANIFEST as potency_range_orphaned_by_merge.
+    """
+    import json
+    from kgav.assemble import POTENCY_FIELD_ORDER, _RANGE_QUALS
+    release = ROOT / "data" / "releases" / "v0.1"
+    if not (release / "edges.jsonl").exists():
+        pytest.skip("release v0.1 is not built in this checkout")
+    fields = set(POTENCY_FIELD_ORDER)
+    bare, with_range = [], 0
+    for line in (release / "edges.jsonl").read_text().splitlines():
+        if not line.strip():
+            continue
+        e = json.loads(line)
+        if e["predicate"] != "TARGETS":
+            continue
+        q = e.get("qualifiers") or {}
+        if not (fields & set(q)):
+            continue
+        if any(k in q for k in _RANGE_QUALS):
+            with_range += 1
+            # ALL FOUR OR NONE. A partial group would describe rows no
+            # layer collapsed, and the containment check above can pass on
+            # a mix by luck.
+            assert all(k in q for k in _RANGE_QUALS), (
+                f"{e['subject']} -> {e['object']} carries part of the "
+                f"group: {sorted(k for k in _RANGE_QUALS if k in q)}")
+        else:
+            bare.append(f"{e['subject']} -> {e['object']}")
+    assert with_range, "no TARGETS edge carries a range; the layers are not in"
+    assert not bare, (
+        f"{len(bare):,} TARGETS edge(s) state a potency and no range, so a "
+        f"spread was dropped at the merge: {bare[:3]}")

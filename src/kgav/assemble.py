@@ -344,20 +344,34 @@ def merge_edges(a: dict, b: dict, derive: DeriveFn | None = None,
     return out
 
 
-#: The four qualifiers host_targets writes together to say what spread sits
-#: behind its potency (fix-list P13).
+#: The four qualifiers a layer writes together to say what spread sits
+#: behind its potency (fix-list P13). host_targets and gtop are the only
+#: two layers that emit TARGETS, and each writes all four or none, which is
+#: what keeps the group intact through a merge: every name here resolves to
+#: the same side, so a surviving range is one layer's throughout.
 _RANGE_QUALS = ("potency_spread_field", "potency_n",
                 "potency_min_nm", "potency_max_nm")
+
+#: The order a layer names its spread field in when it measured more than
+#: one (fix-list P14). An edge has ONE range slot and gtop can hold a Ki and
+#: an IC50 for one pair, so the choice has to be declared rather than left
+#: to whichever dict key came out first.
+#:
+#: This is the `potency_field` enum of schema/kg_schema.yaml, in the
+#: schema's order, and test_potency_field_order_is_the_schemas reads the
+#: YAML rather than this tuple -- a tie-break written from the same
+#: literals it is checking would survive the schema changing underneath it.
+POTENCY_FIELD_ORDER = ("ic50_nm", "ec50_nm", "ki_nm", "kd_nm")
 
 
 def _drop_orphaned_potency_range(quals: dict, stats: Counter | None) -> None:
     """Remove a potency range that no longer describes the edge's potency.
 
     THE RANGE IS A STATEMENT ABOUT ANOTHER QUALIFIER, so it survives only
-    as long as that qualifier does. host_targets writes it over the rows it
-    collapsed; gtop writes a potency and no range; and on a shared triple
-    the earlier layer in LAYER_PRECEDENCE wins each qualifier
-    independently, so gtop's ic50_nm can land beside host_targets' range.
+    as long as that qualifier does. Each layer writes it over the rows it
+    collapsed, and on a shared triple the earlier layer in LAYER_PRECEDENCE
+    wins each qualifier INDEPENDENTLY -- so a layer that wrote a potency
+    without a range left its number beside another layer's spread.
 
     Measured on the release of 2026-11-09 before this ran: **544 of 14,381
     TARGETS edges (3.78%)** carried a range that did not contain the field
@@ -370,10 +384,13 @@ def _drop_orphaned_potency_range(quals: dict, stats: Counter | None) -> None:
     means "not recorded", which is true; a present one that contradicts
     its own number is the defect fix-list A4 was about, one layer up.
 
-    A BETTER FIX EXISTS AND IS BIGGER: have gtop emit its own range, so
-    whichever potency wins brings the spread that belongs to it. That
-    recovers the 544 rather than discarding them, and is filed rather than
-    smuggled in here.
+    FIX-LIST P14 STOPPED IT FIRING ON THE RELEASE, by giving gtop a range
+    of its own: whichever potency wins now brings the spread belonging to
+    it, so the 551 carry a range instead of losing one. This stays, and
+    must: it is the only thing standing between a future layer that emits
+    TARGETS with a bare potency and a published range describing rows that
+    were never measured together. A counter at zero is the evidence that
+    the layers agree, and the one that would speak up if they stopped.
     """
     named = quals.get("potency_spread_field")
     if named is None:

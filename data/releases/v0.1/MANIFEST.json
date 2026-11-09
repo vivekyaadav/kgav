@@ -46,7 +46,7 @@
     "gtop": {
       "path": "data/releases/v0.1-gtop",
       "nodes_sha": "e3b0c44298fc1c14",
-      "edges_sha": "723146b628bbbf12",
+      "edges_sha": "c0b5ba84a9dfe4c3",
       "sources": {
         "guidetopharmacology": {
           "published": "2026-10-12",
@@ -66,7 +66,7 @@
     "similarity": {
       "path": "data/releases/v0.1-similarity",
       "nodes_sha": "e3b0c44298fc1c14",
-      "edges_sha": "262cfc5ef0cceb2b",
+      "edges_sha": "6cd90b09fb98fffb",
       "sources": {
         "rdkit": "2026.03.6"
       }
@@ -133,11 +133,10 @@
     "qualifier_precedence_decided:ic50_nm": 3799,
     "qualifier_precedence_decided:kd_nm": 88,
     "qualifier_precedence_decided:ki_nm": 446,
-    "qualifier_precedence_decided:potency_spread_field": 4416,
-    "qualifier_precedence_decided:potency_n": 2768,
-    "qualifier_precedence_decided:potency_min_nm": 4305,
-    "qualifier_precedence_decided:potency_max_nm": 4319,
-    "potency_range_orphaned_by_merge": 551,
+    "qualifier_precedence_decided:potency_spread_field": 4764,
+    "qualifier_precedence_decided:potency_n": 3992,
+    "qualifier_precedence_decided:potency_min_nm": 6124,
+    "qualifier_precedence_decided:potency_max_nm": 6143,
     "qualifier_kept_more_specific:direction": 47,
     "qualifier_irreconcilable:direction": 14
   },
@@ -177,7 +176,7 @@
   "release": "v0.1",
   "hub_cut_degree": 460,
   "code": {
-    "commit": "33e95f0d3ac8b698a6943b42d873c056b451d271",
+    "commit": "28aa8e54d46fb556011b18dbd79b2741ce793135",
     "dirty": true
   }
 }
