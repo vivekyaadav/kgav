@@ -992,3 +992,57 @@ def test_a_layer_that_writes_half_the_group_is_what_the_drop_rule_is_for():
     assert not [k for k in _RANGE_QUALS if k in q], (
         f"a range survived beside a potency it does not describe: {q}")
     assert stats["potency_range_orphaned_by_merge"] == 1
+
+
+# ------------------------------------ a caveat survives a merge (L9)
+def test_the_dose_series_caveat_is_sticky_in_both_directions():
+    """`outside_dose_series` is a fact about ONE source row and edges
+    collapse rows. Settled by LAYER_PRECEDENCE it vanished on 652 edges of
+    the 2026-11-09 rebuild -- published as false while a contributing row
+    was flagged, which is the one reading that misleads: a consumer
+    filtering `outside_dose_series == false` would keep exactly the edges
+    the flag exists to expose.
+
+    Both orders are asserted because a sticky caveat that depends on merge
+    order is not sticky; resolve_qualifier's docstring rests on being
+    associative and idempotent.
+    """
+    for hi, lo, want in ((False, True, True), (True, False, True),
+                         (True, True, True), (False, False, False)):
+        got = resolve_qualifier("outside_dose_series", hi, lo, Counter())
+        assert got is want, f"hi={hi}, lo={lo} gave {got}, wanted {want}"
+
+
+def test_the_caveat_is_not_silently_decided_by_precedence():
+    """The counter that reported the defect must stop reporting it, and the
+    one that records a kept caveat must start. A ladder that produced the
+    right value with no record of the disagreement would hide the 652."""
+    stats = Counter()
+    resolve_qualifier("outside_dose_series", False, True, stats)
+    assert not stats["qualifier_precedence_decided:outside_dose_series"]
+    assert stats["qualifier_kept_more_specific:outside_dose_series"] == 1
+
+
+@needs_release
+def test_no_release_edge_has_a_precedence_decided_caveat():
+    """On the release, not in isolation: the MANIFEST counter is the thing
+    that measured the defect."""
+    m = json.loads((ASSEMBLED / "MANIFEST.json").read_text())
+    merges = m.get("merges") or {}
+    assert not merges.get("qualifier_precedence_decided:outside_dose_series"), (
+        f"{merges['qualifier_precedence_decided:outside_dose_series']} edges "
+        f"still have the dose-series caveat decided by layer precedence; the "
+        f"ladder is not reaching the assembly")
+    # AND THE VERDICT, WHICH HAS NO LADDER AND NEEDS NONE TODAY. Two rows
+    # disagreeing about `curator_verdict` would be settled silently by
+    # precedence, exactly as the caveat was -- and unlike the caveat there
+    # is no safe direction to prefer, since neither "active" nor "inactive"
+    # is the more specific claim. On this release it never happens, so the
+    # honest thing is to COUNT it rather than engineer a rule for a case
+    # with no instances (the argument fix-list P6's "latent on v0.1" makes).
+    # If this ever fires, the answer is CONTESTED semantics and a schema
+    # value for it, not a ranking.
+    assert not merges.get("qualifier_precedence_decided:curator_verdict"), (
+        f"{merges.get('qualifier_precedence_decided:curator_verdict')} edges "
+        f"merge rows whose curators disagree, and precedence is picking the "
+        f"verdict silently. This needs a decision, not a default")

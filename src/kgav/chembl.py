@@ -431,6 +431,11 @@ def query_activities(db: Path, taxa: list[str]) -> list[dict]:
                act.standard_relation,
                a.description, a.assay_type, a.chembl_id AS assay,
                a.doc_id,
+               -- WHAT THE CURATOR WROTE (fix-list L9). Read and recorded,
+               -- not obeyed: the label still comes from the uniform
+               -- threshold in labels.py. 17,911 of 39,039 candidate rows
+               -- carry one and most are not verdicts -- see curator_note.
+               act.activity_comment,
                d.year, d.pubmed_id
         FROM activities act
         JOIN assays a          ON act.assay_id = a.assay_id
@@ -559,9 +564,62 @@ def assay_readout(description: str, assay_type_code: str | None = None) -> tuple
 # the organism edges are the held-out labels, so which assay produced a
 # label is the question V6 exists to answer. Both are declared on
 # HAS_ANTIVIRAL_ACTIVITY_AGAINST, so admitting them widens nothing.
+#: What a curator's `activity_comment` says, in the four kinds that occur
+#: (fix-list L9). MEASURED on chembl_37 over the 39,039 candidate activity
+#: rows for the declared taxa, 2026-11-09:
+#:
+#:     21,128  no comment
+#:      9,200  a replicate count, "No. Measurements = N"
+#:      6,736  "Falls Outside The Dose Series"
+#:      1,022  a verdict of active (1,013 "active", 7 "ACTIVE", 2 other)
+#:         36  a verdict of inactive (20 "INACTIVE", 16 in words)
+#:        917  other prose
+#:
+#: THE ROW SAID 1,040 AND THAT WAS THE VERDICTS ALONE. The field is mostly
+#: not a verdict, and the largest class is a caveat about the MEASUREMENT:
+#: a potency that falls outside the dose series was not read off the tested
+#: concentrations. 217 of those rows are under the 10 uM cut and therefore
+#: become ACTIVE labels on an extrapolation.
+#:
+#: NOT OBEYED, RECORDED. Whether a curator's word overrides a uniform
+#: threshold is a protocol question and the answer taken was: the threshold
+#: decides, and the disagreement is carried on the edge so a reader can see
+#: it and filter on it. 697 distinct comment strings is also why this
+#: returns a class rather than the text: a free-text field on an edge is
+#: not something a downstream filter can rely on.
+_REPLICATES = re.compile(r"no\. measurements = \d+\Z", re.I)
+
+
+def curator_note(comment: str | None) -> tuple[str | None, bool]:
+    """(verdict, outside_dose_series) from ChEMBL's activity_comment.
+
+    The verdict is None unless the curator stated one. `outside_dose_series`
+    is a fact about the measurement, not a verdict, so it travels separately
+    -- a row can be both ("Active, Falls Outside The Dose Series" does not
+    occur on chembl_37, but nothing in the field's definition forbids it).
+    """
+    s = (comment or "").strip().lower()
+    if not s:
+        return None, False
+    outside = "falls outside the dose series" in s
+    if _REPLICATES.match(s):
+        return None, outside
+    if s.startswith("active") or s == "active cc50==ic50":
+        return "active", outside
+    if (s == "inactive" or s.startswith("not active")
+            or "failed to show" in s or "no activity" in s):
+        return "inactive", outside
+    return None, outside
+
+
 ORGANISM_QUALIFIERS = ("ec50_nm", "ic50_nm", "cc50_nm", "relation",
                        "assay_type", "cell_line", "selectivity_index",
-                       "nominal_protein_target", "assay_id", "document_id")
+                       "nominal_protein_target", "assay_id", "document_id",
+                       # AND THE CURATOR'S OWN WORDS (fix-list L9), for the
+                       # same reason as assay_id above: the organism edges
+                       # ARE the held-out labels, so a curator disagreeing
+                       # with the label is exactly what has to be visible.
+                       "curator_verdict", "outside_dose_series")
 
 EMITTED_COUNTERS = ("protein_edges", "measured_inactive_edges",
                     "organism_edges", "reattributed_to_organism")
@@ -697,6 +755,16 @@ def ingest_activities(em, rows: list[dict], viral_targets: dict[str, dict[str, s
             quals["assay_id"] = str(r["assay"])
         if r.get("doc_id") is not None:
             quals["document_id"] = str(r["doc_id"])
+        # WHAT THE CURATOR WROTE, BESIDE THE NUMBER (fix-list L9). Before
+        # the branch, for the reason stated above: the organism rows are
+        # the labels. `outside_dose_series` is written on EVERY edge of
+        # this layer, false included, so that absent and false mean
+        # different things -- absent is a source with no such field,
+        # false is ChEMBL saying this row is inside its dose series.
+        verdict, outside = curator_note(r.get("activity_comment"))
+        if verdict is not None:
+            quals["curator_verdict"] = verdict
+        quals["outside_dose_series"] = outside
 
         if r["target_type"] == "ORGANISM":
             # Ki and Kd are binding constants against a purified enzyme; they

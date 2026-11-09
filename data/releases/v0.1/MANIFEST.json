@@ -30,7 +30,7 @@
     "chembl": {
       "path": "data/releases/v0.1-chembl",
       "nodes_sha": "0b5c03286e830cdc",
-      "edges_sha": "7b01f75d6616802d",
+      "edges_sha": "70cc2cf4bdebd549",
       "sources": {
         "chembl": "chembl_37"
       }
@@ -129,6 +129,7 @@
     "qualifier_precedence_decided:relation": 1208,
     "qualifier_precedence_decided:document_id": 3201,
     "qualifier_precedence_decided:assay_type": 1602,
+    "qualifier_kept_more_specific:outside_dose_series": 100,
     "qualifier_precedence_decided:nominal_protein_target": 9,
     "qualifier_precedence_decided:ic50_nm": 3799,
     "qualifier_precedence_decided:kd_nm": 88,
@@ -176,7 +177,7 @@
   "release": "v0.1",
   "hub_cut_degree": 460,
   "code": {
-    "commit": "f78daddeb79002c3459db40554d72ed55132b26d",
+    "commit": "e6e7d4d8fd887ff968de4da09e24e97fa51ff85f",
     "dirty": true
   }
 }

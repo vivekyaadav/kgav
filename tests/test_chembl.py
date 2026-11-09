@@ -82,7 +82,13 @@ def fake_db(tmp_path):
     CREATE TABLE assays(assay_id INT, tid INT, description TEXT, assay_type TEXT, chembl_id TEXT, doc_id INT);
     CREATE TABLE docs(doc_id INT, year INT, pubmed_id INT);
     CREATE TABLE activities(activity_id INT, assay_id INT, molregno INT, standard_type TEXT,
-                            standard_value REAL, standard_units TEXT, standard_relation TEXT);
+                            standard_value REAL, standard_units TEXT, standard_relation TEXT,
+                            -- fix-list L9. The real table has had this
+                            -- column throughout; this fixture did not, and
+                            -- query_activities selecting it failed every
+                            -- test here at once -- which is the fixture
+                            -- doing its job: it stands in for the schema.
+                            activity_comment TEXT);
     """)
     con.executemany("INSERT INTO molecule_dictionary VALUES(?,?,?,?)",
                     [(1, "CHEMBL1", 4, "a"), (2, "CHEMBL2", 4, "b"), (3, "CHEMBL3", None, "c")])
@@ -100,13 +106,16 @@ def fake_db(tmp_path):
                      (5, 10, "Inhibition of an unspecified viral enzyme", "B", "A5", 1),
                      (6, 11, "Cell based antiviral assay against SARS-CoV-2", "F", "A6", 1)])
     con.executemany("INSERT INTO docs VALUES(?,?,?)", [(1, 2021, 33333333)])
-    con.executemany("INSERT INTO activities VALUES(?,?,?,?,?,?,?)",
-                    [(1, 1, 1, "IC50", 25.0, "nM", "="),
-                     (2, 2, 2, "IC50", 1.5, "uM", "="),
-                     (5, 5, 1, "IC50", 10000.0, "nM", ">"),
-                     (6, 6, 2, "EC50", 500.0, "nM", "="),
-                     (7, 6, 3, "EC50", 50.0, "nM", "="),
-                     (8, 6, 2, "EC50", 1.0, "ug.mL-1", "=")])
+    con.executemany("INSERT INTO activities VALUES(?,?,?,?,?,?,?,?)",
+                    [(1, 1, 1, "IC50", 25.0, "nM", "=", None),
+                     (2, 2, 2, "IC50", 1.5, "uM", "=", None),
+                     (5, 5, 1, "IC50", 10000.0, "nM", ">", None),
+                     (6, 6, 2, "EC50", 500.0, "nM", "=", None),
+                     # one row carrying each of the two things a curator
+                     # writes, so the query's new column is exercised
+                     (7, 6, 3, "EC50", 50.0, "nM", "=", "INACTIVE"),
+                     (8, 6, 2, "EC50", 1.0, "ug.mL-1", "=",
+                      "Falls Outside The Dose Series")])
     con.commit()
     con.close()
     return p
@@ -956,9 +965,9 @@ def test_the_gate_census_partitions_every_row(fake_db):
     none is NULL -- so a non-potency row and a NULL row are added here to
     exercise both gates."""
     con = sqlite3.connect(fake_db)
-    con.executemany("INSERT INTO activities VALUES(?,?,?,?,?,?,?)",
-                    [(20, 1, 1, "Inhibition", 90.0, "%", "="),
-                     (21, 1, 1, "EC50", None, "nM", "=")])
+    con.executemany("INSERT INTO activities VALUES(?,?,?,?,?,?,?,?)",
+                    [(20, 1, 1, "Inhibition", 90.0, "%", "=", None),
+                     (21, 1, 1, "EC50", None, "nM", "=", None)])
     con.commit()
     con.close()
     c = chembl_mod.gate_census(fake_db, ["2697049"])
@@ -995,3 +1004,136 @@ def test_an_empty_taxon_list_is_refused():
     gate as costing nothing."""
     with pytest.raises(ValueError):
         chembl_mod.gate_census(Path("unused.db"), [])
+
+
+# ------------------------------- what the curator wrote, recorded (L9)
+@pytest.mark.parametrize("comment,verdict,outside", [
+    (None, None, False),
+    ("", None, False),
+    ("active", "active", False),
+    ("ACTIVE", "active", False),
+    ("Active Cc50==Ic50", "active", False),
+    ("INACTIVE", "inactive", False),
+    ("Not Active", "inactive", False),
+    ("Failed To Show Significant Antiviral Activity Below 100 Um",
+     "inactive", False),
+    # the largest class is not a verdict at all
+    ("Falls Outside The Dose Series", None, True),
+    ("No. Measurements = 1", None, False),
+    ("No. Measurements = 23", None, False),
+    # a replicate count is not a verdict even when it mentions one
+    ("Dtt Insensitive", None, False),
+    ("Moderate Antiviral Activity", None, False),
+])
+def test_the_curators_comment_is_classified_not_guessed(comment, verdict,
+                                                        outside):
+    from kgav.chembl import curator_note
+    assert curator_note(comment) == (verdict, outside)
+
+
+def test_the_comment_is_recorded_and_not_obeyed():
+    """THE PROTOCOL DECISION, pinned. The uniform threshold decides the
+    label; the curator's disagreement rides along so a reader can see it.
+    A row a curator called INACTIVE at 50 nM is still a positive."""
+    from kgav.labels import classify
+    em = Emit()
+    s = ingest_activities(
+        em,
+        [_row(assay="A1", compound="CHEMBL1", inchikey="A" * 27,
+              target_type="ORGANISM", target_name="SARS-CoV-2",
+              accession=None, standard_value=50.0,
+              standard_type="EC50", activity_comment="INACTIVE")],
+        {"2697049": {"nsp5": "UniProtKB:NSP5"}},
+        {"2697049": "2697049"}, "infores:chembl")
+    assert s["organism_edges"] == 1
+    e = next(x for x in em.edges
+             if x["predicate"] == "HAS_ANTIVIRAL_ACTIVITY_AGAINST")
+    q = e["qualifiers"]
+    assert q["curator_verdict"] == "inactive"
+    assert q["outside_dose_series"] is False
+    # and the label still comes from the number. classify reads the EDGE,
+    # not the qualifier dict -- passing `q` here returned None and looked
+    # like the curator had won.
+    assert classify(e) == "active", (
+        "the curator's word overrode the threshold; that is not the "
+        "decision this records")
+
+
+def test_outside_dose_series_is_written_even_when_false():
+    """ABSENT AND FALSE MEAN DIFFERENT THINGS. Absent is a source with no
+    such field -- ncats, gtop, the curated layer. False is ChEMBL saying
+    this row is inside its own dose series. Emitting it only when true
+    would collapse the two, which is the ambiguity fix-list P13 paid for."""
+    em = Emit()
+    ingest_activities(em, [_row(assay="A1")],
+                      {"2697049": {"nsp5": "UniProtKB:NSP5"}},
+                      {"2697049": "2697049"}, "infores:chembl")
+    assert em.edges
+    for e in em.edges:
+        assert "outside_dose_series" in e["qualifiers"], (
+            f"{e['predicate']} carries no outside_dose_series")
+        assert "curator_verdict" not in e["qualifiers"], (
+            "a verdict was invented for a row whose curator wrote nothing")
+
+
+def test_the_flagged_value_still_reaches_the_edge_with_its_flag():
+    em = Emit()
+    ingest_activities(
+        em,
+        [_row(assay="A1", standard_value=200.0,
+              activity_comment="Falls Outside The Dose Series")],
+        {"2697049": {"nsp5": "UniProtKB:NSP5"}},
+        {"2697049": "2697049"}, "infores:chembl")
+    e = next(x for x in em.edges if x["predicate"] == "INHIBITS")
+    assert e["qualifiers"]["outside_dose_series"] is True
+    assert e["qualifiers"]["ic50_nm"] == 200.0, (
+        "the value was dropped; whether a flagged row should carry a label "
+        "is fix-list L10's question, not this change's")
+
+
+def test_the_vocabulary_this_classifier_was_built_against_is_the_dbs():
+    """DERIVED FROM THE DATABASE, not from the comment above the function.
+    Skips without chembl_37 on disk, like the other tests that need it."""
+    import re
+    import sqlite3
+
+    from kgav.chembl import curator_note
+    db = (ROOT / "data" / "raw" / "chembl" / "chembl_37" / "chembl_37_sqlite"
+          / "chembl_37.db")
+    if not db.exists():
+        pytest.skip("chembl_37.db is not in this checkout")
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    rows = con.execute("""
+        SELECT act.activity_comment AS c, COUNT(*) AS n
+        FROM activities act
+        JOIN assays a ON act.assay_id = a.assay_id
+        JOIN target_dictionary td ON a.tid = td.tid
+        WHERE td.tax_id IN (2697049, 694009, 1335626, 277944, 11137,
+                            290028, 31631, 11053, 11060, 11069, 11070,
+                            11072, 11082, 11084, 64320)
+          AND act.standard_value IS NOT NULL
+          AND act.standard_type IN ('IC50','EC50','Ki','Kd')
+          AND act.activity_comment IS NOT NULL
+        GROUP BY 1
+    """).fetchall()
+    con.close()
+    assert rows, "no commented row for these taxa; nothing is being measured"
+    total = sum(n for _c, n in rows)
+    verdicts = sum(n for c, n in rows if curator_note(c)[0] is not None)
+    outside = sum(n for c, n in rows if curator_note(c)[1])
+    replicates = sum(n for c, n in rows
+                     if re.match(r"no\. measurements = \d+\Z", (c or "").lower()))
+    # THE CLAIM: the field is mostly NOT a verdict, which is what the fix
+    # list's "a curator records a verdict on 1,040 rows" missed.
+    assert verdicts < total / 2, (
+        f"{verdicts:,} of {total:,} commented rows are verdicts; the "
+        f"docstrings describing this field as mostly non-verdict are stale")
+    assert outside > verdicts, (
+        f"the dose-series caveat ({outside:,}) no longer outnumbers the "
+        f"verdicts ({verdicts:,}); fix-list L10's premise has moved")
+    assert replicates, "no replicate-count comment; the classifier's "
+    # every comment lands in a defined state rather than raising
+    for c, _n in rows:
+        v, o = curator_note(c)
+        assert v in (None, "active", "inactive"), (c, v)
+        assert isinstance(o, bool)

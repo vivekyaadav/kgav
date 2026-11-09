@@ -131,13 +131,39 @@ def test_the_ladder_is_ordered_least_specific_first():
     assert QUALIFIER_LADDER["direction"] == ("unknown", "modulator")
 
 
-def test_every_ladder_value_is_in_the_schema_enum():
-    enums = yaml.safe_load(
-        (ROOT / "schema" / "kg_schema.yaml").read_text())["enums"]
+def test_every_ladder_value_is_one_the_schema_permits():
+    """A ladder ranks values that will be written to edges, so a rung the
+    schema does not allow is a release that fails validation.
+
+    READ OFF THE QUALIFIER'S DECLARATION, not off a guessed enum name.
+    This looked for an enum called `target_<name>` or `<name>` and failed
+    outright when `outside_dose_series` joined the ladder (fix-list L9) --
+    a bool-typed qualifier has no enum, because its type IS its vocabulary.
+    Guessing the enum's name also meant a qualifier whose enum is called
+    something else would have been reported as having none.
+    """
+    doc = yaml.safe_load((ROOT / "schema" / "kg_schema.yaml").read_text())
+    enums = doc["enums"]
+    declared: dict[str, dict] = {}
+    for ec in doc["edge_classes"]:
+        for qname, spec in (ec.get("qualifiers") or {}).items():
+            if isinstance(spec, dict):
+                declared.setdefault(qname, spec)
     for name, ladder in QUALIFIER_LADDER.items():
-        enum = enums.get(f"target_{name}") or enums.get(name)
-        assert enum, f"no enum found for the {name!r} ladder"
-        assert set(ladder) <= set(enum), (name, ladder, enum)
+        spec = declared.get(name)
+        assert spec, f"{name!r} is laddered and declared on no edge class"
+        if spec.get("enum"):
+            enum = enums[spec["enum"]]
+            assert set(ladder) <= set(enum), (name, ladder, enum)
+        elif spec.get("type") == "bool":
+            assert set(ladder) == {False, True}, (
+                f"the {name!r} ladder ranks {ladder!r}; a bool qualifier's "
+                f"rungs are exactly False and True")
+        else:
+            raise AssertionError(
+                f"{name!r} is laddered and declared as "
+                f"{spec.get('type')!r} with no enum; a ladder over values "
+                f"the schema does not enumerate cannot be checked")
 
 
 # ------------------------------------------------------- through merge_edges

@@ -47,6 +47,18 @@ enums:
   # How a protein was assigned to a target class.
   class_assignment_method: [interpro, scop, cath, pfam, hmm, manual]
 
+  # WHAT A CHEMBL CURATOR WROTE BESIDE THE NUMBER (fix-list L9), in the two
+  # values that occur. Recorded, never obeyed: kgav.labels.classify decides
+  # a label from the uniform threshold, and this says when the curator
+  # disagreed. On chembl_37, 11 rows a curator called inactive are under
+  # the cut and are therefore POSITIVES; 959 the curator called active are
+  # above it, which is the source paper's looser criterion meeting this
+  # project's uniform one and is the design working.
+  #
+  # Absent means the curator stated no verdict -- 37,981 of 39,039 rows.
+  # It is NOT a third value: "no verdict" and "a verdict of neither" are
+  # different claims and only the first occurs.
+  curator_verdict: [active, inactive]
   # How two classes were compared.
   fold_comparison_method: [interpro_shared, tmalign, dali, foldseek, manual]
   # WHICH COMPARISON THE GATE MADE, AND WHAT IT ESTABLISHES (fix-list E6).
@@ -337,6 +349,23 @@ edge_classes:
       # WHICH ASSAY (fix-list V6). chembl emits this predicate from the
       # same rows as the others and had no identifier on any of them.
       assay_id: {type: string, doc: "the source's own assay identifier"}
+      # THE CURATOR'S OWN WORDS, READ AT LAST (fix-list L9). chembl.py read
+      # `activity_comment` nowhere -- 0 occurrences -- while curators had
+      # written on 17,911 of 39,039 candidate rows.
+      curator_verdict: {type: string, enum: curator_verdict,
+                        doc: "the curator's verdict, where they gave one"}
+      # AND THE LARGEST CLASS IS NOT A VERDICT BUT A CAVEAT ABOUT THE
+      # MEASUREMENT. 6,736 rows say "Falls Outside The Dose Series": the
+      # potency was not read off the concentrations actually tested. 217 of
+      # those are under the 10 uM cut and so become ACTIVE labels on an
+      # extrapolation. Whether such a row should carry a label at all is a
+      # protocol question (fix-list L10); this makes it answerable.
+      #
+      # WRITTEN ON EVERY EDGE OF THE CHEMBL LAYER, false included, so
+      # absent and false mean different things: absent is a source with no
+      # such field, false is ChEMBL saying this row is inside its series.
+      outside_dose_series: {type: bool,
+                            doc: "ChEMBL flagged the value as outside the tested dose series"}
       document_id: {type: string, doc: "the source's own document identifier"}
     required_qualifiers: [assay_type]
 
@@ -395,6 +424,23 @@ edge_classes:
       # WHICH ASSAY (fix-list V6). chembl emits this predicate from the
       # same rows as the others and had no identifier on any of them.
       assay_id: {type: string, doc: "the source's own assay identifier"}
+      # THE CURATOR'S OWN WORDS, READ AT LAST (fix-list L9). chembl.py read
+      # `activity_comment` nowhere -- 0 occurrences -- while curators had
+      # written on 17,911 of 39,039 candidate rows.
+      curator_verdict: {type: string, enum: curator_verdict,
+                        doc: "the curator's verdict, where they gave one"}
+      # AND THE LARGEST CLASS IS NOT A VERDICT BUT A CAVEAT ABOUT THE
+      # MEASUREMENT. 6,736 rows say "Falls Outside The Dose Series": the
+      # potency was not read off the concentrations actually tested. 217 of
+      # those are under the 10 uM cut and so become ACTIVE labels on an
+      # extrapolation. Whether such a row should carry a label at all is a
+      # protocol question (fix-list L10); this makes it answerable.
+      #
+      # WRITTEN ON EVERY EDGE OF THE CHEMBL LAYER, false included, so
+      # absent and false mean different things: absent is a source with no
+      # such field, false is ChEMBL saying this row is inside its series.
+      outside_dose_series: {type: bool,
+                            doc: "ChEMBL flagged the value as outside the tested dose series"}
       document_id: {type: string, doc: "the source's own document identifier"}
     required_qualifiers: [assay_type, target_resolution]
 
@@ -702,6 +748,23 @@ edge_classes:
       relation_imputed:  {type: bool}
       assay_type:        {type: string, enum: assay_type}
       assay_id: {type: string, doc: "the source's own assay identifier"}
+      # THE CURATOR'S OWN WORDS, READ AT LAST (fix-list L9). chembl.py read
+      # `activity_comment` nowhere -- 0 occurrences -- while curators had
+      # written on 17,911 of 39,039 candidate rows.
+      curator_verdict: {type: string, enum: curator_verdict,
+                        doc: "the curator's verdict, where they gave one"}
+      # AND THE LARGEST CLASS IS NOT A VERDICT BUT A CAVEAT ABOUT THE
+      # MEASUREMENT. 6,736 rows say "Falls Outside The Dose Series": the
+      # potency was not read off the concentrations actually tested. 217 of
+      # those are under the 10 uM cut and so become ACTIVE labels on an
+      # extrapolation. Whether such a row should carry a label at all is a
+      # protocol question (fix-list L10); this makes it answerable.
+      #
+      # WRITTEN ON EVERY EDGE OF THE CHEMBL LAYER, false included, so
+      # absent and false mean different things: absent is a source with no
+      # such field, false is ChEMBL saying this row is inside its series.
+      outside_dose_series: {type: bool,
+                            doc: "ChEMBL flagged the value as outside the tested dose series"}
       # Derived at assembly from the absence of every measured value; see the
       # long note on INHIBITS.unquantified for the three definitions this
       # replaces and the 1,264 self-contradicting edges they produced.

@@ -175,6 +175,22 @@ def _earliest(a: str | None, b: str | None) -> str | None:
 #: layer sits higher wins, including when its value is "unknown".
 QUALIFIER_LADDER: dict[str, tuple[str, ...]] = {
     "direction": ("unknown", "modulator"),
+    # A CAVEAT MUST SURVIVE A MERGE (fix-list L9). `outside_dose_series` is
+    # a fact about ONE source row -- ChEMBL flagging a potency as read
+    # outside the concentrations it tested -- and edges collapse rows. With
+    # no ladder it was settled by LAYER_PRECEDENCE, and the rebuild of
+    # 2026-11-09 counted **652** edges where the two sides disagreed: on
+    # some of those the published flag was `false` while a contributing row
+    # was flagged, so a reader filtering on `outside_dose_series == false`
+    # would have kept exactly the edges the flag exists to expose.
+    #
+    # True ranks above false, so the caveat is sticky: an edge is flagged
+    # if ANY row behind it was. That is the only direction that cannot
+    # mislead -- the opposite reading, "at least one row was clean", is not
+    # something this qualifier was ever asked to say. It stays
+    # order-independent and idempotent, which is the property
+    # resolve_qualifier's docstring rests on.
+    "outside_dose_series": (False, True),
 }
 
 #: What a qualifier becomes when two specific claims contradict, in place
@@ -246,10 +262,11 @@ def resolve_qualifier(name: str, hi: Any, lo: Any,
     ladder = QUALIFIER_LADDER.get(name)
     if ladder is None or lo is None or hi == lo:
         # A QUALIFIER WITH NO LADDER AND TWO DIFFERENT CLAIMS IS SETTLED BY
-        # LAYER_PRECEDENCE, SILENTLY (fix-list E6). `direction` is the only
-        # name with a ladder, so every measurement qualifier -- ic50_nm,
-        # cell_line, relation, assay_type, effect_size -- takes the higher
-        # layer's value and the other witness disappears with no record.
+        # LAYER_PRECEDENCE, SILENTLY (fix-list E6). Only `direction` and
+        # `outside_dose_series` have ladders, so every measurement
+        # qualifier -- ic50_nm, cell_line, relation, assay_type,
+        # effect_size -- takes the higher layer's value and the other
+        # witness disappears with no record.
         #
         # Precedence is a declared order, not row order, so the OUTCOME is
         # reproducible. What was missing is the fact that a choice was made
