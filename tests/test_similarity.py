@@ -249,15 +249,80 @@ def test_a_higher_score_still_outranks_a_lower_id():
     assert [r for _, r, _ in got] == ["zzz"], got
 
 
-def test_the_ingest_script_does_not_iterate_a_set_into_the_fingerprints():
-    """Belt and braces, pinned at the source. The tie-break above
-    makes the OUTPUT correct whatever order arrives, but emission
-    order should not depend on the hash seed either -- and a reader
-    of ingest_similarity.py should not have to know the protection
-    lives in another file."""
-    src = (ROOT / "scripts" / "ingest_similarity.py").read_text()
-    assert "for i in sorted(query)" in src
-    assert "for i in sorted(annotated)" in src
+# THE TEST THAT STOOD HERE PASSED FOR THREE REBUILDS WHILE THE DEFECT RAN
+# (fix-list P15). It read ingest_similarity.py and asserted the strings
+# "for i in sorted(query)" and "for i in sorted(annotated)" appeared in it.
+# They did. Those two dicts feed the survey printout; `build` was handed the
+# raw SETS and re-fingerprinted them, so the emission order followed set
+# iteration and `v0.1-similarity`'s edges_sha moved on every rebuild --
+# fdb80f57, 262cfc5e, 6cd90b09 -- while the stamp reported the layer as
+# changed each time and nobody could tell that from a real change.
+#
+# Its own docstring said "a reader of ingest_similarity.py should not have
+# to know the protection lives in another file", which is exactly what had
+# happened to it: the sort it pinned was in the file it read, and the
+# iteration it was protecting was not. A test written against the source
+# TEXT of one file cannot see the behaviour of another, so these two are
+# written against the behaviour.
+def test_build_emits_in_an_order_the_content_decides():
+    """Sorted by subject, and within a subject by (-similarity, id) -- a
+    property of the molecules, not of how the caller spelled the sets."""
+    ids = {f"INCHIKEY:Q{i:02d}": ASPIRIN_ME for i in range(6)}
+    refs = {f"INCHIKEY:R{i:02d}": ASPIRIN for i in range(6)}
+    em = Emit()
+    build(em, {**ids, **refs}, set(ids), set(refs), "infores:t", 0.0, 3)
+    subjects = [e["subject"] for e in em.edges]
+    assert subjects == sorted(subjects), subjects
+    for subj in set(subjects):
+        got = [(e["object"], e["qualifiers"]["tanimoto_ecfp4"])
+               for e in em.edges if e["subject"] == subj]
+        assert got == sorted(got, key=lambda kv: (-kv[1], kv[0])), got
+
+
+def test_build_does_not_carry_the_hash_seed_into_its_output():
+    """THE MEASUREMENT THE OLD TEST COULD NOT MAKE. Two processes, two
+    hash seeds, one byte-for-byte output.
+
+    The seeds are searched rather than assumed: if the sets happened to
+    iterate identically under both, the comparison would pass while
+    proving nothing -- the trap test_the_top_k_cut_does_not_depend_on_
+    reference_order guards with its `list(fwd) != list(rev)` assertion.
+    This asserts the raw set orders DID differ before comparing output.
+    """
+    import os
+    import subprocess
+    import sys
+
+    prog = (
+        "import json\n"
+        "from kgav.emit import Emit\n"
+        "from kgav.similarity import build\n"
+        "q = {f'INCHIKEY:Q{i:02d}': %r for i in range(8)}\n"
+        "r = {f'INCHIKEY:R{i:02d}': %r for i in range(8)}\n"
+        "em = Emit()\n"
+        "build(em, {**q, **r}, set(q), set(r), 'infores:t', 0.0, 4)\n"
+        "print(json.dumps({'set_order': list(set(q)),\n"
+        "                  'edges': em.edges}))\n"
+    ) % (ASPIRIN_ME, ASPIRIN)
+
+    def run(seed):
+        env = {**os.environ, "PYTHONHASHSEED": str(seed)}
+        out = subprocess.run([sys.executable, "-c", prog], check=True,
+                             capture_output=True, text=True, env=env,
+                             cwd=ROOT)
+        return json.loads(out.stdout)
+
+    base = run(0)
+    for seed in range(1, 12):
+        other = run(seed)
+        if other["set_order"] != base["set_order"]:
+            break
+    else:
+        pytest.skip("no seed in 1..11 made the sets iterate differently; "
+                    "this comparison could not detect an order dependence")
+    assert other["edges"] == base["edges"], (
+        f"the same molecules emitted a different file under PYTHONHASHSEED="
+        f"{seed}; the layer is not byte-reproducible")
 
 
 # ------------------------------------------ one compound is not its neighbour

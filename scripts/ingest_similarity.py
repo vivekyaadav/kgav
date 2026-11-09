@@ -93,18 +93,23 @@ def main() -> int:
               f"the query set so M7 cannot propose activity\n  against a "
               f"protein they were measured not to inhibit")
 
-    # SORTED, because `query` and `annotated` are SETS and these dicts
-    # carry their iteration order into similarity_edges as ref_ids.
-    # String hashing is randomised per process, so the reference order
-    # -- and therefore which of several tied neighbours survived the
-    # top-k cut -- changed between runs. Two builds of v0.1 from
-    # identical raw inputs differed by 8 CHEMICALLY_SIMILAR_TO edges.
+    # SORTED, because `query` and `annotated` are SETS and string hashing
+    # is randomised per process. Historically the reference order decided
+    # which of several tied neighbours survived the top-k cut, and two
+    # builds of v0.1 from identical raw inputs differed by 8
+    # CHEMICALLY_SIMILAR_TO edges.
     #
-    # similarity_edges now breaks that tie on the id, so this sort is
-    # no longer what makes the OUTPUT correct. It is kept because the
-    # emission order should not depend on the hash seed either, and
-    # because a reader of this line should not have to know that the
-    # protection lives in another file.
+    # THESE TWO DICTS REACH THE SURVEY BELOW AND NOTHING ELSE, and the
+    # comment that stood here claimed otherwise: it said the sort was kept
+    # so that "the emission order should not depend on the hash seed
+    # either" and that "a reader of this line should not have to know that
+    # the protection lives in another file". Both were wrong about this
+    # code. `build` was handed the raw SETS and re-fingerprinted them, so
+    # the emission order followed set iteration and the layer's edges_sha
+    # moved on every rebuild (fix-list P15). The two protections are where
+    # the work is: similarity_edges breaks the top-k tie on the id, and
+    # build sorts the sets it iterates. A survey of the distribution does
+    # not depend on either.
     q_fps, q_stats = fingerprints({i: smiles.get(i, "") for i in sorted(query)})
     r_fps, r_stats = fingerprints({i: smiles.get(i, "")
                                    for i in sorted(annotated)})

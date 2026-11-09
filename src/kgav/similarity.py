@@ -194,9 +194,32 @@ def build(em, smiles_by_id: dict[str, str], query_ids: set[str], ref_ids: set[st
     rather than today's, deliberately -- a computed edge has no assertion date,
     and stamping it with the build date would make it look newer than every
     real fact and corrupt any temporal split.
+
+    SORTED HERE, WHERE THE SETS ARE ACTUALLY READ (fix-list P15). Both
+    arguments are SETS, and string hashing is randomised per process, so
+    iterating them carried the hash seed into the emission order: the layer
+    wrote the same 3,154 edges in a different order on every build, and
+    `v0.1-similarity`'s edges_sha moved every time -- fdb80f57, 262cfc5e,
+    6cd90b09 over three rebuilds, which made the layer stamp unable to tell
+    a real change from the noise it exists to filter.
+
+    ingest_similarity.py sorts too, and its comment said that sort was kept
+    "because the emission order should not depend on the hash seed either".
+    It could not do that: those sorted dicts feed the survey printout, and
+    this function was handed the raw sets and re-fingerprinted them. A
+    protection one file away from the code it protects is the defect this
+    module's own history is made of, so the sort is now where the iteration
+    happens.
+
+    The EDGE SET never depended on it -- similarity_edges breaks the top-k
+    tie on the id, which is what closed the 8-edge discrepancy -- so this
+    changes bytes and ordering, not content, and the test asserts exactly
+    that.
     """
-    q_fps, q_stats = fingerprints({i: smiles_by_id.get(i, "") for i in query_ids})
-    r_fps, r_stats = fingerprints({i: smiles_by_id.get(i, "") for i in ref_ids})
+    q_fps, q_stats = fingerprints({i: smiles_by_id.get(i, "")
+                                   for i in sorted(query_ids)})
+    r_fps, r_stats = fingerprints({i: smiles_by_id.get(i, "")
+                                   for i in sorted(ref_ids)})
 
     stats: Counter = Counter()
     stats["query_fingerprinted"] = q_stats["fingerprinted"]
