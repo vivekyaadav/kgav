@@ -80,7 +80,7 @@
     "folds": {
       "path": "data/releases/v0.1-folds",
       "nodes_sha": "227b2780503e9e91",
-      "edges_sha": "84769ad4d26c627d",
+      "edges_sha": "58a6dd8ef38d9690",
       "sources": null
     }
   },
@@ -176,7 +176,7 @@
   "release": "v0.1",
   "hub_cut_degree": 460,
   "code": {
-    "commit": "9b49d0d5a71250e2ed24c18a392b3e379ae64c21",
+    "commit": "f78daddeb79002c3459db40554d72ed55132b26d",
     "dirty": true
   }
 }

@@ -753,6 +753,17 @@ def similarity_edges(results, emitted_ids: set[str]
         out.append((subj, obj, {
             "catalytic_type_match": g.catalytic_type_match,
             "method": "interpro_shared",
+            # WHICH COMPARISON, AND WHAT IT ESTABLISHES (fix-list E6).
+            # gate() returns both of these and this function discarded
+            # them, so the release could not distinguish a shared
+            # catalytic nucleophile from a shared polymerase motif. On
+            # v0.1 that distinction is the whole of M8: of 36 allowed
+            # cross-family pairs, 20 are nucleophile/strong and 16
+            # motif/weak, and the 4 with both ends in the spine -- every
+            # hop M8 can actually walk -- are all motif/weak. The strong
+            # pairs are proteases whose chains the spine does not build.
+            "fold_mode": g.mode,
+            "fold_strength": g.strength,
             "shared_superfamilies": list(g.shared)}))
     return out
 

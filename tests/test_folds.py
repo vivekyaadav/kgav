@@ -2,13 +2,18 @@
 does not license transfer across a different nucleophile.
 """
 
+import json
+
 import pytest
 from dataclasses import dataclass
 from dataclasses import field as dc_field
 from pathlib import Path
 
 from kgav.emit import Emit
-from kgav.folds import NUCLEOPHILES, ChainSpec, ResolvedChain, emit_classes, gate, motif_c_present
+from kgav.folds import (NUCLEOPHILES, ChainSpec, ResolvedChain, emit_classes, gate,
+                        motif_c_present, similarity_edges)
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _chain(label, family, role, cat_type, nucleophile, classes):
@@ -1394,3 +1399,148 @@ def test_an_unnamed_annotated_nucleophile_is_unknown_not_absent():
     a = _chain("A pro", "coronaviridae", "protease", cat, nuc, _P6_SHARED)
     b = _chain("B pro", "flaviviridae", "protease", "cysteine", "C100", _P6_SHARED)
     assert not gate(a, b).allowed
+
+
+# ------------------------------- what the comparison was, on the edge (E6)
+def _gate_results():
+    """Every cross-family pair, gated, exactly as ingest_folds enumerates
+    them -- from the cached chains, so this needs no network."""
+    ing = _ingest()
+    raw = json.loads((ROOT / "data" / "raw" / "folds"
+                      / "phase2_chains.json").read_text())
+    chains = ing.load_cache(raw)
+    # MIRRORING THE DRIVER EXACTLY: `usable = [c for c in chains if c.ok]`,
+    # then the score-eligible roles. An earlier version of this fixture also
+    # required `c.active_sites`, which silently removed every polymerase --
+    # the chains with no annotated nucleophile are precisely the ones that
+    # reach MOTIF mode -- so it derived 20 allowed pairs, all strong, and
+    # called the document wrong about the 16 weak ones. A fixture that does
+    # not reproduce the driver measures something else.
+    usable = [c for c in chains if c.ok]
+    eligible = [c for c in usable if c.spec.role in ing.SCORE_ELIGIBLE_ROLES]
+    out = []
+    for i, a in enumerate(eligible):
+        for b in eligible[i + 1:]:
+            if a.spec.family != b.spec.family:
+                out.append((a, b, gate(a, b)))
+    return out
+
+
+def test_the_edge_carries_the_comparison_the_gate_made():
+    """`similarity_edges` had the gate's mode and strength in hand and
+    wrote neither, so `catalytic_type_match: true` meant two different
+    things and the release could not say which (fix-list E6)."""
+    results = _gate_results()
+    assert results, "the chain cache is empty; nothing is being measured"
+    ids = {c.node_id for a, b, _ in results for c in (a, b)}
+    edges = similarity_edges(results, ids)
+    assert edges, "no edge was emitted; this test would pass vacuously"
+    by_pair = {(s, o): q for s, o, q in edges}
+    for a, b, g in results:
+        q = by_pair.get(tuple(sorted((a.node_id, b.node_id))))
+        if q is None:
+            continue
+        assert q["fold_mode"] == g.mode
+        assert q["fold_strength"] == g.strength
+
+
+def test_no_edge_claims_a_comparison_that_was_refused():
+    """`refused` is deliberately absent from the schema's `fold_mode` enum:
+    a refused comparison is not an edge. If this layer ever emitted one it
+    would fail validation, which is the point -- but it should fail here
+    first, with a sentence rather than an ENUM violation."""
+    import yaml
+    enum = yaml.safe_load(
+        (ROOT / "schema" / "kg_schema.yaml").read_text())["enums"]["fold_mode"]
+    results = _gate_results()
+    ids = {c.node_id for a, b, _ in results for c in (a, b)}
+    emitted = {q["fold_mode"] for _s, _o, q in similarity_edges(results, ids)}
+    assert emitted <= set(enum), f"{emitted - set(enum)} is not declared"
+    assert "refused" not in emitted
+    # and the gate DOES produce refusals, so the filter is doing work
+    assert any(g.mode == "refused" for _a, _b, g in results), (
+        "no pair was refused in this cache, so the exclusion above is "
+        "untested and this test cannot see a regression")
+
+
+def test_strength_and_match_are_not_the_same_claim():
+    """An emitted edge can be nucleophile/none -- a shared fold the gate
+    refuses to license because the catalytic residue differs. That edge
+    carries catalytic_type_match=False, so M8 skips it; the strength says
+    WHY, which is what a reader of the release could not see."""
+    results = _gate_results()
+    ids = {c.node_id for a, b, _ in results for c in (a, b)}
+    seen = {(q["fold_mode"], q["fold_strength"], q["catalytic_type_match"])
+            for _s, _o, q in similarity_edges(results, ids)}
+    assert ("nucleophile", "none", False) in seen, sorted(seen)
+    assert all(m != "refused" for m, _s, _c in seen)
+    # strength and the gate's verdict agree in both directions
+    for mode, strength, match in seen:
+        assert (strength == "none") == (not match) or mode == "nucleophile", (
+            f"({mode}, {strength}, {match}) breaks the correspondence")
+
+
+M8_FIGURE = "<!-- FIGURE: m8_fold_strength -->"
+
+
+def test_the_documents_m8_paragraph_is_the_measurement():
+    """FIGURES DERIVED, NOT TYPED. The paragraph states 36 allowed pairs,
+    20 strong, 16 weak, 0 strong reaching the release and 4 hops M8 can
+    walk; all five come from the cache and the release here."""
+    import re
+    doc = (ROOT / "docs" / "evaluation.md").read_text()
+    assert M8_FIGURE in doc, (
+        "the M8 paragraph lost its marker, so nothing re-derives it")
+    para = " ".join(doc.split(M8_FIGURE, 1)[1].split("\n\n")[0].split())
+    m = re.search(r"Of the \*\*(\d+)\*\* allowed cross-family pairs, "
+                  r"\*\*(\d+)\*\* are `nucleophile/strong` and \*\*(\d+)\*\* "
+                  r"are `motif/weak`.*?\*\*(\d+)\*\* of them reach the "
+                  r"release.*?\*\*(\d+)\*\*\s*\n?`?FOLD_SIMILAR_TO`? edges M8 "
+                  r"can walk", para)
+    if m is None:
+        m = re.search(r"Of the \*\*(\d+)\*\* allowed cross-family pairs, "
+                      r"\*\*(\d+)\*\* are `nucleophile/strong` and "
+                      r"\*\*(\d+)\*\* are `motif/weak`.*?\*\*(\d+)\*\* of "
+                      r"them reach the release.*?\*\*(\d+)\*\*", para)
+    assert m, ("the paragraph no longer states the five figures in the form "
+               "this test reads; update both together")
+    stated = tuple(int(g) for g in m.groups())
+
+    results = _gate_results()
+    allowed = [g for _a, _b, g in results if g.allowed]
+    strong = [g for g in allowed if (g.mode, g.strength) == ("nucleophile",
+                                                             "strong")]
+    weak = [g for g in allowed if (g.mode, g.strength) == ("motif", "weak")]
+    assert len(allowed) == len(strong) + len(weak), (
+        f"an allowed pair is neither strong-nucleophile nor weak-motif: "
+        f"{sorted({(g.mode, g.strength) for g in allowed})}")
+
+    release = ROOT / "data" / "releases" / "v0.1"
+    if not (release / "edges.jsonl").exists():
+        pytest.skip("release v0.1 is not built in this checkout")
+    walkable = []
+    for line in (release / "edges.jsonl").read_text().splitlines():
+        if not line.strip():
+            continue
+        e = json.loads(line)
+        if e["predicate"] != "FOLD_SIMILAR_TO":
+            continue
+        q = e.get("qualifiers") or {}
+        if q.get("catalytic_type_match"):
+            walkable.append(q)
+    in_release_strong = [q for q in walkable
+                         if q.get("fold_strength") == "strong"]
+    derived = (len(allowed), len(strong), len(weak),
+               len(in_release_strong), len(walkable))
+    assert stated == derived, (
+        f"the paragraph states {stated}; the cache and the release give "
+        f"{derived} (allowed, strong, weak, strong-in-release, walkable)")
+    bare = [q for q in walkable if "fold_strength" not in q]
+    assert not bare, (
+        f"{len(bare)} of {len(walkable)} M8-walkable hops carry no "
+        f"fold_strength: this release predates fix-list E6 and the "
+        f"paragraph describes a graph that is not on disk. Run make rebuild")
+    assert all(q["fold_strength"] == "weak" and q["fold_mode"] == "motif"
+               for q in walkable), (
+        "an M8-walkable hop is no longer motif/weak, so the paragraph's "
+        "claim that M8 is motif-only on this release is false")

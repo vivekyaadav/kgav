@@ -49,6 +49,21 @@ enums:
 
   # How two classes were compared.
   fold_comparison_method: [interpro_shared, tmalign, dali, foldseek, manual]
+  # WHICH COMPARISON THE GATE MADE, AND WHAT IT ESTABLISHES (fix-list E6).
+  # folds.gate() returns both and folds.similarity_edges discarded both, so
+  # a reader of the release saw catalytic_type_match: true and could not
+  # tell a shared catalytic nucleophile from a shared polymerase motif.
+  #
+  # gate()'s vocabulary also contains `refused`, deliberately NOT declared
+  # here: a refused comparison is not an edge, so an edge claiming it would
+  # contradict itself, and an emitter that started writing one would fail
+  # validation rather than publish it.
+  fold_mode: [nucleophile, motif]
+  # `none` is not a missing strength. It is a comparison the gate declined
+  # to license -- a differing catalytic nucleophile over a shared fold --
+  # carried on an edge whose catalytic_type_match is false. M8 already
+  # refuses those through that qualifier; this says why.
+  fold_strength: [strong, weak, none]
   # `contested` is written by assemble.resolve_qualifier when two
   # curated sources assert opposite directions for one pair -- 40 edges
   # on the GtoP download of 2026-11-01. It is NOT a synonym for
@@ -433,7 +448,14 @@ edge_classes:
       catalytic_type_match: {type: bool}
       shared_superfamilies: {type: "list[string]"}
       method:               {type: string, enum: fold_comparison_method}
-    required_qualifiers: [catalytic_type_match, method]
+      # REQUIRED, because catalytic_type_match alone is the ambiguity
+      # fix-list E6 is about: on this release every M8-traversable hop is
+      # motif/weak, and nothing on the edge said so.
+      fold_mode:            {type: string, enum: fold_mode,
+                             doc: "which comparison the gate made"}
+      fold_strength:        {type: string, enum: fold_strength,
+                             doc: "what that comparison establishes"}
+    required_qualifiers: [catalytic_type_match, method, fold_mode, fold_strength]
 
   - predicate: ENCODED_BY
     symmetric: false
@@ -957,6 +979,21 @@ metapaths:
     path: [SmallMolecule, INHIBITS, Protein, FOLD_SIMILAR_TO, Protein, ENCODED_BY, Gene, BELONGS_TO, OrganismTaxon]
     constraints:
       FOLD_SIMILAR_TO.catalytic_type_match: true
+      # AND DELIBERATELY NOT fold_strength (fix-list E6, decided 2026-11-09).
+      # Of 36 allowed cross-family pairs, 20 are nucleophile/strong and 16
+      # motif/weak -- but the strong ones are protease pairs whose chains the
+      # spine does not build, so ZERO reach the release. All 4 hops M8 can
+      # actually walk are motif/weak: SARS-CoV-2 RdRp and SARS-CoV RdRp
+      # against Dengue-2 NS5 and Zika NS5.
+      #
+      # Adding `fold_strength: strong` here would therefore not tighten M8,
+      # it would DELETE it -- zero hops -- and that is a claim about whether
+      # a shared polymerase motif is evidence at all, not a schema tidy-up.
+      # The decision was to keep the channel and make the weakness legible:
+      # the qualifier is on every edge, evaluation.md says M8 is motif-only
+      # on this release, and gate() still refuses the comparisons it calls
+      # artifacts. A reader who disagrees can add one line here and lose
+      # exactly four hops.
       # Same rule as M1: an edge that could not be resolved past the
       # polyprotein cannot support a CROSS-FAMILY fold claim either.
       INHIBITS.target_resolution: chain_from_assay_description

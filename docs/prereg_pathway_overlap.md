@@ -11,18 +11,20 @@ hard-negatives analysis and not to this one, and is left out rather than
 listed here for completeness.
 
 Date drafted: 2026-11-02. Release: v0.1 (78,789 nodes / 392,363 edges,
-`nodes_sha` 3356fae68afdf18d, `edges_sha` 75d46e49e6e6af97). Scripts:
+`nodes_sha` 3356fae68afdf18d, `edges_sha` c59bc64295ab95b1). Scripts:
 `scripts/pathway_landscape.py`, read by `src/kgav/landscape.py`.
 
-**The release identification has now been updated six times -- 2026-11-08
-and five times on 2026-11-09 -- and the analysis was not re-registered any
+**The release identification has now been updated seven times -- 2026-11-08
+and six times on 2026-11-09 -- and the analysis was not re-registered any
 of them**, because no rebuild has changed a measured figure. The fifth and
 sixth are P13, which added four qualifiers to `TARGETS` edges and removed
 them again from 551 merged ones, and P14, which gave the gtop layer a range
 of its own so that 16,436 of 17,982 edges keep one; this analysis reads
 `TARGETS` as a SET of (compound, protein) pairs and no qualifier of it, so a
 qualifier-only change cannot reach it for the same reason the date-only
-change of P8 could not.
+change of P8 could not. The seventh is E6, which records `fold_mode` and
+`fold_strength` on the 24 `FOLD_SIMILAR_TO` edges -- a predicate this
+analysis does not read at all, and a qualifier-only change to it.
 `data/results/pathway_landscape.json` is regenerated against each new
 release and differs from the previously committed version only in its
 **provenance and its own run date**: the code commit, the timestamp,

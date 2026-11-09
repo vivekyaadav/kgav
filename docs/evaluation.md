@@ -904,6 +904,28 @@ every drug it reaches (11 for SARS-CoV-2, 29 for Zika, 11 for SARS-CoV), as
 does M1 on HCoV-229E across 17. An AUC computed for those is separating
 reached from unreached, not ordering anything within reach.
 
+<!-- FIGURE: m8_fold_strength -->
+**And M8 is motif-only on this release, which is weaker than the channel
+sounds.** `folds.gate()` makes two kinds of comparison and labels what each
+establishes. NUCLEOPHILE mode requires an identical catalytic residue and is
+marked `strong`; MOTIF mode has no nucleophile at either end, rests on shared
+catalytic-domain entries, and the gate marks it `weak` and refuses to promote
+it, because *"polymerases share motif C across all three families, which does
+not discriminate the way Cys vs Ser does"*. Of the **36** allowed cross-family
+pairs, **20** are `nucleophile/strong` and **16** are `motif/weak` — but the
+strong ones are protease pairs whose comparator chains the spine does not
+build, so **0** of them reach the release. Every one of the **4**
+`FOLD_SIMILAR_TO` edges M8 can walk is `motif/weak`: SARS-CoV-2 RdRp and
+SARS-CoV RdRp against Dengue-2 NS5 and Zika NS5. Until 2026-11-09 none of
+this was on the edge — `similarity_edges` wrote `catalytic_type_match` and
+discarded the gate's own `mode` and `strength` — so a reader of the release
+saw `true` and could not tell the two apart (fix-list E6). Both are now
+declared qualifiers on every edge. M8 deliberately does **not** constrain on
+`fold_strength`: doing so would not tighten the channel, it would remove it,
+and that is a claim about whether a shared polymerase motif is evidence at
+all rather than a schema correction. The channel's own AUC row above already
+reports it as ranking nothing.
+
 **The scorings disagree about the ranking, sometimes badly.** Spearman
 between the two scorings' own scores falls to +0.171 for M2 on HCoV-NL63 and
 +0.310 for M3 on HCoV-HKU1. This is not a cosmetic rescaling.
