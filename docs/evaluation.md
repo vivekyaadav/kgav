@@ -1498,6 +1498,32 @@ us otherwise. The status check now excludes the generated-results directory.
 **The 14 committed files keep the old flag**; the next regeneration records
 it correctly.
 
+<!-- FIGURE: dirty_flag_releases -->
+**And the same field was still reporting on its own output one directory
+over, for another three weeks.** That fix excluded `data/results` and
+stopped there, but `assemble_release.py` writes
+`data/releases/v0.1/MANIFEST.json` — the one *tracked* file under
+`data/releases`, since `edges.jsonl` and `nodes.jsonl` are gitignored — on
+its first pass and stamps again on its second, by which point the file it
+wrote differs from `HEAD`. On a release the flag was not merely usually
+wrong but **unreachably** wrong: a manifest records `HEAD`'s hash and is
+committed afterwards, so its committed copy always names the *previous*
+commit and can never equal what the next build writes. There is no sequence
+of commits that reaches `dirty: false`. Of the **7** manifest versions
+committed before the fix, **7** say `dirty: true`, each naming the commit
+before its own. (That figure read 6 when it was first counted, an hour
+before a seventh version was committed; the test that checks it originally
+cut its population at a commit *subject*, and named the commit that
+documented the finding rather than the one that fixed it, so it agreed with
+the stale number. It now asks git whether each commit's own `provenance.py`
+had the exclusion yet.) What this cost was not the field. Reading the stamp back
+after the 2026-11-09 merge, the flag was quoted in conversation as "doing
+exactly the job it exists for, telling a reader not to trust the commit
+alone" — it cannot do that job, and never could; what actually showed that
+build had run on uncommitted code was the *commit* field beside it and the
+branch history. A value that is true by construction reads exactly like a
+measurement, and gets cited as one.
+
 It had already happened. These figures were recorded against an earlier
 release and were wrong by the time anyone re-ran the diagnostic.
 

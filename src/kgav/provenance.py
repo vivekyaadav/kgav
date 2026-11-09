@@ -103,16 +103,44 @@ def release_fingerprint(release: Path) -> dict[str, Any]:
 # this function, and both the broken versions above passed it by being
 # skipped. A test needs a tree whose state it controls, so the caller may
 # supply one.
-GENERATED_PREFIXES = ("data/results",)
+#
+# AND THE SAME DEFECT WAS STILL LIVE ONE DIRECTORY OVER (fix-list L12). The
+# fix above excluded data/results and stopped there, but assemble_release.py
+# writes data/releases/v0.1/MANIFEST.json, which is the ONE tracked file
+# under data/releases -- edges.jsonl and nodes.jsonl are gitignored. It is
+# written in phase 2 and stamped again in phase 4, by which time it differs
+# from HEAD, so the release manifest reported on its own output exactly as
+# the results files had.
+#
+# IT WAS NOT USUALLY TRUE, IT WAS ALWAYS TRUE. A manifest records HEAD's
+# hash and is committed afterwards, so its committed version necessarily
+# names the PREVIOUS commit and can never equal what the next build writes.
+# There is no sequence of commits that reaches dirty: False. Measured on
+# 2026-11-10: 7 of 7 committed versions written by code without this
+# exclusion say dirty: True, each naming the commit before its own. The
+# count is re-derived from git by a test, which is how it was caught reading
+# 6 -- it was counted before a seventh version was committed.
+#
+# WHAT IT COST, WHICH WAS NOT THE FIELD. The 2026-11-09 release carried
+# commit e6e7d4d + dirty: True, and that pair was read back as evidence that
+# the build had run on uncommitted code. The commit field and the branch
+# history said so; the flag could not, and did not. A field that is true by
+# construction gets quoted as though it were a measurement.
+#
+# Excluding data/releases does not blind the field to anything it was for:
+# a change under src, scripts or schema still dirties the stamp, which is
+# the whole of what "the CODE was dirty" ever meant.
+GENERATED_PREFIXES = ("data/results", "data/releases")
 _EXCLUDE = tuple(f":(exclude){p}" for p in GENERATED_PREFIXES)
 
 
 def code_commit(root: Path | None = None) -> dict[str, Any]:
     """The commit that produced a result, and whether the CODE was dirty.
 
-    Dirty means a tracked file OUTSIDE the generated-results directory
-    differs from HEAD. Results files are excluded because writing them is
-    what this function's callers do -- see GENERATED_PREFIXES above.
+    Dirty means a tracked file OUTSIDE the generated-output directories
+    differs from HEAD. Results files and the release manifest are excluded
+    because writing them is what this function's callers do -- see
+    GENERATED_PREFIXES above.
 
     `root` defaults to this repository and is overridden only by tests.
 

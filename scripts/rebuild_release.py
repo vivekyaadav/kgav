@@ -29,8 +29,57 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from kgav.pipeline import blocking, layer_dir, plan
+from kgav.pipeline import blocking, layer_dir, plan, release_dir
+from kgav.provenance import release_fingerprint
 from kgav.provenance import write_layer
+
+
+# THE CLOSING LINE USED TO ASSERT STALENESS RATHER THAN MEASURE IT (L13).
+# Every run ended "Results in data/results were computed from the previous
+# release and are now stale", which is false of the one run a reader most
+# needs it right about: a rebuild that changed nothing. The 2026-11-10
+# re-stamp rebuild came back byte-identical -- edges_sha f8a1ae20bfd89b37
+# unmoved -- and check-results reported 27 current, 0 stale.
+#
+# A pure function because the alternative is a sentence only a 7-minute
+# rebuild can exercise, and that is how the wrong sentence survived.
+#
+# NOTE THE SCOPE, WHICH IS NARROWER THAN IT LOOKS. An unchanged release
+# proves this RUN staled nothing. It does not prove the results were current
+# beforehand -- they may have been stale already, from an earlier run. Only
+# check_results.py compares each file's own stamp, so the pointer to it
+# stays in all three branches rather than being presented as redundant.
+def staleness_verdict(before: dict | None, after: dict | None) -> str:
+    """What this run did to data/results, measured from the two fingerprints.
+
+    `before` and `after` are release_fingerprint() dicts taken around the
+    run, or None/all-None when no release was on disk.
+    """
+    def shas(fp):
+        if not fp:
+            return None
+        pair = (fp.get("nodes_sha"), fp.get("edges_sha"))
+        return None if pair == (None, None) else pair
+
+    b, a = shas(before), shas(after)
+    if b is None:
+        return ("There was no release on disk before this run, so nothing in "
+                "data/results\ncan have been computed from it. "
+                "`make check-results` reports what each file\nwas stamped "
+                "against.")
+    if a is None:
+        return ("This run left no release on disk, which should not happen "
+                "after a\nsuccessful rebuild. Do not trust data/results "
+                "until `make check-results`\nsays what they match.")
+    if a == b:
+        return (f"This run did not change the release (edges_sha "
+                f"{after['edges_sha']}), so it\nmade nothing in "
+                "data/results stale. Whether those files were already\n"
+                "current is a separate question: `make check-results`.")
+    return (f"The release CHANGED this run (edges_sha {before['edges_sha']} "
+            f"-> {after['edges_sha']}),\nso every result computed from the "
+            "previous one is now stale. "
+            "`make check-results`\nreports which.")
 
 
 def main(argv=None) -> int:
@@ -39,6 +88,10 @@ def main(argv=None) -> int:
                     help="print the steps and exit, running nothing")
     ap.add_argument("--root", type=Path, default=ROOT)
     args = ap.parse_args(argv)
+
+    # Taken before any step runs, so the comparison at the end is a
+    # measurement and not a recollection.
+    before = release_fingerprint(release_dir(args.root))
 
     steps = plan(args.root)
     layers = [s for s in steps if s["kind"] == "layer"]
@@ -198,8 +251,7 @@ def main(argv=None) -> int:
     if reused:
         print(f"REUSED (not rebuilt this run): "
               f"{', '.join(s['name'] for s in reused)}")
-    print("Results in data/results were computed from the previous release "
-          "and are\nnow stale. `make check-results` reports which.")
+    print(staleness_verdict(before, release_fingerprint(release_dir(args.root))))
     return 0
 
 

@@ -162,6 +162,26 @@ def layer_dir(root: Path, name: str) -> Path:
     return root / "data" / "releases" / f"v0.1-{name}"
 
 
+def release_dir(root: Path) -> Path:
+    """Where assemble_release WRITES, as opposed to where it reads.
+
+    assemble_release.py's `--out` default reads this, and rebuild_release.py
+    uses it to fingerprint the release before and after a run (fix-list L13).
+    Those two must agree or the fingerprint measures a directory nobody
+    writes, which is the reason this function exists.
+
+    IT IS NOT YET THE ONLY COPY, and saying so here would be the same kind
+    of overclaim this codebase keeps finding. Nine other scripts still
+    default a `--release` argument to the path by hand -- check_results.py,
+    run_baselines.py, ingest_selectivity.py, ingest_similarity.py,
+    write_kg_report.py, data_audit.py and three diagnostics. They READ where
+    this says WRITE, so they cannot disagree with it silently in the way
+    assemble and rebuild could, but ten copies of one path is still ten.
+    Filed as L14 rather than converted here.
+    """
+    return root / "data" / "releases" / "v0.1"
+
+
 def plan(root: Path, env: dict | None = None) -> list[dict]:
     """The steps a rebuild would run, in order, each with its verdict.
 

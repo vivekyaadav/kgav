@@ -438,8 +438,17 @@ def _repo(tmp_path: Path) -> Path:
     """A miniature of this repository's layout, committed."""
     root = tmp_path / "repo"
     (root / "data" / "results").mkdir(parents=True)
+    (root / "data" / "releases" / "v0.1").mkdir(parents=True)
     (root / "src" / "kgav").mkdir(parents=True)
     (root / "data" / "results" / "metapath_comparison.json").write_text("{}\n")
+    # THE MINIATURE OMITTED THIS, WHICH IS WHY NOTHING CAUGHT L12. The
+    # fixture claimed to be a miniature of the repository and modelled only
+    # the directory the previous fix had already handled, so every test here
+    # passed while the release manifest went on dirtying its own stamp.
+    # MANIFEST.json is tracked; edges.jsonl and nodes.jsonl are gitignored,
+    # which is why it is the only file written here.
+    (root / "data" / "releases" / "v0.1" / "MANIFEST.json").write_text(
+        '{"code": {"commit": "older", "dirty": true}}\n')
     (root / "src" / "kgav" / "labels.py").write_text("x = 1\n")
     run = lambda *a: subprocess.run(a, cwd=root, check=True,
                                     capture_output=True, text=True)
@@ -481,6 +490,62 @@ def test_a_real_code_change_is_still_dirty(tmp_path):
     assert code_commit(root)["dirty"] is True
 
 
+def test_writing_the_release_manifest_does_not_make_the_CODE_dirty(tmp_path):
+    """L12, AND IT IS THE SAME DEFECT AS THE ONE ABOVE. assemble_release.py
+    writes data/releases/v0.1/MANIFEST.json, the only tracked file there,
+    then stamps again on its second pass -- by which time the file it wrote
+    differs from HEAD and the stamp called the CODE dirty."""
+    root = _repo(tmp_path)
+    (root / "data" / "releases" / "v0.1" / "MANIFEST.json").write_text(
+        '{"code": {"commit": "newer", "dirty": false}}\n')
+    assert code_commit(root)["dirty"] is False
+
+
+def test_a_new_release_directory_is_excluded_too(tmp_path):
+    """A rebuild that cuts a derived release (v0.1-train2021) writes a
+    directory git has never seen. `??` on a directory is one status line for
+    the whole tree below it, so a prefix that matched only existing files
+    would miss it."""
+    root = _repo(tmp_path)
+    (root / "data" / "releases" / "v0.1-train2021").mkdir()
+    (root / "data" / "releases" / "v0.1-train2021" / "MANIFEST.json").write_text("{}")
+    assert code_commit(root)["dirty"] is False
+
+
+def test_the_flag_could_not_reach_False_before_this_fix(tmp_path):
+    """WHY IT WAS ALWAYS TRUE AND NOT MERELY USUALLY TRUE, reproduced.
+
+    A manifest records HEAD's hash and is committed afterwards, so the
+    committed copy always names the PREVIOUS commit. The next build writes
+    HEAD's hash, which therefore always differs from the committed copy --
+    there is no sequence of commits that reaches a clean tree. Measured on
+    this repository the day the fix landed: 6 of 6 committed versions in
+    history said dirty: True, each naming the commit before its own.
+
+    The assertion is on the pathspec-free status, i.e. what the function saw
+    before data/releases was excluded, so this test fails if someone removes
+    the exclusion and keeps the comment."""
+    root = _repo(tmp_path)
+    manifest = root / "data" / "releases" / "v0.1" / "MANIFEST.json"
+    head = subprocess.run(("git", "rev-parse", "HEAD"), cwd=root, check=True,
+                          capture_output=True, text=True).stdout.strip()
+
+    # The committed copy names an older commit -- it cannot name `head`,
+    # because writing `head` into it is what the next build does.
+    assert "older" in manifest.read_text()
+    manifest.write_text(json.dumps({"code": {"commit": head, "dirty": False}}))
+
+    unfiltered = subprocess.run(("git", "status", "--porcelain"), cwd=root,
+                                check=True, capture_output=True, text=True).stdout
+    assert "data/releases/v0.1/MANIFEST.json" in unfiltered, (
+        "the manifest no longer dirties the tree at all, so the structural "
+        "argument in provenance.py is stale and should be rewritten")
+    assert code_commit(root)["dirty"] is False, (
+        "the exclusion is gone: the flag is back to reporting on its own "
+        "output and can never be False on a release"
+    )
+
+
 def test_an_untracked_source_file_is_dirty(tmp_path):
     """`??` outside the results directory is an uncommitted change like any
     other -- a script that exists only in the working tree can be the code
@@ -504,7 +569,8 @@ def test_the_exclusion_is_a_pathspec_not_a_string_comparison():
     """The parser this replaced miscounted a column and matched nothing. A
     pathspec is handed to git, which owns the path semantics."""
     import kgav.provenance as prov
-    assert prov._EXCLUDE == (":(exclude)data/results",)
+    assert prov._EXCLUDE == (":(exclude)data/results",
+                             ":(exclude)data/releases")
     src = (ROOT / "src" / "kgav" / "provenance.py").read_text()
     assert "_porcelain_paths" not in src, (
         "the hand-rolled parser is back; it is what got this wrong")
@@ -513,11 +579,14 @@ def test_the_exclusion_is_a_pathspec_not_a_string_comparison():
 def test_the_excluded_path_is_the_directory_the_scripts_actually_write():
     """A path that no longer matches where results land would restore the
     old behaviour silently."""
-    assert GENERATED_PREFIXES == ("data/results",)
+    assert GENERATED_PREFIXES == ("data/results", "data/releases")
     for rel in GENERATED_PREFIXES:
         assert (ROOT / rel).is_dir()
-    assert list((ROOT / "data" / "results").glob("*.json")), \
-        "nothing is written there, so the exclusion guards nothing"
+        # rglob, not glob: the release manifest sits a directory down, and a
+        # top-level-only check would have called data/releases empty and
+        # declared the exclusion pointless.
+        assert list((ROOT / rel).rglob("*.json")), \
+            f"nothing is written under {rel}, so the exclusion guards nothing"
 
 
 def test_code_commit_returns_the_two_keys_with_usable_types():
@@ -632,3 +701,95 @@ def test_every_script_writing_a_result_uses_write_results():
           "records the release NAME, which does not change when a "
           "release is rebuilt in place."
     )
+
+
+# ------------------------------- the document's claim about the release flag
+DIRTY_FIGURE = "<!-- FIGURE: dirty_flag_releases -->"
+#: WHICH VERSIONS THE FIGURE IS ABOUT, DERIVED FROM THE CAUSE. The first
+#: version of this test cut the population at a commit SUBJECT -- and named
+#: the commit that documented the finding rather than the one that fixed it,
+#: silently dropping a seventh pre-fix manifest version and making the
+#: document's figure one too small while the test agreed with it. A commit
+#: belongs to the pre-fix population if ITS OWN provenance.py did not yet
+#: exclude data/releases, which git can be asked directly, so the population
+#: shrinks for the right reason and never needs editing again.
+_PREFIX_MARKER = '"data/results", "data/releases"'
+
+
+def _release_was_excluded_at(sha: str, root: Path) -> bool | None:
+    """Did GENERATED_PREFIXES cover data/releases at this commit?"""
+    r = subprocess.run(("git", "show", f"{sha}:src/kgav/provenance.py"),
+                       cwd=root, capture_output=True, text=True, check=False)
+    if r.returncode != 0:
+        return None
+    return _PREFIX_MARKER in r.stdout
+
+
+def test_the_documents_dirty_flag_count_is_gits():
+    """FIGURE DERIVED FROM HISTORY, not typed. The paragraph says N of N
+    committed manifest versions read dirty: True before the fix; git holds
+    both numbers, so neither is a figure anyone can mistype into agreement.
+
+    Skipped rather than failed outside a git checkout: a tarball has no
+    history to derive from, which is a different situation from a wrong
+    figure."""
+    import re
+
+    doc = (ROOT / "docs" / "evaluation.md").read_text()
+    assert DIRTY_FIGURE in doc, "the dirty-flag paragraph lost its marker"
+    para = " ".join(doc.split(DIRTY_FIGURE, 1)[1].split("\n\n")[0].split())
+    m = re.search(r"Of the \*\*(\d+)\*\* manifest versions committed before "
+                  r"the fix, \*\*(\d+)\*\* say `dirty: true`", para)
+    assert m, ("the paragraph no longer states the two figures in the form "
+               "this test reads; update both together")
+    stated_total, stated_dirty = int(m.group(1)), int(m.group(2))
+
+    def git(*args):
+        r = subprocess.run(("git", *args), cwd=ROOT, capture_output=True,
+                           text=True, check=False)
+        return r.stdout if r.returncode == 0 else None
+
+    log = git("log", "--format=%h\t%s", "--",
+              "data/releases/v0.1/MANIFEST.json")
+    if log is None:
+        pytest.skip("not a git checkout, so there is no history to derive from")
+
+    rows = [ln.split("\t", 1) for ln in log.splitlines() if "\t" in ln]
+    before = [r for r in rows
+              if _release_was_excluded_at(r[0], ROOT) is False]
+    assert before, ("no manifest version predates the fix, so the "
+                    "paragraph's population is empty; it needs rewriting")
+
+    flags = []
+    for sha, _ in before:
+        blob = git("show", f"{sha}:data/releases/v0.1/MANIFEST.json")
+        if blob is None:
+            continue
+        flags.append(json.loads(blob).get("code", {}).get("dirty"))
+
+    assert (len(flags), flags.count(True)) == (stated_total, stated_dirty), (
+        f"the document says {stated_dirty} of {stated_total}; git says "
+        f"{flags.count(True)} of {len(flags)} ({flags})")
+
+
+def test_the_structural_claim_is_still_true_of_history():
+    """The paragraph's argument, not just its count: every committed manifest
+    names the commit BEFORE its own, because writing HEAD's hash into a file
+    and then committing that file moves HEAD. If one ever names its own
+    commit, the argument in provenance.py is wrong and must be rewritten."""
+    r = subprocess.run(("git", "log", "--format=%H", "--",
+                        "data/releases/v0.1/MANIFEST.json"),
+                       cwd=ROOT, capture_output=True, text=True, check=False)
+    if r.returncode != 0:
+        pytest.skip("not a git checkout")
+    for sha in r.stdout.split():
+        blob = subprocess.run(
+            ("git", "show", f"{sha}:data/releases/v0.1/MANIFEST.json"),
+            cwd=ROOT, capture_output=True, text=True, check=False)
+        if blob.returncode != 0:
+            continue
+        named = json.loads(blob.stdout).get("code", {}).get("commit")
+        assert named != sha, (
+            f"{sha[:8]} names its own commit, which git's hashing should "
+            "make impossible; the structural argument in provenance.py "
+            "and evaluation.md is wrong")

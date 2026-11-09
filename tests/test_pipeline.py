@@ -392,3 +392,81 @@ def test_the_plan_carries_each_layer_s_arguments(tmp_path):
     assert folds["args"] == ["--offline"]
     assert all("args" in s for s in steps), \
         "a step with no args key makes rebuild_release's lookup silent"
+
+
+# --------------------------------------------------- where the release lands
+def test_assemble_writes_where_release_dir_says(tmp_path):
+    """L13 LEANS ON THIS. rebuild_release.py fingerprints the release
+    directory before and after a run to decide whether it changed anything;
+    if that path and assemble_release's --out default ever drift, the
+    comparison silently measures a directory nobody writes and every run
+    reports "no release on disk". Read off the parser rather than grepped
+    for the literal, which is why build_parser was extracted."""
+    import assemble_release
+
+    from kgav.pipeline import release_dir
+    ap = assemble_release.build_parser(tmp_path)
+    out = {a.dest: a.default for a in ap._actions}["out"]
+    assert out == release_dir(tmp_path)
+    # And it must sit beside the per-layer directories, not inside one.
+    from kgav.pipeline import layer_dir
+    assert layer_dir(tmp_path, "spine").parent == release_dir(tmp_path).parent
+
+
+# ------------------------------------------- what a rebuild did to data/results
+#: L13. The closing line asserted staleness: every run ended "Results in
+#: data/results were computed from the previous release and are now stale".
+#: The 2026-11-10 re-stamp rebuild came back byte-identical and
+#: check-results reported 27 current, 0 stale -- so the sentence was false
+#: of the one run a reader most needs it right about.
+def _fp(nodes, edges):
+    return {"id": "v0.1", "nodes_sha": nodes, "edges_sha": edges}
+
+
+def test_an_unchanged_release_is_not_reported_as_staling_anything():
+    from rebuild_release import staleness_verdict
+    said = staleness_verdict(_fp("n", "e"), _fp("n", "e"))
+    assert "did not change the release" in said
+    assert "now stale" not in said
+
+
+def test_a_changed_release_is_reported_as_staling_the_results():
+    from rebuild_release import staleness_verdict
+    said = staleness_verdict(_fp("n1", "e1"), _fp("n1", "e2"))
+    assert "now stale" in said
+    # Both fingerprints named, so the claim is checkable against MANIFEST.
+    assert "e1" in said and "e2" in said
+
+
+def test_a_changed_NODES_sha_counts_as_changed_too():
+    """The edge file is the one that usually moves, which is exactly why a
+    comparison on edges alone would pass a node-only change through."""
+    from rebuild_release import staleness_verdict
+    assert "now stale" in staleness_verdict(_fp("n1", "e"), _fp("n2", "e"))
+
+
+def test_an_unchanged_release_does_not_claim_the_results_are_CURRENT():
+    """THE SCOPE IS NARROWER THAN THE GOOD NEWS. An unchanged release proves
+    this run staled nothing; it says nothing about whether the files were
+    already stale from an earlier run. Only check_results.py reads each
+    file's own stamp, so the pointer to it must survive in every branch."""
+    from rebuild_release import staleness_verdict
+    for before, after in [(_fp("n", "e"), _fp("n", "e")),
+                          (_fp("n1", "e1"), _fp("n1", "e2")),
+                          (_fp(None, None), _fp("n", "e")),
+                          (_fp("n", "e"), None)]:
+        said = staleness_verdict(before, after)
+        assert "check-results" in said, said
+        assert "are current" not in said
+        assert "nothing is stale" not in said
+
+
+def test_no_release_before_the_run_is_not_reported_as_unchanged():
+    """A fresh checkout has no data/releases/v0.1 -- `_sha256` returns None
+    for a missing file, so both shas are None and a naive equality check
+    would call that "unchanged" and tell the reader nothing went stale."""
+    from rebuild_release import staleness_verdict
+    for before in (None, _fp(None, None)):
+        said = staleness_verdict(before, _fp("n", "e"))
+        assert "no release on disk before this run" in said
+        assert "did not change the release" not in said

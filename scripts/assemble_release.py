@@ -17,6 +17,7 @@ from kgav.assemble import (
     connectivity_report,
     orphan_detail,
 )
+from kgav.pipeline import release_dir
 from kgav.provenance import code_commit, read_source
 from kgav.schema import load_schema, print_capped, report_violations
 
@@ -91,13 +92,25 @@ def source_block(layers: dict[str, Path]) -> dict:
     }
 
 
-def main() -> int:
-    root = Path(__file__).resolve().parents[1]
+def build_parser(root: Path | None = None) -> argparse.ArgumentParser:
+    """Extracted from main() so a test can read the --out default.
+
+    Where this script writes is a fact two other files depend on --
+    rebuild_release.py fingerprints that directory before and after a run
+    (L13) -- and a default buried inside main() can only be checked by
+    grepping for the path, which is a second copy of it.
+    """
+    root = Path(__file__).resolve().parents[1] if root is None else root
     ap = argparse.ArgumentParser()
     ap.add_argument("--releases", type=Path, default=root / "data" / "releases")
-    ap.add_argument("--out", type=Path, default=root / "data" / "releases" / "v0.1")
+    ap.add_argument("--out", type=Path, default=release_dir(root))
     ap.add_argument("--version", default="v0.1")
-    args = ap.parse_args()
+    return ap
+
+
+def main() -> int:
+    root = Path(__file__).resolve().parents[1]
+    args = build_parser(root).parse_args()
 
     declared = {name: args.releases / f"v0.1-{name}" for name in LAYER_PRECEDENCE}
     layers = {k: v for k, v in declared.items() if v.exists()}
