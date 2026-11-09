@@ -274,17 +274,36 @@ def test_an_overridden_screen_is_still_fetched():
     SCREEN_RATIONALE reporting both directions with an unsigned score, which
     needs curation from the paper.
     """
-    src = (ROOT / "scripts" / "ingest_orcs.py").read_text()
-    assert "overrides_early" in src, "fetchable is built before overrides load"
-    i_fetchable = src.index("fetchable = [")
-    i_overrides = src.index("overrides_early =")
-    assert i_overrides < i_fetchable, \
-        "overrides must be read BEFORE fetchable is built"
-    # Span by lines, not by the first "]" -- that one sits inside
-    # polarity_mode(s)[0] and ends the slice before the override clause.
-    seg = "\n".join(src[i_fetchable:].splitlines()[:4])
-    assert "overrides_early" in seg, \
-        f"fetchable must keep an unresolvable screen that has an override:\n{seg}"
+    # ASKED OF THE RULE, NOT OF THE FILE (fix-list P10). This compared the
+    # byte offsets of "overrides_early =" and "fetchable = [" and then read
+    # four lines of source, which tested the ORDER OF TWO LINES and the
+    # presence of a word -- not whether an overridden screen survives. The
+    # rule now lives in fetchable_screens, so it can simply be run; the
+    # extraction exists for this test.
+    import sys
+    from importlib import import_module
+    sys.path.insert(0, str(ROOT / "scripts"))
+    fetchable_screens = import_module("ingest_orcs").fetchable_screens
+
+    # A screen whose polarity cannot be resolved from its rationale: both
+    # directions, unsigned score -- the only kind an override exists for.
+    unresolvable = _screen(sid=9001,
+                           rationale="Increased/decreased resistance to virus",
+                           score_type="MAGeCK pos score")
+    assert polarity_mode(unresolvable)[0] == "unresolvable", (
+        "the fixture is no longer the case an override exists for, so this "
+        "test cannot see the defect it was written for")
+    resolvable = _screen(sid=9002, rationale="Increased resistance to virus")
+    assert polarity_mode(resolvable)[0] != "unresolvable"
+
+    without = fetchable_screens([unresolvable, resolvable], {})
+    assert [s["SCREEN_ID"] for s in without] == [9002], (
+        "an unresolvable screen with no override should not be fetched")
+    withit = fetchable_screens([unresolvable, resolvable], {"9001": "up"})
+    assert [s["SCREEN_ID"] for s in withit] == [9001, 9002], (
+        "a screen whose polarity comes from the override file was not "
+        "fetched, so ingest_screens would apply the override, count it as "
+        "applied, and skip the screen on no_gene_data one line later")
 
 
 def test_override_turns_an_unresolvable_screen_into_a_screen_level_one():

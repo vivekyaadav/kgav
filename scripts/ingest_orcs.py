@@ -68,6 +68,21 @@ def fetch_screen(sid: str, key: str, cache: Path, retries: int = 3) -> list[dict
     return None
 
 
+def fetchable_screens(usable: list[dict], overrides: dict) -> list[dict]:
+    """The screens whose gene results are worth downloading.
+
+    EXTRACTED SO IT CAN BE TESTED (fix-list P10). The rule used to be a
+    comprehension inside main(), three lines above a network fetch, so
+    tests/test_orcs.py asserted it by finding "overrides_early" in this
+    file and comparing string indices -- which cannot distinguish the rule
+    being right from the words being present, and says nothing about what
+    the list contains.
+    """
+    return [s for s in usable
+            if polarity_mode(s)[0] != "unresolvable"
+            or str(s["SCREEN_ID"]) in overrides]
+
+
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
@@ -141,9 +156,7 @@ def main() -> int:
     # APPLIED for a screen contributing nothing.
     overrides_early = json.loads(args.overrides.read_text()) \
         if args.overrides.exists() else {}
-    fetchable = [s for s in usable
-                 if polarity_mode(s)[0] != "unresolvable"
-                 or str(s["SCREEN_ID"]) in overrides_early]
+    fetchable = fetchable_screens(usable, overrides_early)
     print(f"\nfetching gene results for {len(fetchable)} screens")
     gene_rows: dict[str, list[dict]] = {}
     for i, s in enumerate(fetchable, 1):

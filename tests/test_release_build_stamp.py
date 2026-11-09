@@ -46,6 +46,13 @@ def test_the_assembler_stamps_the_build_commit():
     """Checked at the SOURCE, not on a manifest on disk. A release
     assembled before this change still has no stamp, and reading one
     of those would let the assembler lose the line and pass."""
+    # REVIEWED UNDER FIX-LIST P10 AND DELIBERATELY LEFT AS A SOURCE CHECK.
+    # The behavioural alternative is to read data/releases/*/MANIFEST.json,
+    # and the docstring above says why that is worse: a release assembled
+    # before the stamp existed carries none, so the assembler could lose
+    # the line and this would still pass. Running a real assembly needs all
+    # eleven layer directories, which no fixture here has. The weakness is
+    # real and named: this passes if the line moves into dead code.
     src = (ROOT / "scripts" / "assemble_release.py").read_text()
     assert 'manifest["code"] = code_commit(' in src, (
         "assemble_release.py no longer stamps the build commit")

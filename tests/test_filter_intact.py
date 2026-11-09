@@ -401,7 +401,10 @@ def layer_docs(roots=None):
 
 
 def test_no_doc_in_this_layer_says_a_source_has_never_been_read():
-    """The claim that cost an evening.
+    """The claim that cost an evening. (Reviewed under fix-list P10 and
+    kept textual, correctly: "no sentence in this layer says a source has
+    never been read" is a statement about prose, and prose cannot be
+    derived from the data. A grep is the right tool for it.)
 
     filter_intact's docstring said intact.zip was a file "nothing has ever
     read". True when written, stale by the time it was quoted back as

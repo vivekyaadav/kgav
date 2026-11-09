@@ -65,17 +65,75 @@ def test_an_identifier_is_not_an_identity_qualifier(predicate, names):
         f"fix-list L2 and moves the graph")
 
 
-def test_chembl_sets_them_before_the_branch():
+def test_chembl_sets_them_on_both_branches():
     """Setting them inside the protein branch reached only 39% of the
     HAS_ANTIVIRAL edges: the direct-organism rows emit from an earlier
-    branch and never saw the assignment. Measured, not assumed -- the
-    first version of this fix shipped at 9,465 of 24,073."""
-    src = (ROOT / "src" / "kgav" / "chembl.py").read_text()
-    shared = src.index('quals = {qual_field: nm, "relation": relation}')
-    branch = src.index('if r["target_type"] == "ORGANISM":', shared)
-    between = src[shared:branch]
-    assert 'quals["assay_id"]' in between
-    assert 'quals["document_id"]' in between
+    branch and never saw the assignment. Measured, not assumed -- the first
+    version of this fix shipped at 9,465 of 24,073.
+
+    ASKED OF THE EDGES, NOT OF THE FILE'S LAYOUT (fix-list P10). This
+    test used to locate two strings in chembl.py by index and assert that
+    the assignments appeared BETWEEN them. That holds whenever the lines
+    sit in that span, and stops holding when either anchor string is
+    reworded even if the behaviour is untouched -- while a branch added
+    *after* the span could reach neither anchor and break nothing here.
+    The defect it guards is "an edge from this branch has no identifier",
+    which is a property of the edges, so both branches are run instead.
+    """
+    from kgav.chembl import ingest_activities
+    from kgav.emit import Emit
+
+    def row(**kw):
+        base = {"compound": "CHEMBL1", "smiles": "C", "inchikey": "K" * 27,
+                "max_phase": 4, "drug_name": "d", "target": "CHEMBL_T",
+                "target_name": "Replicase polyprotein 1ab",
+                "target_type": "PROTEIN", "tax_id": 2697049,
+                "accession": "P0DTD1", "standard_type": "IC50",
+                "standard_value": 50.0, "standard_units": "nM",
+                "standard_relation": "=",
+                "description": "Inhibition of 3CLpro", "assay_type": "B",
+                "assay": "CHEMBL_A1", "year": 2021, "pubmed_id": 7,
+                # document_id is read from doc_id, not from pubmed_id, and
+                # the ingest sets it only when the row HAS one -- which the
+                # query guarantees (`a.doc_id` is selected) and a fixture
+                # does not. Both rows carry one so the assertion below can
+                # be strict about both fields.
+                "doc_id": "CHEMBL_D1"}
+        base.update(kw)
+        return base
+
+    em = Emit()
+    ingest_activities(
+        em,
+        # the protein branch, and the direct-organism branch that emits
+        # earlier and was the 61% this fix was missing
+        [row(assay="A_PROT", compound="CHEMBL1", inchikey="A" * 27),
+         row(assay="A_ORG", compound="CHEMBL2", inchikey="B" * 27,
+             target_type="ORGANISM", target_name="SARS-CoV-2",
+             accession=None, standard_value=20.0)],
+        {"2697049": {"nsp5": "UniProtKB:NSP5"}},
+        {"2697049": "2697049"}, "infores:chembl")
+    assert em.edges, "no edge was emitted; this test would pass vacuously"
+    seen = set()
+    for e in em.edges:
+        names = IDENTIFIER_PREDICATES.get(e["predicate"])
+        if not names:
+            continue
+        seen.add(e["predicate"])
+        q = e.get("qualifiers") or {}
+        missing = names - set(q)
+        assert not missing, (
+            f"{e['subject']} -{e['predicate']}-> {e['object']} carries no "
+            f"{sorted(missing)}; the branch it was emitted from does not "
+            f"set the experiment identifiers")
+        assert q["assay_id"] in ("A_PROT", "A_ORG"), q["assay_id"]
+    # BOTH branches, named: an organism edge and a protein edge. Without
+    # this the test passes on whichever branch happens to fire.
+    assert "HAS_ANTIVIRAL_ACTIVITY_AGAINST" in seen, (
+        "the direct-organism branch emitted nothing, so the 61% case this "
+        f"test exists for was not exercised (saw {sorted(seen)})")
+    assert seen & {"INHIBITS", "MEASURED_INACTIVE_AGAINST"}, (
+        f"the protein branch emitted nothing (saw {sorted(seen)})")
 
 
 def test_the_organism_allowlist_admits_them():

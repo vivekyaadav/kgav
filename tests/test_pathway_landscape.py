@@ -248,9 +248,17 @@ def test_the_written_file_carries_both_tails(tmp_path):
 def test_the_exact_tail_is_imported_not_reimplemented():
     """Phase 4 validated fisher_one_sided against scipy over 400 random
     tables. A second copy here would drift from the validated one."""
-    src = (ROOT / "scripts" / "pathway_landscape.py").read_text()
-    assert "from phase4_hcv_retrospective import fisher_one_sided" in src
-    assert "def fisher_one_sided" not in src
+    # BY IDENTITY, NOT BY TEXT (fix-list P10). See the note in
+    # test_label_headroom.py: an import line and an absent `def` can both
+    # hold while a renamed copy does the work.
+    import sys
+    from importlib import import_module
+    sys.path.insert(0, str(ROOT / "scripts"))
+    pl = import_module("pathway_landscape")
+    hcv = import_module("phase4_hcv_retrospective")
+    assert pl.fisher_one_sided is hcv.fisher_one_sided, (
+        "pathway_landscape has its own exact tail again; the validated one "
+        "was checked against scipy over 400 random tables")
 
 
 # ------------------------------------------------------------- end to end

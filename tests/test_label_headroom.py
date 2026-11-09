@@ -31,11 +31,24 @@ def test_the_statistic_is_imported_not_reimplemented():
     """A second copy would drift from the registered test, and the point of
     the power curve is to describe the test that actually ran -- including
     the defect where its ratio can come out negative."""
-    src = (ROOT / "scripts" / "label_headroom.py").read_text()
-    assert "from partial_degree import" in src
-    assert "def fit(" not in src
-    assert "def chi2_sf_1df(" not in src
-    assert "negativity defect included" in src
+    # BY IDENTITY, NOT BY TEXT (fix-list P10). This read the source for
+    # "from partial_degree import" and "def fit(" -- which passes while a
+    # copy sits beside the import under any other name, and is the shape of
+    # defect P15 found: a string assertion in one file standing in for
+    # behaviour in another. Comparing the objects proves there is one
+    # function, not two that happen to agree today.
+    import sys
+    from importlib import import_module
+    sys.path.insert(0, str(ROOT / "scripts"))
+    lh, pd_ = import_module("label_headroom"), import_module("partial_degree")
+    for name in ("fit", "chi2_sf_1df", "loglik", "standardise"):
+        assert getattr(lh, name) is getattr(pd_, name), (
+            f"label_headroom.{name} is not partial_degree's; a second copy "
+            f"would drift from the registered test")
+    assert (lh.ALPHA, lh.LAMBDA) == (pd_.ALPHA, pd_.LAMBDA)
+    # The prose claim stays a prose check: it is a claim, not behaviour.
+    assert "negativity defect included" in (
+        ROOT / "scripts" / "label_headroom.py").read_text()
 
 
 @pytest.mark.parametrize("alpha,want", [

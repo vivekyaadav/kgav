@@ -413,7 +413,16 @@ def check_on_disk(cfg: dict) -> int:
     return problems
 
 
-def main(argv=None) -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """The flags, reachable without running the fetcher (fix-list P10).
+
+    `--virus` takes ONE name per flag and appends, which is why every
+    caller quotes each name separately; tests/test_dryrun_promote.py used
+    to assert that by slicing this file's source text between `"--virus"`
+    and the next `)`, so a reformatting or a bracket inside a help string
+    would have broken or silently widened the check. argparse can be asked
+    instead, and this exists so that it can be.
+    """
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--virus", action="append", default=[],
                     help="virus name from config/viruses.yaml (repeatable)")
@@ -426,6 +435,11 @@ def main(argv=None) -> int:
     ap.add_argument("--force", action="store_true",
                     help="refetch files that already exist")
     ap.add_argument("--config", type=Path, default=CONFIG)
+    return ap
+
+
+def main(argv=None) -> int:
+    ap = build_parser()
     args = ap.parse_args(argv)
 
     cfg = load_register(args.config)

@@ -89,10 +89,24 @@ def test_the_threshold_lives_in_labels_not_in_this_script():
     """The prereg: "The implementation CALLS that function; it does not
     restate the rule." A 10,000 written here would be a second definition
     of activity on the measurement the whole verdict turns on."""
+    # THE ABSENCE GREP STAYS -- a literal 10,000 appearing here is exactly
+    # the second definition the prereg forbids, and no behavioural test can
+    # see a constant that is not yet used. What is ADDED is the part the
+    # text could not establish (fix-list P10): that the script calls
+    # labels.classify itself, and that its verdict MOVES when that rule
+    # moves. An import line proves neither.
+    import sys
+    from importlib import import_module
+
+    from kgav import labels
     src = (ROOT / "scripts" / "phase4_hcv_retrospective.py").read_text()
     body = src.split('"""', 2)[2]
     assert "10_000" not in body and "10000" not in body
-    assert "from kgav.labels import classify" in src
+    sys.path.insert(0, str(ROOT / "scripts"))
+    hcv = import_module("phase4_hcv_retrospective")
+    assert hcv.classify is labels.classify, (
+        "the script no longer calls labels.classify; the threshold has a "
+        "second home")
 
 
 def test_the_edge_is_what_classify_reads():

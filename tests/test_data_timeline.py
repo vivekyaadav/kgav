@@ -181,10 +181,17 @@ def test_the_1970_placeholder_is_undated_not_a_year(tmp_path):
 def test_the_undated_definition_is_temporals_not_a_second_one():
     """assemble._earliest special-cases the same string, and its comment is
     about exactly this duplication. A second answer here would drift."""
+    # BY IDENTITY (fix-list P10): the import line held while nothing
+    # checked that the script calls THAT function rather than a local one.
+    import sys
+    from importlib import import_module
+
     from kgav.temporal import edge_year
-    src = (ROOT / "scripts" / "data_timeline.py").read_text()
-    assert "from kgav.temporal import" in src
-    assert "edge_year(e)" in src
+    sys.path.insert(0, str(ROOT / "scripts"))
+    dt = import_module("data_timeline")
+    assert dt.edge_year is edge_year, (
+        "data_timeline has its own undated rule again; assemble._earliest "
+        "special-cases the same string and a second answer would drift")
     assert edge_year({"first_asserted_date": "1970-01-01"}) is None
 
 

@@ -1499,8 +1499,23 @@ def test_neither_evaluation_script_formats_lift_or_p_itself():
     the column inline passes every behavioural test while disagreeing with
     the other script.
     """
+    import sys
+    from importlib import import_module
     from pathlib import Path
+
+    from kgav import baselines as B
     root = Path(__file__).resolve().parents[1]
+    # THE ABSENCE GREP STAYS, because a formatter defined and not yet used
+    # is still a second definition waiting to drift. What is ADDED is the
+    # identity (fix-list P10): the text could not tell "imports the shared
+    # cell" from "imports it and formats the column inline anyway".
+    sys.path.insert(0, str(root / "scripts"))
+    for script in ("compare_metapaths", "temporal_split"):
+        mod = import_module(script)
+        for cell in ("hits_cell", "lift_cell", "p_cell"):
+            assert getattr(mod, cell) is getattr(B, cell), (
+                f"{script}.{cell} is not baselines'; one calculation in two "
+                f"files is how 'n/d' landed in only one of them")
     for script in ("compare_metapaths", "temporal_split"):
         src = (root / "scripts" / f"{script}.py").read_text()
         assert "def _p(" not in src, (

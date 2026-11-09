@@ -146,11 +146,23 @@ def test_virus_is_one_string_per_flag_so_the_quoting_matters():
     """Guards the reason: if --virus ever took nargs='+', the quoting
     would be unnecessary and this pair of tests should be revisited rather
     than silently kept."""
-    src = (ROOT / "scripts" / "fetch_raw.py").read_text()
-    block = src[src.index('"--virus"'):]
-    block = block[:block.index(")")]
-    assert 'action="append"' in block
-    assert "nargs" not in block
+    # ASKED OF THE PARSER, NOT OF THE SOURCE TEXT (fix-list P10). This
+    # sliced the file from `"--virus"` to the next `)` and asserted on the
+    # substring -- which a reformatting, a default moved onto its own line
+    # or a `)` inside the help string would each break or silently widen.
+    # argparse can simply be asked.
+    import sys
+    from importlib import import_module
+    sys.path.insert(0, str(ROOT / "scripts"))
+    ap = import_module("fetch_raw").build_parser()
+    got = ap.parse_args(["--virus", "SARS-CoV-2", "--virus", "Zika"])
+    assert got.virus == ["SARS-CoV-2", "Zika"], (
+        "--virus no longer appends one string per flag, so the quoting the "
+        "tests above depend on is not what the parser does")
+    act = next(a for a in ap._actions if "--virus" in (a.option_strings or []))
+    assert act.nargs in (None, 0), (
+        f"--virus takes nargs={act.nargs!r}; it now accepts several names "
+        f"per flag and this pair of tests should be revisited")
 
 
 # ------------------------------------------- 3. a blocker that was fixed

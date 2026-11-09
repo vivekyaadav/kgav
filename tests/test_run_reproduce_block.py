@@ -226,9 +226,18 @@ def test_the_script_has_a_fixed_name_not_a_temp_file():
     """A killed run never reaches a `finally`, so tempfile left
     /tmp/tmp*.sh behind every time -- one was orphaned by the very
     kill that prompted this lock."""
+    # The tempfile absence stays a grep: nothing behavioural can see an
+    # import that is not there. The NAME is read off the module instead of
+    # its source (fix-list P10), so a rename cannot leave the assertion
+    # matching a line that no longer decides anything.
+    import sys
+    from importlib import import_module
     src = (ROOT / "scripts" / "run_reproduce_block.py").read_text()
     assert "import tempfile" not in src
-    assert 'SCRIPT = ROOT / ".reproduce.sh"' in src
+    sys.path.insert(0, str(ROOT / "scripts"))
+    rrb = import_module("run_reproduce_block")
+    assert rrb.SCRIPT.name == ".reproduce.sh", rrb.SCRIPT
+    assert rrb.SCRIPT.parent == ROOT, rrb.SCRIPT
 
 
 def test_the_lock_and_script_are_gitignored():
