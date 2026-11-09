@@ -177,7 +177,7 @@
   "release": "v0.1",
   "hub_cut_degree": 460,
   "code": {
-    "commit": "e92d7f68dd58482750d5d1ed79c64f1e86f86ba9",
-    "dirty": true
+    "commit": "472efdc7d448d8b2f60f9d50623738af26788a65",
+    "dirty": false
   }
 }
