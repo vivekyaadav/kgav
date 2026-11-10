@@ -31,6 +31,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from kgav.pipeline import blocking, layer_dir, plan, release_dir
 from kgav.provenance import release_fingerprint
+from kgav.similarity import annotating_subjects_sha
 from kgav.provenance import write_layer
 
 
@@ -49,11 +50,34 @@ from kgav.provenance import write_layer
 # beforehand -- they may have been stale already, from an earlier run. Only
 # check_results.py compares each file's own stamp, so the pointer to it
 # stays in all three branches rather than being presented as redundant.
-def staleness_verdict(before: dict | None, after: dict | None) -> str:
+def staleness_verdict(before: dict | None, after: dict | None,
+                     annotating_before: str | None = None,
+                     annotating_after: str | None = None) -> str:
     """What this run did to data/results, measured from the two fingerprints.
 
     `before` and `after` are release_fingerprint() dicts taken around the
     run, or None/all-None when no release was on disk.
+
+    THE FIFTH BRANCH IS L20's (option (c), taken 2026-11-11). The four
+    original branches cover no release / none after / unchanged / changed,
+    and "changed because it has not converged yet" reads to any operator as
+    "changed because the inputs did". It is not a hypothetical: reverting B1
+    went af01e12ce8a86891 -> 8402bbaf9ed5c531, differing from the intended
+    release by exactly one CHEMICALLY_SIMILAR_TO edge, and a second run went
+    -> f8a1ae20bfd89b37 and stopped. Both printed "The release CHANGED this
+    run".
+
+    `annotating_before`/`annotating_after` are similarity.
+    annotating_subjects_sha() taken around the run. When they differ, what
+    `ingest_similarity` reads at phase 3 is not what it read this run, so
+    phase 3 would produce something different if run again and this release
+    is NOT the fixed point.
+
+    WHAT THIS DOES NOT DO. It does not iterate, and it does not rebuild the
+    phase-3 layers from the phase-1 directories; those are L20's options (a)
+    and (b) and both are still open. This branch only stops the run from
+    reporting convergence it has not measured. On this repository's history
+    nine of ten rebuilds would not have triggered it.
     """
     def shas(fp):
         if not fp:
@@ -76,10 +100,21 @@ def staleness_verdict(before: dict | None, after: dict | None) -> str:
                 f"{after['edges_sha']}), so it\nmade nothing in "
                 "data/results stale. Whether those files were already\n"
                 "current is a separate question: `make check-results`.")
-    return (f"The release CHANGED this run (edges_sha {before['edges_sha']} "
-            f"-> {after['edges_sha']}),\nso every result computed from the "
-            "previous one is now stale. "
-            "`make check-results`\nreports which.")
+    changed = (f"The release CHANGED this run (edges_sha "
+               f"{before['edges_sha']} -> {after['edges_sha']}),\nso every "
+               f"result computed from the previous one is now stale. "
+               f"`make check-results`\nreports which.")
+    if (annotating_before is not None and annotating_after is not None
+            and annotating_before != annotating_after):
+        return (changed + "\n\nAND THIS RELEASE MAY NOT BE THE FIXED POINT "
+                "-- RUN THE REBUILD AGAIN.\nThe set of compounds carrying "
+                f"TARGETS / INHIBITS / MEASURED_INACTIVE_AGAINST\nmoved this "
+                f"run ({annotating_before} -> {annotating_after}). That set is "
+                "what\ningest_similarity partitions on, and phase 2 assembles "
+                "the PREVIOUS run's\nphase-3 output, so similarity has not "
+                "yet seen the graph this run\nproduced. A second rebuild "
+                "either converges or says this again.\n(fix-list L20)")
+    return changed
 
 
 def main(argv=None) -> int:
@@ -92,6 +127,8 @@ def main(argv=None) -> int:
     # Taken before any step runs, so the comparison at the end is a
     # measurement and not a recollection.
     before = release_fingerprint(release_dir(args.root))
+    # And the one set that decides whether phase 3 has settled (L20).
+    annotating_before = annotating_subjects_sha(release_dir(args.root))
 
     steps = plan(args.root)
     layers = [s for s in steps if s["kind"] == "layer"]
@@ -251,7 +288,10 @@ def main(argv=None) -> int:
     if reused:
         print(f"REUSED (not rebuilt this run): "
               f"{', '.join(s['name'] for s in reused)}")
-    print(staleness_verdict(before, release_fingerprint(release_dir(args.root))))
+    after = release_fingerprint(release_dir(args.root))
+    print(staleness_verdict(
+        before, after,
+        annotating_before, annotating_subjects_sha(release_dir(args.root))))
     return 0
 
 
