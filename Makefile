@@ -85,6 +85,12 @@ check-results:
 diagnose-phase-gate:
 	python scripts/diagnose_phase_gate.py
 
+# WHAT RESTATING THE TASK WOULD COST (fix-list B3). Runs on the release
+# alone in ~25s; add DB=... for the drug_mechanism definition, which is the
+# literal reading of "known mechanism" and needs the gitignored sqlite.
+diagnose-label-reachability:
+	python scripts/diagnose_label_reachability.py $(if $(DB),--db $(DB),)
+
 # FETCH THE RAW INPUTS, AND AUDIT WHAT IS ALREADY THERE.
 #
 # data/raw/* is gitignored and was populated by hand, so a fresh clone could
