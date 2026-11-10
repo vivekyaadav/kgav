@@ -208,6 +208,27 @@ def same_structure(a: str, b: str) -> bool:
     stereochemistry itself, which is exactly the question "is this the same
     molecule spelled differently".
 
+    AND CANONICAL SMILES WAS NOT ENOUGH (fix-list B1 found it). It does not
+    normalise CHARGE-SEPARATED hypervalent sulfur: a sulfone written
+    `S(=O)(=O)` and the same sulfone written `[S+]([O-])(=O)` canonicalise
+    differently while InChI treats them as one molecule. On the B1 rebuild
+    the hosttargets layer began supplying SMILES for 1,988 compounds ncats
+    had already filed, and 73 pairs were reported as conflicts -- of which
+    **72 were this**, every one with BOTH spellings matching the node's own
+    InChIKey. `diagnose_property_conflicts.py` labelled them "DIFFERENT
+    MOLECULES under one InChIKey ... an identifier bug" while printing the
+    evidence against that verdict two lines above.
+
+    TWO SIMPLER FIXES WERE MEASURED AND REJECTED. rdkit's
+    rdMolStandardize.Normalize fixes a charge-separated SULFOXIDE and not a
+    sulfone, so it does not cover the case found. InChIKey equality covers
+    it but collapses amide/imidol tautomers (`CC(=O)N` and `CC(O)=N` share
+    one key), which is exactly the merging this function must not do. So the
+    fallback is a targeted recombination of S+/O- pairs and nothing else:
+    it cannot reach a tautomer, a stereocentre, a salt or a double bond,
+    and it deliberately leaves N-oxides alone, since neutralising those
+    would invent a pentavalent nitrogen.
+
     Returns False for anything rdkit cannot parse. A value that is not a
     structure is a difference like any other and belongs in the report.
     """
@@ -216,4 +237,40 @@ def same_structure(a: str, b: str) -> bool:
     ma, mb = Chem.MolFromSmiles(a), Chem.MolFromSmiles(b)
     if ma is None or mb is None:
         return False
-    return Chem.MolToSmiles(ma) == Chem.MolToSmiles(mb)
+    if Chem.MolToSmiles(ma) == Chem.MolToSmiles(mb):
+        return True
+    na, nb = _recombine_sulfur_oxygen(ma), _recombine_sulfur_oxygen(mb)
+    if na is None or nb is None:
+        return False
+    return Chem.MolToSmiles(na) == Chem.MolToSmiles(nb)
+
+
+#: `[S+][O-]` written back as `S=O`. Only sulfur, and only this bond: see
+#: same_structure for the two broader fixes that were measured and rejected.
+_SO_SMARTS = "[S+][O-]"
+_SO_RXN = "[S+:1][O-:2]>>[S+0:1]=[O+0:2]"
+
+
+def _recombine_sulfur_oxygen(mol):
+    """Neutralise charge-separated S-O pairs, or None if that breaks the mol.
+
+    Loops because a sulfone has two such pairs and a reaction applies one
+    match at a time. Bounded rather than `while`: a transform that failed to
+    reduce the match count would otherwise spin forever on some input nobody
+    has seen yet.
+    """
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+    patt, rxn = Chem.MolFromSmarts(_SO_SMARTS), AllChem.ReactionFromSmarts(_SO_RXN)
+    for _ in range(8):
+        if not mol.GetSubstructMatches(patt):
+            return mol
+        out = rxn.RunReactants((mol,))
+        if not out:
+            return mol
+        mol = out[0][0]
+        try:
+            Chem.SanitizeMol(mol)
+        except Exception:
+            return None
+    return mol

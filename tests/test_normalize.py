@@ -239,3 +239,68 @@ def test_same_structure_is_false_for_different_molecules_and_for_junk():
     assert not same_structure("CCO", "c1ccccc1")
     assert not same_structure("not a smiles !!!", "CCO")
     assert not same_structure("CCO", "")
+
+
+# ------------------- charge-separated sulfur, found by fix-list B1's rebuild
+def test_same_structure_sees_through_a_charge_separated_sulfonyl():
+    """CANONICAL SMILES WAS NOT ENOUGH. A sulfone written S(=O)(=O) and the
+    same sulfone written [S+]([O-])(=O) canonicalise differently while InChI
+    treats them as one molecule. When B1 let hosttargets supply SMILES for
+    1,988 compounds ncats had already filed, 73 pairs were reported as
+    conflicts and 36 of them were this -- every one with BOTH spellings
+    matching the node's own InChIKey, which is the evidence that they are
+    one molecule."""
+    assert same_structure(
+        "Cc1cc(C)c(S(=O)(=O)n2cc(C)cc2C)c(C)c1",
+        "CC1=C[N](C(=C1)C)[S+]([O-])(=O)C2=C(C)C=C(C)C=C2C")
+
+
+def test_same_structure_handles_BOTH_sulfonyls_in_one_molecule():
+    """The transform rewrites one match at a time, so a molecule with two
+    charge-separated sulfonyls needs more than one pass. A single-shot fix
+    would quietly leave these reported as conflicts."""
+    assert same_structure(
+        "CS(=O)(=O)c1cc(-c2ccccc2)cc(S(=O)(=O)c2ccc(CN)s2)c1",
+        "C[S+]([O-])(=O)C1=CC(=CC(=C1)C2=CC=CC=C2)[S+]([O-])(=O)C3=CC=C(CN)S3")
+
+
+def test_same_structure_sees_through_a_charge_separated_sulfoxide():
+    assert same_structure("CS(=O)c1ccccc1", "C[S+]([O-])c1ccccc1")
+
+
+def test_the_sulfur_fix_does_not_collapse_a_tautomer():
+    """THE PROPERTY THAT MAKES THIS FIX NARROW ENOUGH TO BE SAFE. Two
+    broader fixes were measured and rejected for failing exactly here:
+    rdMolStandardize.Normalize does not cover a sulfone at all, and
+    InChIKey equality covers it but gives amide and imidol one key. The
+    S+/O- transform cannot reach a tautomer."""
+    assert not same_structure("CC(=O)N", "CC(O)=N")
+    assert not same_structure("CC(=O)CC(C)=O", "CC(O)=CC(C)=O")
+
+
+def test_the_sulfur_fix_does_not_collapse_an_annular_tautomer():
+    """THE 32 THAT REMAIN REPORTED, AND SHOULD BE. ncats and hosttargets
+    disagree about which imidazole nitrogen carries the proton. Both
+    spellings resolve to the node's InChIKey, because InChI's mobile-H layer
+    treats them as one compound -- so the node cannot separate them and the
+    SMILES can. Reporting that is the comparator working, not failing."""
+    assert not same_structure(
+        "Cc1cnc(-c2cnc(NCCNc3ccc(C#N)cn3)nc2-c2ccc(Cl)cc2Cl)[nH]1",
+        "CC1=C[NH]C(=N1)C2=C(N=C(NCCNC3=CC=C(C=N3)C#N)N=C2)C4=CC=C(Cl)C=C4Cl")
+
+
+def test_the_sulfur_fix_does_not_collapse_salts_stereo_or_geometry():
+    """The other three things a looser comparator would have merged away."""
+    assert not same_structure("CCN", "CCN.Cl")
+    assert not same_structure("C[C@H](N)C(=O)O", "C[C@@H](N)C(=O)O")
+    assert not same_structure("C/C=C/C", r"C/C=C\C")
+
+
+def test_an_N_oxide_is_left_alone_by_the_sulfur_fix():
+    """Neutralising [N+][O-] would invent a pentavalent nitrogen, so the
+    transform names sulfur explicitly rather than 'any charge-separated
+    pair'. An N-oxide compared with itself must still be equal, and the
+    molecule must survive the pass."""
+    no = "c1ccnc(c1)[N+]([O-])=O"
+    assert same_structure(no, no)
+    assert not same_structure(no, "c1ccnc(c1)N=O")

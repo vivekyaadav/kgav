@@ -60,6 +60,8 @@ try:
 except ImportError:                      # pragma: no cover - env dependent
     HAVE_RDKIT = False
 
+from kgav.normalize_chem import same_structure
+
 
 def _canonical(smiles: str) -> tuple[str | None, str | None, str | None]:
     """(canonical SMILES, canonical SMILES without stereo, InChIKey)."""
@@ -69,6 +71,28 @@ def _canonical(smiles: str) -> tuple[str | None, str | None, str | None]:
     flat = Chem.MolFromSmiles(Chem.MolToSmiles(mol))
     Chem.RemoveStereochemistry(flat)
     return Chem.MolToSmiles(mol), Chem.MolToSmiles(flat), MolToInchiKey(mol)
+
+
+def _tautomers(spellings: list[str]) -> bool:
+    """Do all these SMILES share one canonical tautomer?
+
+    Call only AFTER the stereochemistry case: Canonicalize alters stereo,
+    so on its own it would call two stereoisomers one tautomer.
+    """
+    if not HAVE_RDKIT or len(spellings) < 2:
+        return False
+    try:
+        from rdkit.Chem.MolStandardize import rdMolStandardize
+        te = rdMolStandardize.TautomerEnumerator()
+        forms = set()
+        for s_ in spellings:
+            m = Chem.MolFromSmiles(s_)
+            if m is None:
+                return False
+            forms.add(Chem.MolToSmiles(te.Canonicalize(m)))
+        return len(forms) == 1
+    except Exception:
+        return False
 
 
 def main() -> int:
@@ -153,10 +177,37 @@ def main() -> int:
                 continue
             canons = {c for c, _, _ in seen.values()}
             flats = {f for _, f, _ in seen.values()}
-            if len(canons) == 1:
+            keys = {k for _, _, k in seen.values()}
+            # THE SAME COMPARATOR THE ASSEMBLER USES, not a second copy of
+            # it. This file had its own canonical-SMILES test and so reached
+            # the same wrong verdict the assembler did: on the B1 rebuild it
+            # called 72 pairs "DIFFERENT MOLECULES ... an identifier bug"
+            # while printing, two lines above each one, that BOTH spellings
+            # resolve to the node's own InChIKey. Two implementations of one
+            # question agreeing is not corroboration when they are the same
+            # implementation twice.
+            spellings = [per_layer[l] for l in seen]
+            agree = len(canons) == 1 or (
+                HAVE_RDKIT and len(spellings) >= 2
+                and all(same_structure(spellings[0], o) for o in spellings[1:]))
+            if agree:
                 v = "agree (two spellings of one molecule)"
             elif len(flats) == 1:
                 v = "STEREOCHEMISTRY DIFFERS (same skeleton)"
+            elif len(keys) == 1 and keys == {claimed} and _tautomers(spellings):
+                # NOT A COMPARATOR GAP, which is what this was first called.
+                # Every spelling resolves to THIS node's InChIKey and they
+                # share a canonical tautomer: they are two tautomers that
+                # InChI's mobile-H layer treats as one compound. The SMILES
+                # can tell them apart and the node id cannot, so reporting
+                # the difference is the comparator working as designed --
+                # same_structure says so in as many words.
+                #
+                # TESTED AFTER THE STEREO CASE ON PURPOSE. rdkit's
+                # TautomerEnumerator.Canonicalize alters stereochemistry, so
+                # it calls two stereoisomers one tautomer; checking the flat
+                # skeleton first is what keeps that from being reported here.
+                v = "TAUTOMERS SHARING ONE InChIKey"
             else:
                 v = "DIFFERENT MOLECULES under one InChIKey"
             verdicts[v] += 1
@@ -175,10 +226,23 @@ def main() -> int:
                         purpose. _merge_properties keeps the FIRST layer in
                         LAYER_PRECEDENCE and reports the clash; which layer
                         is right is a sourcing question, not a merge rule.
-  DIFFERENT MOLECULES   an identifier bug. The InChIKey is derived from the
+  TAUTOMERS SHARING    two tautomers that InChI's mobile-H layer treats as
+  ONE InChIKey         one compound -- annular imidazole and benzimidazole
+                       NH placement, mostly. Both spellings resolve to this
+                       node's key, so the node CANNOT separate them while
+                       the SMILES can, and one node now carries two
+                       tautomers' edges. Not a merge bug and not a sourcing
+                       bug: a limit of InChIKey-as-identity, and the reason
+                       same_structure deliberately does not collapse
+                       tautomers. 33 pairs on the 2026-11-10 rebuild.
+  DIFFERENT MOLECULES   an identifier bug, and ONLY when the keys disagree
+                        with the node. The InChIKey is derived from the
                         structure, so two structures cannot share one. The
-                        '-> matches the node id' lines above say which
-                        layer filed it wrongly.""")
+                        '-> NOT this node's key' lines above say which layer
+                        filed it wrongly -- on the 2026-11-10 rebuild all 4
+                        are ncats supplying a SALT or deprotonated form
+                        (fumarate, HCl, a carboxylate) on a node keyed by
+                        the free base.""")
 
     print("""
 WHAT THIS DOES NOT DECIDE
