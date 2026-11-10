@@ -76,6 +76,13 @@ def channels() -> dict[str, dict]:
         lo, hi = auc_interval(m["auc"], m["n_pos"], m["n_neg"])
         out[name] = {"auc": m["auc"], "lo": lo, "hi": hi,
                      "n_pos": m["n_pos"],
+                     # THE FREE COMPONENT, carried so a channel clearing
+                     # chance can be attributed rather than announced: an
+                     # imputed AUC rises on coverage asymmetry alone, and
+                     # auc_floor is exactly that part. Added 2026-11-10,
+                     # when three channels cleared 0.5 and nothing here
+                     # could say whether any of it was ranking.
+                     "floor": m.get("auc_floor"),
                      "reached": round(m["coverage_pos"] * m["n_pos"])}
     return out
 
@@ -173,19 +180,42 @@ def test_the_degree_line_matches_the_results_file(chans):
     assert parsed_degree(block()) == fmt_auc(chans["degree"])
 
 
-def test_degree_is_still_the_only_scorer_clear_of_chance(chans):
-    """The block's own claim about the baseline. If a reasoning channel
-    ever clears, this fails -- and that failure is the result, not a test
-    to relax."""
+def test_a_channel_clearing_chance_clears_it_only_through_COVERAGE(chans):
+    """THE GUARD THIS REPLACES SAID "degree is the only scorer clear of
+    chance", and its docstring said that if a reasoning channel ever
+    cleared, "that failure is the result, not a test to relax". On
+    2026-11-10 M3, M4 and M5 cleared, because fix-list B1 added 6,608
+    TARGETS edges and no labels, so every host-directed channel reached
+    further. The failure was the result and it is recorded in the claim
+    above, not relaxed away.
+
+    So this is not a weaker test, it is the sharp version of the same
+    question. An imputed AUC rises for free when a scorer reaches more
+    positives than negatives, and `auc_floor` is exactly that free
+    component. A channel clearing 0.5 whose FLOOR also clears 0.5 has
+    demonstrated reach. A channel clearing 0.5 whose floor does NOT --
+    i.e. one that beats chance without a coverage asymmetry to explain it
+    -- would be the first ranking result this project has ever produced,
+    and it must not land quietly. That is what this fails on now.
+    """
     clear = [n for n in CHANNELS
              if chans[n]["lo"] > 0.5 or chans[n]["hi"] < 0.5]
-    assert not clear, (
-        f"{clear} now has an interval excluding chance; the block says "
-        f"degree is the only scorer clear of 0.5")
+    text = DOC.read_text()
+    for n in clear:
+        floor = chans[n].get("floor")
+        assert floor is not None, f"{n} records no auc_floor to attribute to"
+        assert floor > 0.5, (
+            f"{n} reads {fmt_auc(chans[n])} with a floor of {floor:.4f}, "
+            f"which does NOT exclude chance -- so its separation is not "
+            f"explained by coverage. This is a ranking result; write it up "
+            f"rather than making this test pass")
+        assert f"floor {floor:.4f}" in text, (
+            f"{n} clears chance and the block does not print its floor; a "
+            f"reader cannot tell reach from ranking without it")
     d = chans["degree"]
     assert d["lo"] > 0.5, (
         f"degree reads {fmt_auc(d)}, which contains chance -- the block "
-        f"calls it the only scorer clear of 0.5")
+        f"calls it clear of 0.5")
 
 
 def test_the_counts_in_the_sentence_are_the_channel_totals(chans):

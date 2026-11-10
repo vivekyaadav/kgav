@@ -246,8 +246,13 @@ matched expectation and not on any outcome, so it is not choosing tests
 after seeing them — but the family belongs in a preregistration that does
 not exist yet, and it is left alone until it does.
 
-**Seven of the twenty-two need a 2.4x excess or more**, and two need
-roughly 7x. Those are the rows where a real but moderate effect would be
+**Eight of the twenty-two need a 2.4x excess or more**, and two need
+roughly 7x. (This read *seven* until 2026-11-10, and the test beside it
+asserted the word `Seven` — a check written with the same literal it was
+checking, so the pair agreed with each other and not with
+`pathway_landscape.json`. The count now comes from the file: the eighth row
+is `pathway` HCoV-NL63 at 2.45, and the next one down is 1.59, so nothing
+about this sits on a rounding boundary.) Those are the rows where a real but moderate effect would be
 invisible, and they are all flaviviruses or the small coronaviruses — the
 taxa this release covers thinnest. The large-*m* rows at the bottom of
 the table are sensitive to a 15–30% excess and found none, which is the

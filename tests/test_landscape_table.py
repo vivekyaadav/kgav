@@ -124,19 +124,33 @@ def test_the_stated_threshold_is_the_one_the_verdicts_used():
 
 
 def test_the_headline_count_is_derived_not_typed():
-    """"Zero of twenty-two" is the whole finding. If a row ever clears the
-    threshold, this fails before anyone reads the sentence saying none
-    did."""
+    """THE COUNT, DERIVED, WHICHEVER WAY IT GOES.
+
+    This test used to assert `not clearing` -- "zero of twenty-two" was the
+    whole finding, and the guard made the document fail if a row ever
+    cleared. One did, on 2026-11-10, when fix-list B1 enlarged the drugged
+    proteome and three interactome rows crossed the threshold. The guard
+    worked: nothing was published saying none cleared.
+
+    It is rewritten rather than deleted, and NOT rewritten to assert three.
+    A literal would need editing the next time the operand moves, which is
+    twice so far. The count comes from the file and the document has to
+    match it, so this says the same thing for 0, 3 or 22.
+    """
     d = json.loads(RESULTS.read_text())
     alpha = 0.05 / d["n_tests"]
     rows = [r for ch in ("taxa", "interactome") for r in d[ch].values()]
     clearing = [r for r in rows
                 if min(r["p_matched"], r["p_matched_less"]) < alpha]
     text = DOC.read_text()
-    assert not clearing, (
-        "a row now clears the threshold and the document still says none "
-        f"does: {clearing}")
-    assert f"**0 of {len(rows)}**" in text
+    assert f"**{len(clearing)} of {len(rows)}**" in text, (
+        f"{len(clearing)} of {len(rows)} rows clear alpha={alpha:.6f} and "
+        f"the document states a different count")
+    if clearing:
+        assert f"**0 of {len(rows)}**" not in text or \
+               "until 2026-11-10" in text, (
+            "the document still carries the old zero-of-22 claim as though "
+            "it described this run")
 
 
 def test_the_coverage_claim_counts_the_untested(tables):

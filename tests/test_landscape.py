@@ -1066,6 +1066,14 @@ def test_the_family_covers_every_test_the_correction_charges_for():
 
 
 def test_the_powerless_depletion_tests_are_named():
+    """SIX, AND THE LITERAL IS PINNED DELIBERATELY. The registration lists
+    these rows by name under a DECISION, so a count that drifted silently
+    would make the document's list wrong without anything failing. The pair
+    moves together or this test does its job -- which it did on 2026-11-10,
+    when B1's larger drugged proteome lifted `pathway DENV-2` from 6.40
+    expected over the 6.78 bar and this read 5 for an afternoon. B1 was
+    declined and the sixth row is back; the episode is why the registration
+    now fixes the admission policy as its third DECISION."""
     if not RESULTS.exists():
         pytest.skip("no results file")
     land = L.load(RESULTS, release="v0.1")
@@ -1095,9 +1103,46 @@ def test_every_row_of_the_published_table_is_re_derived():
         row = (f"| {r.channel} | {name} | {r.expected:.2f} | "
                f"{r.n_observed} | {k} hits = **{ratio:.2f}x** |")
         assert row in text, f"missing or stale table row:\n  {row}"
-    assert "Six of the twenty-two downward tests" in text
-    assert "Seven of the twenty-two need a 2.4x excess" in text
+    # DERIVED, NOT TYPED, AND IT CAUGHT ONE IMMEDIATELY. These two counts
+    # read "Six" and "Seven" as literals here and in the document, so the
+    # test agreed with the sentence it was checking rather than with
+    # pathway_landscape.json -- the pairing this file exists to replace.
+    # Derived on 2026-11-10: the first count is right (6) and THE SECOND
+    # WAS WRONG (8, not 7). The eighth row is pathway HCoV-NL63 at 2.4513
+    # and the ninth is 1.5878, so this is not a rounding boundary; the
+    # document had simply been left behind by a rebuild that moved an
+    # expectation, and the literal here made that invisible.
+    words = {5: "Five", 6: "Six", 7: "Seven", 8: "Eight", 9: "Nine",
+             10: "Ten", 11: "Eleven", 12: "Twelve"}
+    n_dead = len(land.powerless_depletion())
+    n_coarse = sum(1 for r in land.family
+                   if r.minimum_detectable[1] >= 2.4)
+    assert f"{words[n_dead]} of the twenty-two downward tests" in text, (
+        f"{n_dead} rows have no rejection region; the document says "
+        f"otherwise")
+    assert f"{words[n_coarse]} of the twenty-two need a 2.4x excess" in text, (
+        f"{n_coarse} rows need a 2.4x excess or more; the document says "
+        f"otherwise")
     assert f"{len(land.family) * 2}" in text
+
+
+def test_the_coarse_count_is_the_same_in_BOTH_documents(prereg):
+    """THE SAME FIGURE LIVED IN TWO FILES AND ONLY ONE WAS CHECKED.
+    scope_and_limits.md states it as a sentence and the registration states
+    it as a limitation -- "eight of 22 rows need a 2.4x excess or more
+    before they could" -- and when the derived count moved from 7 to 8 on
+    2026-11-10, the test above moved one document and said nothing about
+    the other. A second copy of a figure with no check on it is the same
+    defect as a literal, one file further away."""
+    if not RESULTS.exists():
+        pytest.skip("no results file")
+    land = L.load(RESULTS, release="v0.1")
+    n_coarse = sum(1 for r in land.family if r.minimum_detectable[1] >= 2.4)
+    numbers = {6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten"}
+    flat = " ".join(prereg.split())
+    assert f"{numbers[n_coarse]} of 22 rows need a 2.4x excess" in flat, (
+        f"{n_coarse} rows need a 2.4x excess or more; the registration's "
+        f"limitations section states a different count")
 
 
 # --------------------- the seed scheme a file was written under (S6)
@@ -1230,7 +1275,8 @@ def test_the_declared_seed_scheme_is_the_implemented_one(prereg):
 
 def test_every_powerless_row_is_named_in_the_registration(prereg):
     """The six are the subject of a DECISION, so the document has to
-    list them rather than cite a count."""
+    list them rather than cite a count. Five for one afternoon on
+    2026-11-10, under a graph change that was reverted."""
     if not RESULTS.exists():
         pytest.skip("no results file")
     import yaml
@@ -1277,12 +1323,22 @@ def test_the_smallest_p_and_its_multiple_of_alpha_are_right(prereg):
 
 
 def test_the_three_decisions_are_marked_as_such(prereg):
-    """Three and no more. A fourth appearing silently would mean the
-    document started deciding things on its own."""
+    """Three decisions and no more. A fourth appearing silently would mean
+    the document started deciding things on its own."""
     # THE HEADER'S COUNT AND THE MARKERS MUST AGREE. The first draft
     # promised three and marked two -- the third belonged to the
     # hard-negatives analysis and had been dropped from the body without
     # the header being corrected. This test caught that.
-    assert "Two decisions are flagged **DECISION**" in prereg
-    assert prereg.count("**DECISION**") == 3, (
+    #
+    # THE THIRD DECISION ARRIVED 2026-11-10: which compounds the drug-target
+    # query admits (--phase-gate). It is here because the verdict was shown
+    # to depend on it -- interactome/NCBITaxon:2697049 reads p_matched 0.235
+    # under `floor` and 0.000500 under `relaxed` -- and a registration that
+    # fixes the permutation count to three digits while leaving the operand
+    # undefined is incomplete in the way the seeding scheme already was.
+    # It stayed after fix-list B1 was declined, which is the point: the
+    # registered value is `floor` BECAUSE the alternative was measured, not
+    # because nobody tried it.
+    assert "Three decisions are flagged **DECISION**" in prereg
+    assert prereg.count("**DECISION**") == 4, (
         "one in the header plus one per decision; the count moved")

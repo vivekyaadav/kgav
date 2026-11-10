@@ -15,9 +15,27 @@ PHASES
   3  reads the assembled v0.1
   4  assemble_release again, now including the phase-3 layers
 
-One pass of 3 then 4 is enough: no phase-3 layer's output depends on its own
-input, so the second assemble is a fixed point rather than the start of an
-iteration.
+ONE PASS OF 3 THEN 4 IS NOT ENOUGH, AND THIS SAID IT WAS. The claim here
+read "no phase-3 layer's output depends on its own input, so the second
+assemble is a fixed point rather than the start of an iteration". The first
+half is true and the conclusion does not follow, because phase 2 assembles
+the PREVIOUS run's phase-3 layer directories: what similarity reads at
+phase 3 contains gtop's output from the last rebuild, and gtop is itself a
+phase 3 layer. ingest_similarity splits compounds into query and reference
+by their TARGETS / INHIBITS / MEASURED_INACTIVE_AGAINST subjects, and gtop
+contributes TARGETS -- so the dependency is mutual between two phase-3
+layers through the assembly that sits between them, not self-dependence.
+
+MEASURED 2026-11-10, reverting fix-list B1, a phase-1 change: rebuild one
+went edges_sha af01e12ce8a86891 -> 8402bbaf9ed5c531, differing from the
+intended release by exactly one CHEMICALLY_SIMILAR_TO edge; rebuild two
+went -> f8a1ae20bfd89b37, byte-identical to the release before B1. Two
+passes converged, and nothing in the pipeline checks that they did:
+rebuild_release.py prints "The release CHANGED this run" either way, which
+is true on an unconverged run and on a genuinely new one, and a reader
+cannot tell which from the line. Filed as L20. data_audit_2026-11-07's P17
+predicted this and was closed with "document the fixed point" -- so the
+document asserting one is the fix that was applied.
 
 REQUIRED AND OPTIONAL. spine and host are the graph; without them there is
 nothing to assemble and the run stops. Every other layer has raw inputs that
@@ -105,6 +123,18 @@ LAYERS: tuple[Layer, ...] = (
           globs=("data/raw/curated_screens/*.tsv",)),
     Layer("chembl", "ingest_chembl.py", 1, files=(str(CHEMBL_DB),)),
     # hosttargets reads the orcs release, so it follows orcs within phase 1.
+    #
+    # IT FOLLOWED ncats FOR ONE DAY AND DOES NOT ANY MORE (fix-list B1).
+    # Option D relaxed the phase gate for compounds the graph already has,
+    # which hosttargets can only know about from layers already built, and
+    # the move was worth 660 of the 1,327 recovered compounds -- the ncats
+    # half. B1 was then DECLINED, because the admission rule turned out to
+    # correlate with the labels, so the order is back where v0.1 was built
+    # and `--phase-gate relaxed` sees only the chembl half. That is recorded
+    # in host_targets.PHASE_GATE_POLICIES rather than fixed, because the
+    # right order depends on a decision nobody should re-make by reading a
+    # tuple. Nothing else depends on the order either way: ncats reads
+    # neither hosttargets nor the assembled release.
     Layer("hosttargets", "ingest_host_targets.py", 1,
           files=(str(CHEMBL_DB),)),
     Layer("ncats", "ingest_ncats.py", 1,
@@ -160,6 +190,21 @@ def availability(layer: Layer, root: Path,
 def layer_dir(root: Path, name: str) -> Path:
     """Where assemble_release looks for this layer's output."""
     return root / "data" / "releases" / f"v0.1-{name}"
+
+
+def layers_before(name: str) -> tuple[str, ...]:
+    """Layer names built before `name`, in order.
+
+    EXISTS SO A LAYER CANNOT GUESS WHAT IS ALREADY ON DISK. hosttargets
+    relaxes its phase gate for compounds the graph already has (fix-list
+    B1), and "already has" means exactly these layers -- a hand-written
+    list would be a second copy of LAYERS and would go stale the next time
+    a layer moves, silently narrowing or widening the gate.
+    """
+    names = [l.name for l in LAYERS]
+    if name not in names:
+        raise ValueError(f"{name!r} is not a layer; have {names}")
+    return tuple(names[:names.index(name)])
 
 
 def release_dir(root: Path) -> Path:

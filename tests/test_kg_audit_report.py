@@ -566,8 +566,22 @@ def test_section_8_quotes_the_landscape_run_it_names(flat):
     alpha = 0.05 / d["n_tests"]
     clearing = [r for r in rows
                 if min(r["p_matched"], r["p_matched_less"]) < alpha]
-    assert not clearing, (
-        "a row now clears Bonferroni and section 8 still says zero do")
+    # DERIVED, EITHER WAY. This asserted `not clearing` -- section 8 said
+    # ZERO rows clear and the guard made that fail if one ever did. Three
+    # did on 2026-11-10, when fix-list B1 enlarged the drugged proteome
+    # that n_observed is counted against. The guard did its job: nothing
+    # was published claiming zero. It is rewritten to track the count
+    # rather than to assert three, because the operand has now moved twice.
+    words = {0: "ZERO", 1: "ONE", 2: "TWO", 3: "THREE", 4: "FOUR",
+             5: "FIVE", 6: "SIX"}
+    assert f"{words[len(clearing)]} rows clear it" in body, (
+        f"{len(clearing)} of {len(rows)} rows clear Bonferroni and "
+        f"section 8 states a different count")
+    if clearing:
+        assert "drugged proteome" in body, (
+            "section 8 reports rows clearing the threshold without naming "
+            "what the overlap is counted against; a reader cannot tell a "
+            "finding from a larger operand")
     assert f"{len(rows)} rows tested" in body
 
     # THE UNCORRECTED COUNT IS THE POINT OF THE PARAGRAPH. It said four

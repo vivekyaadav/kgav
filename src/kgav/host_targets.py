@@ -20,6 +20,32 @@ SINGLE PROTEIN target, measured on chembl_37 at 2026-11-10: 3,022 drugs
 targets are already coronavirus dependency factors, which is what makes M2
 produce real single-hop paths.
 
+THE GATE WAS RELAXED ON 2026-11-10 AND PUT BACK THE SAME DAY, and the
+reason is the one thing in this module worth reading twice. Fix-list B1
+asked what the phase floor costs. Measured: relaxing it for compounds the
+graph ALREADY holds -- no new nodes at all -- admits 20,512 further rows
+over 1,988 compounds, 1,327 of which had no human target of any kind
+before, so M2-M6 could not reach them whatever their labels said. That
+took the layer to 79,329 activities / 4,990 compounds / 2,265 targets /
+28,138 edges, with 778 dependency factors reached and 9,251 edges feeding
+a single-hop M2 path. Dropping the floor outright instead would have
+admitted 1,304,767 rows and 676,997 new compounds; `make
+diagnose-phase-gate` measures all three readings in ~20s.
+
+IT WAS DECLINED BECAUSE THE ADMISSION RULE IS DOWNSTREAM OF THE LABELS.
+"Compounds the graph already has" means compounds somebody screened, and
+the ones that were missing human targets are disproportionately the ones
+that came back active. For DENV-2 (NCBITaxon:11060), of the compounds that
+gained a first host-side route, 121 were positive and 22 negative -- 84.6%
+against a 24.7% base rate, 3.43x. SARS-CoV-2 was 1.17x, so this is not
+uniform and cannot be corrected by a constant. The visible effect: the
+DENV-2 M3 channel went from 2 hits to 16 and p = 0.4257 to 0.000003,
+clearing every correction family, while its `degree` baseline did not move
+a single hit (p = 0.757 both sides) because it already reached everything.
+A channel that improves only where the baseline cannot is normally
+evidence the channel is doing work; here it is evidence the labels came in
+with the edges. So "floor" is the default and v0.1 is built with it.
+
 THESE THREE FIGURES READ 3,667 / 63,826 / 1,670 UNTIL 2026-11-10, and the
 cause is not a mismeasurement -- re-running the query without the
 `standard_type IN ('IC50','EC50','Ki','Kd')` gate returns exactly 3,667 /
@@ -64,8 +90,10 @@ inherit it.
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections import Counter
+from collections.abc import Iterable
 from pathlib import Path
 
 from kgav.chembl import CHEMBL_UNITS
@@ -138,6 +166,21 @@ VALID_RELATIONS = {"=", ">", "<", ">=", "<=", "~"}
 DEFAULT_MIN_PCHEMBL = 6.0
 DEFAULT_MIN_PHASE = 2
 
+#: THE PHASE GATE, AS A NAMED CHOICE (fix-list B1).
+#: "floor"   -- max_phase >= DEFAULT_MIN_PHASE for everyone. How v0.1 is
+#:              built, and the default: see the SCOPE note above for the
+#:              label correlation that decided it.
+#: "relaxed" -- the floor, OR the graph already holds the compound (option
+#:              D). KEPT RUNNABLE AND NOT EVALUATED. Any figure measured
+#:              under it describes a release this project does not ship,
+#:              and a run must say which policy produced it.
+#:              It also depends on layer order: `hosttargets` precedes
+#:              `ncats`, so this policy sees 667 of the 1,327 recoverable
+#:              compounds, not all of them -- see pipeline.LAYERS.
+#: An unrecognised value is REFUSED rather than read as either one.
+PHASE_GATE_POLICIES = ("floor", "relaxed")
+DEFAULT_PHASE_GATE = "floor"
+
 
 def load_mechanisms(db: Path) -> dict[tuple[str, str], str]:
     """(compound chembl_id, accession) -> action_type, from drug_mechanism.
@@ -158,6 +201,39 @@ def load_mechanisms(db: Path) -> dict[tuple[str, str], str]:
     """).fetchall()
     con.close()
     return {(c, a): act for c, a, act in rows}
+
+
+def known_inchikeys(releases: Path, layer_names: Iterable[str]) -> set[str]:
+    """InChIKeys the already-built layers carry as SmallMolecule nodes.
+
+    FIX-LIST B1, OPTION D. The phase gate exists to keep 679,000 bulk
+    screening compounds out of the graph, and it does that job; what it also
+    did was withhold human targets from compounds the graph ALREADY holds,
+    because they happened to be early-phase or unphased. Those are not new
+    nodes -- they are compounds that already carry antiviral labels and had
+    no route into the host side, so M2-M6 could not reach them at all.
+
+    Returned WITHOUT the `INCHIKEY:` prefix, because this set is compared
+    against compound_structures.standard_inchi_key in SQL. A layer with no
+    nodes.jsonl is skipped rather than refused: data/raw is populated by
+    hand and an absent layer is an ordinary state of a checkout.
+
+    Pass `pipeline.layers_before("hosttargets")` rather than a literal list.
+    """
+    out: set[str] = set()
+    for name in layer_names:
+        f = releases / f"v0.1-{name}" / "nodes.jsonl"
+        if not f.exists():
+            continue
+        with open(f) as fh:
+            for line in fh:
+                n = json.loads(line)
+                if n.get("class") != "SmallMolecule":
+                    continue
+                nid = n.get("id", "")
+                if nid.startswith("INCHIKEY:"):
+                    out.add(nid[len("INCHIKEY:"):])
+    return out
 
 
 def gate_census(db: Path, min_pchembl: float = DEFAULT_MIN_PCHEMBL,
@@ -230,8 +306,14 @@ def gate_census(db: Path, min_pchembl: float = DEFAULT_MIN_PCHEMBL,
 
 
 def query_host_activities(db: Path, min_pchembl: float = DEFAULT_MIN_PCHEMBL,
-                          min_phase: int = DEFAULT_MIN_PHASE) -> list[dict]:
-    """Human single-protein potency rows for compounds at phase >= min_phase.
+                          min_phase: int = DEFAULT_MIN_PHASE,
+                          known: set[str] | None = None) -> list[dict]:
+    """Human single-protein potency rows for compounds at phase >= min_phase,
+    OR at any phase when `known` holds the compound's InChIKey.
+
+    `known` comes from known_inchikeys() and is the set of compounds the
+    graph already has from earlier layers (fix-list B1 option D). Omit it
+    and the phase floor applies to everyone, which is how v0.1 was built.
 
     ORDER BY IS LOAD BEARING, not tidiness. About three rows share each
     (compound, target, assay type) key and the first one seen sets the
@@ -244,7 +326,32 @@ def query_host_activities(db: Path, min_pchembl: float = DEFAULT_MIN_PCHEMBL,
     """
     con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     con.row_factory = sqlite3.Row
-    rows = con.execute("""
+
+    # FIX-LIST B1 OPTION D: THE GATE IS RELAXED, NOT REMOVED. With `known`
+    # supplied, a row survives if its compound clears the phase floor OR the
+    # graph already holds that compound. Dropping the floor outright admits
+    # 1,304,767 rows and 676,997 new nodes for no gain any AUC can see; this
+    # admits the 1,327 compounds that gain a first route and nothing else.
+    #
+    # A TEMP TABLE, NOT AN `IN (...)` LIST. The set is ~25,000 keys, which as
+    # a literal list is a query SQLite has to re-parse and cannot index. The
+    # temp database is separate from the main one, so this works against a
+    # mode=ro connection.
+    #
+    # NULL-SAFE BY ACCIDENT OF OR, AND WORTH SAYING SO: for an unphased
+    # compound `md.max_phase >= ?` is NULL, and NULL OR TRUE is TRUE while
+    # NULL OR FALSE is NULL, which is falsy. So an unphased compound is kept
+    # exactly when it is in `known`, which is the intent.
+    if known:
+        con.execute("CREATE TEMP TABLE _known(k TEXT PRIMARY KEY)")
+        con.executemany("INSERT OR IGNORE INTO _known VALUES(?)",
+                        ((k,) for k in known))
+        phase_sql = ("(md.max_phase >= ? OR st.standard_inchi_key IN "
+                     "(SELECT k FROM _known))")
+    else:
+        phase_sql = "md.max_phase >= ?"
+
+    rows = con.execute(f"""
         SELECT md.chembl_id AS compound, md.max_phase,
                st.canonical_smiles AS smiles, st.standard_inchi_key AS inchikey,
                cs.accession,
@@ -264,7 +371,7 @@ def query_host_activities(db: Path, min_pchembl: float = DEFAULT_MIN_PCHEMBL,
         WHERE t.tax_id = 9606
           AND t.target_type = 'SINGLE PROTEIN'
           AND act.pchembl_value >= ?
-          AND md.max_phase >= ?
+          AND {phase_sql}
           AND act.standard_type IN ('IC50','EC50','Ki','Kd')
         ORDER BY act.activity_id
     """, (min_pchembl, min_phase)).fetchall()

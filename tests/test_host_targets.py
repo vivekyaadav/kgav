@@ -1,6 +1,7 @@
 """Gate for the drug -> human protein layer: direction is never invented."""
 import inspect
 import sqlite3
+import sys
 from pathlib import Path
 
 import pytest
@@ -18,6 +19,11 @@ from kgav.host_targets import (
 from kgav.schema import load_schema
 
 ROOT = Path(__file__).resolve().parents[1]
+# scripts/ too: the phase-gate tests read ingest_host_targets.build_parser,
+# because a default that only a rebuild can observe is a default nothing
+# checks. Done here rather than relying on another test file having run
+# first -- the defect L16 records.
+sys.path.insert(0, str(ROOT / "scripts"))
 CHEMBL_DB = ROOT / "data/raw/chembl/chembl_37/chembl_37_sqlite/chembl_37.db"
 needs_db = pytest.mark.skipif(not CHEMBL_DB.exists(), reason="ChEMBL not downloaded")
 
@@ -771,3 +777,172 @@ def test_the_documents_analysable_set_is_the_releases():
     assert float(h.group(1)) == round(100 * routed / len(phase), 1), (
         f"the heading says {h.group(1)}%; the release says "
         f"{round(100 * routed / len(phase), 1)}%")
+
+
+# ======================================================= the phase gate (B1)
+@pytest.fixture
+def gate_db(tmp_path):
+    """A compound at each phase state, so the gate can be tested on all three.
+
+    Its own fixture rather than an addition to `db`: a dozen tests assert
+    counts off that one, and widening it would have made them fail for a
+    reason unrelated to what they check.
+
+    P4 phase 4 (clears the floor), P1 phase 1 (below it), PN max_phase NULL
+    (never in a trial) -- all three with an identical qualifying activity
+    against the same human single-protein target, so phase is the ONLY
+    difference between them.
+    """
+    p = tmp_path / "gate.db"
+    con = sqlite3.connect(p)
+    con.executescript("""
+    CREATE TABLE molecule_dictionary(molregno INT, chembl_id TEXT, max_phase INT);
+    CREATE TABLE compound_structures(molregno INT, canonical_smiles TEXT, standard_inchi_key TEXT);
+    CREATE TABLE target_dictionary(tid INT, chembl_id TEXT, target_type TEXT, tax_id INT);
+    CREATE TABLE target_components(tid INT, component_id INT);
+    CREATE TABLE component_sequences(component_id INT, accession TEXT);
+    CREATE TABLE assays(assay_id INT, tid INT, doc_id INT, assay_type TEXT, chembl_id TEXT);
+    CREATE TABLE docs(doc_id INT, year INT, pubmed_id INT);
+    CREATE TABLE activities(activity_id INT, assay_id INT, molregno INT, standard_type TEXT,
+      standard_value REAL, standard_units TEXT, standard_relation TEXT, pchembl_value REAL);
+    CREATE TABLE drug_mechanism(molregno INT, tid INT, action_type TEXT);
+    """)
+    con.executemany("INSERT INTO molecule_dictionary VALUES(?,?,?)",
+                    [(1, "P4", 4), (2, "P1", 1), (3, "PN", None)])
+    con.executemany("INSERT INTO compound_structures VALUES(?,?,?)",
+                    [(1, "C", "K4" + "X" * 12 + "-" + "Y" * 10 + "-N"),
+                     (2, "C", "K1" + "X" * 12 + "-" + "Y" * 10 + "-N"),
+                     (3, "C", "KN" + "X" * 12 + "-" + "Y" * 10 + "-N")])
+    con.execute("INSERT INTO target_dictionary VALUES(10,'T','SINGLE PROTEIN',9606)")
+    con.execute("INSERT INTO target_components VALUES(10,100)")
+    con.execute("INSERT INTO component_sequences VALUES(100,'Q9BYF1')")
+    con.execute("INSERT INTO assays VALUES(1,10,1,'B','A1')")
+    con.execute("INSERT INTO docs VALUES(1,2020,111)")
+    con.executemany("INSERT INTO activities VALUES(?,?,?,?,?,?,?,?)",
+                    [(1, 1, 1, "IC50", 50.0, "nM", "=", 7.0),
+                     (2, 1, 2, "IC50", 50.0, "nM", "=", 7.0),
+                     (3, 1, 3, "IC50", 50.0, "nM", "=", 7.0)])
+    con.commit()
+    con.close()
+    return p
+
+
+def _key(prefix):
+    return prefix + "X" * 12 + "-" + "Y" * 10 + "-N"
+
+
+def _compounds(rows):
+    return {r["compound"] for r in rows}
+
+
+def test_the_floor_alone_keeps_only_the_phased_compound(gate_db):
+    """How v0.1 was built, and the baseline the relaxation is measured from.
+    `NULL >= 2` is NULL in SQL, so the unphased compound is excluded by the
+    floor without anything saying so."""
+    rows = query_host_activities(gate_db, 6.0, 2)
+    assert _compounds(rows) == {"P4"}
+
+
+def test_the_relaxed_gate_admits_a_compound_the_graph_already_has(gate_db):
+    """B1 OPTION D. An early-phase compound already in the graph gains its
+    human targets; this is the 1,327 compounds and 300 positive labels that
+    had no route into the host side at all."""
+    rows = query_host_activities(gate_db, 6.0, 2, known={_key("K1")})
+    assert _compounds(rows) == {"P4", "P1"}
+
+
+def test_the_relaxed_gate_admits_an_UNPHASED_compound_in_the_graph(gate_db):
+    """THE NULL CASE, WHICH IS MOST OF CHEMBL. 678,515 of the 681,988
+    compounds behind this gate have no max_phase at all, so a relaxation
+    that handled only `< floor` would have missed almost the whole point.
+    `NULL OR TRUE` is TRUE, which is why the OR works."""
+    rows = query_host_activities(gate_db, 6.0, 2, known={_key("KN")})
+    assert _compounds(rows) == {"P4", "PN"}
+
+
+def test_the_gate_is_RELAXED_AND_NOT_REMOVED(gate_db):
+    """The distinction between B1's option D and option C. A compound below
+    the floor that the graph does NOT have stays out -- otherwise this
+    admits 676,997 new nodes, which buys candidate pool and no AUC."""
+    rows = query_host_activities(gate_db, 6.0, 2, known={_key("KZ")})
+    assert _compounds(rows) == {"P4"}, (
+        "a compound outside the known set came in below the floor; the gate "
+        "is being removed rather than relaxed")
+
+
+def test_an_empty_known_set_is_the_floor_and_not_everything(gate_db):
+    """A checkout with no earlier layers on disk yields an empty set. That
+    must mean "relax for nobody", not "relax for everybody" -- the failure
+    mode would be a 27x graph on a machine that simply had no layers built."""
+    for empty in (set(), None):
+        assert _compounds(query_host_activities(gate_db, 6.0, 2,
+                                                known=empty)) == {"P4"}
+
+
+def test_known_inchikeys_reads_small_molecules_and_strips_the_prefix(tmp_path):
+    """The set is compared against compound_structures.standard_inchi_key in
+    SQL, so it must NOT carry the node prefix; and a Protein node in the
+    same file must not leak into it."""
+    import json
+
+    from kgav.host_targets import known_inchikeys
+    d = tmp_path / "v0.1-chembl"
+    d.mkdir()
+    (d / "nodes.jsonl").write_text("\n".join(json.dumps(n) for n in [
+        {"id": f"INCHIKEY:{_key('K1')}", "class": "SmallMolecule"},
+        {"id": "UniProtKB:Q9BYF1", "class": "Protein"},
+        {"id": "CHEMBL:CHEMBL25", "class": "SmallMolecule"},
+    ]) + "\n")
+    got = known_inchikeys(tmp_path, ["chembl"])
+    assert got == {_key("K1")}, (
+        "either the prefix survived, a Protein leaked in, or a non-INCHIKEY "
+        "SmallMolecule id was admitted unprefixed")
+
+
+def test_known_inchikeys_skips_a_layer_that_is_not_built(tmp_path):
+    """data/raw is populated by hand, so an absent layer is an ordinary
+    state of a checkout and must not raise."""
+    from kgav.host_targets import known_inchikeys
+    assert known_inchikeys(tmp_path, ["chembl", "ncats"]) == set()
+
+
+def test_the_known_set_comes_from_the_layers_before_hosttargets():
+    """NOT A HAND-WRITTEN LIST. A literal would go stale the next time a
+    layer moves, silently narrowing or widening the gate."""
+    from kgav.pipeline import LAYERS, layers_before
+    before = layers_before("hosttargets")
+    names = [l.name for l in LAYERS]
+    assert before == tuple(names[:names.index("hosttargets")])
+    assert "chembl" in before and "orcs" in before
+
+
+def test_the_relaxed_gate_CANNOT_SEE_ncats_FROM_WHERE_hosttargets_SITS():
+    """A LIMIT RECORDED, NOT ENFORCED. 660 of the 1,327 compounds option D
+    recovers come from ncats, which is built AFTER this layer, so
+    `--phase-gate relaxed` reaches the 667 chembl ones. hosttargets was
+    moved past ncats to fix that and moved back when B1 was declined.
+
+    This asserts the state the shipped order is in, so that anyone who
+    moves the layer again is told what it changes rather than finding out
+    from a figure. If ncats ever precedes hosttargets, the relaxed policy
+    silently doubles its reach -- which is a decision, not a refactor."""
+    from kgav.pipeline import layers_before
+    assert "ncats" not in layers_before("hosttargets"), (
+        "ncats now precedes hosttargets, so --phase-gate relaxed admits "
+        "roughly twice the compounds it did when B1 was measured; re-read "
+        "host_targets.PHASE_GATE_POLICIES before accepting this")
+
+
+def test_the_drivers_default_phase_gate_is_the_decision():
+    """The default IS the decision (the rule L10 settled), and an
+    unrecognised value is refused rather than read as either policy."""
+    import ingest_host_targets as H
+    from kgav.host_targets import DEFAULT_PHASE_GATE, PHASE_GATE_POLICIES
+    ap = H.build_parser(Path("/nowhere"))
+    act = {a.dest: a for a in ap._actions}["phase_gate"]
+    assert act.default == DEFAULT_PHASE_GATE == "floor", (
+        "the shipped policy is the floor; B1's relaxation was measured and "
+        "declined because its admission rule correlates with the labels")
+    assert tuple(act.choices) == PHASE_GATE_POLICIES == ("floor", "relaxed")
+    with pytest.raises(SystemExit):
+        ap.parse_args(["--phase-gate", "relaxed-ish"])

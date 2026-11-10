@@ -13,30 +13,55 @@ from kgav.aliases import AliasIndex
 from kgav.emit import Emit
 from kgav.provenance import chembl_release, write_source
 from kgav.host_targets import (
+    DEFAULT_MIN_PCHEMBL,
+    DEFAULT_MIN_PHASE,
+    DEFAULT_PHASE_GATE,
+    PHASE_GATE_POLICIES,
     gate_census,
     host_protein_ids,
     ingest_host_targets,
+    known_inchikeys,
     load_mechanisms,
     query_host_activities,
 )
+from kgav.pipeline import layers_before
 from kgav.schema import load_schema, report_violations
 
 
-def main() -> int:
-    root = Path(__file__).resolve().parents[1]
+def build_parser(root: Path | None = None) -> argparse.ArgumentParser:
+    """Extracted from main() so a test can read the defaults.
+
+    --phase-gate carries a decision (fix-list B1 option D), and a default
+    that only a 7-minute rebuild can observe is a default nothing checks.
+    """
+    root = Path(__file__).resolve().parents[1] if root is None else root
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", type=Path,
                     default=root / "data/raw/chembl/chembl_37/chembl_37_sqlite/chembl_37.db")
     ap.add_argument("--spine", type=Path, default=root / "data/releases/v0.1-spine")
     ap.add_argument("--host", type=Path, default=root / "data/releases/v0.1-host")
     ap.add_argument("--out", type=Path, default=root / "data/releases/v0.1-hosttargets")
-    ap.add_argument("--min-pchembl", type=float, default=6.0)
-    ap.add_argument("--min-phase", type=int, default=2)
+    ap.add_argument("--releases", type=Path, default=root / "data/releases")
+    ap.add_argument("--min-pchembl", type=float, default=DEFAULT_MIN_PCHEMBL)
+    ap.add_argument("--min-phase", type=int, default=DEFAULT_MIN_PHASE)
+    ap.add_argument("--phase-gate", choices=PHASE_GATE_POLICIES,
+                    default=DEFAULT_PHASE_GATE,
+                    help="floor (default): the phase floor for everyone, "
+                         "which is how v0.1 is built. relaxed: the floor OR "
+                         "the graph already holds the compound -- measured "
+                         "and declined (fix-list B1), kept runnable, NOT "
+                         "evaluated; its admission rule correlates with the "
+                         "labels.")
     ap.add_argument("--gate-census", action="store_true",
                     help="count what each SQL gate discards. A full scan of "
                          "~24.5M activity rows, about 76s; off by default so "
                          "a rebuild does not pay for it.")
-    args = ap.parse_args()
+    return ap
+
+
+def main() -> int:
+    root = Path(__file__).resolve().parents[1]
+    args = build_parser(root).parse_args()
 
     print("loading host layer")
     index = AliasIndex.from_releases(args.spine, args.host)
@@ -65,10 +90,42 @@ def main() -> int:
             return 1
         print(f"    {'(sums to the scan)':<42} {c['rows_scanned']:>12,}")
 
+    # WHICH COMPOUNDS THE GRAPH ALREADY HAS, read from the layers built
+    # before this one -- which pipeline.layers_before names, so this cannot
+    # drift when a layer moves. AND IT WILL NOT FIND THEM ALL from here:
+    # 660 of the 1,327 compounds that gain a route come from ncats, which
+    # is built after this layer, so --phase-gate relaxed sees the 667
+    # chembl ones. hosttargets was moved after ncats to fix that, and moved
+    # back when B1 was declined; the count printed below is the only honest
+    # way to say which half ran.
+    known = None
+    if args.phase_gate == "relaxed":
+        before = layers_before("hosttargets")
+        known = known_inchikeys(args.releases, before)
+        print("\nphase gate: RELAXED for compounds already in the graph "
+              "-- not the shipped policy (fix-list B1)")
+        print(f"  {len(known):,} compound(s) from {len(before)} earlier "
+              f"layer(s): {', '.join(before)}")
+    else:
+        print(f"\nphase gate: floor only (max_phase >= {args.min_phase}) "
+              f"-- how v0.1 was built")
+
     print(f"\nquerying activities (pChEMBL >= {args.min_pchembl}, "
-          f"max_phase >= {args.min_phase})")
-    rows = query_host_activities(args.db, args.min_pchembl, args.min_phase)
+          f"max_phase >= {args.min_phase}"
+          f"{' OR already in the graph' if known else ''})")
+    rows = query_host_activities(args.db, args.min_pchembl, args.min_phase,
+                                 known=known)
     print(f"  {len(rows):,} activities")
+    # WHAT THE RELAXATION ADMITTED, COUNTED. A policy whose effect is not
+    # reported is indistinguishable from one that did nothing -- the rule
+    # L10 settled for dose_series_policy.
+    if known:
+        relaxed_rows = [r for r in rows
+                        if r.get("max_phase") is None
+                        or r["max_phase"] < args.min_phase]
+        relaxed_cmpds = {r["inchikey"] for r in relaxed_rows if r.get("inchikey")}
+        print(f"  {len(relaxed_rows):,} of them admitted ONLY by the "
+              f"relaxation, over {len(relaxed_cmpds):,} compound(s)")
 
     em = Emit()
     s = ingest_host_targets(em, rows, mechanisms, proteins, "infores:chembl")

@@ -2,10 +2,11 @@
 
 **UNSIGNED DRAFT.** The values under *Fixed in advance* are proposals with
 their arithmetic attached. This is not a registration until it is signed and
-committed, and the re-run must not be executed before then. Two decisions
+committed, and the re-run must not be executed before then. Three decisions
 are flagged **DECISION** and belong to the author, not to this draft: the
-permutation count, and whether the six empty-rejection-region tests stay in
-the correction family. A third candidate -- whether `auc_ceiling` replaces
+permutation count, whether the six empty-rejection-region tests stay in
+the correction family, and -- added 2026-11-10, after a graph change proved
+the verdict depends on it -- which compounds the drug-target query admits. A third candidate -- whether `auc_ceiling` replaces
 `MIN_REACHED_POSITIVES` as the readability gate -- belongs to the
 hard-negatives analysis and not to this one, and is left out rather than
 listed here for completeness.
@@ -115,6 +116,40 @@ expectation. Both tails from the same null.
   change when the curated layer lands, and a count chosen to just clear
   today's alpha has to be revisited then.
 
+- **Drug-target admission: `--phase-gate floor`.** **DECISION**, and it is
+  here because 2026-11-10 proved this analysis's verdict depends on it. The
+  ChEMBL drug-target query keeps compounds at `max_phase >= 2`; fix-list B1
+  built a `relaxed` policy that also keeps any compound the graph already
+  holds. **The drugged proteome -- this analysis's first operand -- is 1,946
+  human proteins under `floor` and 2,489 under `relaxed`, and the verdict
+  follows it:** interactome/NCBITaxon:2697049 reads `p_matched` 0.235 under
+  `floor` and 0.000500 under `relaxed`, and the run as a whole goes from 0
+  of 22 rows clearing Bonferroni to 3. A registration that leaves this free
+  fixes the permutation count to three digits while leaving the operand
+  undefined, which is the same incompleteness the seeding scheme had.
+
+  **AND THE TWO POLICIES ARE NOT EQUALLY ADMISSIBLE HERE, WHICH IS WHY THE
+  REGISTERED ONE IS `floor`.** `relaxed` admits compounds *the graph already
+  holds*, which means compounds someone screened against a virus. Their
+  human targets therefore over-represent virus-interacting proteins by
+  construction: of the 543 proteins `relaxed` newly drugs, **96.5% appear in
+  a PPI against 85.4% of the 1,946 already drugged, and 45.7% are dependency
+  factors against 37.2%**. The degree-matched null controls for how well
+  studied a protein is, not for whether its drug was chosen for antiviral
+  screening.
+
+  **THERE IS NO INTERNAL CONTROL AVAILABLE UNDER `relaxed`.** Every compound
+  the policy can admit is one that was screened, so the change contains no
+  unscreened comparison group. The only admission rule whose compounds are
+  independent of this hypothesis is the one that drops the gate entirely --
+  B1's option C, 676,997 new compounds -- which was rejected as too large to
+  evaluate. B1 was then declined outright on a sharper measurement of the
+  same fact: of the compounds `relaxed` gives a first host-side route, 84.6%
+  carry positive antiviral labels against a 24.7% base rate for DENV-2. So a
+  re-run under `relaxed` is not a sensitivity analysis of this one. It is a
+  different hypothesis, on an operand selected on something close to the
+  outcome, and it would have to be registered as such.
+
 - **Correction family: every test the run performs, both channels, both
   directions.** On v0.1 that is 22 rows x 2 = 44, so alpha = 0.05/44 =
   0.001136. Computed by the script, which is the only thing that knows how
@@ -219,8 +254,10 @@ test rather than a pooled overlap.
   background. `scripts/pathway_landscape.py` computes no per-pathway
   quantity, and the claim in the paper is being renamed accordingly (P1 in
   the audit fix list) rather than defended here.
-- It does not establish mechanism for any row it cannot reject, and seven of
-  22 rows need a 2.4x excess or more before they could.
+- It does not establish mechanism for any row it cannot reject, and eight of
+  22 rows need a 2.4x excess or more before they could. (Seven until
+  2026-11-10, when the count was first derived from the results file rather
+  than typed in two documents.)
 - It does not settle `MIN_REACHED_POSITIVES` or `MIN_CLASS_SIZE`. Both are
   10; `MIN_REACHED_POSITIVES` justifies itself by matching
   `MIN_CLASS_SIZE`, and `MIN_CLASS_SIZE` at `scripts/hard_negatives.py:29`
