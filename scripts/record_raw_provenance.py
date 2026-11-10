@@ -5,13 +5,26 @@
     python scripts/record_raw_provenance.py --check      # verify, write nothing
     python scripts/record_raw_provenance.py --dir data/raw/ncats
 
-WHAT THIS IS FOR. `make data-timeline` reports the host layer as five
+WHAT THIS WAS FOR. `make data-timeline` reported the host layer as five
 files, 328,846,356 bytes, `mtime only` -- the human proteome and STRING
 v12.0, feeding 157,211 PARTICIPATES_IN and 141,019
 PHYSICALLY_INTERACTS_WITH edges, over three-quarters of the graph, with no
 recorded URL, release or checksum. fetch_raw.py writes a .source.json
-sidecar for every proteome it fetches; nothing does it for these, because
+sidecar for every proteome it fetches; nothing did it for these, because
 they were downloaded by hand before that existed.
+
+THAT SENTENCE STOPPED BEING TRUE ON 2026-10-25, when this script stamped
+those five files, AND THE TIMELINE WENT ON PRINTING `mtime only` FOR THEM
+UNTIL 2026-11-11. The host layer declares the glob `data/raw/host/*`, so
+the sidecars this script wrote were themselves counted as inputs: ten
+files instead of five, and the newest of the ten was a sidecar, which has
+no sidecar of its own. The report that exists to show whether provenance
+is recorded was driven negative BY THE ACT OF RECORDING IT. Fixed in
+data_timeline.inputs_for, where a `.source.json` is no longer an input,
+and the verdict is now taken over every input rather than the newest one.
+
+As of 2026-11-11 every layer reads `sidecar` except the three that share
+chembl_37.db.
 
 IT DOES NOT INVENT A DOWNLOAD. The URL and the retrieval date of a file
 placed by hand are not recoverable, and writing a plausible value for

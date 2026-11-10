@@ -89,17 +89,41 @@ host-mediated channels by construction — or scope the document explicitly
 to the scoring work and state that v1 is the pathway release. What cannot
 stand is a document stating numbers that no longer describe the graph.
 
-### A2. `host` layer provenance
+### A2. `host` layer provenance — **DONE 2026-11-11, and the report was the last part to be fixed**
 
-`make data-timeline` reports the `host` layer as five files, 328,846,356
-bytes, `mtime only`. That is the human proteome and STRING v12.0, feeding
-157,211 `PARTICIPATES_IN` and 141,019 `PHYSICALLY_INTERACTS_WITH` edges —
-over three-quarters of the graph — with no recorded URL, release or
-checksum.
+The item as written: `make data-timeline` reports the `host` layer as five
+files, 328,846,356 bytes, `mtime only`. That is the human proteome and
+STRING v12.0, feeding 157,211 `PARTICIPATES_IN` and 141,019
+`PHYSICALLY_INTERACTS_WITH` edges — over three-quarters of the graph — with
+no recorded URL, release or checksum.
 
-`fetch_raw.py` writes a `.source.json` sidecar for every proteome it
-fetches. Nothing does this for the host layer, which was placed by hand.
-This is the first thing a reviewer asks about.
+**The checksums were written on 2026-10-25** by
+`scripts/record_raw_provenance.py` (`make record-provenance`), which stamps
+a hand-placed file with its sha256 and states `url: null`,
+`retrieved: null`, `provenance: "reconstructed"` rather than inventing a
+download it cannot verify.
+
+**AND `make data-timeline` WENT ON PRINTING `mtime only` FOR ANOTHER
+SEVENTEEN DAYS.** The host layer declares the glob `data/raw/host/*`, so
+each `.source.json` this project wrote was counted as an input: ten files
+instead of five, 328,848,975 bytes instead of 328,846,356, and the newest
+of the ten was a sidecar — they were written that day, the data files are
+dated 2023 and September — and a sidecar has no sidecar of its own. **The
+report whose job is to say whether provenance exists was driven negative by
+the act of recording it.** The figures quoted in this item were always the
+right ones; the report moved away from them. Fixed in
+`data_timeline.inputs_for`, where a `.source.json` is no longer an input,
+and the verdict is now taken over every input rather than whichever is
+newest. `tests/test_data_timeline_provenance.py` holds both halves.
+
+**Every layer the pipeline declares now reads `sidecar`**, including the
+three that share `chembl_37.db` — 30,480,314,368 bytes, hashed in 113s.
+`curated` and `similarity` read `-` because they have no input on disk.
+
+What is still NOT done, and is a different job: a fetcher that lets a fresh
+clone download these with a real URL and a real retrieval date, the way
+`fetch_raw.py` does for proteomes. The sidecars make what is here
+auditable; they do not make it reproducible elsewhere.
 
 ### A3. The scope statement, written down
 
@@ -197,6 +221,14 @@ targets sit in, and does the virus depend on any member of them. That is
 ## Order
 
     A2  →  A3  →  A4  →  A5  →  release
+    DONE
 
 with C1 folded into whichever rebuild comes next. A1 is a decision to take
 before writing, not work to schedule.
+
+**A2 closed 2026-11-11.** C1 also landed: `infores:intact` contributes
+6,617 edges on the assembled release, so it is no longer waiting for a
+rebuild. The three remaining items are the agent and scope ones, and A3's
+figures have moved since it was written — the drugged-proteome share it
+quotes as 11.8% is 16.3% on this release, which
+`docs/scope_and_limits.md` now derives by test rather than restating.
