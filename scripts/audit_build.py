@@ -40,7 +40,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from kgav.labels import measured_reach
-from kgav.pipeline import LAYERS, availability, layer_dir
+from kgav.pipeline import LAYERS, availability, layer_dir, release_dir
 from kgav.provenance import check_layer
 from kgav.schema import load_schema, print_capped
 from kgav.virus_register import declared_taxa, family_of
@@ -264,7 +264,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--config", type=Path, default=ROOT / "config/viruses.yaml")
     ap.add_argument("--release", type=Path,
-                    default=ROOT / "data/releases/v0.1")
+                    default=release_dir(ROOT))
     ap.add_argument("--root", type=Path, default=ROOT)
     # EXPLICIT, not derived from --release. release.parent.parent happens
     # to give data/results for the default layout and walks out of the

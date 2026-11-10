@@ -48,8 +48,19 @@ def _reads_assembled(script: str) -> bool:
 
     `v0.1-<name>` is a per-layer release and needs no prior assemble; a bare
     `v0.1` is the output of assemble_release and does.
+
+    TWO SPELLINGS SINCE fix-list L14. The scripts used to name the path as a
+    literal and now call `pipeline.release_dir(root)` for the assembled
+    release and `layer_dir(root, name)` for a per-layer one. The distinction
+    this function draws is exactly the distinction between those two
+    helpers, so it reads the calls as well as the literals -- and this test
+    failing on the conversion is the test doing its job: putting selectivity
+    or similarity in phase 1 still builds, from the PREVIOUS release, and
+    nothing in the output says so.
     """
     src = (ROOT / "scripts" / script).read_text()
+    if re.search(r"\brelease_dir\s*\(", src):
+        return True
     for m in re.finditer(r'releases["\'/\s]*[/"\s]*["\']?v0\.1(-?[a-z]*)', src):
         if not m.group(1):
             return True

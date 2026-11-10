@@ -34,6 +34,7 @@ import textwrap
 
 from kgav.provenance import release_fingerprint
 from kgav.schema import load_schema
+from kgav.pipeline import release_dir
 
 CENSUS = ROOT / "docs" / "kg_release_census.txt"
 
@@ -216,7 +217,7 @@ def render(release: Path) -> str:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--release", type=Path,
-                    default=ROOT / "data/releases/v0.1")
+                    default=release_dir(ROOT))
     ap.add_argument("--out", type=Path, default=CENSUS)
     ap.add_argument("--check", action="store_true",
                     help="exit 1 if the file is stale, write nothing")

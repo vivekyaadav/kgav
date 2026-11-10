@@ -69,6 +69,7 @@ from kgav.baselines import (  # noqa: E402
 )
 from kgav.labels import build_labels  # noqa: E402
 from kgav.schema import load_schema  # noqa: E402
+from kgav.pipeline import release_dir
 
 # THE REGISTERED ARITHMETIC, imported. A second copy would drift, and the
 # whole point is to estimate the power of the test that actually ran.
@@ -206,7 +207,7 @@ def labels_needed(pos_rate: float, b_c: float, rho: float, correction: int,
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--release", type=Path, default=ROOT / "data/releases/v0.1")
+    ap.add_argument("--release", type=Path, default=release_dir(ROOT))
     ap.add_argument("--virus", default=None)
     ap.add_argument("--channel", default=None)
     ap.add_argument("--trials", type=int, default=TRIALS)

@@ -61,6 +61,29 @@ gate:
 	python scripts/validate_release.py data/releases/smoke \
 		--expect "CONSTRAINT=1,MISSING_PROVENANCE=1,MISSING_QUALIFIER=2"
 
+# REL HAD NO DEFAULT AND THIS TARGET THEREFORE NEVER RAN (fix-list L14's
+# family). `make release-validate` expanded to `data/releases/` and exited 2
+# with "no nodes.parquet or nodes.jsonl in data/releases" on every invocation
+# since the target was written. The schema check it performs was real -- it
+# runs inside `make rebuild` on every layer -- so nothing was unvalidated;
+# what was broken was the one command a reader is told to use to check the
+# release by hand. Found 2026-11-10 by running it.
+#
+# tests/test_makefile_targets_resolve.py now asserts that every variable a
+# recipe expands either carries a default here, is wrapped in $(or)/$(if), or
+# is guarded by a `test -n` in its own recipe. A target that cannot run is
+# the same defect class as a check that cannot fail.
+REL ?= v0.1
+
+# DECLARED OPTIONAL, not exempted in the test. `diff-releases` passes
+# $(ARGS) straight through to the script and an empty expansion is the
+# intended default, but an undeclared variable and a deliberately empty one
+# look identical to a reader and to a checker. Assigning it here states
+# which it is, so the rule in tests/test_makefile_targets_resolve.py stays
+# uniform and needs no list of names to ignore -- a list that would be the
+# same defect as a check written with the literals it is checking.
+ARGS ?=
+
 release-validate:
 	python scripts/validate_release.py data/releases/$(REL)
 

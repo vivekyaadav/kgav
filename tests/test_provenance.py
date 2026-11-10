@@ -312,26 +312,42 @@ def test_one_derived_release_path_across_the_three_scripts_that_touch_it():
     Exactly the drift that pointed make check-results at data/results-corrected
     while every script wrote to data/results: an audit aimed one directory
     off returns a verdict about neither.
+
+    TWO SPELLINGS SINCE fix-list L14. All three used to name the directory
+    as a literal `root / "data/releases/v0.1-train2021"`; they now call
+    `pipeline.train_dir(root)`, which is a stronger form of the property
+    this test asserts -- one function rather than three agreeing strings.
+    Both are resolved to the path they denote and then compared, so the
+    test still fails if any script names a DIFFERENT directory, in either
+    spelling, and still fails if one of them drops the default entirely.
     """
+    def resolve(expr: str) -> str:
+        """The directory a default expression denotes."""
+        if re.fullmatch(r"train_dir\(\s*root\s*\)", expr.strip()):
+            return "data/releases/v0.1-train2021"
+        m = re.fullmatch(r'root / "([^"]+)"', expr.strip())
+        return m.group(1) if m else expr.strip()
+
     paths = {}
     for script, flag in (("temporal_split", "--out"),
                          ("hard_negatives", "--train")):
         src = (ROOT / "scripts" / f"{script}.py").read_text()
-        m = re.search(rf'"{re.escape(flag)}".*?default=root / "([^"]+)"',
+        m = re.search(rf'"{re.escape(flag)}".*?default=([^,)\n]+(?:\)|"))',
                       src, re.S)
         assert m, f"{script}.py declares no {flag} default"
-        paths[script] = m.group(1)
+        paths[script] = resolve(m.group(1))
 
     src = (ROOT / "scripts" / "check_results.py").read_text()
     m = re.search(r'args\.derived is not None\s*\\?\s*\n?\s*else '
-                  r'\[root / "([^"]+)"\]', src)
+                  r'\[([^\]]+)\]', src)
     assert m, "check_results.py declares no default derived release"
-    paths["check_results"] = m.group(1)
+    paths["check_results"] = resolve(m.group(1))
 
     assert len(set(paths.values())) == 1, (
         f"the derived release is named differently by each script: {paths}. "
         "The one that disagrees is either writing where nobody reads or "
         "auditing a directory nothing produces.")
+    assert set(paths.values()) == {"data/releases/v0.1-train2021"}, paths
 
 
 def uncovered_taxa(repro: str, built: list[str]) -> list[str]:

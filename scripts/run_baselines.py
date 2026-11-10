@@ -29,6 +29,7 @@ from kgav.baselines import (
 from kgav.labels import build_labels
 from kgav.provenance import write_results
 from kgav.schema import load_schema
+from kgav.pipeline import release_dir
 
 # Compounds whose behaviour tells us whether the graph works.
 #   nirmatrelvir  nsp5 inhibitor  -> must rank high via M1
@@ -174,7 +175,7 @@ def register_viruses(root: Path) -> list[str]:
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
-    ap.add_argument("--release", type=Path, default=root / "data/releases/v0.1")
+    ap.add_argument("--release", type=Path, default=release_dir(root))
     ap.add_argument("--db", type=Path,
                     default=root / "data/raw/chembl/chembl_37/chembl_37_sqlite/chembl_37.db")
     ap.add_argument("--virus", action="append", metavar="CURIE",

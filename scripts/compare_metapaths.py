@@ -35,6 +35,7 @@ from kgav.baselines import (
 from kgav.labels import build_labels
 from kgav.provenance import write_results
 from kgav.schema import load_schema
+from kgav.pipeline import release_dir
 
 
 def positives(release: Path) -> dict[str, set[str]]:
@@ -55,7 +56,7 @@ def row(name: str, scores: dict[str, float], pos: set[str], k: int = 100) -> dic
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
-    ap.add_argument("--release", type=Path, default=root / "data/releases/v0.1")
+    ap.add_argument("--release", type=Path, default=release_dir(root))
     ap.add_argument("--out", type=Path, default=root / "data/results")
     ap.add_argument("-k", type=int, default=100)
     args = ap.parse_args()

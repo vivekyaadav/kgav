@@ -66,6 +66,7 @@ from kgav.baselines import Graph  # noqa: E402
 from kgav.schema import load_schema  # noqa: E402
 from kgav.provenance import write_results
 from kgav.vhppi import BINARY_METHODS
+from kgav.pipeline import release_dir
 
 # THE ONE IMPLEMENTATION, imported. A second copy of an exact hypergeometric
 # tail would drift from the one Phase 4 validated against scipy over 400
@@ -570,7 +571,7 @@ def _write(out: Path, args, rows: dict[str, dict],
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--release", type=Path, default=ROOT / "data/releases/v0.1")
+    ap.add_argument("--release", type=Path, default=release_dir(ROOT))
     ap.add_argument("--degree-from", choices=("all", "study"),
                     default="study",
                     help="what the degree-matched null matches ON. 'study' "

@@ -33,6 +33,52 @@ DEFAULT_THRESHOLD = 0.7
 FP_RADIUS = 2
 FP_BITS = 2048
 
+#: The predicates whose SUBJECTS this layer treats as already annotated, and
+#: which therefore decide the query/reference partition. It lived as a local
+#: inside `scripts/ingest_similarity.py`'s main() and is here because
+#: `rebuild_release.py` has to ask the same question (fix-list L20) and a
+#: second copy of this tuple would be a second definition of the loop.
+ANNOTATING = ("TARGETS", "INHIBITS", "MEASURED_INACTIVE_AGAINST")
+
+
+def annotating_subjects_sha(release: Path) -> str | None:
+    """A digest of the compounds this layer would call "already annotated".
+
+    WHY THE REBUILD NEEDS IT (fix-list L20). `make rebuild` assembles at
+    phase 2 from the PREVIOUS run's phase-3 directories, so what this layer
+    reads at phase 3 contains `gtop`'s output from the last rebuild -- and
+    `gtop` is also phase 3, contributing TARGETS. The two are mutually
+    dependent through the assembly between them, so one pass of 3-then-4 is
+    not a fixed point whenever the ANNOTATING subject set moves.
+
+    Comparing this digest across a run measures that coupling DIRECTLY,
+    rather than inferring it from which layers ran. A layer list would be a
+    second statement of which ingests write these three predicates, and
+    would go stale the next time one of them did.
+
+    None when the release has no edges file, which is the no-release case
+    the caller already distinguishes.
+    """
+    import hashlib
+    import json as _json
+
+    edges = Path(release) / "edges.jsonl"
+    if not edges.exists():
+        return None
+    subjects: set[str] = set()
+    with edges.open() as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            e = _json.loads(line)
+            if e["predicate"] in ANNOTATING:
+                subjects.add(e["subject"])
+    h = hashlib.sha256()
+    for s in sorted(subjects):
+        h.update(s.encode())
+        h.update(b"\n")
+    return h.hexdigest()[:16]
+
 
 def fingerprints(smiles_by_id: dict[str, str]) -> tuple[dict[str, object], Counter]:
     """ECFP4 (Morgan radius 2, 2048 bits) per node id.

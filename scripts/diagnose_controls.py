@@ -73,6 +73,7 @@ from kgav.baselines import (
 )
 from kgav.labels import build_labels
 from kgav.schema import load_schema
+from kgav.pipeline import release_dir
 
 
 def _run_baselines():
@@ -93,7 +94,7 @@ def _run_baselines():
 def main(argv=None) -> int:
     rb = _run_baselines()
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--release", type=Path, default=ROOT / "data/releases/v0.1")
+    ap.add_argument("--release", type=Path, default=release_dir(ROOT))
     ap.add_argument("--db", type=Path,
                     default=ROOT / "data/raw/chembl/chembl_37/chembl_37_sqlite/chembl_37.db")
     ap.add_argument("--virus", default="NCBITaxon:2697049")

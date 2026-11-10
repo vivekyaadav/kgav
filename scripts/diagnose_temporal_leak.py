@@ -50,6 +50,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.schema import load_schema
 from kgav.temporal import build_split, edge_year
+from kgav.pipeline import release_dir
 
 VALUE_KEYS = ("standard_type", "standard_relation", "standard_value",
               "standard_units")
@@ -74,7 +75,7 @@ def _labels(release: Path) -> dict[str, str]:
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
-    ap.add_argument("--release", type=Path, default=root / "data/releases/v0.1")
+    ap.add_argument("--release", type=Path, default=release_dir(root))
     ap.add_argument("--cutoff", type=int, default=2021)
     ap.add_argument("--undated", default="include",
                     choices=("include", "exclude", "computed_only"))

@@ -29,6 +29,7 @@ from kgav.labels import evaluate_against_negatives
 from kgav.provenance import write_refusal, write_results
 from kgav.schema import load_schema
 from kgav.temporal import audit, build_split, write_split
+from kgav.pipeline import release_dir, train_dir
 
 # THIS SCRIPT USED TO CARRY ITS OWN COPY OF lift_row, and the copy was the
 # version from before the pool-size bug was fixed:
@@ -134,8 +135,8 @@ def absence_reason(name: str, metapath: dict, graph) -> dict:
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
-    ap.add_argument("--release", type=Path, default=root / "data/releases/v0.1")
-    ap.add_argument("--out", type=Path, default=root / "data/releases/v0.1-train2021")
+    ap.add_argument("--release", type=Path, default=release_dir(root))
+    ap.add_argument("--out", type=Path, default=train_dir(root))
     ap.add_argument("--results", type=Path, default=root / "data/results")
     ap.add_argument("--cutoff", type=int, default=2021)
     ap.add_argument("--undated", default="include",

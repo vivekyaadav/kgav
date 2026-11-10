@@ -16,7 +16,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from kgav.emit import Emit
 from kgav.provenance import rdkit_release, write_source
 from kgav.schema import load_schema, report_violations
+from kgav.pipeline import layer_dir, release_dir
 from kgav.similarity import (
+    ANNOTATING,
     build,
     fingerprints,
     load_compounds,
@@ -27,8 +29,8 @@ from kgav.similarity import (
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
-    ap.add_argument("--release", type=Path, default=root / "data/releases/v0.1")
-    ap.add_argument("--out", type=Path, default=root / "data/releases/v0.1-similarity")
+    ap.add_argument("--release", type=Path, default=release_dir(root))
+    ap.add_argument("--out", type=Path, default=layer_dir(root, "similarity"))
     ap.add_argument("--threshold", type=float, default=0.7)
     ap.add_argument("--top-k", type=int, default=10)
     ap.add_argument("--survey-only", action="store_true")
@@ -73,7 +75,6 @@ def main() -> int:
     # The precise fix is a per-(compound, target) exclusion at traversal, which
     # the metapath language has no way to express -- there are no negative
     # constraints. Erring toward not contradicting a measurement.
-    ANNOTATING = ("TARGETS", "INHIBITS", "MEASURED_INACTIVE_AGAINST")
     annotated: set[str] = set()
     measured_inactive: set[str] = set()
     for line in (args.release / "edges.jsonl").read_text().splitlines():

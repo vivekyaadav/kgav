@@ -48,6 +48,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.assemble import LAYER_PRECEDENCE  # noqa: E402
 from kgav.schema import print_capped  # noqa: E402
+from kgav.pipeline import release_dir
 
 
 def read_jsonl(path: Path) -> list[dict]:
@@ -138,7 +139,7 @@ def classify(node: dict, refs: Counter, sibs: list[tuple]) -> str:
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
-    ap.add_argument("--release", type=Path, default=root / "data/releases/v0.1")
+    ap.add_argument("--release", type=Path, default=release_dir(root))
     ap.add_argument("--releases", type=Path, default=root / "data/releases",
                     help="directory holding the per-layer v0.1-* releases")
     ap.add_argument("--all", action="store_true",

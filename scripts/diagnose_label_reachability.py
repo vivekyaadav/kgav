@@ -64,6 +64,7 @@ from kgav.baselines import Graph                       # noqa: E402
 from kgav.calibration import MIN_REACHED_POSITIVES     # noqa: E402
 from kgav.labels import auc_interval, build_labels     # noqa: E402
 from kgav.schema import load_schema                     # noqa: E402
+from kgav.pipeline import release_dir
 
 LABEL_PREDICATES = ("HAS_ANTIVIRAL_ACTIVITY_AGAINST", "MEASURED_INACTIVE_AGAINST")
 #: The order they are reported in, loosest last.
@@ -73,7 +74,7 @@ DEFINITIONS = ("mechanism", "targets", "mech_or_tgt", "any_edge")
 def build_parser(root: Path | None = None) -> argparse.ArgumentParser:
     root = ROOT if root is None else root
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--release", type=Path, default=root / "data/releases/v0.1")
+    ap.add_argument("--release", type=Path, default=release_dir(root))
     ap.add_argument("--results", type=Path, default=root / "data/results",
                     help="for the independent label-count cross-check")
     ap.add_argument("--db", type=Path, default=None,

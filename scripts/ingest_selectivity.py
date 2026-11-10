@@ -17,6 +17,7 @@ from kgav.provenance import chembl_release, write_source
 from kgav.schema import load_schema, report_violations
 from kgav.selectivity import SI_THRESHOLD, ingest_selectivity, query_pairs
 from kgav.virus_register import declared_taxa
+from kgav.pipeline import layer_dir, release_dir
 
 
 def main() -> int:
@@ -25,8 +26,8 @@ def main() -> int:
     ap.add_argument("--db", type=Path,
                     default=root / "data/raw/chembl/chembl_37/chembl_37_sqlite/chembl_37.db")
     ap.add_argument("--config", type=Path, default=root / "config" / "viruses.yaml")
-    ap.add_argument("--release", type=Path, default=root / "data/releases/v0.1")
-    ap.add_argument("--out", type=Path, default=root / "data/releases/v0.1-selectivity")
+    ap.add_argument("--release", type=Path, default=release_dir(root))
+    ap.add_argument("--out", type=Path, default=layer_dir(root, "selectivity"))
     ap.add_argument("--threshold", type=float, default=SI_THRESHOLD)
     args = ap.parse_args()
 

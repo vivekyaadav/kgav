@@ -27,6 +27,7 @@ from kgav.labels import (DEFAULT_DOSE_SERIES_POLICY,
                          evaluate_against_negatives)
 from kgav.provenance import check_derived, derived_policy, write_results
 from kgav.schema import load_schema
+from kgav.pipeline import release_dir, train_dir
 
 MIN_CLASS_SIZE = 10
 
@@ -242,8 +243,8 @@ class GraphCache:
 
 def build_parser(root: Path) -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--release", type=Path, default=root / "data/releases/v0.1")
-    ap.add_argument("--train", type=Path, default=root / "data/releases/v0.1-train2021")
+    ap.add_argument("--release", type=Path, default=release_dir(root))
+    ap.add_argument("--train", type=Path, default=train_dir(root))
     ap.add_argument("--results", type=Path, default=root / "data/results")
     ap.add_argument("--results-name", default="hard_negatives.json",
                     help="THE FILENAME THIS PROTOCOL WRITES. Every protocol "
@@ -291,7 +292,16 @@ def build_parser(root: Path) -> argparse.ArgumentParser:
                          "matched by construction, not by a filter.")
     ap.add_argument("--publication-disjoint", action="store_true",
                     help="WITHHOLD EVIDENCE THAT SHARES A PAPER WITH ITS OWN "
-                         "LABEL. 94.9% of compounds carrying both an INHIBITS "
+                         "LABEL. 94.9%% of compounds carrying both an INHIBITS "  # noqa: E501
+                         # argparse %-formats help text, so a literal
+                         # percent must be doubled. It was not, and
+                         # `hard_negatives.py --help` raised
+                         # "TypeError: %o format: an integer is
+                         # required, not dict" for as long as this
+                         # sentence has been here -- the flag is
+                         # documented in docs/evaluation.md's
+                         # reproduce block and its help never printed.
+                         
                          "edge and an antiviral-activity label cite the same "
                          "PMID on both, because one paper reports the target "
                          "IC50 and the cell-based EC50 together. Without this "

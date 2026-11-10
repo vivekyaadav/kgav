@@ -52,6 +52,7 @@ from kgav.baselines import (  # noqa: E402
 from kgav.calibration import MIN_REACHED_POSITIVES  # noqa: E402
 from kgav.labels import build_labels  # noqa: E402
 from kgav.schema import load_schema  # noqa: E402
+from kgav.pipeline import release_dir
 
 PREREG = "docs/prereg_partial_degree.md"
 
@@ -214,7 +215,7 @@ def fmt(v, spec="+.3f"):
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--release", type=Path, default=ROOT / "data/releases/v0.1")
+    ap.add_argument("--release", type=Path, default=release_dir(ROOT))
     ap.add_argument("--negatives", choices=("measured", "all"),
                     default="measured")
     args = ap.parse_args(argv)

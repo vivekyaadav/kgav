@@ -60,6 +60,7 @@ from kgav.emit import Emit
 from kgav.folds import (DERIVED_FIELDS, ChainSpec, ResolvedChain, gate,
                         resolve)
 from kgav.schema import load_schema, print_capped, report_violations
+from kgav.pipeline import layer_dir
 
 # Roles whose comparisons may enter a score. Others are ingested and stored but
 # excluded until phase 4 validates the premise.
@@ -491,11 +492,11 @@ def main() -> int:
     # nothing: not only was `folds` absent from LAYER_PRECEDENCE, the
     # output would not have been found if it were there.
     ap.add_argument("--out", type=Path,
-                    default=root / "data/releases/v0.1-folds")
+                    default=layer_dir(root, "folds"))
     ap.add_argument("--cache", type=Path,
                     default=root / "data/raw/folds/phase2_chains.json")
     ap.add_argument("--spine", type=Path,
-                    default=root / "data/releases/v0.1-spine",
+                    default=layer_dir(root, "spine"),
                     help="checked for the Protein nodes this layer references")
     ap.add_argument("--offline", action="store_true")
     args = ap.parse_args()

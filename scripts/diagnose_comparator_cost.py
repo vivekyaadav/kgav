@@ -32,6 +32,7 @@ import yaml
 from ingest_folds import (SCORE_ELIGIBLE_ROLES, allowed_pairs, load_cache,  # noqa: E402
                           missing_inputs, walkable_transfers)
 from kgav.folds import gate  # noqa: E402
+from kgav.pipeline import layer_dir
 
 
 def register_state(cfg: dict) -> dict[str, tuple[str, str]]:
@@ -80,7 +81,7 @@ def main() -> int:
     ap.add_argument("--cache", type=Path,
                     default=root / "data/raw/folds/phase2_chains.json")
     ap.add_argument("--spine", type=Path,
-                    default=root / "data/releases/v0.1-spine")
+                    default=layer_dir(root, "spine"))
     ap.add_argument("--config", type=Path, default=root / "config/viruses.yaml")
     args = ap.parse_args()
 

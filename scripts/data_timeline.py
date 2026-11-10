@@ -42,7 +42,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from kgav.pipeline import LAYERS, layer_dir
+from kgav.pipeline import LAYERS, layer_dir, release_dir
 from kgav.temporal import PLACEHOLDER_DATE, edge_year
 
 # A version a source states about itself, read from the path rather than
@@ -88,7 +88,19 @@ def inputs_for(layer, root: Path) -> list[Path]:
         patterns.extend(alternatives)
     for g in patterns:
         out.extend(sorted(root.glob(g)))
-    return out
+    # A SIDECAR IS NOT AN INPUT, AND COUNTING IT AS ONE HID THE PROVENANCE
+    # IT RECORDS. The host layer declares `data/raw/host/*`, so once
+    # record_raw_provenance.py wrote a .source.json beside each of its five
+    # files on 2026-10-25 the glob returned ten paths. The newest was then a
+    # sidecar -- they were written that day, the data files are dated 2023
+    # and September -- and a sidecar has no sidecar of its own, so `acquired`
+    # read host as "10 files ... mtime only" for THE LAYER THAT HAD JUST
+    # GAINED FULL CHECKSUM PROVENANCE. docs/v1_release_plan.md's A2 item,
+    # which calls the host layer's provenance missing and quotes "five
+    # files, 328,846,356 bytes, mtime only", was correct when written and
+    # the figures it quotes are still the right ones; this report was the
+    # thing that moved.
+    return [p for p in out if not p.name.endswith(".source.json")]
 
 
 def acquired(root: Path) -> list[dict]:
@@ -110,6 +122,18 @@ def acquired(root: Path) -> list[dict]:
         side = _sidecar(newest)
         if side and side.get("written"):
             version = side.get("derived_from", version)
+        # THE VERDICT IS OVER EVERY INPUT, NOT THE NEWEST ONE. Reading only
+        # `newest` made the column a property of one file's mtime: a layer
+        # whose oldest four files carry checksums and whose newest does not
+        # reported "mtime only", and the reverse reported "sidecar". Both
+        # are the same claim about a different file.
+        covered = sum(1 for p in present if _sidecar(p) is not None)
+        if covered == len(present):
+            prov = "sidecar"
+        elif covered == 0:
+            prov = "mtime only"
+        else:
+            prov = f"sidecar {covered}/{len(present)}"
         rows.append({
             "layer": layer.name,
             "path": (f"{len(present)} files" if len(present) > 1
@@ -118,7 +142,7 @@ def acquired(root: Path) -> list[dict]:
             "bytes": sum(p.stat().st_size for p in present),
             "when": _when(newest),
             "version": version,
-            "provenance": "sidecar" if side else "mtime only",
+            "provenance": prov,
         })
     return rows
 
@@ -193,7 +217,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--root", type=Path, default=ROOT)
     ap.add_argument("--release", type=Path,
-                    default=ROOT / "data/releases/v0.1")
+                    default=release_dir(ROOT))
     ap.add_argument("--acquired", action="store_true")
     ap.add_argument("--evidence", action="store_true")
     args = ap.parse_args(argv)

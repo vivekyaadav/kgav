@@ -10,8 +10,14 @@
    label come from the SAME publication, M1 is partly reading the label it
    is being scored against. This measures that overlap.
 
-Read-only by default. Run from the repo root:
+Read-only by default:
     python diagnose_label_overlap.py [RELEASE_DIR]
+
+IT NO LONGER HAS TO BE RUN FROM THE REPO ROOT. The release default was
+`Path("data/releases/v0.1")` -- relative, and the only one of the 37 sites
+fix-list L14 converted that was -- so from any other directory it reported
+"no edges.jsonl in data/releases/v0.1" and looked like a missing release
+rather than a wrong working directory.
     python diagnose_label_overlap.py --out data/results/label_overlap.json
 
 WHY IT NOW WRITES A FILE. The shared-PMID figure -- 89.3% on the release of
@@ -35,10 +41,12 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
 
 from kgav.provenance import write_results
 from kgav.schema import load_schema
+from kgav.pipeline import release_dir
 
 POS = "HAS_ANTIVIRAL_ACTIVITY_AGAINST"
 NEG = "MEASURED_INACTIVE_AGAINST"
@@ -47,7 +55,7 @@ NEG = "MEASURED_INACTIVE_AGAINST"
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("release", nargs="?", type=Path,
-                    default=Path("data/releases/v0.1"))
+                    default=release_dir(ROOT))
     ap.add_argument("--out", type=Path, default=None,
                     help="also write the counts as a stamped results file")
     args = ap.parse_args(argv)

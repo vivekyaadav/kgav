@@ -24,7 +24,7 @@ from kgav.host_targets import (
     load_mechanisms,
     query_host_activities,
 )
-from kgav.pipeline import layers_before
+from kgav.pipeline import layer_dir, layers_before
 from kgav.schema import load_schema, report_violations
 
 
@@ -38,9 +38,9 @@ def build_parser(root: Path | None = None) -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", type=Path,
                     default=root / "data/raw/chembl/chembl_37/chembl_37_sqlite/chembl_37.db")
-    ap.add_argument("--spine", type=Path, default=root / "data/releases/v0.1-spine")
-    ap.add_argument("--host", type=Path, default=root / "data/releases/v0.1-host")
-    ap.add_argument("--out", type=Path, default=root / "data/releases/v0.1-hosttargets")
+    ap.add_argument("--spine", type=Path, default=layer_dir(root, "spine"))
+    ap.add_argument("--host", type=Path, default=layer_dir(root, "host"))
+    ap.add_argument("--out", type=Path, default=layer_dir(root, "hosttargets"))
     ap.add_argument("--releases", type=Path, default=root / "data/releases")
     ap.add_argument("--min-pchembl", type=float, default=DEFAULT_MIN_PCHEMBL)
     ap.add_argument("--min-phase", type=int, default=DEFAULT_MIN_PHASE)
@@ -182,7 +182,7 @@ def main() -> int:
     # How many TARGETS land on a coronavirus dependency factor -- this is the
     # number that decides whether M2 produces paths at all.
     dep: set[str] = set()
-    orcs = root / "data/releases/v0.1-orcs/edges.jsonl"
+    orcs = layer_dir(root, "orcs") / "edges.jsonl"
     if orcs.exists():
         for line in orcs.read_text().splitlines():
             if not line.strip():

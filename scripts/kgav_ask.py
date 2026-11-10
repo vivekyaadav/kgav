@@ -26,6 +26,7 @@ from kgav.agent.verify import verify_response
 from kgav import calibration as kgav_calibration
 from kgav.labels import measured_reach
 from kgav import landscape as kgav_landscape
+from kgav.pipeline import release_dir
 
 RULE = "─" * 74
 
@@ -118,7 +119,7 @@ def build_parser(root: Path) -> argparse.ArgumentParser:
     """
     ap = argparse.ArgumentParser(description="Query the kgav graph.")
     ap.add_argument("question", nargs="+")
-    ap.add_argument("--release", type=Path, default=root / "data/releases/v0.1")
+    ap.add_argument("--release", type=Path, default=release_dir(root))
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--host", default="http://localhost:11434")
     ap.add_argument("--no-model", action="store_true",

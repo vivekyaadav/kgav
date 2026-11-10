@@ -93,6 +93,7 @@ from kgav.baselines import (  # noqa: E402
     metaedge_degree,
 )
 from kgav.schema import load_schema  # noqa: E402
+from kgav.pipeline import release_dir
 
 TOP_K = 100
 
@@ -200,7 +201,7 @@ def channel_table(name: str, legacy: dict[str, float], pdp: dict[str, float],
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--release", type=Path, default=ROOT / "data/releases/v0.1")
+    ap.add_argument("--release", type=Path, default=release_dir(ROOT))
     ap.add_argument("--virus", default="NCBITaxon:2697049")
     ap.add_argument("--all-viruses", action="store_true")
     args = ap.parse_args(argv)

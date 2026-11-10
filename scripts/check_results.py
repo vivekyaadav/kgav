@@ -23,6 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.provenance import check_derived, check_dir, code_commit
+from kgav.pipeline import release_dir, train_dir
 
 MARK = {"ok": "ok      ", "stale": "STALE   ",
         "unstamped": "unstamped", "refused": "REFUSED ",
@@ -33,7 +34,7 @@ def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
     ap.add_argument("results_dir", type=Path)
-    ap.add_argument("--release", type=Path, default=root / "data/releases/v0.1")
+    ap.add_argument("--release", type=Path, default=release_dir(root))
     # AUDIT THE DERIVED RELEASE TOO. temporal_split.py cuts v0.1-train2021
     # from v0.1 and hard_negatives.py reads it, so it sits in the dependency
     # chain of a results file while being invisible to an audit that only
@@ -55,7 +56,7 @@ def main() -> int:
         return 2
 
     derived = args.derived if args.derived is not None \
-        else [root / "data/releases/v0.1-train2021"]
+        else [train_dir(root)]
 
     rows = check_dir(args.results_dir, args.release)
     if not rows:

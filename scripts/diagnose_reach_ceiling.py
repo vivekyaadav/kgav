@@ -50,6 +50,7 @@ from kgav.baselines import (  # noqa: E402
     walk_metapath,
 )
 from kgav.schema import load_schema, parse_hop  # noqa: E402
+from kgav.pipeline import release_dir
 
 # From the label_headroom run on v0.1, so the gap this is explaining is
 # stated rather than remembered. Keyed (virus, channel) -> (reach, needed).
@@ -117,7 +118,7 @@ def reach_under(g: Graph, mp: dict, blocked: set[str], virus: str) -> int:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--release", type=Path, default=ROOT / "data/releases/v0.1")
+    ap.add_argument("--release", type=Path, default=release_dir(ROOT))
     ap.add_argument("--channel", default="M4")
     ap.add_argument("--virus", default="NCBITaxon:2697049")
     args = ap.parse_args(argv)

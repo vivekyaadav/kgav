@@ -27,6 +27,7 @@ from kgav.provenance import chembl_release, write_source
 from kgav.schema import print_capped, load_schema, report_violations
 from kgav.units import CONCENTRATION_FACTORS
 from kgav.virus_register import declared_taxa
+from kgav.pipeline import layer_dir
 
 
 def main() -> int:
@@ -35,9 +36,9 @@ def main() -> int:
     ap.add_argument("--db", type=Path,
                     default=root / "data/raw/chembl/chembl_37/chembl_37_sqlite/chembl_37.db")
     ap.add_argument("--config", type=Path, default=root / "config" / "viruses.yaml")
-    ap.add_argument("--spine", type=Path, default=root / "data/releases/v0.1-spine")
-    ap.add_argument("--host", type=Path, default=root / "data/releases/v0.1-host")
-    ap.add_argument("--out", type=Path, default=root / "data/releases/v0.1-chembl")
+    ap.add_argument("--spine", type=Path, default=layer_dir(root, "spine"))
+    ap.add_argument("--host", type=Path, default=layer_dir(root, "host"))
+    ap.add_argument("--out", type=Path, default=layer_dir(root, "chembl"))
     args = ap.parse_args()
 
     cfg = yaml.safe_load(args.config.read_text())

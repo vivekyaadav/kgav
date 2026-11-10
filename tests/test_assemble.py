@@ -741,6 +741,15 @@ def test_every_ingest_script_writes_where_assemble_reads():
     So: the --out default of every ingest driver must be the directory
     assemble will look for, derived from the script's own filename exactly
     the way the precedence guard above derives it.
+
+    IT READS TWO SPELLINGS SINCE fix-list L14. The defaults used to be the
+    literal `root / "data/releases/v0.1-<layer>"` and are now
+    `pipeline.layer_dir(root, "<layer>")`. This test matched the literal, so
+    the conversion turned it red -- correctly: it is the test that checks
+    the thing the conversion changed, and it is the reason the conversion
+    could not be made quietly. Both forms are accepted rather than only the
+    new one, because a script may still legitimately be written either way
+    and the question this asks is about the NAME, not the spelling.
     """
     import re
     bad = []
@@ -751,9 +760,28 @@ def test_every_ingest_script_writes_where_assemble_reads():
         if block is None:
             bad.append(f"{f.name}: no --out argument")
             continue
-        found = re.search(r"v0\.\d+-[a-z0-9-]+", block.group(0))
-        if found is None or found.group(0) != f"v0.1-{name}":
-            bad.append(f"{f.name}: --out default {found and found.group(0)!r}, "
+        text = block.group(0)
+        helper = re.search(r'layer_dir\(\s*\w+\s*,\s*"([a-z0-9-]+)"\s*\)', text)
+        literal = re.search(r"v0\.\d+-[a-z0-9-]+", text)
+        # THE TWO BRANCHES COMPARE DIFFERENT THINGS, ON PURPOSE. A literal
+        # is checked IN FULL -- `v0.2-folds` is the bug this test was
+        # written for, and comparing only the suffix would let it back in.
+        # (It did, for one revision of this test, which is why the proof
+        # below exists.) A `layer_dir` call cannot carry a wrong version
+        # because the version is `pipeline.layer_dir`'s single copy of it,
+        # which is what fix-list L14 bought; only its NAME argument can be
+        # wrong, so that is what is compared.
+        if helper is not None:
+            ok = helper.group(1) == name
+            shown = f'layer_dir(root, "{helper.group(1)}")'
+        elif literal is not None:
+            ok = literal.group(0) == f"v0.1-{name}"
+            shown = repr(literal.group(0))
+        else:
+            bad.append(f"{f.name}: --out default names no layer directory")
+            continue
+        if not ok:
+            bad.append(f"{f.name}: --out default {shown}, "
                        f"assemble reads 'v0.1-{name}'")
     assert not bad, bad
 

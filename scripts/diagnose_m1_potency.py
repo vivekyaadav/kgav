@@ -47,6 +47,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from kgav.baselines import Graph, channel_percentiles, dwpc_scores, potency_tiebreak
 from kgav.schema import load_schema
+from kgav.pipeline import release_dir
 
 POTENCY = ("ic50_nm", "ki_nm", "kd_nm")
 CENSORED = (">", "<", ">=", "<=", "~")
@@ -109,7 +110,7 @@ def spearman(xs: list[float], ys: list[float]) -> float:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--release", type=Path, default=ROOT / "data/releases/v0.1")
+    ap.add_argument("--release", type=Path, default=release_dir(ROOT))
     ap.add_argument("--virus", default="NCBITaxon:2697049")
     args = ap.parse_args(argv)
 

@@ -52,6 +52,7 @@ from kgav.ncats import (
     unit_for,
 )
 from kgav.schema import load_schema, report_violations
+from kgav.pipeline import layer_dir
 
 # Below this, assume the normalization is wrong rather than the library being
 # unusual. These are approved and annotated compound collections; ChEMBL's
@@ -99,7 +100,7 @@ def main() -> int:
                          "contributes to that graph, so reading it back makes "
                          "the decision depend on whether this script has "
                          "already run.")
-    ap.add_argument("--out", type=Path, default=root / "data/releases/v0.1-ncats")
+    ap.add_argument("--out", type=Path, default=layer_dir(root, "ncats"))
     ap.add_argument("--date", default=DEFAULT_DATE)
     ap.add_argument("--ac50-units", default=None, choices=["M", "uM", "nM", "logM"])
     ap.add_argument("--min-efficacy-pct", type=float, default=MIN_EFFICACY_PCT,

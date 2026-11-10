@@ -43,6 +43,8 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from kgav.pipeline import release_dir
+
 # RECORDED JUDGEMENTS, not derived. Each says what would fill a gap and
 # when that was worked out. Keyed by the class or predicate it concerns.
 NOTES: dict[str, tuple[str, str]] = {
@@ -162,7 +164,7 @@ def wrap(text: str, width: int = 74, indent: str = "        ") -> str:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--release", type=Path,
-                    default=ROOT / "data/releases/v0.1")
+                    default=release_dir(ROOT))
     ap.add_argument("--schema", type=Path,
                     default=ROOT / "schema/kg_schema.yaml")
     ap.add_argument("--unknown-threshold", type=float, default=0.5,

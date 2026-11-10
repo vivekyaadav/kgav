@@ -215,16 +215,35 @@ def release_dir(root: Path) -> Path:
     Those two must agree or the fingerprint measures a directory nobody
     writes, which is the reason this function exists.
 
-    IT IS NOT YET THE ONLY COPY, and saying so here would be the same kind
-    of overclaim this codebase keeps finding. Nine other scripts still
-    default a `--release` argument to the path by hand -- check_results.py,
-    run_baselines.py, ingest_selectivity.py, ingest_similarity.py,
-    write_kg_report.py, data_audit.py and three diagnostics. They READ where
-    this says WRITE, so they cannot disagree with it silently in the way
-    assemble and rebuild could, but ten copies of one path is still ten.
-    Filed as L14 rather than converted here.
+    IT IS NOW THE ONLY COPY (fix-list L14, converted 2026-11-11). This
+    docstring used to say it was not, and named "nine other scripts" and
+    "ten copies of one path". BOTH FIGURES WERE STALE WHEN COUNTED: there
+    were 28 files and 37 `default=` sites -- 39 counting the two
+    constructions that are not argument defaults, which the test named
+    below found after the migration had already run -- because every script
+    added after the row was written copied the literal from the one
+    beside it. A
+    paragraph that admits to being one of ten is read as bounded; this one
+    had been growing for as long as it had been apologising, which is the
+    argument for converting rather than documenting.
+
+    tests/test_release_path_has_one_owner.py now fails if the literal
+    reappears anywhere but here.
     """
     return root / "data" / "releases" / "v0.1"
+
+
+def train_dir(root: Path, year: int = 2021) -> Path:
+    """Where temporal_split WRITES its training cut, and others read it.
+
+    The third shape of this path, after `release_dir` and `layer_dir`.
+    temporal_split.py writes it; hard_negatives.py and check_results.py
+    read it, and check_results additionally names it in its `--train` help
+    text. Keeping the year a parameter rather than baking 2021 in is not
+    speculative generality: `docs/prereg_temporal_auc.md` states the cutoff
+    as a protocol choice, and a second cut is the obvious next request.
+    """
+    return root / "data" / "releases" / f"v0.1-train{year}"
 
 
 def plan(root: Path, env: dict | None = None) -> list[dict]:
