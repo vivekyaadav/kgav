@@ -111,6 +111,17 @@ diagnose-phase-gate:
 # WHAT RESTATING THE TASK WOULD COST (fix-list B3). Runs on the release
 # alone in ~25s; add DB=... for the drug_mechanism definition, which is the
 # literal reading of "known mechanism" and needs the gitignored sqlite.
+# L19's unrun query: does ONE layer file two tautomers under one InChIKey?
+# The 32 conflations L19 found came from a CROSS-layer diagnostic, and the
+# only build with two layers per compound was B1, which was declined. So on
+# the shipped release that diagnostic reports nothing, and whether a single
+# layer does the same thing decides whether L19 is a limit to STATE or a
+# defect to FIX. LAYER= selects ncats (default), chembl or hosttargets;
+# the chembl layers need DB=.
+diagnose-tautomer-conflation:
+	python scripts/diagnose_tautomer_conflation.py \
+		--layer $(or $(LAYER),ncats) $(if $(DB),--db $(DB),)
+
 diagnose-label-reachability:
 	python scripts/diagnose_label_reachability.py $(if $(DB),--db $(DB),)
 
