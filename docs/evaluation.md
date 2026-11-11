@@ -1708,6 +1708,12 @@ make structure-scorer
 #    this one prints a 'prior' column from it when it is present.
 make structure-scorer-symmetric
 
+#    and the strength-matched follow-up. ORDER MATTERS HERE, unlike the
+#    two above: it derives every k_cell from
+#    data/results/structure_scorer.json's counters and refuses outright if
+#    that file is absent, so the publication-control run must precede it.
+make structure-scorer-strength
+
 # 5. every results file, AND the derived release they depend on, must
 #    describe the graph on disk
 make check-results

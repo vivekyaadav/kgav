@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -87,7 +88,34 @@ TOP_K = 3                   # the one registered alternative statistic
 # prior verdict suggested, leaves -12.
 K_CURVE = (1, 3, 10)
 K_PRIMARY = 10
-CONTROLS = ("publication", "knn")
+CONTROLS = ("publication", "knn", "strength")
+
+
+def k_cells_from_prior(prior: dict) -> dict[str, int]:
+    """virus -> k_cell, from the publication run's own counters.
+
+    docs/prereg_structure_scorer_strength_matched.md:
+
+        k_cell = ceil(max(pub_per_positive, pub_per_negative))
+
+    READ, NOT RECOMPUTED, and the registration says why: the k values are
+    what make this study auditable, so they come off the artifact a reader
+    can inspect rather than out of a fresh traversal that might differ. A
+    test re-derives all fourteen from the same file.
+
+    Returns one entry per READABLE cell of the publication run. A cell
+    missing from this map gets no strength-matched score, which is correct
+    -- there is nothing to match it to.
+    """
+    out: dict[str, int] = {}
+    for virus, cell in prior.get("primary_chembl", {}).items():
+        if not cell.get("readable"):
+            continue
+        n = cell["structure_max"]["counts"]
+        ep = n["excluded_publication_pos"] / max(n["candidates_pos"], 1)
+        en = n["excluded_publication_neg"] / max(n["candidates_neg"], 1)
+        out[virus] = math.ceil(max(ep, en))
+    return out
 
 
 def small_molecule_props(release: Path) -> dict[str, dict]:
@@ -265,9 +293,12 @@ def corrected(metrics: dict) -> dict:
 
 
 def run_population(release: Path, g: Graph, props: dict, source: str,
-                   fps: dict, pubs: dict, control: str = "publication") -> dict:
+                   fps: dict, pubs: dict, control: str = "publication",
+                   k_map: dict[str, int] | None = None,
+                   strength_matched: bool = True) -> dict:
     labels = build_labels(release, sources={source})
     degrees = degree_ranking(g)
+    k_map = k_map or {}
     out: dict[str, dict] = {}
     for virus in sorted(set(labels.positives) | set(labels.negatives)):
         pos = labels.positives.get(virus, set())
@@ -290,7 +321,7 @@ def run_population(release: Path, g: Graph, props: dict, source: str,
                 ("structure_max_no_pub_exclusion", 1, False, 0),
                 (f"structure_top{TOP_K}_mean", TOP_K, True, 0),
             )
-        else:
+        elif control == "knn":
             # The registered curve, plus the "both controls" secondary that
             # keeps the two runs comparable. `structure_max` is the primary
             # and is k = K_PRIMARY, named so the comparator code and the
@@ -300,6 +331,26 @@ def run_population(release: Path, g: Graph, props: dict, source: str,
             ) + (
                 ("structure_max", 1, False, K_PRIMARY),
                 (f"structure_max_k{K_PRIMARY}_both", 1, True, K_PRIMARY),
+            )
+        else:
+            # STRENGTH-MATCHED. k is this cell's own, and K_PRIMARY rides
+            # along as the companion column so every cell's movement is
+            # readable in one table -- which the registration requires,
+            # because P3 and P5 cannot be read without knowing which cells
+            # got a sterner control and which a weaker one.
+            k_cell = k_map.get(virus)
+            if k_cell is None:
+                cell["excluded_reason"] = (
+                    "no k_cell: this cell is not readable in the "
+                    "publication run, so there is no strength to match")
+                cell["readable"] = False
+                out[virus] = cell
+                continue
+            cell["k_cell"] = k_cell
+            cell["strength_matched"] = strength_matched
+            variants = (
+                ("structure_max", 1, False, k_cell),
+                (f"structure_max_k{K_PRIMARY}", 1, False, K_PRIMARY),
             )
         for name, top_k, disjoint, knn in variants:
             scores, counts = score_cell(candidates, references, fps, props,
@@ -332,21 +383,26 @@ def main(argv=None) -> int:
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args(argv)
     if args.out is None:
-        args.out = ROOT / ("data/results/structure_scorer.json"
-                           if args.control == "publication"
-                           else "data/results/structure_scorer_symmetric.json")
+        args.out = ROOT / {
+            "publication": "data/results/structure_scorer.json",
+            "knn": "data/results/structure_scorer_symmetric.json",
+            "strength": "data/results/structure_scorer_strength_matched.json",
+        }[args.control]
 
     if not (args.release / "nodes.jsonl").exists():
         print(f"no release at {args.release}")
         return 2
 
-    doc = ("docs/prereg_structure_scorer.md" if args.control == "publication"
-           else "docs/prereg_structure_scorer_symmetric.md")
+    doc = {
+        "publication": "docs/prereg_structure_scorer.md",
+        "knn": "docs/prereg_structure_scorer_symmetric.md",
+        "strength": "docs/prereg_structure_scorer_strength_matched.md",
+    }[args.control]
     # The publication-disjoint run, for the side-by-side column P1 and P3
     # are about. Absent is not fatal: the column reads `--`, which is what
     # that mark is for.
     prior = None
-    if args.control == "knn":
+    if args.control in ("knn", "strength"):
         prior_path = ROOT / "data/results/structure_scorer.json"
         if prior_path.exists():
             prior = json.loads(prior_path.read_text())
@@ -354,12 +410,26 @@ def main(argv=None) -> int:
             print("! no publication-disjoint run on disk; the 'prior' "
                   "column will be empty and P1/P3 cannot be read from "
                   "this output alone")
+    k_map: dict[str, int] = {}
+    if args.control == "strength":
+        if prior is None:
+            print("REFUSED: the strength-matched control derives every k "
+                  "from data/results/structure_scorer.json and that file "
+                  "is absent. There is no strength to match.")
+            return 2
+        k_map = k_cells_from_prior(prior)
+        print(f"k_cell per cell, from the publication run's counters: "
+              f"{min(k_map.values())} to {max(k_map.values())} over "
+              f"{len(k_map)} cells")
     print("STRUCTURE-DERIVED SCORER. Protocol fixed in advance by")
     print(f"{doc}, signed before the code that runs it.")
     print(f"release {args.release.name}   control {args.control}")
     if args.control == "knn":
         print(f"exclusion (3'): the k nearest references, k in {K_CURVE}, "
               f"primary k={K_PRIMARY}")
+    elif args.control == "strength":
+        print("exclusion (3'): the k_cell nearest references, k_cell = "
+              "ceil(max(pub/pos, pub/neg))")
     print()
 
     schema = load_schema()
@@ -398,6 +468,8 @@ def main(argv=None) -> int:
         "statistic": "max Tanimoto to admissible known actives",
         **({"k_curve": list(K_CURVE), "k_primary": K_PRIMARY}
            if args.control == "knn" else {}),
+        **({"k_cells": k_map, "k_companion": K_PRIMARY}
+           if args.control == "strength" else {}),
         "family_size": FAMILY,
         "alpha": ALPHA,
         "z_corrected": Z_CORRECTED,
@@ -407,12 +479,28 @@ def main(argv=None) -> int:
     for key, source in (("primary_chembl", PRIMARY_SOURCE),
                         ("secondary_ncats", SECONDARY_SOURCE)):
         print(f"\n{'=' * 68}\n{key}  ({source})\n{'=' * 68}")
+        # THE PLATE-MATCHED CELL IS NOT STRENGTH-MATCHED AND THE OUTPUT
+        # MUST SAY SO. Publication-disjointness removed every admissible
+        # reference there -- 88.00 per positive and 89.00 per negative out
+        # of 88 -- so the matching k is 89 and leaves -1. It runs at the
+        # ChEMBL cell's k_cell instead, which makes the two populations
+        # comparable at one handicap without pretending to match a
+        # strength that was total.
+        matched = args.control != "strength" or key == "primary_chembl"
         cells = run_population(args.release, g, props, source, fps, pubs,
-                               control=args.control)
+                               control=args.control, k_map=k_map,
+                               strength_matched=matched)
         payload[key] = cells
+        if args.control == "strength" and not matched:
+            print("  NOT STRENGTH-MATCHED: the publication control removed "
+                  "every reference in this")
+            print("  cell, so no symmetric control can match it. Run at the "
+                  "ChEMBL cell's k_cell")
+            print("  for comparability; read it as that and not as a "
+                  "strength match.")
         report(cells, control=args.control, prior=prior)
-        if args.control == "knn":
-            knn_invariant(cells)
+        if args.control in ("knn", "strength"):
+            knn_invariant(cells, k_map if args.control == "strength" else None)
 
     # THE FAMILY SIZE IS REGISTERED, SO A MISMATCH IS A FINDING.
     n_readable = sum(1 for c in payload["primary_chembl"].values()
@@ -430,7 +518,7 @@ def main(argv=None) -> int:
     return 0
 
 
-def knn_invariant(cells: dict) -> None:
+def knn_invariant(cells: dict, k_map: dict[str, int] | None = None) -> None:
     """P2: every candidate loses exactly k references to (3').
 
     REGISTERED AS AN INVARIANT, NOT AN OUTCOME, so it is checked where it
@@ -439,23 +527,30 @@ def knn_invariant(cells: dict) -> None:
     its own output could not see; this prints the thing the prediction is
     about.
     """
-    print(f"\n  P2 -- exclusion (3') removes exactly k, per class "
-          f"(k={K_PRIMARY}):")
-    print(f"    {'virus':<20} {'knn/pos':>9} {'knn/neg':>9} {'short':>6} "
-          f"{'skel/pos':>9} {'skel/neg':>9}  invariant")
+    k_map = k_map or {}
+    label = "k_cell" if k_map else f"k={K_PRIMARY}"
+    print(f"\n  P2 -- exclusion (3') removes exactly k, per class ({label}):")
+    print(f"    {'virus':<20} {'k':>4} {'knn/pos':>9} {'knn/neg':>9} "
+          f"{'short':>6} {'skel/pos':>9} {'skel/neg':>9}  invariant")
     bad = []
     for virus, c in sorted(cells.items()):
         if not c.get("readable"):
             continue
         k = c["structure_max"]["counts"]
-        exp = K_PRIMARY * k["candidates_pos"], K_PRIMARY * k["candidates_neg"]
+        # PER CELL WHERE THERE IS A PER-CELL k. Checking against K_PRIMARY
+        # under the strength control would compare 10 against 33 and report
+        # the invariant violated in thirteen of fourteen cells -- a check
+        # that fails for its own reason says nothing about the thing it
+        # guards.
+        kk = k_map.get(virus, K_PRIMARY)
+        exp = kk * k["candidates_pos"], kk * k["candidates_neg"]
         got = k["excluded_knn_pos"], k["excluded_knn_neg"]
         ok = got == exp and not k["knn_short"]
         if not ok:
             bad.append(virus)
         per_pos = got[0] / max(k["candidates_pos"], 1)
         per_neg = got[1] / max(k["candidates_neg"], 1)
-        print(f"    {virus:<20} {per_pos:>9.2f} {per_neg:>9.2f} "
+        print(f"    {virus:<20} {kk:>4} {per_pos:>9.2f} {per_neg:>9.2f} "
               f"{k['knn_short']:>6,} "
               f"{k['excluded_skeleton_pos'] / max(k['candidates_pos'], 1):>9.2f} "
               f"{k['excluded_skeleton_neg'] / max(k['candidates_neg'], 1):>9.2f}"
@@ -493,6 +588,13 @@ def report(cells: dict, control: str = "publication",
         print(f"  {'virus':<20} {'pos':>6} {'neg':>7} {'AUC':>7} "
               f"{'[corrected 95%]':>18} {'skill':>7} {'leak':>7} "
               f"{'degree':>7}")
+    elif control == "strength":
+        # k_cell IS A COLUMN, which the registration requires: P3 and P5
+        # cannot be read without knowing which cells got a sterner control
+        # than k=10 and which got a weaker one.
+        print(f"  {'virus':<20} {'pos':>6} {'neg':>7} {'k':>4} "
+              f"{'AUC':>7} {'[corrected 95%]':>18} {'skill':>7} "
+              f"{'k=10':>7} {'prior':>7} {'degree':>7}")
     else:
         print(f"  {'virus':<20} {'pos':>6} {'neg':>7} "
               f"{'k=1':>7} {'k=3':>7} {'k=10':>7} {'[corrected 95%]':>18} "
@@ -516,7 +618,20 @@ def report(cells: dict, control: str = "publication",
                 else "v" if m["clears_corrected_alpha"] else " ")
         # NO `or 0.0` ANYWHERE BELOW. That idiom printed a vacuous cell's
         # auc_skill of None as a confident 0.0000.
-        if control == "publication":
+        if control == "strength":
+            at10 = c.get(f"structure_max_k{K_PRIMARY}", {}).get("auc")
+            was = None
+            if prior:
+                was = (prior.get("primary_chembl", {}).get(virus, {})
+                       .get("structure_max", {}).get("auc"))
+                if was is None:
+                    was = (prior.get("secondary_ncats", {}).get(virus, {})
+                           .get("structure_max", {}).get("auc"))
+            print(f"  {virus:<20} {m['n_pos']:>6,} {m['n_neg']:>7,} "
+                  f"{c['k_cell']:>4} {m['auc']:>7.4f}{mark}{ci:>18} "
+                  f"{num(m.get('auc_skill')):>7} {num(at10):>7} "
+                  f"{num(was):>7} {num(d.get('auc')):>7}")
+        elif control == "publication":
             leak = c["structure_max_no_pub_exclusion"]
             print(f"  {virus:<20} {m['n_pos']:>6,} {m['n_neg']:>7,} "
                   f"{m['auc']:>7.4f}{mark}{ci:>18} "
@@ -540,7 +655,12 @@ def report(cells: dict, control: str = "publication",
                   f"{num(m.get('auc_skill')):>7} {num(both):>7} "
                   f"{num(was):>7} {num(d.get('auc')):>7}")
     print("  ^ clears the corrected alpha ABOVE chance, v clears it BELOW.")
-    if control == "publication":
+    if control == "strength":
+        print("    k is this cell's own k_cell = ceil(max(pub/pos, "
+              "pub/neg)); 'k=10' is the")
+        print("    symmetric study's companion figure and 'prior' the "
+              "publication-disjoint one.")
+    elif control == "publication":
         print("    'leak' is the no-publication-exclusion variant minus the "
               "primary: positive")
         print("    means same-paper actives were inflating it.")

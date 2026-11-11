@@ -190,3 +190,135 @@ contestable, with the reasoning already given: `ceil(max(...))` rather than
 a sterner combination; keeping the family at 14 cells rather than adding the
 plate-matched one; and running the plate-matched cell at k = 10 and 33
 rather than declaring it unmeasurable.
+
+---
+
+# Verdict — leniency is ruled out, one prediction failed, and the plate-matched evidence did not survive
+
+Run 2026-11-11, `make structure-scorer-strength`, written to
+`data/results/structure_scorer_strength_matched.json`. Release v0.1,
+`edges_sha` ad7121bc2195a93a. The registration above is unchanged.
+
+| | prediction | outcome |
+|---|---|---|
+| **P1** | SARS-CoV-2 at k_cell=33 reads >= 0.6346 | **HELD — 0.7841** |
+| **P2** | every candidate loses exactly k_cell | **HELD in all 14 cells and the matched one** |
+| **P3** | AUC at k_cell <= AUC at k=10 in >= 10 of 14 | **FAILED — 8 of 14** |
+| **P4** | no cell clears the corrected alpha below chance | **HELD — zero** |
+| **P5** | at least 8 of 14 clear above chance | **HELD — 10, the symmetric study's count, not the publication control's 5** |
+| **P6** | cell ordering stable, Spearman > 0.544 | **HELD — +0.912** |
+
+## The numbers
+
+    virus             pos     neg   k      AUC      corrected 95%   skill    k=10   prior     deg
+    Yellow fever      135     882  13  0.8117^ [0.7443, 0.8791]  0.6234  0.8388  0.5545  0.7264
+    JEV                19      27  12  0.7885^ [0.5810, 0.9960]  0.5770  0.8002  0.1452  0.6374
+    SARS-CoV-2      1,786   5,362  33  0.7841^ [0.7641, 0.8041]  0.5682  0.8286  0.7693  0.5131
+    TBEV               72      65  11  0.7385^ [0.6159, 0.8611]  0.4769  0.7462  0.5764  0.4203
+    West Nile         261     311   4  0.7079^ [0.6440, 0.7717]  0.4157  0.6600  0.6308  0.5657
+    Zika              748   2,577   7  0.7032^ [0.6695, 0.7369]  0.4065  0.6812  0.6316  0.5534
+    DENV-2            996   3,043  27  0.6919^ [0.6621, 0.7216]  0.3837  0.7882  0.5735  0.4016
+    HCoV-229E         120      88  11  0.6757^ [0.5685, 0.7829]  0.3514  0.7114  0.5951  0.5908
+    DENV-3            213      95  24  0.6653^ [0.5728, 0.7579]  0.3307  0.6496  0.3861  0.1715
+    DENV-1            195     123  14  0.5967^ [0.5034, 0.6901]  0.1935  0.6066  0.4489  0.3144
+    HCoV-OC43         164      70  27  0.5858  [0.4704, 0.7012]  0.1716  0.5677  0.5396  0.5345
+    SARS-CoV          143      96   9  0.5825  [0.4744, 0.6907]  0.1651  0.5785  0.5186  0.6812
+    MERS-CoV          133      41  13  0.4893  [0.3381, 0.6405] -0.0215  0.4827  0.6677  0.7085
+    DENV-4            153     109  12  0.4792  [0.3735, 0.5850] -0.0416  0.5868  0.4644  0.2302
+
+    ^ clears the corrected alpha above chance.  No cell clears it below.
+
+## P1 and P5 together: the symmetric study was not measuring its own leniency
+
+This was the question the registration existed to answer. At k_cell = 33 the
+control removes 33 references from **every** candidate of **both** classes,
+against publication-disjointness removing 20.63 per positive and 32.23 per
+negative in that cell — so it is strictly sterner on both sides and
+symmetric. SARS-CoV-2 reads **0.7841 [0.7641, 0.8041]**, above the 0.6346
+threshold and above the publication-disjoint 0.7693 it is compared with.
+
+**And P5 is the discriminating result.** Ten of fourteen cells clear above
+chance — the symmetric study's count, not the publication control's five.
+The leniency account predicted a fall toward five when strength was
+restored. It did not happen. **Combined with P4, zero cells clearing below
+chance, the asymmetry explanation stands and the symmetric study's verdict
+is not withdrawn.**
+
+P6 adds that the cell ordering is almost unchanged: Spearman **+0.912**
+between the k_cell and k=10 readings. The per-virus pattern is a property of
+the data, not of the control.
+
+## P3 failed, and the registered reasoning behind it was wrong
+
+P3 predicted AUC would not rise under a sterner control in at least 10 of 14
+cells. It rose in six, so only 8 of 14 fell:
+
+    West Nile      k_cell= 4   +0.0479   k < 10, named in advance
+    Zika           k_cell= 7   +0.0221   k < 10, named in advance
+    SARS-CoV       k_cell= 9   +0.0040   k < 10, named in advance
+    HCoV-OC43      k_cell=27   +0.0181   k > 10, NOT anticipated
+    DENV-3         k_cell=24   +0.0157   k > 10, NOT anticipated
+    MERS-CoV       k_cell=13   +0.0066   k > 10, NOT anticipated
+
+Three were named before the run, because their k_cell is below 10 and they
+therefore get a *weaker* control than the companion column. **The other
+three are the failure, and the registration's reasoning for P3 was simply
+unsound.** It argued that "removing more of a candidate's nearest references
+cannot add information". That is true of a single candidate's score and false
+of an AUC, which compares two classes: removing more references lowers
+scores in *both*, and whether the comparison improves depends on which class
+loses more. Monotonicity in k was never implied by the design.
+
+The three unanticipated rises are +0.0181, +0.0157 and +0.0066 — small, and
+in cells with 70, 95 and 41 negatives. That is consistent with noise and is
+not evidence of anything; it is stated as the reason P3's threshold should
+never have been set from the symmetric study's incidental 10-of-14, which is
+what calibrating a prediction on a prior result's margin amounts to.
+
+## The result that weakens the previous verdict
+
+**The plate-matched NCATS cell no longer clears the corrected alpha.** At
+k=33 it reads **0.5898 [0.4968, 0.6827]** — the interval contains chance. At
+k=10 it read 0.6088 and cleared, which is what the symmetric verdict called
+"the first result in this project where a channel clears a corrected
+threshold on a population matched by construction".
+
+**That claim does not survive the stronger handicap, and it is the headline
+of the previous verdict.** What survives is weaker and still worth having:
+on the plate-matched population the scorer reads above chance at both k
+values, with skill 0.1795 at k=33, and the interval excludes chance at k=10
+but not at k=33. The honest summary is that the plate-matched evidence is
+**marginal and k-dependent**, not established.
+
+The collection-confound gap narrows slightly when both cells are read at the
+same handicap: **0.1944 at k=33**, against 0.22 measured at k=10. Both are
+large.
+
+## What this licenses now
+
+- **The structure scorer separates antiviral actives from measured inactives
+  on the source-matched population, under a symmetric control at least as
+  strong as the one that produced the original below-chance cells.** Ten of
+  fourteen cells, zero below chance, ordering stable at +0.912. This is the
+  firmest result in the project.
+- **It does not license the plate-matched claim.** That cell is marginal,
+  and the previous verdict's headline about it should be read as retracted to
+  "above chance at both k, clearing at one of them".
+- **The collection confound remains large and measured**, 0.19 to 0.22 AUC
+  depending on the handicap.
+- **MERS-CoV is still unexplained**, now across three runs: 0.6677
+  publication, 0.4827 at k=10, 0.4893 at k_cell=13. It is the only cell that
+  the publication control favoured, and no registration has accounted for
+  it.
+- **It still is not a mechanism.**
+
+## What would change the conclusion
+
+The plate-matched cell is the whole question now, and it is powered at 89
+positives against 7,343 negatives — its interval is +-0.09 at the corrected
+level, which is why it flips between clearing and not. **More
+plate-matched positives is the only thing that settles it**, and that is a
+data-acquisition problem rather than an analysis one: curating further
+published single-screen panels, which `docs/v1_release_plan.md` already
+lists as out of scope and large. No further control variant will help,
+because the limit is the class size and not the protocol.

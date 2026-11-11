@@ -145,6 +145,13 @@ structure-scorer:
 structure-scorer-symmetric:
 	python scripts/structure_scorer.py --control knn $(ARGS)
 
+# The strength-matched follow-up,
+# docs/prereg_structure_scorer_strength_matched.md. It DERIVES every k from
+# data/results/structure_scorer.json and refuses if that file is absent,
+# because there is then no strength to match.
+structure-scorer-strength:
+	python scripts/structure_scorer.py --control strength $(ARGS)
+
 STRUCTURE_SOURCES = $(or $(SOURCES),infores:chembl)
 diagnose-structure-design:
 	python scripts/diagnose_structure_scorer_design.py \

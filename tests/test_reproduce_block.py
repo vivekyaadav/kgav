@@ -67,6 +67,8 @@ WRITERS: list[tuple[str, str]] = [
     (r"^label_overlap\.json$", "make label-overlap"),
     (r"^structure_scorer\.json$", "make structure-scorer"),
     (r"^structure_scorer_symmetric\.json$", "make structure-scorer-symmetric"),
+    (r"^structure_scorer_strength_matched\.json$",
+     "make structure-scorer-strength"),
 ]
 
 
