@@ -138,6 +138,13 @@ diagnose-label-reachability:
 structure-scorer:
 	python scripts/structure_scorer.py $(ARGS)
 
+# The symmetric-control follow-up, docs/prereg_structure_scorer_symmetric.md.
+# A SEPARATE TARGET AND A SEPARATE FILE: the publication-disjoint run is its
+# comparator, its figures are quoted in a verdict and pinned by tests, and
+# overwriting it would destroy the only thing it is being compared against.
+structure-scorer-symmetric:
+	python scripts/structure_scorer.py --control knn $(ARGS)
+
 STRUCTURE_SOURCES = $(or $(SOURCES),infores:chembl)
 diagnose-structure-design:
 	python scripts/diagnose_structure_scorer_design.py \

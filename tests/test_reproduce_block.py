@@ -66,6 +66,7 @@ WRITERS: list[tuple[str, str]] = [
     (r"^pathway_landscape\.json$", "make pathway-landscape"),
     (r"^label_overlap\.json$", "make label-overlap"),
     (r"^structure_scorer\.json$", "make structure-scorer"),
+    (r"^structure_scorer_symmetric\.json$", "make structure-scorer-symmetric"),
 ]
 
 

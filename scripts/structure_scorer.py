@@ -46,6 +46,7 @@ shows up in `auc_floor` instead of disappearing.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -78,6 +79,16 @@ ALPHA = 0.05 / FAMILY
 Z_CORRECTED = 2.9137        # two-sided, for ALPHA
 TOP_K = 3                   # the one registered alternative statistic
 
+# docs/prereg_structure_scorer_symmetric.md, signed 2026-11-11.
+# K_PRIMARY is derived, not chosen: JEV holds 18 references after
+# self-exclusion, the smallest in the family, and k must leave every cell
+# non-empty or the study repeats the prior run's P5 -- a cell that printed
+# 0.5000 with an interval because nothing had been ranked. k=30, which the
+# prior verdict suggested, leaves -12.
+K_CURVE = (1, 3, 10)
+K_PRIMARY = 10
+CONTROLS = ("publication", "knn")
+
 
 def small_molecule_props(release: Path) -> dict[str, dict]:
     import json
@@ -95,7 +106,8 @@ def score_cell(candidates: list[str], references: list[str],
                fps: dict, props: dict[str, dict],
                pubs: dict[str, set[str]], top_k: int = 1,
                publication_disjoint: bool = True,
-               positives: frozenset[str] = frozenset()) -> tuple[dict, dict]:
+               positives: frozenset[str] = frozenset(),
+               knn: int = 0) -> tuple[dict, dict]:
     """Max (or mean-of-top-k) Tanimoto to the admissible references.
 
     Returns (scores by candidate id, counters). A candidate absent from
@@ -132,6 +144,21 @@ def score_cell(candidates: list[str], references: list[str],
         "excluded_publication_neg": 0,
         "candidates_pos": 0,
         "candidates_neg": 0,
+        # EXCLUSION (3'), docs/prereg_structure_scorer_symmetric.md. P2 is
+        # an invariant over these: every candidate must lose exactly `knn`
+        # references, so excluded_knn == knn * candidates in every cell. If
+        # it does not, the control is not symmetric and nothing else in the
+        # cell means anything.
+        "excluded_knn": 0,
+        "excluded_knn_pos": 0,
+        "excluded_knn_neg": 0,
+        "knn_short": 0,
+        # THE RESIDUAL. Exclusion (2) still removes a variable number --
+        # the registration bounds it at 2 extra for a minority of
+        # candidates -- so it is counted per class rather than argued
+        # about.
+        "excluded_skeleton_pos": 0,
+        "excluded_skeleton_neg": 0,
     }
     for c in candidates:
         fp = fps.get(c)
@@ -153,6 +180,8 @@ def score_cell(candidates: list[str], references: list[str],
             if i not in drop and c_skel and s == c_skel:
                 drop.add(i)
                 counts["excluded_skeleton"] += 1
+                counts["excluded_skeleton_pos" if is_pos
+                       else "excluded_skeleton_neg"] += 1
         if publication_disjoint and c_pubs:
             for i, pp in enumerate(ref_pubs):
                 if i not in drop and (pp & c_pubs):
@@ -160,6 +189,28 @@ def score_cell(candidates: list[str], references: list[str],
                     counts["excluded_publication"] += 1
                     counts["excluded_publication_pos" if is_pos
                            else "excluded_publication_neg"] += 1
+        # EXCLUSION (3'): the k NEAREST remaining references, applied after
+        # (1) self and (2) skeleton so it removes exactly k beyond them.
+        #
+        # TIES BROKEN BY REFERENCE INDEX, ASCENDING, and `ref_ids` is
+        # sorted, so the choice among equal similarities is deterministic
+        # across processes. It has to be: str hashing is randomised per
+        # interpreter, and set iteration order reaching a results file is a
+        # defect this repository has already paid for once in build_labels.
+        if knn:
+            order = sorted(((-s, i) for i, s in enumerate(sims)
+                            if i not in drop))
+            if len(order) <= knn:
+                # Would empty the set. The registration's k was derived so
+                # this cannot happen in the family -- JEV holds 18
+                # references and k is 10 -- so it is counted loudly rather
+                # than silently clipped.
+                counts["knn_short"] += 1
+            for _neg_s, i in order[:knn]:
+                drop.add(i)
+                counts["excluded_knn"] += 1
+                counts["excluded_knn_pos" if is_pos
+                       else "excluded_knn_neg"] += 1
         kept = [s for i, s in enumerate(sims) if i not in drop]
         if not kept:
             counts["empty_reference"] += 1
@@ -214,7 +265,7 @@ def corrected(metrics: dict) -> dict:
 
 
 def run_population(release: Path, g: Graph, props: dict, source: str,
-                   fps: dict, pubs: dict) -> dict:
+                   fps: dict, pubs: dict, control: str = "publication") -> dict:
     labels = build_labels(release, sources={source})
     degrees = degree_ranking(g)
     out: dict[str, dict] = {}
@@ -233,15 +284,29 @@ def run_population(release: Path, g: Graph, props: dict, source: str,
             continue
         candidates = sorted(pos | neg)
         references = sorted(pos)
-        for name, top_k, disjoint in (
-            ("structure_max", 1, True),
-            ("structure_max_no_pub_exclusion", 1, False),
-            (f"structure_top{TOP_K}_mean", TOP_K, True),
-        ):
+        if control == "publication":
+            variants = (
+                ("structure_max", 1, True, 0),
+                ("structure_max_no_pub_exclusion", 1, False, 0),
+                (f"structure_top{TOP_K}_mean", TOP_K, True, 0),
+            )
+        else:
+            # The registered curve, plus the "both controls" secondary that
+            # keeps the two runs comparable. `structure_max` is the primary
+            # and is k = K_PRIMARY, named so the comparator code and the
+            # report read the same key under either control.
+            variants = tuple(
+                (f"structure_max_k{k}", 1, False, k) for k in K_CURVE
+            ) + (
+                ("structure_max", 1, False, K_PRIMARY),
+                (f"structure_max_k{K_PRIMARY}_both", 1, True, K_PRIMARY),
+            )
+        for name, top_k, disjoint, knn in variants:
             scores, counts = score_cell(candidates, references, fps, props,
                                         pubs, top_k=top_k,
                                         publication_disjoint=disjoint,
-                                        positives=frozenset(pos))
+                                        positives=frozenset(pos),
+                                        knn=knn)
             m = corrected(evaluate_against_negatives(scores, pos, neg))
             m["counts"] = counts
             cell[name] = m
@@ -256,17 +321,46 @@ def run_population(release: Path, g: Graph, props: dict, source: str,
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--release", type=Path, default=release_dir(ROOT))
-    ap.add_argument("--out", type=Path,
-                    default=ROOT / "data/results/structure_scorer.json")
+    # TWO REGISTRATIONS, TWO FILES, AND THE DEFAULT IS THE OLDER ONE.
+    # docs/prereg_structure_scorer.md's run is the comparator for
+    # docs/prereg_structure_scorer_symmetric.md and its figures are quoted
+    # in a verdict and pinned by tests, so `--control knn` writes its own
+    # file and the default branch must stay byte-identical.
+    ap.add_argument("--control", choices=CONTROLS, default="publication",
+                    help="publication: the first registration's exclusion "
+                         "(3). knn: the symmetric replacement (3').")
+    ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args(argv)
+    if args.out is None:
+        args.out = ROOT / ("data/results/structure_scorer.json"
+                           if args.control == "publication"
+                           else "data/results/structure_scorer_symmetric.json")
 
     if not (args.release / "nodes.jsonl").exists():
         print(f"no release at {args.release}")
         return 2
 
+    doc = ("docs/prereg_structure_scorer.md" if args.control == "publication"
+           else "docs/prereg_structure_scorer_symmetric.md")
+    # The publication-disjoint run, for the side-by-side column P1 and P3
+    # are about. Absent is not fatal: the column reads `--`, which is what
+    # that mark is for.
+    prior = None
+    if args.control == "knn":
+        prior_path = ROOT / "data/results/structure_scorer.json"
+        if prior_path.exists():
+            prior = json.loads(prior_path.read_text())
+        else:
+            print("! no publication-disjoint run on disk; the 'prior' "
+                  "column will be empty and P1/P3 cannot be read from "
+                  "this output alone")
     print("STRUCTURE-DERIVED SCORER. Protocol fixed in advance by")
-    print("docs/prereg_structure_scorer.md, signed before this file existed.")
-    print(f"release {args.release.name}\n")
+    print(f"{doc}, signed before the code that runs it.")
+    print(f"release {args.release.name}   control {args.control}")
+    if args.control == "knn":
+        print(f"exclusion (3'): the k nearest references, k in {K_CURVE}, "
+              f"primary k={K_PRIMARY}")
+    print()
 
     schema = load_schema()
     g = Graph.load(args.release, symmetry=schema.symmetry())
@@ -298,9 +392,12 @@ def main(argv=None) -> int:
 
     payload = {
         "measured_by": "scripts/structure_scorer.py",
-        "registered_by": "docs/prereg_structure_scorer.md",
+        "registered_by": doc,
+        "control": args.control,
         "fingerprint": "ECFP4 radius 2, 2048 bits (kgav.similarity)",
         "statistic": "max Tanimoto to admissible known actives",
+        **({"k_curve": list(K_CURVE), "k_primary": K_PRIMARY}
+           if args.control == "knn" else {}),
         "family_size": FAMILY,
         "alpha": ALPHA,
         "z_corrected": Z_CORRECTED,
@@ -310,9 +407,12 @@ def main(argv=None) -> int:
     for key, source in (("primary_chembl", PRIMARY_SOURCE),
                         ("secondary_ncats", SECONDARY_SOURCE)):
         print(f"\n{'=' * 68}\n{key}  ({source})\n{'=' * 68}")
-        cells = run_population(args.release, g, props, source, fps, pubs)
+        cells = run_population(args.release, g, props, source, fps, pubs,
+                               control=args.control)
         payload[key] = cells
-        report(cells)
+        report(cells, control=args.control, prior=prior)
+        if args.control == "knn":
+            knn_invariant(cells)
 
     # THE FAMILY SIZE IS REGISTERED, SO A MISMATCH IS A FINDING.
     n_readable = sum(1 for c in payload["primary_chembl"].values()
@@ -330,6 +430,44 @@ def main(argv=None) -> int:
     return 0
 
 
+def knn_invariant(cells: dict) -> None:
+    """P2: every candidate loses exactly k references to (3').
+
+    REGISTERED AS AN INVARIANT, NOT AN OUTCOME, so it is checked where it
+    can be observed rather than inferred from an AUC. The prior run's
+    per-class counters had to be added after the fact to test a hypothesis
+    its own output could not see; this prints the thing the prediction is
+    about.
+    """
+    print(f"\n  P2 -- exclusion (3') removes exactly k, per class "
+          f"(k={K_PRIMARY}):")
+    print(f"    {'virus':<20} {'knn/pos':>9} {'knn/neg':>9} {'short':>6} "
+          f"{'skel/pos':>9} {'skel/neg':>9}  invariant")
+    bad = []
+    for virus, c in sorted(cells.items()):
+        if not c.get("readable"):
+            continue
+        k = c["structure_max"]["counts"]
+        exp = K_PRIMARY * k["candidates_pos"], K_PRIMARY * k["candidates_neg"]
+        got = k["excluded_knn_pos"], k["excluded_knn_neg"]
+        ok = got == exp and not k["knn_short"]
+        if not ok:
+            bad.append(virus)
+        per_pos = got[0] / max(k["candidates_pos"], 1)
+        per_neg = got[1] / max(k["candidates_neg"], 1)
+        print(f"    {virus:<20} {per_pos:>9.2f} {per_neg:>9.2f} "
+              f"{k['knn_short']:>6,} "
+              f"{k['excluded_skeleton_pos'] / max(k['candidates_pos'], 1):>9.2f} "
+              f"{k['excluded_skeleton_neg'] / max(k['candidates_neg'], 1):>9.2f}"
+              f"  {'HELD' if ok else 'VIOLATED'}")
+    if bad:
+        print(f"    ! P2 VIOLATED in {len(bad)} cell(s): {bad}. The control "
+              f"is not symmetric and no AUC above is interpretable.")
+    else:
+        print("    P2 held in every cell: the handicap is k for both "
+              "classes, by construction.")
+
+
 def num(x: float | None, width: int = 7) -> str:
     """A number, or a mark that says there is none. NEVER 0.0 for None."""
     return f"{x:.4f}" if x is not None else "--"
@@ -339,10 +477,26 @@ def fmt(later: float | None, base: float) -> str:
     return f"{later - base:+.4f}" if later is not None else "--"
 
 
-def report(cells: dict) -> None:
-    head = (f"  {'virus':<20} {'pos':>6} {'neg':>7} {'AUC':>7} "
-            f"{'[corrected 95%]':>18} {'skill':>7} {'leak':>7} {'degree':>7}")
-    print(head)
+def report(cells: dict, control: str = "publication",
+           prior: dict | None = None) -> None:
+    """One table per control, because the columns are not the same question.
+
+    The publication control's interesting companion is its own leak -- the
+    same scorer with exclusion (3) removed. The knn control's is the CURVE
+    and the prior run's figure, because the registered predictions are about
+    decay in k (P4) and about movement relative to the publication-disjoint
+    result (P1, P3). A shared formatter printing one of those under the
+    other's heading is how `structure_max_no_pub_exclusion` came to be read
+    for a run that never computed it.
+    """
+    if control == "publication":
+        print(f"  {'virus':<20} {'pos':>6} {'neg':>7} {'AUC':>7} "
+              f"{'[corrected 95%]':>18} {'skill':>7} {'leak':>7} "
+              f"{'degree':>7}")
+    else:
+        print(f"  {'virus':<20} {'pos':>6} {'neg':>7} "
+              f"{'k=1':>7} {'k=3':>7} {'k=10':>7} {'[corrected 95%]':>18} "
+              f"{'skill':>7} {'both':>7} {'prior':>7} {'degree':>7}")
     for virus, c in sorted(cells.items()):
         if not c.get("readable"):
             print(f"  {virus:<20} {c['n_positives']:>6,} "
@@ -350,7 +504,6 @@ def report(cells: dict) -> None:
                   f"({c['excluded_reason']})")
             continue
         m = c["structure_max"]
-        leak = c["structure_max_no_pub_exclusion"]
         d = c["degree"]
         if not m.get("measurable"):
             print(f"  {virus:<20} {m['n_pos']:>6,} {m['n_neg']:>7,} "
@@ -358,22 +511,44 @@ def report(cells: dict) -> None:
             continue
         ci = f"[{m['auc_ci_lo_corrected']:.4f}, {m['auc_ci_hi_corrected']:.4f}]"
         # DIRECTION IN THE MARK, because a two-sided test is registered and
-        # four cells clear it by ranking actives BELOW inactives.
+        # cells clear it by ranking actives BELOW inactives.
         mark = ("^" if m["clears_corrected_alpha"] and m["direction"] == "above"
                 else "v" if m["clears_corrected_alpha"] else " ")
-        # NO `or 0.0` ON EITHER OF THESE. That idiom is what printed the
-        # vacuous cell's auc_skill of None as a confident 0.0000.
-        delta = fmt(leak.get("auc"), m["auc"])
-        print(f"  {virus:<20} {m['n_pos']:>6,} {m['n_neg']:>7,} "
-              f"{m['auc']:>7.4f}{mark}{ci:>18} "
-              f"{num(m.get('auc_skill')):>7} {delta:>7} "
-              f"{num(d.get('auc')):>7}")
-    print("  ^ clears the corrected alpha ABOVE chance, v clears it BELOW. "
-          "'leak' is the")
-    print("    no-publication-exclusion variant minus the primary: positive "
-          "means same-paper")
-    print("    actives were inflating it. '--' is a quantity that does not "
-          "exist, not a zero.")
+        # NO `or 0.0` ANYWHERE BELOW. That idiom printed a vacuous cell's
+        # auc_skill of None as a confident 0.0000.
+        if control == "publication":
+            leak = c["structure_max_no_pub_exclusion"]
+            print(f"  {virus:<20} {m['n_pos']:>6,} {m['n_neg']:>7,} "
+                  f"{m['auc']:>7.4f}{mark}{ci:>18} "
+                  f"{num(m.get('auc_skill')):>7} "
+                  f"{fmt(leak.get('auc'), m['auc']):>7} "
+                  f"{num(d.get('auc')):>7}")
+        else:
+            curve = [c.get(f"structure_max_k{k}", {}).get("auc")
+                     for k in K_CURVE]
+            both = c.get(f"structure_max_k{K_PRIMARY}_both", {}).get("auc")
+            was = None
+            if prior:
+                was = (prior.get("primary_chembl", {}).get(virus, {})
+                       .get("structure_max", {}).get("auc"))
+                if was is None:
+                    was = (prior.get("secondary_ncats", {}).get(virus, {})
+                           .get("structure_max", {}).get("auc"))
+            print(f"  {virus:<20} {m['n_pos']:>6,} {m['n_neg']:>7,} "
+                  f"{num(curve[0]):>7} {num(curve[1]):>7} "
+                  f"{m['auc']:>7.4f}{mark}{ci:>18} "
+                  f"{num(m.get('auc_skill')):>7} {num(both):>7} "
+                  f"{num(was):>7} {num(d.get('auc')):>7}")
+    print("  ^ clears the corrected alpha ABOVE chance, v clears it BELOW.")
+    if control == "publication":
+        print("    'leak' is the no-publication-exclusion variant minus the "
+              "primary: positive")
+        print("    means same-paper actives were inflating it.")
+    else:
+        print("    k=10 is the primary. 'both' keeps the publication "
+              "exclusion as well;")
+        print("    'prior' is the publication-disjoint figure this replaces.")
+    print("    '--' is a quantity that does not exist, not a zero.")
 
 
 if __name__ == "__main__":

@@ -1699,6 +1699,15 @@ make label-overlap
 #    results file no step here refreshes.
 make structure-scorer
 
+#    and the symmetric-control follow-up, registered by
+#    docs/prereg_structure_scorer_symmetric.md. It writes its OWN file:
+#    the run above is its comparator and the verdict beneath that
+#    registration quotes both, so one target overwriting the other would
+#    destroy the comparison. Order between the two does not matter; each
+#    reads the release and neither reads the other's output, except that
+#    this one prints a 'prior' column from it when it is present.
+make structure-scorer-symmetric
+
 # 5. every results file, AND the derived release they depend on, must
 #    describe the graph on disk
 make check-results

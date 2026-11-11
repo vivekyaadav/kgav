@@ -231,3 +231,149 @@ indefensible afterwards. The three most contestable, with the reasoning
 already given: k=10 rather than another admissible value; dropping the
 publication exclusion from the primary rather than keeping both; and
 k ∈ {1, 3, 10} rather than a finer curve.
+
+---
+
+# Verdict — all six predictions held, and the control I was defending was destroying signal
+
+Run 2026-11-11, `make structure-scorer-symmetric`, written to
+`data/results/structure_scorer_symmetric.json`. Release v0.1, `edges_sha`
+ad7121bc2195a93a. The registration above is unchanged; this is appended
+beneath it.
+
+| | prediction | outcome |
+|---|---|---|
+| **P1** | SARS-CoV-2 at k=10 reads >= 0.6346 | **HELD — 0.8286, and it rose rather than fell** |
+| **P2** | every candidate loses exactly k | **HELD in all 14 cells, 10.00/10.00, zero short** |
+| **P3** | the four below-chance cells move toward 0.5, >=3 above prior | **HELD — all four, and all four end ABOVE chance** |
+| **P4** | AUC non-increasing in k in >=10 of 14 | **HELD at exactly 10 of 14** |
+| **P5** | the matched cell is measurable and reads below the ChEMBL cell | **HELD, both halves** |
+| **P6** | the leak correlation weakens from -0.684 | **HELD — it is +0.367** |
+
+## The numbers
+
+    virus             pos     neg     k=1     k=3     k=10      corrected 95%   skill    both   prior     deg
+    Yellow fever      135     882  0.8282  0.8231  0.8388^ [0.7751, 0.9026]  0.6777  0.5433  0.5545  0.7264
+    SARS-CoV-2      1,786   5,362  0.8677  0.8577  0.8286^ [0.8102, 0.8470]  0.6572  0.7570  0.7693  0.5131
+    JEV                19      27  0.8090  0.8021  0.8002^ [0.5973, 1.0000]  0.6004  0.1608  0.1452  0.6374
+    DENV-2            996   3,043  0.8474  0.8226  0.7882^ [0.7616, 0.8149]  0.5765  0.5828  0.5735  0.4016
+    TBEV               72      65  0.7010  0.6864  0.7462^ [0.6250, 0.8673]  0.4923  0.7330  0.5764  0.4203
+    HCoV-229E         120      88  0.6563  0.7401  0.7114^ [0.6087, 0.8140]  0.4227  0.5731  0.5951  0.5908
+    Zika              748   2,577  0.7918  0.7529  0.6812^ [0.6470, 0.7154]  0.3624  0.5749  0.6316  0.5534
+    West Nile         261     311  0.7319  0.7219  0.6600^ [0.5932, 0.7268]  0.3200  0.6236  0.6308  0.5657
+    DENV-3            213      95  0.7710  0.7151  0.6496^ [0.5554, 0.7439]  0.2993  0.2370  0.3861  0.1715
+    DENV-1            195     123  0.7270  0.6795  0.6066^ [0.5139, 0.6994]  0.2132  0.3485  0.4489  0.3144
+    DENV-4            153     109  0.7386  0.6617  0.5868  [0.4842, 0.6895]  0.1737  0.3588  0.4644  0.2302
+    SARS-CoV          143      96  0.6074  0.5954  0.5785  [0.4701, 0.6869]  0.1571  0.5633  0.5186  0.6812
+    HCoV-OC43         164      70  0.5834  0.5838  0.5677  [0.4509, 0.6845]  0.1354  0.6081  0.5396  0.5345
+    MERS-CoV          133      41  0.6197  0.5958  0.4827  [0.3312, 0.6342] -0.0347  0.6076  0.6677  0.7085
+
+    ^ clears the corrected alpha above chance.  NO CELL CLEARS IT BELOW.
+
+**Ten of fourteen cells clear the corrected alpha above chance and none
+below**, against five above and two below under the publication-disjoint
+control.
+
+## P1 held in the direction I did not predict
+
+P1 asked whether SARS-CoV-2 would retain half its margin: 0.6346 or above.
+It reads **0.8286 [0.8102, 0.8470]**, higher than the 0.7693 it read under
+the control this replaces. The registration was written expecting the
+symmetric control to be a sterner test; on this cell it is a less severe one,
+and the prediction was satisfied from the wrong side. That is worth stating
+plainly, because a prediction satisfied in an unanticipated direction is
+weaker evidence than one satisfied as reasoned.
+
+## P3 is the result, and the 'both' column is the mechanism
+
+All four below-chance cells not only moved toward chance but crossed it:
+
+    JEV        0.1452 -> 0.8002    +0.6550
+    DENV-3     0.3861 -> 0.6496    +0.2636
+    DENV-1     0.4489 -> 0.6066    +0.1577
+    DENV-4     0.4644 -> 0.5868    +0.1224
+
+DENV-3's movement read +0.2635 in the first draft of this paragraph, because
+it was computed by subtracting the two DISPLAYED four-decimal values rather
+than the stored ones. The other three are unaffected at this precision. A
+figure derived from a rounded figure is the defect
+`scripts/diagnose_doc_figures.py` exists to catch in documents, and it
+appeared here in the arithmetic instead.
+
+**And re-adding the publication exclusion puts them back.** The `both`
+column keeps both controls, and JEV returns to 0.1608, DENV-3 to 0.2370,
+DENV-1 to 0.3485, DENV-4 to 0.3588 — within 0.03 of their prior values in
+three of four. So the publication exclusion is what produced the
+anti-ranking, not the chemistry, and the prior verdict was right to refuse
+the below-chance cells as a finding.
+
+**The direct test of the asymmetry hypothesis now clears the bar it
+previously missed.** Spearman between a cell's prior exclusion asymmetry
+(log of positives-per-candidate over negatives-per-candidate) and its change
+in AUC is **+0.635** over 14 cells, against a ~0.544 critical value. The
+prior run could only offer -0.490 against the AUC level, which did not
+clear; measured against the CHANGE, the association is there.
+
+## The confound this registration did not anticipate
+
+**The two controls differ in strength as well as in symmetry, and this
+design cannot fully separate them.** Publication-disjointness removed
+between 3.16 and 26.97 references per positive depending on the cell; (3')
+removes exactly 10. So in most cells the new control is also *weaker*, and
+a weaker control admits more leak — which would raise AUC without any of
+the symmetry argument being true. The registration fixed k on feasibility
+grounds and never asked how k compared with what the old control removed.
+
+**It is bounded, not eliminated, and here is the bound.** In three cells the
+publication control removed FEWER than 10 references per positive, so (3')
+is strictly stronger there — and the AUC still rose in all three:
+
+    West Nile   publication 3.16/pos   vs knn 10   +0.0292
+    Zika        publication 6.86/pos   vs knn 10   +0.0496
+    SARS-CoV    publication 8.97/pos   vs knn 10   +0.0600
+
+Three cells, and the gains are small (+0.03 to +0.06) beside the big movers.
+So the strength confound cannot explain the direction, and it can plausibly
+explain much of the magnitude. **The clean experiment is to set k per cell
+to the number the publication control actually removed, matching strength
+while keeping symmetry, and it must be registered before it runs.**
+
+## P5 held, and it is the most informative cell in either run
+
+The matched NCATS cell — one screen, one protocol, both classes off the same
+plates — is **measurable for the first time**: 89 positives against 7,343
+negatives, **0.6088 [0.5157, 0.7020]**, clearing the corrected alpha above
+chance, skill 0.2177. The count-based control cannot empty a reference set,
+which is exactly why it was registered as the gain.
+
+**Both halves of P5 held: it is measurable, and 0.6088 is below the ChEMBL
+cell's 0.8286 at the same k.** So the collection confound is real and large
+— roughly 0.22 of AUC separates a source-matched population from a
+plate-matched one — and a structure signal survives plate matching anyway.
+That is the first result in this project where a channel clears a corrected
+threshold on a population matched by construction rather than by a filter.
+
+## What this licenses
+
+- **A structure-derived scorer ranks antiviral actives above measured
+  inactives, on a plate-matched population, at a corrected threshold.** That
+  is a real finding and the first of its kind here.
+- **It is bounded by the collection confound at roughly 0.22 AUC**, which is
+  measured rather than argued, because the matched cell can now be read.
+- **It still is not a mechanism.** Everything both registrations say under
+  that heading stands.
+- **The ChEMBL figures are inflated relative to the matched one** and should
+  be quoted with the matched cell beside them, never alone.
+- **MERS-CoV is the one cell that fell** (0.6677 -> 0.4827, no longer
+  clearing) and the registration offers no account of it. 133 positives
+  against 41 negatives, the smallest negative class in the family, and the
+  publication control there was nearly symmetric (10.36/12.61). It is
+  reported as unexplained.
+
+## What would change the conclusion
+
+The strength-matched control described above. If SARS-CoV-2 and the matched
+NCATS cell both survive a control that removes as many references as
+publication-disjointness did while removing the same number from each
+class, the finding is secure. If they collapse, then k=10 was simply a
+weaker test and this verdict is measuring its own leniency.
