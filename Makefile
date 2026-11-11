@@ -125,6 +125,20 @@ diagnose-tautomer-conflation:
 diagnose-label-reachability:
 	python scripts/diagnose_label_reachability.py $(if $(DB),--db $(DB),)
 
+# The design facts docs/prereg_structure_scorer.md is registered against.
+# SOURCES defaults to the registered population, ChEMBL only; pass
+# SOURCES=infores:ncats-opendata for the matched secondary cell, or
+# SOURCES=- for the pooled task the registration deliberately excludes.
+# DEFAULTING TO THE REGISTERED POPULATION, NOT TO POOLED. The first version
+# of this target produced an empty --sources when SOURCES was unset, so the
+# default silently ran the pooled task -- the one population the
+# registration excludes by name, because a structure scorer can separate
+# ChEMBL antivirals from NCATS library compounds on collection alone.
+STRUCTURE_SOURCES = $(or $(SOURCES),infores:chembl)
+diagnose-structure-design:
+	python scripts/diagnose_structure_scorer_design.py \
+	  $(if $(filter-out -,$(STRUCTURE_SOURCES)),--sources $(STRUCTURE_SOURCES),)
+
 # FETCH THE RAW INPUTS, AND AUDIT WHAT IS ALREADY THERE.
 #
 # data/raw/* is gitignored and was populated by hand, so a fresh clone could

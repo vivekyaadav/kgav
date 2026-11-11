@@ -211,6 +211,15 @@ targets sit in, and does the virus depend on any member of them. That is
   and should carry `PLACEHOLDER_DATE`, which routes it through
   `undated_policy` rather than silently outside the cutoff. None of this
   removes an edge from v0.1.
+- **The structure-derived scorer — REGISTERED 2026-11-11, not run.**
+  `docs/prereg_structure_scorer.md`, signed before the code and before the
+  measurement. It is out of scope for v1 because v1 is the pathway analysis
+  and this is a scorer, but it is the one candidate measured to have room to
+  rank: every evaluated channel sits within +0.0050 of its imputed floor
+  because 74.8% of labelled compounds are unreachable, while all 13,417
+  labelled compounds in the registered population carry a SMILES. Fourteen
+  readable cells, alpha = 0.05/14. Nothing is computed yet, and the
+  registration can still be amended until the first score exists.
 - The resistance axis: `VirusStrain`, `Variant`, and `HAS_STRAIN`,
   `OCCURS_IN`, `HAS_VARIANT`, `CONFERS_RESISTANCE_TO`.
 - `COMBINED_WITH`, `SUBCLASS_OF`, `SUBCLASS_OF_DISEASE`.

@@ -84,10 +84,14 @@ one, and five on 2026-11-09, not seven. It is now taken from the history,
 derived by `tests/test_prereg_is_obeyed.py` rather than maintained, and
 anyone can re-take it --
 
-    git log -G'nodes_sha.*edges_sha' -- docs/prereg_pathway_overlap.md
+    git log -G'nodes_sha. [0-9a-f]{16}' -- docs/prereg_pathway_overlap.md
 
 -- where the twelfth and oldest commit it lists is the drafting rather than
-an update. **The obvious command for this is the wrong one.** `git log -L
+an update. **The pattern has to pair the key with an actual hash.** Written
+as `nodes_sha.*edges_sha` it matched the line above that DOCUMENTS it, so the
+commit adding this paragraph counted itself as a twelfth update and the test
+failed on its own commit. **And the obvious command for this is the wrong
+one.** `git log -L
 /^Date drafted/,+1:` tracks the line by content and silently omits
 `d43c316`, the one commit this header is about, because it re-resolves the
 regex as it walks; the line-number form `-L 14,15:` agrees with the pickaxe

@@ -197,7 +197,16 @@ def _identification_commits() -> list[tuple[str, str]]:
     import subprocess
     out = subprocess.run(
         ["git", "log", "--format=%h %ad", "--date=short",
-         "-G", "nodes_sha.*edges_sha", "--", "docs/prereg_pathway_overlap.md"],
+         # THE PATTERN PAIRS THE KEY WITH AN ACTUAL HASH, and the first
+         # version did not. `nodes_sha.*edges_sha` matched the line that
+         # DOCUMENTS this command, so the commit adding the documentation
+         # counted itself as a twelfth identification update and this test
+         # failed on its own commit. Requiring a 16-hex digest after the
+         # key matches the identification line and nothing that merely
+         # discusses it; checked to return the same twelve commits as the
+         # correct `-L 14,15` invocation.
+         "-G", "nodes_sha. [0-9a-f]{16}",
+         "--", "docs/prereg_pathway_overlap.md"],
         cwd=ROOT, capture_output=True, text=True, timeout=60)
     if out.returncode != 0:
         pytest.skip(f"git unavailable: {out.stderr.strip()[:80]}")
