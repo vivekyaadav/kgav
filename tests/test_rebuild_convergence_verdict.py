@@ -54,6 +54,36 @@ def test_a_changed_release_with_a_settled_partition_says_only_stale():
     assert "MAY NOT BE THE FIXED POINT" not in out
 
 
+def test_the_verdict_names_the_sha_that_actually_moved():
+    """IT NAMED ONLY edges_sha AND SO PRINTED AN IDENTICAL PAIR.
+
+    The fix-list L24 rebuild changed every compound's identity-policy flags
+    and touched no edge, so nodes_sha moved and edges_sha did not. The
+    message read
+
+        The release CHANGED this run (edges_sha e26239a4e87865b3 ->
+        e26239a4e87865b3)
+
+    -- the same hash twice, under a sentence claiming a change, which reads
+    as a bug in the hashing rather than as a node-only change.
+    """
+    nodes_only_before = {"id": "v0.1", "nodes_sha": "n1", "edges_sha": "SAME"}
+    nodes_only_after = {"id": "v0.1", "nodes_sha": "n2", "edges_sha": "SAME"}
+    out = R.staleness_verdict(nodes_only_before, nodes_only_after, "a", "a")
+    assert "nodes_sha n1 -> n2" in out, out
+    assert "edges_sha" not in out, (
+        "edges_sha did not move and must not be named as though it had")
+
+    edges_only = R.staleness_verdict(
+        {"id": "v0.1", "nodes_sha": "SAME", "edges_sha": "e1"},
+        {"id": "v0.1", "nodes_sha": "SAME", "edges_sha": "e2"}, "a", "a")
+    assert "edges_sha e1 -> e2" in edges_only
+    assert "nodes_sha" not in edges_only
+
+    both = R.staleness_verdict(FP_A, FP_B, "a", "a")
+    assert "nodes_sha n1 -> n2" in both and "edges_sha" in both
+
+
 def test_a_moved_annotating_set_demands_another_run():
     """THE B1 REVERT, in the shape the run actually had. This is the case
     that printed the same sentence as a converged run."""

@@ -100,8 +100,18 @@ def staleness_verdict(before: dict | None, after: dict | None,
                 f"{after['edges_sha']}), so it\nmade nothing in "
                 "data/results stale. Whether those files were already\n"
                 "current is a separate question: `make check-results`.")
-    changed = (f"The release CHANGED this run (edges_sha "
-               f"{before['edges_sha']} -> {after['edges_sha']}),\nso every "
+    # NAME WHICHEVER SHA MOVED. This reported only edges_sha, so a run that
+    # changed node properties and no edges printed
+    #
+    #   The release CHANGED this run (edges_sha e26239a4e87865b3 ->
+    #   e26239a4e87865b3)
+    #
+    # -- an identical pair, under a sentence claiming a change. Observed on
+    # the fix-list L24 rebuild, which moved every compound's identity-policy
+    # flags and left the edge list alone.
+    moved = [k for k in ("nodes_sha", "edges_sha") if before[k] != after[k]]
+    detail = ", ".join(f"{k} {before[k]} -> {after[k]}" for k in moved)
+    changed = (f"The release CHANGED this run ({detail}),\nso every "
                f"result computed from the previous one is now stale. "
                f"`make check-results`\nreports which.")
     if (annotating_before is not None and annotating_after is not None
