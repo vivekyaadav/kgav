@@ -56,9 +56,11 @@ four times, silent every time.
 from __future__ import annotations
 
 import csv
+import re
 from collections import Counter
 from pathlib import Path
 
+from kgav.normalize_chem import tautomer_conflations
 from kgav.units import to_nm_strict
 
 ANTIVIRAL_PREDICATE = "HAS_ANTIVIRAL_ACTIVITY_AGAINST"
@@ -129,6 +131,32 @@ COLUMN_CANDIDATES: dict[str, tuple[str, ...]] = {
     "r2": ("r2",),
     "moa": ("primarymoa", "moa"),
 }
+
+
+#: NCGC sample ids are `NCGC<substance>-<lot>`, and the lot is a BATCH of
+#: the same substance, not a different compound. Measured on cpe_assay.csv:
+#: 8,596 distinct substance ids, of which 815 appear under more than one lot.
+LOT_SUFFIX = re.compile(r"^(NCGC\d+)-\d+$")
+
+
+def substance_id(sample: str) -> str:
+    """The substance a sample id names, with its lot suffix removed.
+
+    WHY fix-list L19 NEEDS THIS. A conflation is two distinct SUBSTANCES
+    pooled onto one node. Two lots of one substance are one compound, so
+    counting `NCGC00263533-01` and `NCGC00263533-12` as two members
+    overstates it -- and that is not hypothetical: penciclovir appears under
+    both, with inconsistent SMILES between them, which is a spelling defect
+    in one row rather than two compounds sharing a node.
+
+    A sample id that does not match the pattern is returned unchanged rather
+    than guessed at; the count then treats it as its own substance, which is
+    the conservative direction for a detector.
+    """
+    if not sample:
+        return "?"
+    m = LOT_SUFFIX.match(sample.strip())
+    return m.group(1) if m else sample.strip()
 
 
 def _key(s: str) -> str:
@@ -449,6 +477,12 @@ def ingest_cpe(em, rows: list[dict], cols: dict, normalizer, *,
     stats: Counter = Counter()
     seen: dict[str, str] = {}
     tox_by_sample = tox_by_sample or {}
+    # fix-list L19. node id -> raw SMILES -> the sample ids that supplied it.
+    # The id is derived with the canonical tautomer, so two library members
+    # that differ only in where a proton sits land on ONE node and pool their
+    # screening results. Nothing recorded that, because a layer writes one
+    # node per id and the collapse is only visible from the raw rows.
+    derivations: dict[str, dict[str, set[str]]] = {}
 
     for row in rows:
         stats["rows"] += 1
@@ -467,6 +501,10 @@ def ingest_cpe(em, rows: list[dict], cols: dict, normalizer, *,
         except Exception:
             stats["unnormalizable"] += 1
             continue
+        sample_col = cols.get("sample")
+        sample = (row.get(sample_col) or "").strip() if sample_col else ""
+        derivations.setdefault(f"INCHIKEY:{cid.inchikey}", {}) \
+            .setdefault(struct, set()).add(substance_id(sample))
 
         sample = (row.get(cols["sample"]) or "").strip() if "sample" in cols else ""
         tox_row = tox_by_sample.get(sample) if sample else None
@@ -535,6 +573,10 @@ def ingest_cpe(em, rows: list[dict], cols: dict, normalizer, *,
             stats["with_same_plate_si"] += 1
         if quals.get("cytotoxicity_not_detected"):
             stats["no_cytotoxicity_detected"] += 1
+
+    for members in tautomer_conflations(derivations).values():
+        stats["tautomer_conflated_nodes"] += 1
+        stats["tautomer_conflated_members"] += members
 
     return stats
 

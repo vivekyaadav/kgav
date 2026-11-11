@@ -150,6 +150,80 @@ def normalize_chemical(structure: str, *, canonical_tautomer: bool = True) -> Ch
 SKELETON_LEN = 14
 
 
+def tautomer_conflations(
+        derivations: dict[str, dict[str, set[str]]]) -> dict[str, int]:
+    """Node ids built from two source compounds that are NOT one molecule.
+
+    FIX-LIST L19. `normalize_chemical` canonicalises the tautomer before
+    taking the InChIKey, and standard InChI's mobile-H layer treats annular
+    tautomers as one compound anyway, so two library members differing only
+    in where a proton sits land on ONE node and pool their results. A layer
+    writes one node per id, so the collapse cannot be seen in its output;
+    it is only visible from the raw rows, which is why the question stayed
+    open until it was asked of the input.
+
+    `derivations` maps node id -> raw SMILES -> the source ids that supplied
+    that spelling. The return maps the conflated node ids to how many
+    distinct source compounds they pool.
+
+    TWO THINGS ARE DELIBERATELY NOT COUNTED.
+
+    A salt or charge variant is not a conflation. `normalize_chemical`
+    strips counterions and neutralises before keying, so `Cl.CN(C)CC...` and
+    its free base really ARE one parent compound and pooling their screening
+    results is correct. That class is fix-list L18 -- a wrong value in the
+    stored `smiles`, 108 of them within ncats alone -- and reporting the two
+    together would answer a question nobody asked, which the first version
+    of the L19 diagnostic did.
+
+    One source id written two ways is not a conflation either. Three of the
+    eleven ncats cases are a single NCGC sample whose SMILES is inconsistent
+    between files; the node then holds one compound and the only defect is
+    the spelling.
+    """
+    out: dict[str, int] = {}
+    for node_id, spellings in derivations.items():
+        if len(spellings) < 2:
+            continue
+        groups: list[list[str]] = []
+        for smi in spellings:
+            for g in groups:
+                if same_structure(g[0], smi):
+                    g.append(smi)
+                    break
+            else:
+                groups.append([smi])
+        if len(groups) < 2:
+            continue
+        # A SALT SPELLING IS DROPPED, NOT THE WHOLE KEY. Excluding the key
+        # whenever ANY of its spellings was a salt suppressed real
+        # conflations: {tautomer A, tautomer B, salt of A} holds a genuine
+        # A-vs-B conflation and one salt form does not make it go away.
+        # That bug made this function return 8 over the three raw ncats
+        # files and 11 over the one file the layer actually ingests -- the
+        # larger population had MORE salt spellings, so more keys were
+        # suppressed, and the subset read higher than the superset. A count
+        # that falls when rows are added is the tell.
+        plain = []
+        for g in groups:
+            try:
+                cid = normalize_chemical(g[0])
+            except Exception:
+                continue
+            if cid.had_multiple_fragments or cid.was_charged:
+                continue
+            plain.append(g[0])
+        if len(plain) < 2:
+            continue
+        sources = set()
+        for smi in plain:
+            sources |= spellings[smi]
+        if len(sources) < 2:
+            continue
+        out[node_id] = len(sources)
+    return out
+
+
 def skeleton_of_id(node_id: str) -> str | None:
     """The InChIKey skeleton an `INCHIKEY:` node id carries, or None.
 

@@ -49,7 +49,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from kgav.normalize_chem import normalize_chemical, same_structure  # noqa: E402
+from kgav.normalize_chem import (normalize_chemical,  # noqa: E402
+                                 same_structure, tautomer_conflations)
+from kgav.ncats import substance_id  # noqa: E402
 from kgav.schema import print_capped  # noqa: E402
 
 #: Layers that supply a SMILES, and therefore can conflate on their own.
@@ -79,7 +81,14 @@ def ncats_rows(root: Path) -> list[tuple[str, str]]:
                     continue
                 smi = (row.get(sk) or "").strip()
                 if smi:
-                    out.append((f"{name}:{(row.get(ik) or '?').strip()}", smi))
+                    # THE SOURCE IS A SUBSTANCE, NOT A ROW. This used to be
+                    # f"{name}:{sample}", so one substance appearing in all
+                    # three files counted as three sources and its sample
+                    # LOTS counted as more -- which inflated the conflation
+                    # count from 9 to 12. substance_id strips the NCGC lot
+                    # suffix; 815 of 8,596 base ids appear under more than
+                    # one lot, so this is not a corner case.
+                    out.append((substance_id((row.get(ik) or "").strip()), smi))
     return out
 
 
@@ -176,10 +185,28 @@ def conflations(rows: list[tuple[str, str]]) -> tuple[dict, dict]:
                 "spellings": {r: spellings[r] for r in reps},
             }
     kinds = collections.Counter(v["kind"] for v in conflated.values())
+
+    # THE 8 HAS ONE OWNER, and it is not this script. `tautomer_conflations`
+    # in kgav.normalize_chem is what the ncats ingest calls to count the same
+    # thing, so the number this prints and the number the build reports are
+    # one implementation rather than two that happen to agree -- which this
+    # repository has already learned is not corroboration.
+    #
+    # The two counts differ in scope on purpose. `tautomer` below is every
+    # key whose spellings are tautomers, 11 on ncats. `conflations` is the
+    # subset where the spellings came from DIFFERENT source compounds, 8:
+    # the other 3 are one NCGC sample whose SMILES is inconsistent between
+    # files, where the node holds one compound and only the spelling is
+    # wrong.
+    derivations = {k: v["spellings"] for k, v in conflated.items()}
+    real = tautomer_conflations(derivations)
     return conflated, {
         "rows": len(rows), "keys": len(by_key), "unparseable": failed,
         "keys_with_several_spellings": sum(1 for v in by_key.values() if len(v) > 1),
         "tautomer": kinds[TAUTOMER], "salt_or_charge": kinds[SALT_OR_CHARGE],
+        "conflations": len(real),
+        "conflated_members": sum(real.values()),
+        "conflated_ids": sorted(real),
     }
 
 
@@ -239,7 +266,10 @@ def main(argv=None) -> int:
           f"than one way at all (spelling INCLUDED)")
     print(f"  {len(conflated):,} key(s) where same_structure calls the "
           f"spellings DIFFERENT MOLECULES, of which")
-    print(f"      {len(taut):,}  TAUTOMER       <- this is L19")
+    print(f"      {len(taut):,}  TAUTOMER       <- tautomer spellings")
+    print(f"           of which {stats['conflations']:,} pool "
+          f"{stats['conflated_members']:,} DISTINCT source compound(s) onto "
+          f"one node <- this is L19")
     print(f"      {len(salt):,}  SALT_OR_CHARGE <- this is L18's class, "
           f"and the id is right")
     print()

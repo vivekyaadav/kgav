@@ -268,12 +268,25 @@ def main() -> int:
     print("\n  per-row outcome:")
     for k in sorted(k for k in stats if k.startswith("reason_")):
         print(f"    {k.replace('reason_', ''):<38} {stats[k]:>7,}")
-    for k in ("other_assay", "no_structure", "unnormalizable",
-              "duplicate_structure", "upgraded_inactive_to_active",
-              "paired_with_counterscreen", "joined_existing_compound",
-              "new_compound_node"):
+    ORDERED = ("other_assay", "no_structure", "unnormalizable",
+               "duplicate_structure", "upgraded_inactive_to_active",
+               "paired_with_counterscreen", "joined_existing_compound",
+               "new_compound_node")
+    for k in ORDERED:
         if stats[k]:
             print(f"    {k:<38} {stats[k]:>7,}")
+
+    # A HARDCODED LIST OF KEYS MAKES A NEW COUNTER INVISIBLE, which is how
+    # fix-list L19's `tautomer_conflated_nodes` was added to ingest_screens,
+    # populated, and printed nowhere -- the first run after wiring it looked
+    # exactly like a run that had found none. The curated list above stays,
+    # because its ORDER is the narrative of the filter; anything else the
+    # ingest counted is printed after it rather than dropped.
+    shown = set(ORDERED) | {"rows", "in_assay", "active", "inactive", "none"}
+    extra = sorted(k for k, v in stats.items()
+                   if v and k not in shown and not k.startswith("reason_"))
+    for k in extra:
+        print(f"    {k:<38} {stats[k]:>7,}")
 
     labelled = {e["subject"] for e in em.edges}
     jr = join_report(labelled, existing)
