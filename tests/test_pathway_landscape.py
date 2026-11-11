@@ -276,12 +276,79 @@ def test_it_runs_and_reports_both_tests(tmp_path, capsys):
 
 def test_it_never_reads_a_label_predicate():
     """The claim that the shared-PMID confound cannot apply rests on this.
-    A label predicate appearing here would quietly reintroduce it."""
+    A label predicate appearing here would quietly reintroduce it.
+
+    IT READS THE CODE, NOT THE PROSE, SINCE 2026-11-11. This searched the
+    raw source text past the module docstring, so it fired on a COMMENT
+    that merely mentioned `build_labels` while explaining why a dict's
+    insertion order matters. A guard that cannot tell a reference from a
+    mention gets weakened the first time it misfires, which is the worst
+    possible outcome for this particular guard -- the whole
+    no-shared-PMID-confound claim rests on it.
+
+    So the file is parsed and only real code is examined: every name, every
+    attribute, and every string literal that is not a docstring. A label
+    predicate reaching the analysis still fails; a sentence about one does
+    not. Proven both ways below.
+    """
+    import ast
     src = (ROOT / "scripts" / "pathway_landscape.py").read_text()
-    body = src.split('"""', 2)[2]
+    tree = ast.parse(src)
+    docstrings = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef,
+                             ast.ClassDef)):
+            d = ast.get_docstring(node, clean=False)
+            if d is not None:
+                docstrings.add(d)
+    used: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            used.add(node.id)
+        elif isinstance(node, ast.Attribute):
+            used.add(node.attr)
+        elif isinstance(node, ast.alias):
+            used.add(node.asname or node.name.split(".")[-1])
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if node.value not in docstrings:
+                used.add(node.value)
     for pred in ("HAS_ANTIVIRAL_ACTIVITY_AGAINST", "MEASURED_INACTIVE_AGAINST",
                  "IN_TRIAL_FOR", "TREATS", "build_labels"):
-        assert pred not in body, f"{pred} reaches the analysis"
+        assert pred not in used, (
+            f"{pred} reaches the analysis as code, not as a comment")
+
+
+def test_the_label_predicate_guard_still_catches_real_code():
+    """The guard above was loosened to ignore prose, so it has to be shown
+    to still fail on the thing it is for. Both shapes: an import of
+    build_labels, and a predicate as a string literal."""
+    import ast
+    for snippet, needle in (
+            ("from kgav.labels import build_labels\nx = build_labels\n",
+             "build_labels"),
+            ('p = "HAS_ANTIVIRAL_ACTIVITY_AGAINST"\n',
+             "HAS_ANTIVIRAL_ACTIVITY_AGAINST"),
+            ('if e["predicate"] == "TREATS":\n    pass\n', "TREATS")):
+        tree = ast.parse(snippet)
+        used = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name):
+                used.add(node.id)
+            elif isinstance(node, ast.alias):
+                used.add(node.asname or node.name.split(".")[-1])
+            elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+                used.add(node.value)
+        assert needle in used, (
+            f"the guard would miss {needle} written as real code")
+    # and a comment or docstring mentioning one must NOT trip it
+    tree = ast.parse('"""a note about build_labels and TREATS."""\n'
+                     "# build_labels again\nx = 1\n")
+    docs = {ast.get_docstring(tree, clean=False)}
+    used = {n.value for n in ast.walk(tree)
+            if isinstance(n, ast.Constant) and isinstance(n.value, str)
+            and n.value not in docs}
+    assert not any("build_labels" in u for u in used), (
+        "a docstring mention still trips the guard")
 
 
 def test_a_release_with_no_dependency_factors_says_so(tmp_path, capsys):
@@ -1004,13 +1071,129 @@ def test_the_written_file_records_the_seed_scheme(tmp_path):
     assert "single generator" not in land.protocol
 
 
-def test_each_call_site_passes_its_own_channel_and_virus(tmp_path):
+def test_each_call_site_passes_its_own_channel_and_virus():
     """The helper being right does not make the CALL right. A mutation
     passing a constant virus name at the pathway call site survived,
-    because every order test still held."""
-    import inspect
-    src = inspect.getsource(L.main)
-    assert 'row_rng(args.seed, "pathway", virus)' in src
-    assert 'row_rng(args.seed, "interactome", virus)' in src
-    assert "random.Random(args.seed)" not in src, \
-        "a run-wide generator is back"
+    because every order test still held.
+
+    CONVERTED 2026-11-11 FROM A SOURCE-STRING CHECK TO A BEHAVIOURAL ONE.
+    It asserted `'row_rng(args.seed, "pathway", virus)' in inspect.getsource
+    (L.main)`, which is the fix-list P10 shape: a literal standing in for a
+    behaviour. Moving the permutation rows into a process pool moved that
+    literal out of `main` into `_row_task`, and the test failed while the
+    property it guards was intact -- the same way the asymmetry-table check
+    broke on a rewording earlier the same day.
+
+    So the property is exercised instead. The seed must depend on BOTH the
+    channel and the virus, which is checked by holding the factor set fixed
+    and varying only the key:
+
+        same key twice      -> identical draws   (determinism)
+        different virus     -> different draws   (a constant virus fails)
+        different channel   -> different draws   (a constant channel fails)
+
+    Proven to fail against both mutations: pinning the virus or the channel
+    inside `_row_task` makes the corresponding assertion fire.
+    """
+    universe = {f"P{i:04d}" for i in range(400)}
+    bins = {n: (i % 4) for i, n in enumerate(sorted(universe))}
+    targets = set(sorted(universe)[:80])
+    factors = set(sorted(universe)[200:260])
+    L._init_worker(targets, universe, bins, 200, 0)
+
+    a1 = L._row_task(("pathway", "NCBITaxon:1", factors))
+    a2 = L._row_task(("pathway", "NCBITaxon:1", factors))
+    b = L._row_task(("pathway", "NCBITaxon:2", factors))
+    c = L._row_task(("interactome", "NCBITaxon:1", factors))
+
+    assert a1[2] == a2[2], (
+        "the same (channel, virus) gave two different rows; the draw is not "
+        "determined by the key and the parallel pool is unsafe")
+    assert a1[2]["expected"] != b[2]["expected"], (
+        "two viruses drew the same null from one factor set, so the virus "
+        "is not reaching row_rng -- the mutation this test exists for")
+    assert a1[2]["expected"] != c[2]["expected"], (
+        "two channels drew the same null, so the channel is not reaching "
+        "row_rng")
+
+def test_jobs_one_and_jobs_many_produce_identical_rows():
+    """THE PARALLELISATION MUST NOT MOVE A NUMBER, AND THAT IS CHECKED.
+
+    The permutation rows were computed in one loop on one core: 21m37s of a
+    21m37s regeneration on a 32-core box. They now run in a process pool,
+    one per (channel, virus).
+
+    IT IS SAFE BECAUSE OF A FIX MADE FOR ANOTHER REASON. `row_rng` seeds
+    from `(seed, channel, virus)` alone, so a row's draws depend on its own
+    key and on nothing else -- not on which rows ran first, not on how many
+    ran at once. That was written to repair the shared-generator defect
+    docs/prereg_pathway_overlap.md registers, where adding a taxon BEFORE
+    another changed the other's null total from 1209 to 1165. The three
+    sorts inside `matched_null` close the rest: bin pools, bin sequence and
+    Counter insertion order.
+
+    So this asserts the consequence rather than trusting the argument, on
+    real rows over the real release, including the dict KEY ORDER -- a
+    parallel run that assembled in completion order would write a textually
+    different file for identical numbers.
+
+    Small permutation count on purpose: execution order either changes a
+    row's draw or it does not, and that is independent of how many draws
+    there are. 100,000 would make this a twenty-minute test for no extra
+    information.
+    """
+    import json
+    import subprocess
+    import sys
+    import tempfile
+    from pathlib import Path as _P
+
+    root = _P(__file__).resolve().parents[1]
+    if not (root / "data/releases/v0.1/nodes.jsonl").exists():
+        pytest.skip("no assembled release on disk")
+    out = {}
+    with tempfile.TemporaryDirectory() as d:
+        for jobs in ("1", "8"):
+            f = _P(d) / f"j{jobs}.json"
+            r = subprocess.run(
+                [sys.executable, "scripts/pathway_landscape.py",
+                 "--permutations", "200", "--seed", "0",
+                 "--jobs", jobs, "--out", str(f)],
+                cwd=root, capture_output=True, text=True, timeout=900)
+            assert r.returncode == 0, r.stderr[-800:]
+            doc = json.loads(f.read_text())
+            doc.pop("provenance", None)
+            out[jobs] = doc
+    # the numbers AND the key order, as text
+    assert json.dumps(out["1"]) == json.dumps(out["8"]), (
+        "serial and parallel runs disagree; the parallelisation is not "
+        "order-independent and must be reverted, not explained")
+
+
+def test_a_run_with_no_out_says_it_will_write_nothing():
+    """`--out` defaults to None, so a bare invocation computes every
+    permutation and discards it. On 2026-11-11 that cost a 21m37s lane of a
+    parallel regeneration: a driver hand-expanded `make pathway-landscape`,
+    dropped the flag, the script printed its full report, and
+    check-results found the file still stamped from that morning.
+
+    The warning is now printed BEFORE the work rather than discovered
+    after, and this holds it there.
+    """
+    import subprocess
+    import sys
+    from pathlib import Path as _P
+    root = _P(__file__).resolve().parents[1]
+    r = subprocess.run(
+        [sys.executable, "scripts/pathway_landscape.py", "--help"],
+        cwd=root, capture_output=True, text=True, timeout=120)
+    assert r.returncode == 0
+    assert "--jobs" in r.stdout
+    src = (root / "scripts/pathway_landscape.py").read_text()
+    assert "--out IS NOT SET" in src, (
+        "the no-output warning has been removed; a 20-minute run that "
+        "silently writes nothing is how this was missed once already")
+    i_warn = src.index("--out IS NOT SET")
+    i_work = src.index("done = run_rows(")
+    assert i_warn < i_work, (
+        "the warning must print before the permutations run, not after")

@@ -55,6 +55,7 @@ from collections import Counter
 from pathlib import Path
 
 from kgav.labels import classify
+from kgav.normalize_chem import policy_key
 from kgav.temporal import PLACEHOLDER_DATE
 from kgav.units import to_nm as _to_nm
 
@@ -635,6 +636,22 @@ DROPPED_COUNTERS = ("no_inchikey", "unmapped_taxon", "unconvertible_units",
 #: found 1,433 pairs asserting inhibition they had no measurement for.
 BREAKDOWN_COUNTERS = ("rows", "censored", "unresolved",
                       "dated_year_only", "undated_placeholder",
+                      # A BREAKDOWN, NOT A FATE (fix-list L27). identity_*
+                      # partitions the rows that survived the InChIKey
+                      # check by WHICH KEY became the node id -- `source`
+                      # when the policy agreed with ChEMBL, `normalized`
+                      # when it did not and the policy won, `unparseable`
+                      # and `no_smiles` when RDKit could not decide and the
+                      # source key was kept. No row is emitted or dropped
+                      # by it, so adding it to the fate tally would double
+                      # count. It is here because a release must be able to
+                      # say how many ids the policy moved rather than
+                      # assert that it ran: 549 nodes on v0.1 declared
+                      # salt_collapsed=True while not one was a fixed
+                      # point of normalize_chemical, and nothing counted
+                      # that.
+                      "identity_source", "identity_normalized",
+                      "identity_unparseable", "identity_no_smiles",
                       # A BREAKDOWN, NOT A FATE (fix-list L4). An imputed
                       # relation does not emit or drop a row -- the row is
                       # emitted either way -- it records that `=` was
@@ -649,7 +666,9 @@ BREAKDOWN_COUNTERS = ("rows", "censored", "unresolved",
 #: does not -- decides whether rows are being dropped that should
 #: not be. A breakdown prefix, so the emitted/dropped tally is
 #: unaffected.
-BREAKDOWN_PREFIXES = ("resolved_", "readout_", "assay_type_", "unit_")
+BREAKDOWN_PREFIXES = ("resolved_", "readout_", "assay_type_", "unit_",
+                      # fix-list L27: which key became the node id.
+                      "identity_")
 
 
 def accounting(stats) -> tuple[int, int, list[str]]:
@@ -683,6 +702,16 @@ def ingest_activities(em, rows: list[dict], viral_targets: dict[str, dict[str, s
         if not inchikey:
             stats["no_inchikey"] += 1
             continue
+        # THE NODE ID IS THE POLICY'S KEY, NOT THE SOURCE'S (fix-list L27).
+        # This read ChEMBL's compound_structures.standard_inchi_key and
+        # emitted it verbatim while declaring salt_collapsed=True, which
+        # are contradictory claims: ERLOTINIB HYDROCHLORIDE arrived with
+        # its own key and became a second erlotinib node. 549 nodes were
+        # like that, 287 duplicated something already present, and 31
+        # compounds ended up a positive and a negative for one virus.
+        # Every route is counted, so a run says how many ids moved.
+        inchikey, route = policy_key(r.get("smiles") or "", inchikey)
+        stats[f"identity_{route}"] += 1
         tax = taxon_map.get(str(r["tax_id"]))
         if tax is None:
             stats["unmapped_taxon"] += 1

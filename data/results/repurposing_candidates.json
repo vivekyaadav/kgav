@@ -3,14 +3,14 @@
   "scorer": "max Tanimoto to known actives (ECFP4 2048/r2)",
   "registered_by": "docs/prereg_structure_scorer_strength_matched.md",
   "approved_only": false,
-  "top": 8,
+  "top": 15,
   "viruses": {
     "NCBITaxon:11053": {
       "name": "DENV-1",
       "n_known_actives": 195,
       "n_known_inactives": 123,
-      "n_candidates": 24778,
-      "n_salts_of_known_compounds_dropped": 287,
+      "n_candidates": 24776,
+      "n_salts_of_known_compounds_dropped": 0,
       "suggestions": [
         {
           "candidate": "INCHIKEY:CAJPBSSCBUNUIF-NDEPHWFRSA-N",
@@ -99,27 +99,93 @@
           "nearest_active_chembl": "CHEMBL5542911",
           "name": null,
           "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:NQWGPMYAKQGJFU-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL5604253",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.9245,
+          "nearest_active": "INCHIKEY:ODJBDYWGMHWYRL-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL5604471",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:VNBCMMPSXGUEHJ-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL5606292",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.9245,
+          "nearest_active": "INCHIKEY:ODJBDYWGMHWYRL-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL5604471",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:RPJPZDVUUKWPGT-AZPGRJICSA-N",
+          "chembl_id": "CHEMBL4746661",
+          "is_approved": false,
+          "graph_degree": 4,
+          "tanimoto": 0.9241,
+          "nearest_active": "INCHIKEY:PMATZTZNYRCHOR-CGLBZJNRSA-N",
+          "nearest_active_chembl": "CHEMBL160",
+          "name": null,
+          "nearest_active_name": "CYCLOSPORINE"
+        },
+        {
+          "candidate": "INCHIKEY:RPJPZDVUUKWPGT-FOIHOXPVSA-N",
+          "chembl_id": "CHEMBL1688529",
+          "is_approved": false,
+          "graph_degree": 5,
+          "tanimoto": 0.9241,
+          "nearest_active": "INCHIKEY:PMATZTZNYRCHOR-CGLBZJNRSA-N",
+          "nearest_active_chembl": "CHEMBL160",
+          "name": "NIM811",
+          "nearest_active_name": "CYCLOSPORINE"
+        },
+        {
+          "candidate": "INCHIKEY:XIBCXAYZYOPUPS-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL4210136",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.9107,
+          "nearest_active": "INCHIKEY:CDQMJQBQACODEJ-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL4203293",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:OQJSZTKTVKLNNR-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL5604618",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.9074,
+          "nearest_active": "INCHIKEY:ODJBDYWGMHWYRL-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL5604471",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:KOQIAZNBAWFSQM-UHFFFAOYSA-N",
+          "chembl_id": null,
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.9038,
+          "nearest_active": "INCHIKEY:AAKJLRGGTJKAMG-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL553",
+          "name": null,
+          "nearest_active_name": "ERLOTINIB"
         }
       ]
     },
     "NCBITaxon:11060": {
       "name": "DENV-2",
-      "n_known_actives": 996,
+      "n_known_actives": 995,
       "n_known_inactives": 3043,
-      "n_candidates": 21058,
-      "n_salts_of_known_compounds_dropped": 286,
+      "n_candidates": 21056,
+      "n_salts_of_known_compounds_dropped": 0,
       "suggestions": [
-        {
-          "candidate": "INCHIKEY:IOXYMDJAGCXWFR-UCHBYZNCSA-N",
-          "chembl_id": "CHEMBL4781824",
-          "is_approved": false,
-          "graph_degree": 2,
-          "tanimoto": 1.0,
-          "nearest_active": "INCHIKEY:FJLGEFLZQAZZCD-VAWYXSNFSA-N",
-          "nearest_active_chembl": "CHEMBL2220442",
-          "name": null,
-          "nearest_active_name": "FLUVASTATIN"
-        },
         {
           "candidate": "INCHIKEY:SEOYLKVAZIJOJM-XDBZFTIUSA-N",
           "chembl_id": "CHEMBL4531468",
@@ -132,12 +198,12 @@
           "nearest_active_name": null
         },
         {
-          "candidate": "INCHIKEY:YQCITMCDBLAPKT-GXUZKUJRSA-N",
+          "candidate": "INCHIKEY:SOWCDRPZACLQMN-UMSFTDKQSA-N",
           "chembl_id": "CHEMBL4634176",
           "is_approved": false,
           "graph_degree": 2,
           "tanimoto": 0.9552,
-          "nearest_active": "INCHIKEY:RHURYQSSLRZGML-WAQYZQTGSA-N",
+          "nearest_active": "INCHIKEY:DRVSZPWLLWUVRX-XIFFEERXSA-N",
           "nearest_active_chembl": "CHEMBL4638299",
           "name": null,
           "nearest_active_name": null
@@ -157,7 +223,7 @@
           "candidate": "INCHIKEY:KOQIAZNBAWFSQM-UHFFFAOYSA-N",
           "chembl_id": null,
           "is_approved": false,
-          "graph_degree": 3,
+          "graph_degree": 2,
           "tanimoto": 0.9038,
           "nearest_active": "INCHIKEY:AAKJLRGGTJKAMG-UHFFFAOYSA-N",
           "nearest_active_chembl": "CHEMBL553",
@@ -165,12 +231,12 @@
           "nearest_active_name": "ERLOTINIB"
         },
         {
-          "candidate": "INCHIKEY:FPWMVOWAILCDHG-CZCBIWLKSA-N",
+          "candidate": "INCHIKEY:YPNUYDDLDOSFPO-PMERELPUSA-N",
           "chembl_id": "CHEMBL4638581",
           "is_approved": false,
-          "graph_degree": 5,
+          "graph_degree": 4,
           "tanimoto": 0.9014,
-          "nearest_active": "INCHIKEY:YVVFRNAKGDTZMK-YCBFMBTMSA-N",
+          "nearest_active": "INCHIKEY:FDSQNGKJNOMUEV-MHZLTWQESA-N",
           "nearest_active_chembl": "CHEMBL4641816",
           "name": null,
           "nearest_active_name": null
@@ -196,6 +262,94 @@
           "nearest_active_chembl": "CHEMBL506569",
           "name": null,
           "nearest_active_name": "LANATOSIDE C"
+        },
+        {
+          "candidate": "INCHIKEY:OBATZBGFDSVCJD-YYPHHCEASA-N",
+          "chembl_id": "CHEMBL4760525",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.8864,
+          "nearest_active": "INCHIKEY:JAYAGJDXJIDEKI-PTGWOZRBSA-N",
+          "nearest_active_chembl": "CHEMBL506569",
+          "name": null,
+          "nearest_active_name": "LANATOSIDE C"
+        },
+        {
+          "candidate": "INCHIKEY:FDSQNGKJNOMUEV-HHHXNRCGSA-N",
+          "chembl_id": "CHEMBL4645091",
+          "is_approved": false,
+          "graph_degree": 5,
+          "tanimoto": 0.8857,
+          "nearest_active": "INCHIKEY:ZWMHIKWELPMOEB-HHHXNRCGSA-N",
+          "nearest_active_chembl": "CHEMBL4637376",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:ZOUNLZGMYIOKQR-CDBYGCFJSA-N",
+          "chembl_id": "CHEMBL4545602",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.8837,
+          "nearest_active": "INCHIKEY:YMHLCUIKYBILEL-MYOMABOUSA-N",
+          "nearest_active_chembl": "CHEMBL4576745",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:ZOUNLZGMYIOKQR-IZBQCXFTSA-N",
+          "chembl_id": "CHEMBL4568434",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.8837,
+          "nearest_active": "INCHIKEY:YMHLCUIKYBILEL-MYOMABOUSA-N",
+          "nearest_active_chembl": "CHEMBL4576745",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:DPEZMLYIPPOJHM-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL4532866",
+          "is_approved": false,
+          "graph_degree": 3,
+          "tanimoto": 0.8824,
+          "nearest_active": "INCHIKEY:AYEZKKWKRGKLFW-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL4446364",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:AHIZIZVAACFYNM-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL5083861",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.88,
+          "nearest_active": "INCHIKEY:FQICFDBMQBCJDT-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL569561",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:WFEFNXVZAXQEFS-DNMDQSTESA-N",
+          "chembl_id": "CHEMBL4561419",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.875,
+          "nearest_active": "INCHIKEY:YMHLCUIKYBILEL-MYOMABOUSA-N",
+          "nearest_active_chembl": "CHEMBL4576745",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:WFEFNXVZAXQEFS-MYOMABOUSA-N",
+          "chembl_id": "CHEMBL4537775",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.875,
+          "nearest_active": "INCHIKEY:YMHLCUIKYBILEL-MYOMABOUSA-N",
+          "nearest_active_chembl": "CHEMBL4576745",
+          "name": null,
+          "nearest_active_name": null
         }
       ]
     },
@@ -203,8 +357,8 @@
       "name": "DENV-3",
       "n_known_actives": 213,
       "n_known_inactives": 95,
-      "n_candidates": 24788,
-      "n_salts_of_known_compounds_dropped": 287,
+      "n_candidates": 24786,
+      "n_salts_of_known_compounds_dropped": 0,
       "suggestions": [
         {
           "candidate": "INCHIKEY:CAJPBSSCBUNUIF-NDEPHWFRSA-N",
@@ -293,6 +447,83 @@
           "nearest_active_chembl": "CHEMBL4203293",
           "name": null,
           "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:OQJSZTKTVKLNNR-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL5604618",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.9074,
+          "nearest_active": "INCHIKEY:ODJBDYWGMHWYRL-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL5604471",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:KOQIAZNBAWFSQM-UHFFFAOYSA-N",
+          "chembl_id": null,
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.9038,
+          "nearest_active": "INCHIKEY:AAKJLRGGTJKAMG-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL553",
+          "name": null,
+          "nearest_active_name": "ERLOTINIB"
+        },
+        {
+          "candidate": "INCHIKEY:YUYXUAHJUYTERF-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL5197404",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.9024,
+          "nearest_active": "INCHIKEY:OIFMJZQFMOEALB-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL5176406",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:JVODKHHBUITVHT-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL5397123",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.8966,
+          "nearest_active": "INCHIKEY:TZUXECAWLOHQLW-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL5400299",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:HLMCMQCCKSZBOV-FMLDBKJISA-N",
+          "chembl_id": "CHEMBL5598650",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.8909,
+          "nearest_active": "INCHIKEY:FUIZMCSXSRIOQK-DHIUTWEWSA-N",
+          "nearest_active_chembl": "CHEMBL5604249",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:AJGCMPLSBOSHGP-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL5401580",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.8906,
+          "nearest_active": "INCHIKEY:YTXROYOKCRMVHX-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL5415953",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:YTAWZGPWZPPXCQ-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL3889668",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.8906,
+          "nearest_active": "INCHIKEY:OADVEVXRNRECPH-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL5558438",
+          "name": null,
+          "nearest_active_name": null
         }
       ]
     },
@@ -300,8 +531,8 @@
       "name": "DENV-4",
       "n_known_actives": 153,
       "n_known_inactives": 109,
-      "n_candidates": 24834,
-      "n_salts_of_known_compounds_dropped": 287,
+      "n_candidates": 24832,
+      "n_salts_of_known_compounds_dropped": 0,
       "suggestions": [
         {
           "candidate": "INCHIKEY:CAJPBSSCBUNUIF-NDEPHWFRSA-N",
@@ -390,6 +621,83 @@
           "nearest_active_chembl": "CHEMBL4554332",
           "name": null,
           "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:SEOYLKVAZIJOJM-XDBZFTIUSA-N",
+          "chembl_id": "CHEMBL4531468",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.9375,
+          "nearest_active": "INCHIKEY:UJLLVCVBQJULNN-ZAMGYDSWSA-N",
+          "nearest_active_chembl": "CHEMBL4554332",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:GYVLOSBDZGPQLE-LFPIHBKWSA-N",
+          "chembl_id": "CHEMBL4470440",
+          "is_approved": false,
+          "graph_degree": 4,
+          "tanimoto": 0.9365,
+          "nearest_active": "INCHIKEY:IPUVECQMUWDXMA-WENCNXQZSA-N",
+          "nearest_active_chembl": "CHEMBL4465052",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:LGCQEBLELDCQGK-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL5437466",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.9333,
+          "nearest_active": "INCHIKEY:AJGCMPLSBOSHGP-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL5401580",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:IMNXJZPVRAOHPQ-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL5558929",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.9254,
+          "nearest_active": "INCHIKEY:FGLVRAZZOJECLW-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL5542911",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:NQWGPMYAKQGJFU-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL5604253",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.9245,
+          "nearest_active": "INCHIKEY:ODJBDYWGMHWYRL-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL5604471",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:VNBCMMPSXGUEHJ-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL5606292",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.9245,
+          "nearest_active": "INCHIKEY:ODJBDYWGMHWYRL-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL5604471",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:KWJASYJCYDSZFF-RKOGDMNLSA-N",
+          "chembl_id": "CHEMBL4475139",
+          "is_approved": false,
+          "graph_degree": 4,
+          "tanimoto": 0.918,
+          "nearest_active": "INCHIKEY:XPOXLDLVXZFFSM-KUNJGFBQSA-N",
+          "nearest_active_chembl": "CHEMBL4476758",
+          "name": null,
+          "nearest_active_name": null
         }
       ]
     },
@@ -397,8 +705,8 @@
       "name": "JEV",
       "n_known_actives": 19,
       "n_known_inactives": 27,
-      "n_candidates": 25050,
-      "n_salts_of_known_compounds_dropped": 287,
+      "n_candidates": 25048,
+      "n_salts_of_known_compounds_dropped": 0,
       "suggestions": [
         {
           "candidate": "INCHIKEY:DBSMYQSHIGUORI-UHFFFAOYSA-N",
@@ -487,6 +795,83 @@
           "nearest_active_chembl": "CHEMBL1630221",
           "name": null,
           "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:HRAYXWGUYHJDEA-MVNCPAOLSA-N",
+          "chembl_id": "CHEMBL1630219",
+          "is_approved": false,
+          "graph_degree": 4,
+          "tanimoto": 0.6333,
+          "nearest_active": "INCHIKEY:NKRAIOQPSBRMOV-NRMKKVEVSA-N",
+          "nearest_active_chembl": "CHEMBL1630221",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:MDNBRZTTXMVCMN-KNJXUWEQSA-N",
+          "chembl_id": "CHEMBL1631769",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.6333,
+          "nearest_active": "INCHIKEY:NKRAIOQPSBRMOV-NRMKKVEVSA-N",
+          "nearest_active_chembl": "CHEMBL1630221",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:LMPQMWCSENOFHW-PNHWDRBUSA-N",
+          "chembl_id": "CHEMBL98778",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.5965,
+          "nearest_active": "INCHIKEY:NKRAIOQPSBRMOV-NRMKKVEVSA-N",
+          "nearest_active_chembl": "CHEMBL1630221",
+          "name": "2'-ETHYNYL-D-CYTIDINE",
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:HDZZVAMISRMYHH-KCGFPETGSA-N",
+          "chembl_id": "CHEMBL267099",
+          "is_approved": false,
+          "graph_degree": 3,
+          "tanimoto": 0.5818,
+          "nearest_active": "INCHIKEY:NKRAIOQPSBRMOV-NRMKKVEVSA-N",
+          "nearest_active_chembl": "CHEMBL1630221",
+          "name": "TUBERCIDIN",
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:QYTQNUFAFHHPKD-NHULRPGXSA-N",
+          "chembl_id": "CHEMBL1631699",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.5323,
+          "nearest_active": "INCHIKEY:NKRAIOQPSBRMOV-NRMKKVEVSA-N",
+          "nearest_active_chembl": "CHEMBL1630221",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:BRZZHGSWUIVSIU-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL1491479",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.5172,
+          "nearest_active": "INCHIKEY:MSBVHIWAXMMCPU-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL2011807",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:FDQMCMRMROYDRV-GSWPYSDESA-N",
+          "chembl_id": "CHEMBL1631700",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.5077,
+          "nearest_active": "INCHIKEY:NKRAIOQPSBRMOV-NRMKKVEVSA-N",
+          "nearest_active_chembl": "CHEMBL1630221",
+          "name": null,
+          "nearest_active_name": null
         }
       ]
     },
@@ -494,8 +879,8 @@
       "name": "West Nile",
       "n_known_actives": 261,
       "n_known_inactives": 311,
-      "n_candidates": 24524,
-      "n_salts_of_known_compounds_dropped": 287,
+      "n_candidates": 24522,
+      "n_salts_of_known_compounds_dropped": 0,
       "suggestions": [
         {
           "candidate": "INCHIKEY:QSXCIEIRBMLHBG-ACRUOGEOSA-N",
@@ -520,12 +905,12 @@
           "nearest_active_name": null
         },
         {
-          "candidate": "INCHIKEY:RMLDGSREBIUICI-HZPIKELBSA-N",
+          "candidate": "INCHIKEY:ZWMHIKWELPMOEB-HHHXNRCGSA-N",
           "chembl_id": "CHEMBL4637376",
           "is_approved": false,
           "graph_degree": 11,
           "tanimoto": 0.9848,
-          "nearest_active": "INCHIKEY:AQZURVGRGWWYRK-YNMZEGNTSA-N",
+          "nearest_active": "INCHIKEY:UHVYAKKVFMFETL-HKBQPEDESA-N",
           "nearest_active_chembl": "CHEMBL4649657",
           "name": null,
           "nearest_active_name": null
@@ -584,6 +969,83 @@
           "nearest_active_chembl": "CHEMBL522355",
           "name": null,
           "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:YSVNWIKGOPNLJC-ACRUOGEOSA-N",
+          "chembl_id": "CHEMBL511741",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.9464,
+          "nearest_active": "INCHIKEY:ZMSTVGUFIJRBJG-FKBYEOEOSA-N",
+          "nearest_active_chembl": "CHEMBL522355",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:LSFOOOBTHNHOBC-SANMLTNESA-N",
+          "chembl_id": "CHEMBL4649399",
+          "is_approved": false,
+          "graph_degree": 11,
+          "tanimoto": 0.9403,
+          "nearest_active": "INCHIKEY:UHVYAKKVFMFETL-HKBQPEDESA-N",
+          "nearest_active_chembl": "CHEMBL4649657",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:UKQVPEQRJSFWRK-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL4856790",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.94,
+          "nearest_active": "INCHIKEY:MYADMJMAENDCBG-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL4862682",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:RPJPZDVUUKWPGT-AZPGRJICSA-N",
+          "chembl_id": "CHEMBL4746661",
+          "is_approved": false,
+          "graph_degree": 4,
+          "tanimoto": 0.9241,
+          "nearest_active": "INCHIKEY:PMATZTZNYRCHOR-CGLBZJNRSA-N",
+          "nearest_active_chembl": "CHEMBL160",
+          "name": null,
+          "nearest_active_name": "CYCLOSPORINE"
+        },
+        {
+          "candidate": "INCHIKEY:RPJPZDVUUKWPGT-FOIHOXPVSA-N",
+          "chembl_id": "CHEMBL1688529",
+          "is_approved": false,
+          "graph_degree": 5,
+          "tanimoto": 0.9241,
+          "nearest_active": "INCHIKEY:PMATZTZNYRCHOR-CGLBZJNRSA-N",
+          "nearest_active_chembl": "CHEMBL160",
+          "name": "NIM811",
+          "nearest_active_name": "CYCLOSPORINE"
+        },
+        {
+          "candidate": "INCHIKEY:NEGCNVRPGPHOAR-CCLLZULESA-N",
+          "chembl_id": null,
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.92,
+          "nearest_active": "INCHIKEY:HPNSFSBZBAHARI-RUDMXATFSA-N",
+          "nearest_active_chembl": "CHEMBL866",
+          "name": null,
+          "nearest_active_name": "MYCOPHENOLIC ACID"
+        },
+        {
+          "candidate": "INCHIKEY:CZRQOVSWQHBFTO-KCHLEUMXSA-N",
+          "chembl_id": "CHEMBL506092",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.9123,
+          "nearest_active": "INCHIKEY:ZMSTVGUFIJRBJG-FKBYEOEOSA-N",
+          "nearest_active_chembl": "CHEMBL522355",
+          "name": null,
+          "nearest_active_name": null
         }
       ]
     },
@@ -591,8 +1053,8 @@
       "name": "TBEV",
       "n_known_actives": 72,
       "n_known_inactives": 65,
-      "n_candidates": 24959,
-      "n_salts_of_known_compounds_dropped": 287,
+      "n_candidates": 24957,
+      "n_salts_of_known_compounds_dropped": 0,
       "suggestions": [
         {
           "candidate": "INCHIKEY:QHEKHVFPDPTSKM-PZPGFRDGSA-N",
@@ -681,6 +1143,83 @@
           "nearest_active_chembl": "CHEMBL72928",
           "name": "VIDARABINE",
           "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:DSWIDWLPXOSNBX-XYIQKVFMSA-N",
+          "chembl_id": "CHEMBL5090826",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.7917,
+          "nearest_active": "INCHIKEY:RWWYLEGWBNMMLJ-YSOARWBDSA-N",
+          "nearest_active_chembl": "CHEMBL4065616",
+          "name": null,
+          "nearest_active_name": "REMDESIVIR"
+        },
+        {
+          "candidate": "INCHIKEY:QOFRFCMQEIQJSI-YUTYNTIBSA-N",
+          "chembl_id": "CHEMBL311635",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.7917,
+          "nearest_active": "INCHIKEY:PASOFFRBGIVJET-YRKGHMEHSA-N",
+          "nearest_active_chembl": "CHEMBL73809",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:VXYCOVDOXKSLFC-NKSQPNMBSA-N",
+          "chembl_id": "CHEMBL5085366",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.7917,
+          "nearest_active": "INCHIKEY:RWWYLEGWBNMMLJ-YSOARWBDSA-N",
+          "nearest_active_chembl": "CHEMBL4065616",
+          "name": null,
+          "nearest_active_name": "REMDESIVIR"
+        },
+        {
+          "candidate": "INCHIKEY:JUWORNYTTZYQHX-PZQWHCARSA-N",
+          "chembl_id": "CHEMBL5077949",
+          "is_approved": false,
+          "graph_degree": 3,
+          "tanimoto": 0.7624,
+          "nearest_active": "INCHIKEY:RWWYLEGWBNMMLJ-YSOARWBDSA-N",
+          "nearest_active_chembl": "CHEMBL4065616",
+          "name": null,
+          "nearest_active_name": "REMDESIVIR"
+        },
+        {
+          "candidate": "INCHIKEY:KGIUWJHXMYESLB-XYIQKVFMSA-N",
+          "chembl_id": "CHEMBL5074199",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.7624,
+          "nearest_active": "INCHIKEY:RWWYLEGWBNMMLJ-YSOARWBDSA-N",
+          "nearest_active_chembl": "CHEMBL4065616",
+          "name": null,
+          "nearest_active_name": "REMDESIVIR"
+        },
+        {
+          "candidate": "INCHIKEY:FYGWLZMLCKWVQM-LMYPSOOHSA-N",
+          "chembl_id": "CHEMBL5184724",
+          "is_approved": false,
+          "graph_degree": 8,
+          "tanimoto": 0.7604,
+          "nearest_active": "INCHIKEY:RWWYLEGWBNMMLJ-YSOARWBDSA-N",
+          "nearest_active_chembl": "CHEMBL4065616",
+          "name": null,
+          "nearest_active_name": "REMDESIVIR"
+        },
+        {
+          "candidate": "INCHIKEY:GINDXSVNPBZSCC-UKNNOAMWSA-N",
+          "chembl_id": "CHEMBL4856076",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.76,
+          "nearest_active": "INCHIKEY:YJFRFVQDQPYFKL-PHCUSUGSSA-N",
+          "nearest_active_chembl": "CHEMBL4857177",
+          "name": null,
+          "nearest_active_name": null
         }
       ]
     },
@@ -688,8 +1227,8 @@
       "name": "Yellow fever",
       "n_known_actives": 135,
       "n_known_inactives": 882,
-      "n_candidates": 24079,
-      "n_salts_of_known_compounds_dropped": 287,
+      "n_candidates": 24077,
+      "n_salts_of_known_compounds_dropped": 0,
       "suggestions": [
         {
           "candidate": "INCHIKEY:TYFPEPAHBVFZFI-UHFFFAOYSA-N",
@@ -778,15 +1317,92 @@
           "nearest_active_chembl": "CHEMBL4778905",
           "name": null,
           "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:MXPQMYCFXKOXHH-HEFSGLBYSA-N",
+          "chembl_id": "CHEMBL4128303",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.8182,
+          "nearest_active": "INCHIKEY:TTZHDVOVKQGIBA-IQWMDFIBSA-N",
+          "nearest_active_chembl": "CHEMBL1259059",
+          "name": null,
+          "nearest_active_name": "SOFOSBUVIR"
+        },
+        {
+          "candidate": "INCHIKEY:NPAGIAXHISSAHV-GAJNKVMBSA-N",
+          "chembl_id": "CHEMBL4126234",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.8077,
+          "nearest_active": "INCHIKEY:NKRAIOQPSBRMOV-NRMKKVEVSA-N",
+          "nearest_active_chembl": "CHEMBL1630221",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:QGLRRBIOILIGNN-HMLGJZDHSA-N",
+          "chembl_id": "CHEMBL4125970",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.8077,
+          "nearest_active": "INCHIKEY:TTZHDVOVKQGIBA-IQWMDFIBSA-N",
+          "nearest_active_chembl": "CHEMBL1259059",
+          "name": null,
+          "nearest_active_name": "SOFOSBUVIR"
+        },
+        {
+          "candidate": "INCHIKEY:VMMBTILVVJZJMZ-XYIQKVFMSA-N",
+          "chembl_id": "CHEMBL5092756",
+          "is_approved": false,
+          "graph_degree": 3,
+          "tanimoto": 0.8021,
+          "nearest_active": "INCHIKEY:RWWYLEGWBNMMLJ-YSOARWBDSA-N",
+          "nearest_active_chembl": "CHEMBL4065616",
+          "name": null,
+          "nearest_active_name": "REMDESIVIR"
+        },
+        {
+          "candidate": "INCHIKEY:XAGNWOLZCMPSMH-NKSQPNMBSA-N",
+          "chembl_id": "CHEMBL5084250",
+          "is_approved": false,
+          "graph_degree": 3,
+          "tanimoto": 0.8021,
+          "nearest_active": "INCHIKEY:RWWYLEGWBNMMLJ-YSOARWBDSA-N",
+          "nearest_active_chembl": "CHEMBL4065616",
+          "name": null,
+          "nearest_active_name": "REMDESIVIR"
+        },
+        {
+          "candidate": "INCHIKEY:JBTLNAYTDGFOCK-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL5205622",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.7971,
+          "nearest_active": "INCHIKEY:FGCVRNPMEDRYOH-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL5185409",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:BYYIVDAZZIFXJD-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL4790723",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.7963,
+          "nearest_active": "INCHIKEY:FSTVHIAQDFTDTH-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL4742664",
+          "name": null,
+          "nearest_active_name": null
         }
       ]
     },
     "NCBITaxon:11137": {
       "name": "HCoV-229E",
-      "n_known_actives": 120,
+      "n_known_actives": 119,
       "n_known_inactives": 88,
-      "n_candidates": 24889,
-      "n_salts_of_known_compounds_dropped": 286,
+      "n_candidates": 24887,
+      "n_salts_of_known_compounds_dropped": 0,
       "suggestions": [
         {
           "candidate": "INCHIKEY:QTGORSKTHIBLJT-HHXXRNITSA-N",
@@ -875,15 +1491,92 @@
           "nearest_active_chembl": "CHEMBL213054",
           "name": null,
           "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:ZVKZBCJGVGRTFM-BBDYWMOUSA-N",
+          "chembl_id": "CHEMBL5427328",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.9286,
+          "nearest_active": "INCHIKEY:OWEIJVXLQKRFHK-OUCBXQKESA-N",
+          "nearest_active_chembl": "CHEMBL5283406",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:MIZNJBIKRFSPSN-RTFZILSDSA-N",
+          "chembl_id": "CHEMBL4752448",
+          "is_approved": false,
+          "graph_degree": 11,
+          "tanimoto": 0.9241,
+          "nearest_active": "INCHIKEY:QHAHSNXJBQCKEG-NWVWQQAFSA-N",
+          "nearest_active_chembl": "CHEMBL5191464",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:CGCVAYCQZFQAMB-QMMMHVTISA-N",
+          "chembl_id": "CHEMBL4129318",
+          "is_approved": false,
+          "graph_degree": 6,
+          "tanimoto": 0.92,
+          "nearest_active": "INCHIKEY:UULYLRNRQOWCOR-ZHTHUIBPSA-N",
+          "nearest_active_chembl": "CHEMBL2441741",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:RCHQWDODKNPHAO-SNRMKQJTSA-N",
+          "chembl_id": "CHEMBL5195798",
+          "is_approved": false,
+          "graph_degree": 11,
+          "tanimoto": 0.9143,
+          "nearest_active": "INCHIKEY:QDIMHKWNHMVDJB-WBAXXEDZSA-N",
+          "nearest_active_chembl": "CHEMBL4777223",
+          "name": null,
+          "nearest_active_name": "PF-00835231"
+        },
+        {
+          "candidate": "INCHIKEY:DGVNIEAIBBZBMO-KBCNZALWSA-N",
+          "chembl_id": "CHEMBL5574604",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.913,
+          "nearest_active": "INCHIKEY:LIENCHBZNNMNKG-OJFNHCPVSA-N",
+          "nearest_active_chembl": "CHEMBL4802135",
+          "name": null,
+          "nearest_active_name": "NIRMATRELVIR"
+        },
+        {
+          "candidate": "INCHIKEY:JRYHGCPTQQGKLP-VXVQHTQASA-N",
+          "chembl_id": "CHEMBL5559191",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.9083,
+          "nearest_active": "INCHIKEY:QJMUEOZVQRLSGY-BABAJCCMSA-N",
+          "nearest_active_chembl": "CHEMBL5557742",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:RIUIABYVUYEDAF-DDKPVDKDSA-N",
+          "chembl_id": "CHEMBL6147838",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.8972,
+          "nearest_active": "INCHIKEY:GCIQAGXAZPUQNA-YDPAJNKASA-N",
+          "nearest_active_chembl": "CHEMBL6143439",
+          "name": null,
+          "nearest_active_name": null
         }
       ]
     },
     "NCBITaxon:1335626": {
       "name": "MERS-CoV",
-      "n_known_actives": 133,
+      "n_known_actives": 131,
       "n_known_inactives": 41,
-      "n_candidates": 24924,
-      "n_salts_of_known_compounds_dropped": 285,
+      "n_candidates": 24922,
+      "n_salts_of_known_compounds_dropped": 0,
       "suggestions": [
         {
           "candidate": "INCHIKEY:RSIYZFNXFYXVLB-ASXFYTMXSA-N",
@@ -972,15 +1665,92 @@
           "nearest_active_chembl": "CHEMBL4777223",
           "name": null,
           "nearest_active_name": "PF-00835231"
+        },
+        {
+          "candidate": "INCHIKEY:DGVNIEAIBBZBMO-KBCNZALWSA-N",
+          "chembl_id": "CHEMBL5574604",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.913,
+          "nearest_active": "INCHIKEY:LIENCHBZNNMNKG-OJFNHCPVSA-N",
+          "nearest_active_chembl": "CHEMBL4802135",
+          "name": null,
+          "nearest_active_name": "NIRMATRELVIR"
+        },
+        {
+          "candidate": "INCHIKEY:LYTLONQPOWCAQI-XFIYOXNOSA-N",
+          "chembl_id": "CHEMBL5592467",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.9118,
+          "nearest_active": "INCHIKEY:WGNWEPPRWQKSKI-AIEDFZFUSA-N",
+          "nearest_active_chembl": "CHEMBL5591580",
+          "name": null,
+          "nearest_active_name": "IBUZATRELVIR"
+        },
+        {
+          "candidate": "INCHIKEY:WKNCKKOHQQLNCY-LMQDMNPNSA-N",
+          "chembl_id": "CHEMBL5093695",
+          "is_approved": false,
+          "graph_degree": 5,
+          "tanimoto": 0.9118,
+          "nearest_active": "INCHIKEY:VCQYBHSDNWQLAS-ZSTFLGNUSA-N",
+          "nearest_active_chembl": "CHEMBL5172701",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:BLRXSZOWSREMKN-DHRHBVOQSA-N",
+          "chembl_id": "CHEMBL5277581",
+          "is_approved": false,
+          "graph_degree": 7,
+          "tanimoto": 0.9032,
+          "nearest_active": "INCHIKEY:FOLCUFKJHSQMEL-JRXKHZKBSA-N",
+          "nearest_active_chembl": "CHEMBL5178275",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:FOLCUFKJHSQMEL-BIXPGCQOSA-N",
+          "chembl_id": "CHEMBL5285707",
+          "is_approved": false,
+          "graph_degree": 5,
+          "tanimoto": 0.9032,
+          "nearest_active": "INCHIKEY:BLRXSZOWSREMKN-WTJXOVOXSA-N",
+          "nearest_active_chembl": "CHEMBL5194912",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:DDBOBUWAMRFUJW-SNRMKQJTSA-N",
+          "chembl_id": "CHEMBL4785436",
+          "is_approved": false,
+          "graph_degree": 11,
+          "tanimoto": 0.8857,
+          "nearest_active": "INCHIKEY:QDIMHKWNHMVDJB-WBAXXEDZSA-N",
+          "nearest_active_chembl": "CHEMBL4777223",
+          "name": null,
+          "nearest_active_name": "PF-00835231"
+        },
+        {
+          "candidate": "INCHIKEY:SSXXVUXAHDLVTH-HVTWWXFQSA-N",
+          "chembl_id": "CHEMBL5409791",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.8841,
+          "nearest_active": "INCHIKEY:PWGCVQUCOPISOA-ATIWLJMLSA-N",
+          "nearest_active_chembl": "CHEMBL5409350",
+          "name": null,
+          "nearest_active_name": null
         }
       ]
     },
     "NCBITaxon:2697049": {
       "name": "SARS-CoV-2",
-      "n_known_actives": 1758,
-      "n_known_inactives": 11003,
-      "n_candidates": 12402,
-      "n_salts_of_known_compounds_dropped": 220,
+      "n_known_actives": 1723,
+      "n_known_inactives": 10949,
+      "n_candidates": 12422,
+      "n_salts_of_known_compounds_dropped": 0,
       "suggestions": [
         {
           "candidate": "INCHIKEY:CAJPBSSCBUNUIF-NDEPHWFRSA-N",
@@ -1027,17 +1797,6 @@
           "nearest_active_name": null
         },
         {
-          "candidate": "INCHIKEY:XEEQGYMUWCZPDN-DOMZBBRYSA-N",
-          "chembl_id": "CHEMBL172",
-          "is_approved": false,
-          "graph_degree": 4,
-          "tanimoto": 0.9787,
-          "nearest_active": "INCHIKEY:WESWYMRNZNDGBX-UHFFFAOYSA-N",
-          "nearest_active_chembl": "CHEMBL535650",
-          "name": "(S,R)-MEFLOQUINE",
-          "nearest_active_name": "MEFLOQUINE HYDROCHLORIDE"
-        },
-        {
           "candidate": "INCHIKEY:XRUIXDXMKWIHNW-RPBOFIJWSA-N",
           "chembl_id": "CHEMBL5561234",
           "is_approved": false,
@@ -1069,15 +1828,103 @@
           "nearest_active_chembl": "CHEMBL5555832",
           "name": null,
           "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:CZQNFNRMHSDJSB-RPWUZVMVSA-N",
+          "chembl_id": "CHEMBL5563607",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.9714,
+          "nearest_active": "INCHIKEY:WVDFVEQHSWMZPI-RPBOFIJWSA-N",
+          "nearest_active_chembl": "CHEMBL5561361",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:CEPDINKBBXBPJN-RABCQHRBSA-N",
+          "chembl_id": "CHEMBL5438575",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.971,
+          "nearest_active": "INCHIKEY:KEAASSFDBHSWDX-WLNPFYQQSA-N",
+          "nearest_active_chembl": "CHEMBL5403964",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:GIDGGKAOSWHHHS-RTWAWAEBSA-N",
+          "chembl_id": "CHEMBL5568045",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.971,
+          "nearest_active": "INCHIKEY:KFFVXVXATZDEKJ-YADHBBJMSA-N",
+          "nearest_active_chembl": "CHEMBL5568138",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:JPQHLWWKDYTSCU-CMURFVSUSA-N",
+          "chembl_id": "CHEMBL5430131",
+          "is_approved": false,
+          "graph_degree": 3,
+          "tanimoto": 0.9692,
+          "nearest_active": "INCHIKEY:YRSVDGJTWAYJOR-DYSFYUKASA-N",
+          "nearest_active_chembl": "CHEMBL5286307",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:QZOSTULOWRCABL-ZWKOTPCHSA-N",
+          "chembl_id": "CHEMBL5565749",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.9677,
+          "nearest_active": "INCHIKEY:YBCZRIAKLGNMNU-MOPGFXCFSA-N",
+          "nearest_active_chembl": "CHEMBL5563321",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:WDQPAMHFFCXSNU-BGABXYSRSA-N",
+          "chembl_id": "CHEMBL1292",
+          "is_approved": true,
+          "graph_degree": 18,
+          "tanimoto": 0.9423,
+          "nearest_active": "INCHIKEY:MFOFSHZITVCVTG-RMLRFSFXSA-N",
+          "nearest_active_chembl": "CHEMBL5202017",
+          "name": "CLOFAZIMINE",
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:CRWIWQWISQOQOM-GOSISDBHSA-N",
+          "chembl_id": "CHEMBL5595683",
+          "is_approved": false,
+          "graph_degree": 5,
+          "tanimoto": 0.9412,
+          "nearest_active": "INCHIKEY:LWKRIGYXJJRJNT-HXUWFJFHSA-N",
+          "nearest_active_chembl": "CHEMBL5591637",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:DDNKJVYYJPDFOE-OWJBEEKMSA-N",
+          "chembl_id": "CHEMBL5424206",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.9385,
+          "nearest_active": "INCHIKEY:VDPJORBKOLOGMZ-JENIJYKNSA-N",
+          "nearest_active_chembl": "CHEMBL5401144",
+          "name": null,
+          "nearest_active_name": null
         }
       ]
     },
     "NCBITaxon:31631": {
       "name": "HCoV-OC43",
-      "n_known_actives": 164,
+      "n_known_actives": 162,
       "n_known_inactives": 70,
-      "n_candidates": 24864,
-      "n_salts_of_known_compounds_dropped": 285,
+      "n_candidates": 24862,
+      "n_salts_of_known_compounds_dropped": 0,
       "suggestions": [
         {
           "candidate": "INCHIKEY:FUPOYMWFLZLEGA-VYXHJLNGSA-N",
@@ -1166,6 +2013,83 @@
           "nearest_active_chembl": "CHEMBL5639127",
           "name": null,
           "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:NEGCNVRPGPHOAR-CCLLZULESA-N",
+          "chembl_id": null,
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.92,
+          "nearest_active": "INCHIKEY:HPNSFSBZBAHARI-RUDMXATFSA-N",
+          "nearest_active_chembl": "CHEMBL866",
+          "name": null,
+          "nearest_active_name": "MYCOPHENOLIC ACID"
+        },
+        {
+          "candidate": "INCHIKEY:UULYLRNRQOWCOR-ZHTHUIBPSA-N",
+          "chembl_id": "CHEMBL2441741",
+          "is_approved": false,
+          "graph_degree": 6,
+          "tanimoto": 0.92,
+          "nearest_active": "INCHIKEY:CGCVAYCQZFQAMB-QMMMHVTISA-N",
+          "nearest_active_chembl": "CHEMBL4129318",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:OBGONSDSVAEVEW-QBWBYSJJSA-N",
+          "chembl_id": "CHEMBL5563979",
+          "is_approved": false,
+          "graph_degree": 6,
+          "tanimoto": 0.9167,
+          "nearest_active": "INCHIKEY:VQVFDPLMQIUFGH-MNUOIFNESA-N",
+          "nearest_active_chembl": "CHEMBL5564091",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:DGVNIEAIBBZBMO-KBCNZALWSA-N",
+          "chembl_id": "CHEMBL5574604",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.913,
+          "nearest_active": "INCHIKEY:LIENCHBZNNMNKG-OJFNHCPVSA-N",
+          "nearest_active_chembl": "CHEMBL4802135",
+          "name": null,
+          "nearest_active_name": "NIRMATRELVIR"
+        },
+        {
+          "candidate": "INCHIKEY:JRYHGCPTQQGKLP-VXVQHTQASA-N",
+          "chembl_id": "CHEMBL5559191",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.9083,
+          "nearest_active": "INCHIKEY:QJMUEOZVQRLSGY-BABAJCCMSA-N",
+          "nearest_active_chembl": "CHEMBL5557742",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:IXDYUXPASCVFSO-AKAWMXQSSA-N",
+          "chembl_id": "CHEMBL6133902",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.9027,
+          "nearest_active": "INCHIKEY:YLUPQQLZOKCSAF-ZFAZWSTCSA-N",
+          "nearest_active_chembl": "CHEMBL6163426",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:DTGZHCFJNDAHEN-OZEXIGSWSA-N",
+          "chembl_id": "CHEMBL255708",
+          "is_approved": false,
+          "graph_degree": 3,
+          "tanimoto": 0.8909,
+          "nearest_active": "INCHIKEY:AUVVAXYIELKVAI-CKBKHPSWSA-N",
+          "nearest_active_chembl": "CHEMBL50588",
+          "name": "CEPHAELINE",
+          "nearest_active_name": "EMETINE"
         }
       ]
     },
@@ -1173,8 +2097,8 @@
       "name": "Zika",
       "n_known_actives": 748,
       "n_known_inactives": 2577,
-      "n_candidates": 21771,
-      "n_salts_of_known_compounds_dropped": 287,
+      "n_candidates": 21769,
+      "n_salts_of_known_compounds_dropped": 0,
       "suggestions": [
         {
           "candidate": "INCHIKEY:NTOKTLJCRGWDRL-UHFFFAOYSA-N",
@@ -1224,7 +2148,7 @@
           "candidate": "INCHIKEY:KOQIAZNBAWFSQM-UHFFFAOYSA-N",
           "chembl_id": null,
           "is_approved": false,
-          "graph_degree": 3,
+          "graph_degree": 2,
           "tanimoto": 0.9038,
           "nearest_active": "INCHIKEY:AAKJLRGGTJKAMG-UHFFFAOYSA-N",
           "nearest_active_chembl": "CHEMBL553",
@@ -1243,17 +2167,6 @@
           "nearest_active_name": null
         },
         {
-          "candidate": "INCHIKEY:FELYAZAWTURXNF-XDOROGBLSA-N",
-          "chembl_id": null,
-          "is_approved": false,
-          "graph_degree": 1,
-          "tanimoto": 0.901,
-          "nearest_active": "INCHIKEY:XMAIRYYXDCNFKP-SEDNIUBGSA-M",
-          "nearest_active_chembl": "CHEMBL4528703",
-          "name": null,
-          "nearest_active_name": null
-        },
-        {
           "candidate": "INCHIKEY:BAOPFONCQOHBOZ-UHFFFAOYSA-N",
           "chembl_id": "CHEMBL5604450",
           "is_approved": false,
@@ -1263,15 +2176,103 @@
           "nearest_active_chembl": "CHEMBL5604207",
           "name": null,
           "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:DTGZHCFJNDAHEN-OZEXIGSWSA-N",
+          "chembl_id": "CHEMBL255708",
+          "is_approved": false,
+          "graph_degree": 3,
+          "tanimoto": 0.8909,
+          "nearest_active": "INCHIKEY:AUVVAXYIELKVAI-CKBKHPSWSA-N",
+          "nearest_active_chembl": "CHEMBL50588",
+          "name": "CEPHAELINE",
+          "nearest_active_name": "EMETINE"
+        },
+        {
+          "candidate": "INCHIKEY:AHIZIZVAACFYNM-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL5083861",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.88,
+          "nearest_active": "INCHIKEY:FQICFDBMQBCJDT-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL569561",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:VRJRAVPMCPQRLV-GSPCLOLRSA-N",
+          "chembl_id": "CHEMBL5605658",
+          "is_approved": false,
+          "graph_degree": 3,
+          "tanimoto": 0.875,
+          "nearest_active": "INCHIKEY:FCKOUEIZHCZWGN-UARRHKHWSA-N",
+          "nearest_active_chembl": "CHEMBL5605805",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:FUIZMCSXSRIOQK-GOTSBHOMSA-N",
+          "chembl_id": "CHEMBL5604116",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.8679,
+          "nearest_active": "INCHIKEY:JJJKMAXMBDUQNF-DHIUTWEWSA-N",
+          "nearest_active_chembl": "CHEMBL5605856",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:IDZTVVJCBBJNFA-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL5604413",
+          "is_approved": false,
+          "graph_degree": 3,
+          "tanimoto": 0.8596,
+          "nearest_active": "INCHIKEY:JXCXDHLKVWASRM-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL5605893",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:KFKAFUTTZFLTOK-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL5598749",
+          "is_approved": false,
+          "graph_degree": 6,
+          "tanimoto": 0.8596,
+          "nearest_active": "INCHIKEY:NGSAIPOSCIZLBC-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL5606410",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:RQWCXKUMIJUTRU-ROUUACIJSA-N",
+          "chembl_id": "CHEMBL3946919",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.8596,
+          "nearest_active": "INCHIKEY:FSDWYLVZNOVGAG-OALUTQOASA-N",
+          "nearest_active_chembl": "CHEMBL3919119",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:TYFPEPAHBVFZFI-UHFFFAOYSA-N",
+          "chembl_id": "CHEMBL5186684",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.8592,
+          "nearest_active": "INCHIKEY:GNIFOACKEWVQBR-UHFFFAOYSA-N",
+          "nearest_active_chembl": "CHEMBL5182449",
+          "name": null,
+          "nearest_active_name": null
         }
       ]
     },
     "NCBITaxon:694009": {
       "name": "SARS-CoV",
-      "n_known_actives": 143,
+      "n_known_actives": 142,
       "n_known_inactives": 96,
-      "n_candidates": 24858,
-      "n_salts_of_known_compounds_dropped": 286,
+      "n_candidates": 24856,
+      "n_salts_of_known_compounds_dropped": 0,
       "suggestions": [
         {
           "candidate": "INCHIKEY:QTGORSKTHIBLJT-HHXXRNITSA-N",
@@ -1360,6 +2361,83 @@
           "nearest_active_chembl": "CHEMBL4802135",
           "name": null,
           "nearest_active_name": "NIRMATRELVIR"
+        },
+        {
+          "candidate": "INCHIKEY:LYTLONQPOWCAQI-XFIYOXNOSA-N",
+          "chembl_id": "CHEMBL5592467",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.9118,
+          "nearest_active": "INCHIKEY:WGNWEPPRWQKSKI-AIEDFZFUSA-N",
+          "nearest_active_chembl": "CHEMBL5591580",
+          "name": null,
+          "nearest_active_name": "IBUZATRELVIR"
+        },
+        {
+          "candidate": "INCHIKEY:WKNCKKOHQQLNCY-LMQDMNPNSA-N",
+          "chembl_id": "CHEMBL5093695",
+          "is_approved": false,
+          "graph_degree": 5,
+          "tanimoto": 0.9118,
+          "nearest_active": "INCHIKEY:VCQYBHSDNWQLAS-ZSTFLGNUSA-N",
+          "nearest_active_chembl": "CHEMBL5172701",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:BLRXSZOWSREMKN-DHRHBVOQSA-N",
+          "chembl_id": "CHEMBL5277581",
+          "is_approved": false,
+          "graph_degree": 7,
+          "tanimoto": 0.9032,
+          "nearest_active": "INCHIKEY:FOLCUFKJHSQMEL-JRXKHZKBSA-N",
+          "nearest_active_chembl": "CHEMBL5178275",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:FOLCUFKJHSQMEL-BIXPGCQOSA-N",
+          "chembl_id": "CHEMBL5285707",
+          "is_approved": false,
+          "graph_degree": 5,
+          "tanimoto": 0.9032,
+          "nearest_active": "INCHIKEY:BLRXSZOWSREMKN-WTJXOVOXSA-N",
+          "nearest_active_chembl": "CHEMBL5194912",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:QDOZGFCRSLNJBV-IGKWTDBASA-N",
+          "chembl_id": "CHEMBL2435615",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.8916,
+          "nearest_active": "INCHIKEY:JBLLRCOZJMVOAE-HSQYWUDLSA-N",
+          "nearest_active_chembl": "CHEMBL2435614",
+          "name": null,
+          "nearest_active_name": null
+        },
+        {
+          "candidate": "INCHIKEY:YAQDQTRKZQGBQQ-KOUJMVCDSA-N",
+          "chembl_id": "CHEMBL5202626",
+          "is_approved": false,
+          "graph_degree": 2,
+          "tanimoto": 0.8824,
+          "nearest_active": "INCHIKEY:LIENCHBZNNMNKG-OJFNHCPVSA-N",
+          "nearest_active_chembl": "CHEMBL4802135",
+          "name": null,
+          "nearest_active_name": "NIRMATRELVIR"
+        },
+        {
+          "candidate": "INCHIKEY:IJUSQHGCLSCLBK-QDLLFRBVSA-N",
+          "chembl_id": "CHEMBL5182370",
+          "is_approved": false,
+          "graph_degree": 1,
+          "tanimoto": 0.8814,
+          "nearest_active": "INCHIKEY:RYGJIKURQDMMQZ-YUDQIZAISA-N",
+          "nearest_active_chembl": "CHEMBL5206501",
+          "name": null,
+          "nearest_active_name": null
         }
       ]
     }
@@ -1367,14 +2445,14 @@
   "provenance": {
     "release": {
       "id": "v0.1",
-      "nodes_sha": "c800b9005c8b074c",
-      "edges_sha": "ad7121bc2195a93a"
+      "nodes_sha": "b0d6fc69d63942c2",
+      "edges_sha": "545fb7d87b0aec08"
     },
     "code": {
-      "commit": "75bc982e0e95aca45023688aa787134da6b917b8",
+      "commit": "5151de864b05dcd3eac8f2faf1f655dd80529091",
       "dirty": true
     },
     "schema_version": "0.15.0",
-    "generated_utc": "2026-11-11T10:28:43+00:00"
+    "generated_utc": "2026-11-11T11:05:09+00:00"
   }
 }

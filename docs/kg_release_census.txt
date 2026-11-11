@@ -8,14 +8,14 @@ docs/kg_audit_report.txt.
 ==============================================================================
 
     release          v0.1
-    nodes_sha        c800b9005c8b074c
-    edges_sha        ad7121bc2195a93a
+    nodes_sha        b0d6fc69d63942c2
+    edges_sha        545fb7d87b0aec08
 
-    78,789 nodes
-    392,375 edges
+    78,500 nodes
+    391,727 edges
 
     NODES BY CLASS   (0 = declared in the schema, absent from this release)
-      SmallMolecule                  25,383
+      SmallMolecule                  25,094
       Protein                        20,888
       Gene                           19,190
       Pathway                        13,236
@@ -32,13 +32,13 @@ docs/kg_audit_report.txt.
     EDGES BY PREDICATE   (L = held out of every metapath, 0 = declared, absent)
       PARTICIPATES_IN                           157,211
       PHYSICALLY_INTERACTS_WITH                 153,533
-      HAS_ANTIVIRAL_ACTIVITY_AGAINST     L       26,017
+      HAS_ANTIVIRAL_ACTIVITY_AGAINST     L       25,949
       ENCODED_BY                                 19,498
-      TARGETS                                    17,982
+      TARGETS                                    17,587
       HOST_FACTOR_FOR                             8,263
-      INHIBITS                                    3,888
-      CHEMICALLY_SIMILAR_TO                       3,166
-      MEASURED_INACTIVE_AGAINST          L        2,421
+      INHIBITS                                    3,874
+      CHEMICALLY_SIMILAR_TO                       2,996
+      MEASURED_INACTIVE_AGAINST          L        2,420
       MEMBER_OF_CLASS                               158
       SAME_AS                                       119
       BELONGS_TO                                     79
@@ -71,19 +71,19 @@ docs/kg_audit_report.txt.
     EDGES BY CURATOR   (an edge with several curators counts once for each)
       infores:uniprot                         176,907
       infores:string                          141,019
-      infores:chembl                           39,275
+      infores:chembl                           38,848
       infores:virhostnet                       10,163
       infores:biogrid-orcs                      8,263
       infores:ncats-opendata                    7,432
-      infores:guidetopharmacology               6,765
+      infores:guidetopharmacology               6,748
       infores:intact                            6,617
-      infores:kgav-computed                     3,190
+      infores:kgav-computed                     3,020
       infores:mint                                878
       infores:interpro                            158
       infores:mondo                                16
       infores:dip                                  12
       infores:hpidb                                 1
-      8,143 edge(s) cite more than one curator, so these counts sum to more
+      8,177 edge(s) cite more than one curator, so these counts sum to more
         than the edge total.
 
     11 layer(s) assembled, hub cut degree 460

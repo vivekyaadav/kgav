@@ -99,7 +99,36 @@ def sequence(acc: str) -> str:
     return get(f"{UNIPROT}/{acc}?fields=sequence").get("sequence", {}).get("value", "")
 
 
-def main() -> int:
+def main(argv=None) -> int:
+    # ARGPARSE BEFORE THE NETWORK, AND IT WAS NOT HERE AT ALL.
+    #
+    # This script took no arguments, so `--help` was ignored and the first
+    # thing it did was fetch from InterPro and UniProt with sleep(0.3)
+    # between calls. Measured 2026-11-11: `--help` took 15.8 to 21.3
+    # SECONDS against ~100ms for every other script in this directory,
+    # because it was not printing help -- it was doing the whole run.
+    #
+    # TWO CONSEQUENCES, BOTH WORSE THAN THE SLOWNESS.
+    # tests/test_every_script_help_runs.py calls --help on all 68 scripts,
+    # so the TEST SUITE made live network calls on every run; and under the
+    # suite's own 32-way parallelism that call tips over its timeout, which
+    # is the unreproducible single-test failure seen earlier the same day
+    # and wrongly guessed to be a git timeout elsewhere.
+    #
+    # --help now returns before anything is fetched.
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--offline", action="store_true",
+                    help="print what would be fetched and exit, touching "
+                         "no network")
+    args = ap.parse_args(argv)
+    if args.offline:
+        print(f"would fetch {len(POLYMERASES)} polymerase(s) from "
+              f"{INTERPRO} and {UNIPROT}:")
+        for label, (acc, lo, hi, fam) in POLYMERASES.items():
+            print(f"  {label:<20} {acc}  [{lo}-{hi}]  {fam}")
+        return 0
+
     results = {}
     seqs: dict[str, str] = {}
     print("fetching\n")

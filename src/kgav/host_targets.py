@@ -98,6 +98,7 @@ from pathlib import Path
 
 from kgav.chembl import CHEMBL_UNITS
 from kgav.temporal import PLACEHOLDER_DATE
+from kgav.normalize_chem import policy_key
 from kgav.units import to_nm as _to_nm
 
 # ChEMBL action_type -> the schema's target_direction enum.
@@ -217,6 +218,18 @@ def known_inchikeys(releases: Path, layer_names: Iterable[str]) -> set[str]:
     against compound_structures.standard_inchi_key in SQL. A layer with no
     nodes.jsonl is skipped rather than refused: data/raw is populated by
     hand and an absent layer is an ordinary state of a checkout.
+
+    **AND SINCE FIX-LIST L27 THAT COMPARISON IS NO LONGER EXACT.** Node ids
+    are now the identity policy's key rather than ChEMBL's, so a compound
+    whose key the policy moved -- 549 of 25,383 on v0.1 -- will not match
+    its own `standard_inchi_key` in the IN-list, and the `relaxed` gate
+    will quietly admit fewer compounds than it did. That is a real
+    degradation and it is recorded rather than repaired here for one
+    reason: `relaxed` is fix-list B1, which was DECLINED after measurement,
+    and `floor` is the registered policy of
+    `docs/prereg_pathway_overlap.md`. So nothing in the release depends on
+    it. Anyone re-opening B1 has to map node ids back to source keys first,
+    which needs the source key stored on the node and is a schema change.
 
     Pass `pipeline.layers_before("hosttargets")` rather than a literal list.
     """
@@ -423,6 +436,13 @@ def ingest_host_targets(em, rows: list[dict], mechanisms: dict[tuple[str, str], 
         if not inchikey:
             stats["no_inchikey"] += 1
             continue
+        # THE SAME FIX AS chembl.py (fix-list L27). This layer read the
+        # same compound_structures.standard_inchi_key and emitted it
+        # verbatim, so it minted the same duplicate nodes from the other
+        # side -- and it is the layer that carries TARGETS, which is the
+        # first operand of the whole pathway analysis.
+        inchikey, route = policy_key(r.get("smiles") or "", inchikey)
+        stats[f"identity_{route}"] += 1
         target = f"UniProtKB:{acc}"
         if target not in host_proteins:
             stats["target_not_in_graph"] += 1

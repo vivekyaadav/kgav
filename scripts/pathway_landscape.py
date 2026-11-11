@@ -491,6 +491,70 @@ def overlap_row(targets: set[str], universe: set[str], bins: dict[str, int],
     return row, (a / exp if exp else float("inf"))
 
 
+# --------------------------------------------------------- parallel execution
+#: Set once per worker process by `_init_worker`. The three operands below
+#: are IDENTICAL for every row -- the drugged proteome, the human universe
+#: and the degree bins -- so they cross the process boundary once instead of
+#: twenty-two times. Only `factors` differs per row and travels with the
+#: task. Nothing here carries a Graph or an RDKit object: it is sets and
+#: dicts of strings.
+_W: dict = {}
+
+
+def _init_worker(targets: set[str], universe: set[str],
+                 bins: dict[str, int], permutations: int, seed: int) -> None:
+    _W.update(targets=targets, universe=universe, bins=bins,
+              permutations=permutations, seed=seed)
+
+
+def _row_task(job: tuple[str, str, set[str]]) -> tuple[str, str, dict, float]:
+    """One (channel, virus) row, in whatever process picks it up.
+
+    WHY THIS IS SAFE, AND IT IS NOT SAFE BY ACCIDENT. `row_rng` builds a
+    generator from `(seed, channel, virus)` alone, so a row's draws depend
+    on its own key and on nothing else -- not on which rows ran before it,
+    not on how many ran at once. That was written to fix the shared-generator
+    defect `docs/prereg_pathway_overlap.md` registers, where adding a taxon
+    BEFORE another changed the other's null total from 1209 to 1165, and the
+    three sorts inside `matched_null` close the remaining order dependencies
+    (bin pools, bin sequence, Counter insertion order).
+
+    So parallelising across rows cannot move a p-value, and that is checked
+    rather than argued: `--jobs 1` and `--jobs N` must produce identical
+    output, which tests/test_pathway_landscape.py asserts on every row.
+    """
+    channel, virus, factors = job
+    row, ratio = overlap_row(_W["targets"], _W["universe"], _W["bins"],
+                             factors, _W["permutations"],
+                             row_rng(_W["seed"], channel, virus))
+    return channel, virus, row, ratio
+
+
+def run_rows(jobs: list[tuple[str, str, set[str]]], targets: set[str],
+             universe: set[str], bins: dict[str, int], permutations: int,
+             seed: int, workers: int) -> dict[tuple[str, str], tuple]:
+    """Every row, in parallel, keyed by (channel, virus).
+
+    Returns a mapping rather than a list so the CALLER decides insertion
+    order. That matters: the results file's dict order comes from insertion,
+    and a parallel run that assembled in completion order would produce a
+    textually different file for identical numbers -- which is exactly the
+    noise `build_labels` had to sort away for the same reason.
+    """
+    if workers <= 1 or len(jobs) <= 1:
+        _init_worker(targets, universe, bins, permutations, seed)
+        return {(c, v): (r, x) for c, v, r, x in map(_row_task, jobs)}
+    from concurrent.futures import ProcessPoolExecutor
+    out = {}
+    with ProcessPoolExecutor(max_workers=min(workers, len(jobs)),
+                             initializer=_init_worker,
+                             initargs=(targets, universe, bins,
+                                       permutations, seed)) as ex:
+        for c, v, r, x in ex.map(_row_task, jobs):
+            out[(c, v)] = (r, x)
+    return out
+
+
 def empirical_p(observed: int, null: list[int], greater: bool = True) -> float:
     """One-sided, with the +1 correction.
 
@@ -592,11 +656,33 @@ def main(argv=None) -> int:
     ap.add_argument("--out", type=Path, default=None,
                     help="write the overlap table here for src/kgav/"
                          "landscape.py to load")
+    ap.add_argument("--jobs", type=int, default=0,
+                    help="worker processes for the permutation rows; 0 "
+                         "means min(cpu_count, rows), 1 forces the serial "
+                         "path. Determinism does not depend on it -- "
+                         "row_rng seeds from (seed, channel, virus) alone "
+                         "-- and tests assert --jobs 1 and --jobs N agree.")
     args = ap.parse_args(argv)
+    if args.jobs <= 0:
+        import os
+        args.jobs = os.cpu_count() or 1
 
     if not (args.release / "nodes.jsonl").exists():
         print(f"no release at {args.release}")
         return 2
+
+    # SAID AT THE START, NOT DISCOVERED AT THE END. --out defaults to None,
+    # so a bare invocation computes every permutation and writes nothing.
+    # That cost a 21m37s lane of a parallel regeneration on 2026-11-11: the
+    # driver hand-expanded `make pathway-landscape` and dropped the flag,
+    # the script printed its whole report, and check-results found the file
+    # still stamped from the morning. The work is too expensive for that to
+    # be a silent default.
+    if args.out is None:
+        print("! --out IS NOT SET, so this run will compute every "
+              "permutation and WRITE NOTHING.")
+        print(f"  {args.permutations:,} permutations per row. Use `make "
+              f"pathway-landscape`, which passes it.\n")
 
     schema = load_schema()
     g = Graph.load(args.release, symmetry=schema.symmetry())
@@ -699,15 +785,31 @@ def main(argv=None) -> int:
               "    edges defining the interactome. That is circular, and it\n"
               "    biases every ratio downward. Kept for comparison with\n"
               "    --degree-from study, which is the default.\n")
+    # CHEAP PASS FIRST, then the permutations in parallel. The loop that
+    # was here did both at once, so 22 independent permutation runs went
+    # through one core: 21m37s of a 21m37s regeneration, on 3% of a
+    # 32-core box. The factor sets are collected here, the nulls are drawn
+    # by run_rows, and the rows are INSERTED in this same loop order below
+    # so the output file is textually identical to the serial version.
+    pathway_factors: dict[str, set[str]] = {}
     for virus in viruses:
         deps = dependency_factors(g, virus)
         if not deps:
             uncovered.append(virus)
             continue
         any_virus = True
-        row, ratio = overlap_row(targets, universe, bins, deps,
-                                 args.permutations,
-                                 row_rng(args.seed, "pathway", virus))
+        pathway_factors[virus] = deps
+
+    # ONE POOL PER CHANNEL, not one for all 22 rows. A single pool would
+    # give 22-way concurrency instead of 14, and would force the pathway
+    # table to print after the interactome loop -- changing the order of
+    # this script's console output for no numerical gain. Two pools run
+    # back to back, so the cost is two row-times rather than twenty-two.
+    done = run_rows([("pathway", v, f) for v, f in pathway_factors.items()],
+                    targets, universe, bins, args.permutations, args.seed,
+                    args.jobs)
+    for virus, deps in pathway_factors.items():
+        row, ratio = done[("pathway", virus)]
         rows[virus] = row
         print(f"    {virus:<18} {len(deps):6,} {row['n_observed']:8,} "
               f"{row['expected']:7.1f} {ratio:6.2f} {row['p_naive']:9.2e} "
@@ -724,6 +826,7 @@ def main(argv=None) -> int:
     irows: dict[str, dict] = {}
     iuncovered = []
     icov: dict[str, dict] = {}
+    interactome_factors: dict[str, tuple] = {}
     for virus in viruses:
         partners, hubs = interactome_partners(g, vprot.get(virus, set()),
                                               hub_cut or None)
@@ -733,9 +836,14 @@ def main(argv=None) -> int:
         if not partners:
             iuncovered.append(virus)
             continue
-        row, ratio = overlap_row(targets, universe, bins, partners,
-                                 args.permutations,
-                                 row_rng(args.seed, "interactome", virus))
+        interactome_factors[virus] = (partners, hubs, binary, total)
+
+    idone = run_rows([("interactome", v, f[0])
+                      for v, f in interactome_factors.items()],
+                     targets, universe, bins, args.permutations, args.seed,
+                     args.jobs)
+    for virus, (_partners, hubs, binary, total) in interactome_factors.items():
+        row, _ratio = idone[("interactome", virus)]
         row["n_hubs_excluded"] = len(hubs)
         row["binary_edges"] = binary
         row["total_edges"] = total

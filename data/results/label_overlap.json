@@ -1,27 +1,27 @@
 {
-  "both": 938,
-  "both_sides_have_pubs": 881,
-  "share_a_pub": 787,
-  "evidence_has_no_pmid": 31,
-  "neither_has_a_pmid": 19,
+  "both": 942,
+  "both_sides_have_pubs": 877,
+  "share_a_pub": 779,
+  "evidence_has_no_pmid": 37,
+  "neither_has_a_pmid": 21,
   "label_has_no_pmid": 7,
-  "unwithholdable": 50,
+  "unwithholdable": 58,
   "evidence_predicate": "INHIBITS",
   "label_predicate": "HAS_ANTIVIRAL_ACTIVITY_AGAINST",
   "viral_proteins_reached": 22,
-  "compounds_with_inhibits_to_viral": 3682,
-  "small_molecules": 25383,
+  "compounds_with_inhibits_to_viral": 3668,
+  "small_molecules": 25094,
   "provenance": {
     "release": {
       "id": "v0.1",
-      "nodes_sha": "c800b9005c8b074c",
-      "edges_sha": "ad7121bc2195a93a"
+      "nodes_sha": "b0d6fc69d63942c2",
+      "edges_sha": "545fb7d87b0aec08"
     },
     "code": {
-      "commit": "21c0f9299b20e82bf832548f1a69b8caa83ccb79",
+      "commit": "5151de864b05dcd3eac8f2faf1f655dd80529091",
       "dirty": true
     },
     "schema_version": "0.15.0",
-    "generated_utc": "2026-11-11T04:22:52+00:00"
+    "generated_utc": "2026-11-11T11:00:21+00:00"
   }
 }

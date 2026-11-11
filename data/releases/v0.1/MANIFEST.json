@@ -29,8 +29,8 @@
     },
     "chembl": {
       "path": "data/releases/v0.1-chembl",
-      "nodes_sha": "39194972a6f36f56",
-      "edges_sha": "70cc2cf4bdebd549",
+      "nodes_sha": "51b065473869c12d",
+      "edges_sha": "bfd0484a0d2e3445",
       "sources": {
         "chembl": "chembl_37"
       }
@@ -38,7 +38,7 @@
     "selectivity": {
       "path": "data/releases/v0.1-selectivity",
       "nodes_sha": "e3b0c44298fc1c14",
-      "edges_sha": "5b86daba10ea44be",
+      "edges_sha": "17c1dd49ccfad34d",
       "sources": {
         "chembl": "chembl_37"
       }
@@ -46,7 +46,7 @@
     "gtop": {
       "path": "data/releases/v0.1-gtop",
       "nodes_sha": "e3b0c44298fc1c14",
-      "edges_sha": "9ca3b577a0e56e95",
+      "edges_sha": "9eac600e92142f91",
       "sources": {
         "guidetopharmacology": {
           "published": "2026-10-12",
@@ -57,8 +57,8 @@
     },
     "hosttargets": {
       "path": "data/releases/v0.1-hosttargets",
-      "nodes_sha": "204080345186d1bb",
-      "edges_sha": "c89b0e973896d594",
+      "nodes_sha": "1280c326934e0d45",
+      "edges_sha": "4a88b55a1f6368e6",
       "sources": {
         "chembl": "chembl_37"
       }
@@ -66,14 +66,14 @@
     "similarity": {
       "path": "data/releases/v0.1-similarity",
       "nodes_sha": "e3b0c44298fc1c14",
-      "edges_sha": "28589ce9ddd139ea",
+      "edges_sha": "ee008bd8fe1f1e30",
       "sources": {
         "rdkit": "2026.03.6"
       }
     },
     "ncats": {
       "path": "data/releases/v0.1-ncats",
-      "nodes_sha": "1542ef0fcca30832",
+      "nodes_sha": "40621ea41846625b",
       "edges_sha": "0f6ff50fd4b226a8",
       "sources": null
     },
@@ -84,15 +84,15 @@
       "sources": null
     }
   },
-  "nodes": 78789,
-  "edges": 392375,
+  "nodes": 78500,
+  "edges": 391727,
   "nodes_by_class": {
     "OrganismTaxon": 16,
     "Protein": 20888,
     "Gene": 19190,
     "Disease": 10,
     "Pathway": 13236,
-    "SmallMolecule": 25383,
+    "SmallMolecule": 25094,
     "TargetClass": 66
   },
   "edges_by_predicate": {
@@ -103,43 +103,47 @@
     "PARTICIPATES_IN": 157211,
     "PHYSICALLY_INTERACTS_WITH": 153533,
     "HOST_FACTOR_FOR": 8263,
-    "HAS_ANTIVIRAL_ACTIVITY_AGAINST": 26017,
-    "MEASURED_INACTIVE_AGAINST": 2421,
-    "INHIBITS": 3888,
-    "TARGETS": 17982,
-    "CHEMICALLY_SIMILAR_TO": 3166,
+    "HAS_ANTIVIRAL_ACTIVITY_AGAINST": 25949,
+    "MEASURED_INACTIVE_AGAINST": 2420,
+    "INHIBITS": 3874,
+    "TARGETS": 17587,
+    "CHEMICALLY_SIMILAR_TO": 2996,
     "MEMBER_OF_CLASS": 158,
     "FOLD_SIMILAR_TO": 24
   },
   "degree": {
     "median": 2,
     "p99": 127,
-    "p99_9": 399,
-    "max": 19368
+    "p99_9": 400,
+    "max": 19307
   },
   "merges": {
-    "edge_merged": 28348,
+    "edge_merged": 28281,
     "qualifier_precedence_decided:detection_method": 4676,
     "qualifier_precedence_decided:cell_line": 1224,
     "qualifier_precedence_decided:screen_id": 2849,
     "qualifier_precedence_decided:effect_size": 1816,
     "qualifier_precedence_decided:screen_type": 63,
-    "qualifier_precedence_decided:ec50_nm": 1923,
-    "qualifier_precedence_decided:assay_id": 10324,
-    "qualifier_precedence_decided:relation": 1208,
-    "qualifier_precedence_decided:document_id": 3201,
-    "qualifier_precedence_decided:assay_type": 1602,
+    "qualifier_precedence_decided:ec50_nm": 1927,
+    "qualifier_precedence_decided:assay_id": 10361,
+    "qualifier_precedence_decided:relation": 1231,
+    "qualifier_precedence_decided:document_id": 3277,
+    "qualifier_precedence_decided:assay_type": 1575,
     "qualifier_kept_more_specific:outside_dose_series": 100,
     "qualifier_precedence_decided:nominal_protein_target": 9,
-    "qualifier_precedence_decided:ic50_nm": 3799,
+    "qualifier_precedence_decided:ic50_nm": 3853,
     "qualifier_precedence_decided:kd_nm": 88,
-    "qualifier_precedence_decided:ki_nm": 446,
-    "qualifier_precedence_decided:potency_spread_field": 4764,
-    "qualifier_precedence_decided:potency_rows": 3992,
-    "qualifier_precedence_decided:potency_min_nm": 6124,
-    "qualifier_precedence_decided:potency_max_nm": 6143,
-    "qualifier_kept_more_specific:direction": 47,
-    "qualifier_irreconcilable:direction": 14
+    "qualifier_precedence_decided:ki_nm": 454,
+    "property_conflict:smiles": 66,
+    "property_conflict:chembl_id": 66,
+    "property_conflict:max_phase": 2,
+    "property_conflict:is_approved": 4,
+    "qualifier_precedence_decided:potency_spread_field": 4724,
+    "qualifier_precedence_decided:potency_rows": 4037,
+    "qualifier_precedence_decided:potency_min_nm": 6098,
+    "qualifier_precedence_decided:potency_max_nm": 6122,
+    "qualifier_irreconcilable:direction": 14,
+    "qualifier_kept_more_specific:direction": 49
   },
   "sources": {
     "declared": {
@@ -177,7 +181,7 @@
   "release": "v0.1",
   "hub_cut_degree": 460,
   "code": {
-    "commit": "d43c3166a67136869ac5598e22a071e9dfd916ad",
+    "commit": "5151de864b05dcd3eac8f2faf1f655dd80529091",
     "dirty": true
   }
 }

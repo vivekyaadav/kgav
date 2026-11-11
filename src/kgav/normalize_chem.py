@@ -348,3 +348,61 @@ def _recombine_sulfur_oxygen(mol):
         except Exception:
             return None
     return mol
+
+
+# ---------------------------------------------------------------- fix-list L27
+#: Cache for policy_key, keyed by the source SMILES. ChEMBL's activity query
+#: returns one row per measurement, so the same structure arrives thousands
+#: of times; normalising it once per distinct SMILES is the difference
+#: between seconds and an hour.
+_POLICY_KEY_CACHE: dict[str, str | None] = {}
+
+
+def policy_key(smiles: str, source_key: str) -> tuple[str, str]:
+    """(InChIKey to use as the node id, what happened).
+
+    WHY THIS EXISTS -- fix-list L27. `chembl.py` and `host_targets.py` took
+    the node id straight from ChEMBL's `compound_structures.
+    standard_inchi_key` while declaring `salt_collapsed=True`, and those two
+    statements contradict each other. Measured on v0.1: 549 of 25,383
+    molecules carried a multi-fragment `smiles`, every one declared
+    `salt_collapsed: True`, and NOT ONE was a fixed point of
+    `normalize_chemical`. 287 were a second copy of a compound already in
+    the graph, 980 edges sat on those copies, and 31 compounds ended up a
+    POSITIVE and a NEGATIVE for the same virus -- a contradiction
+    `labels.build_labels` is built to drop and could not see, because the
+    two sides were different subjects.
+
+    ERLOTINIB was two nodes: `AAKJLRGGTJKAMG-UHFFFAOYSA-N` and
+    `GTTBEUCJPZQMDZ-UHFFFAOYSA-N`, the latter with `.Cl` still in its
+    SMILES.
+
+    `ncats.py` never had the defect; its docstring says a key taken from
+    the source file "would differ on salt", and it calls
+    `normalize_chemical`. This gives the two SQL layers the same route.
+
+    THE RETURNED ROUTE IS NOT DECORATION. "source" means the policy agreed
+    with the source key, "normalized" means it did not and the policy won,
+    "unparseable" means RDKit could not read the structure and the source
+    key was kept because dropping the compound would lose data over a
+    display-level disagreement. Callers count all three, so a release can
+    say how many ids the policy moved rather than assert that it ran.
+    """
+    if not smiles:
+        return source_key, "no_smiles"
+    cached = _POLICY_KEY_CACHE.get(smiles)
+    if cached is None and smiles not in _POLICY_KEY_CACHE:
+        # IT RAISES, IT DOES NOT RETURN None. The first version of this
+        # helper read `cid = normalize_chemical(...)` and tested `if cid`,
+        # which is how every other caller in this package is written --
+        # and they all sit inside a try. An unparseable structure here
+        # would have aborted the whole ingest instead of keeping the
+        # source key for one compound.
+        try:
+            cached = normalize_chemical(smiles).inchikey
+        except NormalizationError:
+            cached = None
+        _POLICY_KEY_CACHE[smiles] = cached
+    if cached is None:
+        return source_key, "unparseable"
+    return cached, "source" if cached == source_key else "normalized"
