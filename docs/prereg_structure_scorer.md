@@ -477,3 +477,16 @@ comparable margin, the result is about structure. If it collapses towards
 the dengue serotypes, it was about who publishes with whom. **That must be
 registered before it runs, and this verdict is exactly the kind of result
 that makes the next registration hard to write honestly.**
+
+**IT IS NOW REGISTERED:** `docs/prereg_structure_scorer_symmetric.md`,
+signed 2026-11-11 before its code, with k = 10 and a curve over
+k ∈ {1, 3, 10}. Writing it immediately found two things this verdict got
+wrong. **The k = 30 suggested above is infeasible** -- JEV holds 18
+references after self-exclusion, so k = 30 empties the cell and reproduces
+the P5 failure recorded here; the class sizes said so without a run. And
+**the asymmetry table in this verdict is incomplete in a way that favours
+its own hypothesis**: it shows the four highest ratios and the two lowest,
+omitting DENV-2 at 12.7x and Zika at 8.2x, which are heavily asymmetric and
+ABOVE chance. Those two are counterexamples. The new registration carries
+all fourteen rows with the counterexamples marked, and the -0.490
+correlation reported here already included them -- the table did not.
