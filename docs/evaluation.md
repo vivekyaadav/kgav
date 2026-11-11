@@ -1714,6 +1714,14 @@ make structure-scorer-symmetric
 #    that file is absent, so the publication-control run must precede it.
 make structure-scorer-strength
 
+#    and the read-out, which is what the scorer is for: the top candidates
+#    per virus with the known active each one resembles, named. It is not a
+#    protocol and has no registration of its own -- it applies the one the
+#    three studies above validated. It also prints how many suggestions
+#    were dropped as the same compound as something already known, which
+#    is fix-list L27.
+make repurposing-candidates
+
 # 5. every results file, AND the derived release they depend on, must
 #    describe the graph on disk
 make check-results

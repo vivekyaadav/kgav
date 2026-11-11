@@ -69,6 +69,7 @@ WRITERS: list[tuple[str, str]] = [
     (r"^structure_scorer_symmetric\.json$", "make structure-scorer-symmetric"),
     (r"^structure_scorer_strength_matched\.json$",
      "make structure-scorer-strength"),
+    (r"^repurposing_candidates\.json$", "make repurposing-candidates"),
 ]
 
 

@@ -152,6 +152,11 @@ structure-scorer-symmetric:
 structure-scorer-strength:
 	python scripts/structure_scorer.py --control strength $(ARGS)
 
+# The read-out: what the graph suggests, by name, for each virus. Not a
+# protocol -- it points the validated scorer at the question.
+repurposing-candidates:
+	python scripts/repurposing_candidates.py $(ARGS)
+
 STRUCTURE_SOURCES = $(or $(SOURCES),infores:chembl)
 diagnose-structure-design:
 	python scripts/diagnose_structure_scorer_design.py \
