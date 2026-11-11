@@ -232,7 +232,14 @@ def test_the_retraction_is_warranted_and_stated(doc, runs):
     assert (f"{now['auc']:.4f} [{now['auc_ci_lo_corrected']:.4f}, "
             f"{now['auc_ci_hi_corrected']:.4f}]" in doc)
     assert f"At k=10 it read {before['auc']:.4f} and cleared" in doc
-    assert f"skill {now['auc_skill']:.4f} at k=33" in doc, (
+    # THE HANDICAP IS READ FROM THE RUN, NOT TYPED. This assertion and the
+    # confound-gap one below both carried a literal "k=33", and the L27
+    # rebuild moved the matched cell's k_cell to 36 -- so a test written to
+    # catch a stale figure was itself the stale figure. That is the "check
+    # written with the same literals it is checking" defect, in a file whose
+    # docstring is about exactly that.
+    k_m = sm["secondary_ncats"]["NCBITaxon:2697049"]["k_cell"]
+    assert f"skill {now['auc_skill']:.4f} at k={k_m}" in doc, (
         f"the matched cell's skill is {now['auc_skill']:.4f} and the verdict "
         f"states otherwise")
     assert now["auc"] > 0.5, (
@@ -250,7 +257,8 @@ def test_the_confound_gap_at_equal_handicap(doc, runs):
                 ["structure_max"]["auc"]
                 - knn["secondary_ncats"]["NCBITaxon:2697049"]
                 ["structure_max"]["auc"])
-    assert f"**{gap_now:.4f} at k=33**" in doc, (
+    k_m = sm["secondary_ncats"]["NCBITaxon:2697049"]["k_cell"]
+    assert f"**{gap_now:.4f} at k={k_m}**" in doc, (
         f"the gap at equal handicap is {gap_now:.4f} and the verdict says "
         f"otherwise")
     assert f"against {gap_then:.2f} measured at k=10" in doc

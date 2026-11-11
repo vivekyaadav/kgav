@@ -351,16 +351,16 @@ appended beneath it.
 ## The numbers
 
     virus                 pos     neg      AUC   corrected 95%      skill    leak   degree
-    SARS-CoV-2          1,786   5,362   0.7693^  [0.7488, 0.7897]   0.5385  +0.1003  0.5131
-    MERS-CoV              133      41   0.6677^  [0.5364, 0.7990]   0.3354  -0.0001  0.7085
+    SARS-CoV-2          1,761   5,320   0.7714^  [0.7508, 0.7920]   0.5428  +0.1025  0.5151
+    MERS-CoV              131      41   0.6851^  [0.5566, 0.8135]   0.3701  -0.0067  0.7042
     Zika                  748   2,577   0.6316^  [0.5965, 0.6666]   0.2631  +0.1722  0.5534
-    West Nile             261     311   0.6308^  [0.5626, 0.6990]   0.2616  +0.1123  0.5657
-    HCoV-229E             120      88   0.5951   [0.4806, 0.7097]   0.1902  +0.0386  0.5908
+    West Nile             261     311   0.6308^  [0.5626, 0.6990]   0.2616  +0.1123  0.5662
+    HCoV-229E             119      88   0.5917   [0.4767, 0.7067]   0.1834  +0.0345  0.5879
     TBEV                   72      65   0.5764   [0.4344, 0.7184]   0.1528  +0.1840  0.4203
-    DENV-2                996   3,043   0.5735^  [0.5425, 0.6046]   0.1471  +0.2899  0.4016
+    DENV-2                995   3,043   0.5742^  [0.5431, 0.6053]   0.1484  +0.2901  0.4013
     Yellow fever          135     882   0.5545   [0.4752, 0.6337]   0.1089  +0.2598  0.7264
-    HCoV-OC43             164      70   0.5396   [0.4210, 0.6582]   0.0792  +0.0992  0.5345
-    SARS-CoV              143      96   0.5186   [0.4077, 0.6294]   0.0372  +0.0998  0.6812
+    HCoV-OC43             162      70   0.5257   [0.4062, 0.6453]   0.0515  +0.0998  0.5363
+    SARS-CoV              142      96   0.5098   [0.3986, 0.6210]   0.0197  +0.1020  0.6826
     DENV-4                153     109   0.4644   [0.3587, 0.5701]  -0.0712  +0.3036  0.2302
     DENV-1                195     123   0.4489   [0.3518, 0.5461]  -0.1021  +0.2619  0.3144
     DENV-3                213      95   0.3861v  [0.2825, 0.4896]  -0.2279  +0.3848  0.1715
@@ -368,11 +368,11 @@ appended beneath it.
 
     ^ clears the corrected alpha above chance   v clears it below
 
-**THE SPAN IS REAL AND P3 IS THE REASON TO BELIEVE ANY OF THIS.** 19,085 of
-19,085 labelled compounds fingerprinted, zero unparseable, zero without
+**THE SPAN IS REAL AND P3 IS THE REASON TO BELIEVE ANY OF THIS.** 18,998 of
+18,998 labelled compounds fingerprinted, zero unparseable, zero without
 SMILES; `coverage_pos` and `coverage_neg` are 1.0000 in all 14 cells, so
 `auc_floor` is exactly 0.5000 and `auc_ceiling` exactly 1.0000 everywhere.
-Every thousandth of SARS-CoV-2's 0.7693 is ranking. For comparison, the
+Every thousandth of SARS-CoV-2's 0.7714 is ranking. For comparison, the
 best metapath channel in this project has a span of 0.0377 and a margin
 above its floor of +0.0050.
 
@@ -422,7 +422,7 @@ existed. The test was right and my reasoning about it was not.
 
 **P1 held in 13 of 14 cells and the magnitudes are large:** removing
 same-paper actives costs +0.6832 AUC on JEV, +0.3848 on DENV-3, +0.3036 on
-DENV-4, +0.2899 on DENV-2. Only MERS-CoV is unaffected (-0.0001).
+DENV-4, +0.2901 on DENV-2. Only MERS-CoV is unaffected (-0.0067).
 
 **And the leak predicts the result.** Across the 14 cells, Spearman
 correlation between the final AUC and the leak magnitude is **-0.684**,
@@ -436,18 +436,52 @@ classes: a positive's nearest known actives are its own paper-mates, which
 are removed, while a negative sitting in a paper containing no active loses
 nothing. References excluded per candidate, positives against negatives:
 
-    JEV            11.16 / 2.00   = 5.6x      AUC 0.1452
-    DENV-3         23.66 / 1.94   = 12.2x     AUC 0.3861
-    DENV-1         13.68 / 2.75   = 5.0x      AUC 0.4489
-    DENV-4         11.93 / 1.98   = 6.0x      AUC 0.4644
-    ...
-    MERS-CoV       10.36 / 12.61  = 0.8x      AUC 0.6677
-    SARS-CoV-2     20.63 / 32.23  = 0.6x      AUC 0.7693
+    JEV            11.16 / 2.00   =   5.6x      AUC 0.1452
+    DENV-3         23.66 / 1.94   =  12.2x      AUC 0.3861
+    DENV-1         13.68 / 2.75   =   5.0x      AUC 0.4489
+    DENV-4         11.93 / 1.98   =   6.0x      AUC 0.4644
+    SARS-CoV        9.14 / 6.60   =   1.4x      AUC 0.5098
+    HCoV-OC43      25.36 / 26.99  =   0.9x      AUC 0.5257   <- counterexample
+    Yellow fever   12.13 / 2.99   =   4.1x      AUC 0.5545
+    DENV-2         26.97 / 2.13   =  12.7x      AUC 0.5742   <- counterexample
+    TBEV           10.31 / 5.91   =   1.7x      AUC 0.5764
+    HCoV-229E      10.97 / 3.49   =   3.1x      AUC 0.5917
+    West Nile       3.16 / 2.18   =   1.5x      AUC 0.6308
+    Zika            6.86 / 0.84   =   8.2x      AUC 0.6316   <- counterexample
+    MERS-CoV       10.90 / 12.93  =   0.8x      AUC 0.6851
+    SARS-CoV-2     21.89 / 35.55  =   0.6x      AUC 0.7714
 
-The two cells where the control handicaps NEGATIVES more are the two
-highest AUCs, and the four where it handicaps positives by 5x or more are
-the four lowest. Spearman against log ratio is **-0.490**, which does NOT
-clear 0.544 at n=14, so this is a hypothesis and is reported as one. It is
+    <- counterexample: a cell the asymmetry hypothesis does not
+       explain -- handicapped 5x or more against POSITIVES yet above
+       chance, or handicapped against NEGATIVES yet not among the two
+       highest cells.
+
+**ALL FOURTEEN ROWS ARE SHOWN AND THE COUNTEREXAMPLES ARE MARKED.** Until
+2026-11-11 this table showed four rows, an elision, and two more -- the four
+most positive-handicapped low cells and the two negative-handicapped high
+ones -- and the paragraph beneath it read *"the two cells where the control
+handicaps NEGATIVES more are the two highest AUCs, and the four where it
+handicaps positives by 5x or more are the four lowest"*. **Both halves were
+false when written, and the elision is what hid it:**
+
+- **Three cells handicap negatives more, not two.** The third is HCoV-OC43
+  at 0.94x, AUC 0.5257, which is sixth of fourteen from the bottom.
+- **Five cells are handicapped 5x or more against positives**, not four, and
+  two of them -- DENV-2 at 12.67x and Zika at 8.20x -- read ABOVE chance.
+  Those are the same two counterexamples the symmetric registration's copy
+  of this table was corrected for on the same day. This copy was not,
+  because no test read it.
+- **And the four lowest cells are not the four at 5x or more.** DENV-1 is
+  third from the bottom at 4.98x, below the bar; DENV-4 at 6.02x is fourth.
+  The sentence named a set of four that does not exist.
+
+**WHAT THE TABLE ACTUALLY SUPPORTS IS WEAKER AND IS STILL WORTH STATING.**
+At the extremes the association holds: the two highest cells (SARS-CoV-2 at
+0.62x, MERS-CoV at 0.84x) are both handicapped more against negatives, and
+the two lowest (JEV at 5.58x, DENV-3 at 12.22x) are both handicapped 5x or
+more against positives. In the middle it breaks, in both directions.
+Spearman against log ratio is **-0.490**, which does NOT clear 0.544 at
+n=14, so this is a hypothesis and is reported as one. It is
 also the obvious thing to fix: a control that removes a candidate's closest
 analogs should remove them for both classes on the same terms, and this one
 removes them in proportion to how much company each compound keeps.

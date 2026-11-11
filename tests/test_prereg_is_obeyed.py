@@ -191,7 +191,7 @@ def _identification_commits() -> list[tuple[str, str]]:
     The pickaxe, not `git log -L`: the line-number form needs the number the
     line had at the revision being read, and the `/regex/` form re-resolves
     as it walks and drops d43c316. Both failure modes were observed on this
-    file; the pickaxe was checked to return the same twelve commits as the
+    file; the pickaxe was checked to return the same thirteen commits as the
     correct line-number invocation.
     """
     import subprocess
@@ -200,10 +200,10 @@ def _identification_commits() -> list[tuple[str, str]]:
          # THE PATTERN PAIRS THE KEY WITH AN ACTUAL HASH, and the first
          # version did not. `nodes_sha.*edges_sha` matched the line that
          # DOCUMENTS this command, so the commit adding the documentation
-         # counted itself as a twelfth identification update and this test
+         # counted itself as an extra identification update and this test
          # failed on its own commit. Requiring a 16-hex digest after the
          # key matches the identification line and nothing that merely
-         # discusses it; checked to return the same twelve commits as the
+         # discusses it; checked to return the same thirteen commits as the
          # correct `-L 14,15` invocation.
          "-G", "nodes_sha. [0-9a-f]{16}",
          "--", "docs/prereg_pathway_overlap.md"],
@@ -212,6 +212,52 @@ def _identification_commits() -> list[tuple[str, str]]:
         pytest.skip(f"git unavailable: {out.stderr.strip()[:80]}")
     rows = [ln.split() for ln in out.stdout.splitlines() if ln.strip()]
     return [(r[0], r[1]) for r in rows]
+
+
+def test_the_quoted_post_run_edit_is_the_diff_git_shows():
+    """A SENTENCE THAT QUOTES THE HISTORY, CHECKED AGAINST THE HISTORY.
+
+    The header's "ONE EDIT LANDED AFTER THE RUN" paragraph states what commit
+    `d43c316` did to this file: `edges_sha <old>` -> `<new>`. That is a claim
+    about git, not about the graph, and it had no check.
+
+    IT WAS THEN FALSIFIED BY A BULK EDIT. Commit `5ab4af1` moved every live
+    release identification in docs/ onto the L27-repaired release and rewrote
+    this sentence's `<new>` hash along with them -- turning a true statement
+    about d43c316 into a false one, because the hash it substituted is the one
+    5ab4af1 itself wrote. The same commit's message asserted that deliberate
+    history had been protected from exactly that. Nothing objected, because
+    nothing read this sentence.
+
+    So it is read here, out of the document, and both hashes are matched
+    against `git show` of the commit the sentence names. The commit sha is
+    read from the document too, so renaming it cannot make this vacuous.
+    """
+    import subprocess
+    text = _normalised()
+    m = re.search(r"Commit\s+`([0-9a-f]{7,40})`[^.]*?changed\s+this file by "
+                  r"exactly one line, `edges_sha ([0-9a-f]{16})` ->\s*"
+                  r"`([0-9a-f]{16})`", text)
+    assert m, ("the document no longer states the post-run edit as a commit "
+               "and a pair of edges_sha values, in the form this test reads")
+    sha, old, new = m.group(1), m.group(2), m.group(3)
+
+    out = subprocess.run(["git", "show", sha, "--", PREREG.name and
+                          "docs/prereg_pathway_overlap.md"],
+                         cwd=ROOT, capture_output=True, text=True, timeout=60)
+    if out.returncode != 0:
+        pytest.skip(f"git unavailable: {out.stderr.strip()[:80]}")
+    removed = re.findall(r"^-.*edges_sha` ([0-9a-f]{16})", out.stdout,
+                         re.MULTILINE)
+    added = re.findall(r"^\+.*edges_sha` ([0-9a-f]{16})", out.stdout,
+                       re.MULTILINE)
+    assert removed == [old], (
+        f"the document says {sha} replaced edges_sha {old} and that commit's "
+        f"diff removes {removed}")
+    assert added == [new], (
+        f"the document says {sha} wrote edges_sha {new} and that commit's "
+        f"diff adds {added}. A later bulk edit of the live identification "
+        f"must not rewrite this quotation of the history")
 
 
 def test_the_identification_update_count_is_what_git_says():

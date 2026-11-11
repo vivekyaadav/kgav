@@ -216,3 +216,93 @@ def test_the_below_chance_cells_are_named_as_unresolved(doc, res):
         f"not say '{word}'")
     assert f"the {word} where it handicaps positives" in doc, (
         f"the asymmetry paragraph does not say '{word}' either")
+
+
+def test_the_asymmetry_table_is_whole_and_its_claim_is_true(doc, res):
+    """THE SAME CHERRY-PICK, IN A SECOND PLACE, CAUGHT A DAY LATE.
+
+    docs/prereg_structure_scorer_symmetric.md's copy of this table was
+    corrected on 2026-11-11 after its test was rewritten three times: the
+    first draft required only the rows supporting the hypothesis, the second
+    was satisfied by the prose describing the defect, and only the third
+    parsed the table. THIS copy kept the cherry-pick -- four rows, an
+    elision, two rows -- and the paragraph under it asserted two things
+    that the full fourteen rows contradict: that two cells handicap
+    negatives more (three do) and that the four cells at 5x or more against
+    positives are the four lowest (five are at 5x or more, two of them above
+    chance, and the third-lowest cell is at 4.98x).
+
+    So this parses every row, checks every number against the run, checks
+    the counterexample marks against the rule the table states, and checks
+    the surviving claim about the extremes.
+    """
+    import importlib
+    D = importlib.import_module("diagnose_structure_scorer_design")
+    names = D.virus_names()
+    row = re.compile(
+        r"^\s{4}(.+?)\s{2,}([\d.]+) / ([\d.]+)\s+=\s+([\d.]+)x"
+        r"\s+AUC ([\d.]+)(\s+<- counterexample)?\s*$")
+    table = {}
+    for line in PREREG.read_text().splitlines():
+        m = row.match(line)
+        if m:
+            table[m.group(1).strip()] = (
+                float(m.group(2)), float(m.group(3)), float(m.group(4)),
+                float(m.group(5)), bool(m.group(6)))
+    assert table, "no asymmetry table rows parsed out of the verdict"
+
+    expected = {}
+    for v, c in readable(res).items():
+        k = c["structure_max"]["counts"]
+        ep = k["excluded_publication_pos"] / max(k["candidates_pos"], 1)
+        en = k["excluded_publication_neg"] / max(k["candidates_neg"], 1)
+        if not en:
+            continue
+        expected[names.get(v, v)] = (ep, en, ep / en,
+                                     c["structure_max"]["auc"])
+    assert sorted(table) == sorted(expected), (
+        f"the table carries {sorted(table)} against cells "
+        f"{sorted(expected)}; every readable cell must be shown, with no "
+        f"elision")
+
+    by_auc = sorted(expected, key=lambda n: expected[n][3])
+    top2 = set(by_auc[-2:])
+    for name, (ep, en, ratio, auc) in expected.items():
+        t_ep, t_en, t_ratio, t_auc, marked = table[name]
+        assert abs(t_ep - ep) < 0.005, (name, "pos rate", t_ep, ep)
+        assert abs(t_en - en) < 0.005, (name, "neg rate", t_en, en)
+        assert abs(t_ratio - ratio) < 0.05, (name, "ratio", t_ratio, ratio)
+        assert abs(t_auc - auc) < 5e-5, (name, "auc", t_auc, auc)
+        # the rule the table's own legend states
+        is_counter = ((ratio >= 5.0 and auc > 0.5)
+                      or (ratio < 1.0 and name not in top2))
+        assert marked == is_counter, (
+            f"{name} ({ratio:.2f}x, AUC {auc:.4f}) is "
+            f"{'a' if is_counter else 'not a'} counterexample under the "
+            f"legend and the table marks it {'' if marked else 'not '}so")
+
+    # THE SURVIVING CLAIM, which is about the extremes only.
+    for name in top2:
+        assert expected[name][2] < 1.0, (
+            f"{name} is one of the two highest cells and is no longer "
+            f"handicapped against negatives; the verdict's surviving claim "
+            f"about the extremes is wrong")
+    for name in by_auc[:2]:
+        assert expected[name][2] >= 5.0, (
+            f"{name} is one of the two lowest cells and is no longer "
+            f"handicapped 5x or more against positives")
+    # AND THE CORRECTION PARAGRAPH'S COUNTS ARE DERIVED, not typed here.
+    # A literal "three" on both sides would be the "check written with the
+    # same literals it is checking" defect, which is how the sentence this
+    # test replaces survived in the first place.
+    words = {1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five",
+             6: "Six", 7: "Seven"}
+    neg_heavy = [n for n in expected if expected[n][2] < 1.0]
+    pos5 = [n for n in expected if expected[n][2] >= 5.0]
+    assert f"{words[len(neg_heavy)]} cells handicap negatives more" in doc, (
+        f"{len(neg_heavy)} cells handicap negatives more and the verdict's "
+        f"correction paragraph says otherwise")
+    assert (f"{words[len(pos5)]} cells are handicapped 5x or more against "
+            f"positives" in doc), (
+        f"{len(pos5)} cells are handicapped 5x or more against positives "
+        f"and the verdict's correction paragraph says otherwise")

@@ -38,12 +38,27 @@ this repository can settle that, so it is named here and left standing.
 **ONE EDIT LANDED AFTER THE RUN AND IT IS NOT A REGISTERED VALUE.** Commit
 `d43c316` (2026-11-11 10:01:55 +05:30, nine minutes after the run) changed
 this file by exactly one line, `edges_sha e26239a4e87865b3` ->
-`545fb7d87b0aec08` in the release identification below. So at the moment the
+`ad7121bc2195a93a` in the release identification below. So at the moment the
 run executed, this document named a release the run did not read -- the
 release had already moved and the identification had not caught up. It is a release
 identification rather than a parameter, and the whole of it is visible in
 `git show d43c316 -- docs/prereg_pathway_overlap.md`: one insertion, one
 deletion.
+
+**THAT PAIR OF HASHES IS A QUOTATION FROM THE HISTORY, AND I OVERWROTE IT.**
+Commit `5ab4af1` moved every live release identification in this directory to
+the L27-repaired release, and it also replaced the `ad7121bc2195a93a` in the
+sentence above with `545fb7d87b0aec08` -- which turned a true statement about
+what `d43c316` did into a false one, because `d43c316` wrote
+`ad7121bc2195a93a` and `5ab4af1` itself wrote `545fb7d87b0aec08`. The same
+commit's message claimed the opposite in as many words: *"87 occurrences of
+the five old values sit across 18 files and most are deliberate history ... a
+global replace would have destroyed that, so each edit was driven by a
+failing test."* No test covered this sentence, so no failing test drove it and
+nothing objected. `tests/test_prereg_is_obeyed.py::
+test_the_quoted_post_run_edit_is_the_diff_git_shows` now reads the two hashes
+out of this sentence and checks them against `git show d43c316`, so the next
+such replacement fails.
 
 **THE RUN'S CODE STAMP SAYS `dirty: true`, AND IT DID NOT REACH THIS
 ANALYSIS.** `pathway_landscape.json` records code commit `21c0f92` with a
@@ -55,15 +70,17 @@ byte-identical between that commit and the signed tree --
 the signature touches either. The uncommitted content was elsewhere.
 
 **ONE REGISTERED PARAMETER IS NOT RECOVERABLE FROM THE ARTIFACT.** The
-operand this document fixes -- the drugged proteome under `floor`, 1,946
+operand this document fixes -- the drugged proteome under `floor`, 1,939
 human proteins -- is recorded in **neither** `pathway_landscape.json` nor its
 provenance block, and it is the one parameter this document says the verdict
 depends on (0 of 22 rows clearing Bonferroni under `floor`, 3 under
 `relaxed`). A reader cannot confirm from the result file which operand
 produced it. It is re-derivable from the release, and re-deriving it on the
-signed release gives **1,946 drugged of a 20,416-protein human universe**,
+current release gives **1,939 drugged of a 20,416-protein human universe**,
 which matches what is registered below; `tests/test_prereg_is_obeyed.py`
-pins that so the agreement is checked rather than claimed. **The artifact
+pins that so the agreement is checked rather than claimed. **At signature it
+was 1,946 and the L27 repair moved it**, which is recorded below under *A
+registered operand moved*. **The artifact
 should state it, and that is the open item this signature leaves behind:**
 recording it requires regenerating the file, which is another 100,000
 permutations, and doing so AFTER this signature is the correct order for the
@@ -73,10 +90,12 @@ Date drafted: 2026-11-02. Release: v0.1 (78,500 nodes / 391,727 edges,
 `nodes_sha` b0d6fc69d63942c2, `edges_sha` 545fb7d87b0aec08). Scripts:
 `scripts/pathway_landscape.py`, read by `src/kgav/landscape.py`.
 
-**The release identification has now been updated eleven times -- once on
-2026-11-07, three times on 2026-11-08, five times on 2026-11-09 and twice on
-2026-11-11 -- and the analysis was not re-registered any of them**, because
-no rebuild has changed a measured figure. **That count was wrong until
+**The release identification has now been updated twelve times -- once on
+2026-11-07, three times on 2026-11-08, five times on 2026-11-09 and three
+times on 2026-11-11 -- and the analysis was not re-registered any of them**,
+because no rebuild has changed a measured p-value. One rebuild has now
+changed a registered OPERAND, which is recorded below under *A registered
+operand moved* and is a different thing from a measured figure. **That count was wrong until
 2026-11-11 and so was its breakdown.** It read "eight times -- 2026-11-08
 and seven times on 2026-11-09", which was maintained by hand and matched
 neither the total nor any date: git puts three of them on 2026-11-08, not
@@ -86,8 +105,8 @@ anyone can re-take it --
 
     git log -G'nodes_sha. [0-9a-f]{16}' -- docs/prereg_pathway_overlap.md
 
--- where the twelfth and oldest commit it lists is the drafting rather than
-an update. **The pattern has to pair the key with an actual hash.** Written
+-- where the thirteenth and oldest commit it lists is the drafting rather
+than an update. **The pattern has to pair the key with an actual hash.** Written
 as `nodes_sha.*edges_sha` it matched the line above that DOCUMENTS it, so the
 commit adding this paragraph counted itself as a twelfth update and the test
 failed on its own commit. **And the obvious command for this is the wrong
@@ -98,8 +117,12 @@ regex as it walks; the line-number form `-L 14,15:` agrees with the pickaxe
 above on all twelve but needs the line number the file had at the revision
 being read, which this signature's own insertion has already changed. The narrative below numbers only the first eight and stops; the
 ninth and tenth are the 2026-11-11 rebuilds (the identity-policy fix and the
-`potency_rows` rename) and the eleventh is the `edges_sha` correction
-described in the header, which followed the run by nine minutes. The fifth and
+`potency_rows` rename), the eleventh is the `edges_sha` correction described
+in the header, which followed the run by nine minutes, and the twelfth is
+`5ab4af1`, which moved this identification onto the L27-repaired release
+(78,500 nodes / 391,727 edges). The twelfth is the first of them that moved a
+registered operand, and it is the one described under *A registered operand
+moved*. The fifth and
 sixth are P13, which added four qualifiers to `TARGETS` edges and removed
 them again from 551 merged ones, and P14, which gave the gtop layer a range
 of its own so that 16,436 of 17,982 edges keep one; this analysis reads
@@ -128,6 +151,57 @@ which it does not read. A registration that quoted a release no longer on disk w
 unverifiable, which is what `tests/test_landscape.py::
 test_the_quoted_release_matches_the_census` exists to prevent; it caught
 this.
+
+## A registered operand moved
+
+**2026-11-11, AFTER THE SIGNATURE.** Fix-list L27 repaired the compound
+identity policy -- node ids were ChEMBL's `standard_inchi_key` verbatim while
+both SQL layers declared `salt_collapsed=True`, so a salt and its parent were
+two nodes -- and the release was rebuilt: 78,789 nodes / 392,375 edges ->
+78,500 / 391,727. **One registered operand changed with it. The drugged
+proteome under `floor` is 1,939 human proteins, not 1,946.** The human
+universe is unchanged at 20,416.
+
+**THE REGISTERED RULE DID NOT CHANGE AND IS NOT BEING RE-REGISTERED.** What
+this document fixes is the admission policy -- `--phase-gate floor` -- and
+1,939 is that rule's value on this release exactly as 1,946 was its value on
+the signed one. Re-registering would be the wrong move for the same reason
+the eleven release identifications before this one were not re-registered: a
+registration that had to be re-signed whenever the graph was repaired would
+make every repair a protocol change. **What has to be true for that reasoning
+to hold is that the operand is derived and not chosen, and that is checked:**
+`tests/test_prereg_is_obeyed.py::test_the_registered_operand_is_the_one_the_release_gives`
+loads the release and recomputes it, so this figure cannot drift from the
+release by hand, in either direction.
+
+**THE VERDICT DID NOT MOVE.** The re-run on the repaired release gives **0 of
+22 rows clearing Bonferroni**, the same as the signed run, at the same
+alpha = 0.05/44. The largest effect is still interactome/NCBITaxon:11082 at
+`p_matched` 0.006210 against a threshold of 0.001136, and SARS-CoV-2's
+interactome row moved 0.235 -> 0.2237. So the direction of this analysis's
+conclusion does not depend on the seven proteins.
+
+**AND THE SEVEN PROTEINS CANNOT BE NAMED, WHICH IS THIS SIGNATURE'S OWN OPEN
+ITEM COMING DUE.** The header records that `pathway_landscape.json` stores the
+permutation count, the seed scheme, the degree basis and the family size and
+**not** the drugged proteome, and that the operand is therefore recoverable
+only by re-deriving it from the release. The superseded release was rebuilt in
+place, so it is not on disk and the old operand is no longer derivable at all:
+`1,946` survives only as the number written in this document. Which seven
+proteins left, and by what mechanism, is therefore **not answerable from this
+repository** -- and had the artifact recorded the operand as that open item
+says it should, it would have been a set difference. A gap that was an
+abstract criticism on the day it was written cost a concrete answer nine
+hours later, and that is the whole argument for closing it.
+
+**TWO MECHANISMS ARE CONSISTENT WITH A DROP AND NEITHER IS ESTABLISHED.**
+Collapsing a salt onto its parent merges their edges and cannot by itself
+remove a protein from the set, since the protein endpoint survives the merge;
+so the drop has to come from an edge that stopped being emitted rather than
+from one that was merged. The candidates are the 980 edges that sat on
+duplicate nodes and the 31 compounds that had been in both label classes.
+Distinguishing them needs the old operand, which is the paragraph above.
+Neither is asserted here.
 
 ## Why this is a re-registration, and what that costs
 
@@ -208,11 +282,13 @@ expectation. Both tails from the same null.
   here because 2026-11-10 proved this analysis's verdict depends on it. The
   ChEMBL drug-target query keeps compounds at `max_phase >= 2`; fix-list B1
   built a `relaxed` policy that also keeps any compound the graph already
-  holds. **The drugged proteome -- this analysis's first operand -- is 1,946
-  human proteins under `floor` and 2,489 under `relaxed`, and the verdict
-  follows it:** interactome/NCBITaxon:2697049 reads `p_matched` 0.235 under
-  `floor` and 0.000500 under `relaxed`, and the run as a whole goes from 0
-  of 22 rows clearing Bonferroni to 3. A registration that leaves this free
+  holds. **The drugged proteome -- this analysis's first operand -- is 1,939
+  human proteins under `floor` and 2,489 under `relaxed` (the `relaxed`
+  figure measured on the superseded release; see *A registered operand
+  moved*), and the verdict follows it:** interactome/NCBITaxon:2697049 reads
+  `p_matched` 0.2237 under `floor` on the current release -- it read 0.235 at
+  signature -- and 0.000500 under `relaxed` on the signed release, and the run
+  as a whole goes from 0 of 22 rows clearing Bonferroni to 3. A registration that leaves this free
   fixes the permutation count to three digits while leaving the operand
   undefined, which is the same incompleteness the seeding scheme had.
 
@@ -221,7 +297,7 @@ expectation. Both tails from the same null.
   holds*, which means compounds someone screened against a virus. Their
   human targets therefore over-represent virus-interacting proteins by
   construction: of the 543 proteins `relaxed` newly drugs, **96.5% appear in
-  a PPI against 85.4% of the 1,946 already drugged, and 45.7% are dependency
+  a PPI against 85.4% of the 1,946 then already drugged, and 45.7% are dependency
   factors against 37.2%**. The degree-matched null controls for how well
   studied a protein is, not for whether its drug was chosen for antiviral
   screening.
