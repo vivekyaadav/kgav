@@ -11,8 +11,8 @@ the verdict depends on it -- which compounds the drug-target query admits. A thi
 hard-negatives analysis and not to this one, and is left out rather than
 listed here for completeness.
 
-Date drafted: 2026-11-02. Release: v0.1 (78,789 nodes / 392,363 edges,
-`nodes_sha` 3356fae68afdf18d, `edges_sha` f8a1ae20bfd89b37). Scripts:
+Date drafted: 2026-11-02. Release: v0.1 (78,789 nodes / 392,375 edges,
+`nodes_sha` c800b9005c8b074c, `edges_sha` e26239a4e87865b3). Scripts:
 `scripts/pathway_landscape.py`, read by `src/kgav/landscape.py`.
 
 **The release identification has now been updated eight times -- 2026-11-08
@@ -83,11 +83,12 @@ Adding a taxon to `config/viruses.yaml`, reordering the register, or running
 one channel alone moves every downstream p-value. The curated layer will add
 five viruses with dependency factors, so this is not hypothetical.
 
-**Two resolvable steps below the threshold.** At 2,000 permutations an
-empirical p takes values k/2001, so below the corrected 0.001136 there are
-exactly two attainable values -- 0.000500 and 0.001000 -- and the third,
-0.001499, is above it. The test could distinguish "significant" from "not"
-and nothing finer.
+**Two resolvable steps below the threshold -- UNTIL 2026-11-11.** At 2,000
+permutations an empirical p takes values k/2001, so below the corrected
+0.001136 there were exactly two attainable values -- 0.000500 and
+0.001000 -- and the third, 0.001499, is above it. The test could
+distinguish "significant" from "not" and nothing finer. **The run now on
+disk uses 100,000 and has 113 attainable values below alpha.**
 
 Both are fixed in code. The figures in the file still come from the old
 behaviour, and `landscape.load` reports that: a file with no `seed_scheme`
@@ -162,25 +163,25 @@ expectation. Both tails from the same null.
   that exceeds alpha -- m < 6.78 -- no observation clears the bar.
 
       interactome  JEV          0.83 expected
-      interactome  West Nile    0.87
-      pathway      West Nile    2.55
-      interactome  DENV-3       4.41
-      interactome  TBEV         4.59
-      pathway      DENV-2       6.40
+      interactome  West Nile    0.91
+      pathway      West Nile    2.50
+      interactome  DENV-3       4.42
+      interactome  TBEV         4.63
+      pathway      DENV-2       6.27
 
   Dropping them would give 0.05/38 = 0.001316 and is defensible: emptiness
   depends on the matched expectation, which the degree-matched design fixes
   before any outcome is looked at, so it is not choosing tests after seeing
   them. The proposal is to KEEP them, for two reasons. The threshold moves
   16%, from 0.001136 to 0.001316, and the smallest p in the family is
-  0.003998 -- 3.0x the looser bar -- so nothing turns on it. And a family
+  0.005660 -- 4.3x the looser bar -- so nothing turns on it. And a family
   defined as "the tests that could have rejected" has to be recomputed
   whenever an expectation moves, which makes the correction depend on the
   release in a way a reader cannot check by counting.
 
 - **Both procedures reported: Bonferroni and Benjamini-Hochberg at
-  q = 0.05.** On the 2026-11-07 figures both reject nothing, and the
-  smallest p is 0.003998 against a Bonferroni bar of 0.001136 and a BH
+  q = 0.05.** On the 2026-11-11 figures both reject nothing, and the
+  smallest p is 0.005660 against a Bonferroni bar of 0.001136 and a BH
   critical value of 0.001136 at k=1. Bonferroni over 22 correlated rows is
   over-conservative and that objection is worth answering with a number
   rather than a sentence. Primary is Bonferroni; BH is reported beside it.
@@ -223,11 +224,19 @@ The null this document points at, stated so that failing to reject it is a
 result rather than an absence.
 
 **P2. Raising the permutation count will not produce a rejection.** The
-smallest p in the 2026-11-07 family is 0.003998, which is 3.5x the
+smallest p in the 2026-11-11 family is 0.005660, which is 5.0x the
 Bonferroni threshold. Resolution was never what blocked a finding, and this
 prediction says so in advance: if a rejection appears at 100,000
 permutations it did not come from finer resolution and something else
 changed.
+
+**P2 WAS TESTED ON 2026-11-11 AND HELD.** The landscape ran at 100,000
+permutations: 113 attainable values below alpha against two at 2,000, and
+**zero rows clear the threshold in either direction**, unchanged. Every
+p-value moved by less than 0.015 -- SARS-CoV-2's taxa row went 0.07096 to
+0.05964 -- so the 2,000-permutation estimates were accurate and simply
+could not support the alpha this document fixes. The negative result is
+now powered rather than merely unrejected.
 
 **P3. Per-row seeding will move individual p-values and not the verdict.**
 Every row's draws change, so every p changes. The ordering of ratios and
@@ -254,10 +263,13 @@ test rather than a pooled overlap.
   background. `scripts/pathway_landscape.py` computes no per-pathway
   quantity, and the claim in the paper is being renamed accordingly (P1 in
   the audit fix list) rather than defended here.
-- It does not establish mechanism for any row it cannot reject, and eight of
+- It does not establish mechanism for any row it cannot reject, and seven of
   22 rows need a 2.4x excess or more before they could. (Seven until
-  2026-11-10, when the count was first derived from the results file rather
-  than typed in two documents.)
+  2026-11-10, eight after that rebuild, and seven again after 2026-11-11 --
+  `interactome` DENV-1 crossed from 2.52x to 2.39x. Two rows now sit within
+  0.05 of the line, so this count moves with the graph. It has been derived
+  from the results file since 2026-11-10 rather than typed in two
+  documents, which is the only reason the move is visible.)
 - It does not settle `MIN_REACHED_POSITIVES` or `MIN_CLASS_SIZE`. Both are
   10; `MIN_REACHED_POSITIVES` justifies itself by matching
   `MIN_CLASS_SIZE`, and `MIN_CLASS_SIZE` at `scripts/hard_negatives.py:29`

@@ -34,10 +34,10 @@ the one this document carried on 2026-10-31, not a weaker one.
     not         M6  reaches  5    M1 reaches 3
     evaluated   M8  reaches  1    M7 reaches 0
 
-    baseline    degree   0.577 [0.514, 0.639]   clear of 0.5, and it is the
+    baseline    degree   0.576 [0.514, 0.639]   clear of 0.5, and it is the
                                                 null hypothesis, not a
                                                 reasoning channel
-    ensemble    COMBINED 0.573 [0.510, 0.635]   reaches 39 of 89. Also clear
+    ensemble    COMBINED 0.572 [0.510, 0.635]   reaches 39 of 89. Also clear
                                                 of 0.5, and 0.004 below
                                                 degree -- see the
                                                 decomposition below before
@@ -73,17 +73,17 @@ have contributed.
 | M3 | 18.0% | 10.1% | 0.5394 | 0.5405 | 0.5484 | 13.0% |
 | M4 | 34.8% | 27.7% | 0.5358 | 0.5463 | 0.5840 | 21.7% |
 | M5 | 29.2% | 21.0% | 0.5412 | 0.5456 | 0.5718 | 14.3% |
-| M6 | 5.6% | 2.5% | 0.5156 | 0.5156 | 0.5163 | -0.9% |
+| M6 | 5.6% | 2.6% | 0.5153 | 0.5153 | 0.5160 | 0.4% |
 | M7 | 0.0% | 0.4% | 0.4982 | 0.4982 | 0.4982 | n/a |
 | M8 | 1.1% | 0.0% | 0.5056 | 0.5056 | 0.5056 | n/a |
-| **COMBINED** | 43.8% | 30.9% | **0.5645** | 0.5726 | 0.6322 | **12.0%** |
-| **degree** | 100.0% | 100.0% | **0.5000** | 0.5767 | 1.0000 | **15.3%** |
+| **COMBINED** | 43.8% | 31.0% | **0.5642** | 0.5724 | 0.6321 | **12.1%** |
+| **degree** | 100.0% | 100.0% | **0.5000** | 0.5762 | 1.0000 | **15.2%** |
 
-**Degree's floor is exactly 0.5 and COMBINED's is 0.5645.** Degree reaches
+**Degree's floor is exactly 0.5 and COMBINED's is 0.5642.** Degree reaches
 every compound in both classes, so it has no coverage asymmetry at all and
-every one of its 0.0767 points above chance is ranking. COMBINED's margin
-above chance is 0.0746, of which **0.0645 -- 89% -- is its coverage gap**
-and 0.0081 is ranking. The two raw numbers are four thousandths apart and
+every one of its 0.0762 points above chance is ranking. COMBINED's margin
+above chance is 0.0724, of which **0.0642 -- 89% -- is its coverage gap**
+and 0.0082 is ranking. The two raw numbers are four thousandths apart and
 they are not measuring the same thing.
 
 **Normalised, the finding survives and gets a reason.** The fraction of the
@@ -195,8 +195,8 @@ The one-line version of every table here:
 > two scorers:
 >
 >     run                  virus        scorer    AUC [95% CI]           floor  from reach
->     cross-sectional      SARS-CoV-2   COMBINED  0.573 [0.510, 0.635]   0.5645       89%
->                          SARS-CoV-2   degree    0.577 [0.514, 0.639]   0.5000        0%
+>     cross-sectional      SARS-CoV-2   COMBINED  0.572 [0.510, 0.635]   0.5642       89%
+>                          SARS-CoV-2   degree    0.576 [0.514, 0.639]   0.5000        0%
 >
 > **Two cells, and the third column is how much of each margin above
 > chance is the imputation floor rather than the ranking.** Degree has no
@@ -1155,11 +1155,11 @@ release of 2026-11-08:
 | M2 | 1,206 | 18 | 1.34 | 0.4479 | 0.506 [0.483, 0.530] |  |
 | M3 | 1,155 | 14 | 2.48 | 0.1138 | 0.505 [0.481, 0.529] | ~ties |
 | M4 | 3,885 | 29 | 2.68 | 0.1705 | 0.510 [0.487, 0.534] | (!) |
-| M6 | 255 | 0 | 0.00 | — | 0.500 [0.476, 0.524] | (!) |
+| M6 | 258 | 0 | 0.00 | — | 0.500 [0.476, 0.524] | (!) |
 | M7 | 66 | 0 | 0.00 | — | 0.500 [0.476, 0.524] | (!) |
 | M8 | 24 | 0 | 0.00 | — | 0.500 [0.476, 0.524] | (!) |
-| **COMBINED** | 4,467 | 34 | 2.63 | 0.1760 | 0.511 [0.487, 0.534] | (!) |
-| degree | 5,937 | 59 | 1.01 | 0.6348 | 0.517 [0.494, 0.541] | ~ties (!) |
+| **COMBINED** | 4,470 | 34 | 2.63 | 0.1758 | 0.511 [0.487, 0.534] | (!) |
+| degree | 5,946 | 59 | 1.01 | 0.6342 | 0.517 [0.494, 0.541] | ~ties (!) |
 
 **Every figure in that table moved, and the two that matter moved in
 opposite directions.** COMBINED's lift fell from 3.36 (p=0.0154,
@@ -1327,7 +1327,8 @@ below uses `degree_basis = study`, binning within the studied set.
 
 **The correction.** Each row is tested in both directions, enrichment and
 depletion, so `n_tests = 44` over 22 rows and the Bonferroni threshold is
-`alpha = 0.00114`. 2,000 permutations, seed 0.
+`alpha = 0.00114`. 100,000 permutations, seed 0 -- the count docs/prereg_pathway_overlap.md
+fixes in advance, and which the runs before 2026-11-11 did not use.
 
 <!-- TABLE: pathway_landscape — asserted cell-by-cell by
      tests/test_landscape_table.py against data/results/pathway_landscape.json.
@@ -1338,34 +1339,34 @@ depletion, so `n_tests = 44` over 22 rows and the Bonferroni threshold is
 
 | channel | virus | dependency factors | observed | expected | p enriched | p depleted | verdict |
 |---|---|---|---|---|---|---|---|
-| taxa | SARS-CoV-2 | 3,460 | 384 | 359.19 | 0.0710 | 0.9390 | — |
-| taxa | DENV-2 | 50 | 2 | 6.40 | 0.9890 | 0.0365 | — |
-| taxa | West Nile | 18 | 0 | 2.55 | 1.0000 | 0.0610 | — |
-| taxa | HCoV-NL63 | 57 | 10 | 7.34 | 0.1869 | 0.8911 | — |
-| taxa | Zika | 815 | 76 | 80.37 | 0.7241 | 0.3168 | — |
-| taxa | HCoV-OC43 | 657 | 62 | 65.29 | 0.6887 | 0.3568 | — |
-| taxa | MERS-CoV | 678 | 60 | 66.39 | 0.8256 | 0.2164 | — |
-| taxa | HCoV-229E | 1,367 | 128 | 134.91 | 0.7596 | 0.2694 | — |
-| interactome | West Nile | 6 | 4 | 0.87 | 0.0055 | 1.0000 | — |
-| interactome | HCoV-229E | 397 | 34 | 49.94 | 0.9990 | 0.0040 | — |
-| interactome | HCoV-HKU1 | 279 | 25 | 36.71 | 0.9910 | 0.0165 | — |
-| interactome | MERS-CoV | 622 | 64 | 79.69 | 0.9775 | 0.0310 | — |
-| interactome | HCoV-OC43 | 289 | 28 | 38.25 | 0.9765 | 0.0365 | — |
-| interactome | SARS-CoV | 1,238 | 167 | 149.51 | 0.0605 | 0.9500 | — |
-| interactome | DENV-1 | 53 | 11 | 7.15 | 0.0860 | 0.9555 | — |
-| interactome | HCoV-NL63 | 311 | 32 | 40.73 | 0.9440 | 0.0815 | — |
-| interactome | SARS-CoV-2 | 3,494 | 438 | 426.23 | 0.2354 | 0.7796 | — |
-| interactome | DENV-2 | 271 | 40 | 35.27 | 0.2154 | 0.8361 | — |
-| interactome | TBEV | 35 | 3 | 4.59 | 0.8641 | 0.3063 | — |
-| interactome | DENV-3 | 33 | 6 | 4.41 | 0.2814 | 0.8701 | — |
-| interactome | Zika | 353 | 47 | 45.09 | 0.3938 | 0.6672 | — |
-| interactome | JEV | 7 | 1 | 0.83 | 0.5937 | 0.8186 | — |
+| taxa | SARS-CoV-2 | 3,460 | 384 | 358.43 | 0.0596 | 0.9476 | — |
+| taxa | DENV-2 | 50 | 2 | 6.27 | 0.9898 | 0.0407 | — |
+| taxa | West Nile | 18 | 0 | 2.50 | 1.0000 | 0.0667 | — |
+| taxa | HCoV-NL63 | 57 | 10 | 7.40 | 0.1988 | 0.8860 | — |
+| taxa | Zika | 815 | 76 | 80.08 | 0.7093 | 0.3344 | — |
+| taxa | HCoV-OC43 | 657 | 62 | 65.20 | 0.6843 | 0.3652 | — |
+| taxa | MERS-CoV | 678 | 60 | 66.44 | 0.8206 | 0.2169 | — |
+| taxa | HCoV-229E | 1,367 | 128 | 135.28 | 0.7675 | 0.2631 | — |
+| interactome | West Nile | 6 | 4 | 0.91 | 0.0060 | 0.9996 | — |
+| interactome | HCoV-229E | 397 | 34 | 50.16 | 0.9967 | 0.0057 | — |
+| interactome | HCoV-HKU1 | 279 | 25 | 36.62 | 0.9893 | 0.0180 | — |
+| interactome | MERS-CoV | 622 | 64 | 79.77 | 0.9817 | 0.0255 | — |
+| interactome | HCoV-OC43 | 289 | 28 | 38.17 | 0.9752 | 0.0390 | — |
+| interactome | SARS-CoV | 1,238 | 167 | 149.22 | 0.0557 | 0.9535 | — |
+| interactome | DENV-1 | 53 | 11 | 7.11 | 0.0888 | 0.9554 | — |
+| interactome | HCoV-NL63 | 311 | 32 | 40.66 | 0.9477 | 0.0755 | — |
+| interactome | SARS-CoV-2 | 3,494 | 438 | 426.06 | 0.2384 | 0.7798 | — |
+| interactome | DENV-2 | 271 | 40 | 35.38 | 0.2227 | 0.8273 | — |
+| interactome | TBEV | 35 | 3 | 4.63 | 0.8600 | 0.3016 | — |
+| interactome | DENV-3 | 33 | 6 | 4.42 | 0.2747 | 0.8582 | — |
+| interactome | Zika | 353 | 47 | 44.98 | 0.3957 | 0.6647 | — |
+| interactome | JEV | 7 | 1 | 0.83 | 0.5877 | 0.8044 | — |
 
 **0 of 22** rows clear the threshold, in either direction.
 
 **The uncorrected view is where the discoveries live.** DENV-1's interactome
-overlap is `0.0102 naive` and `0.0860 matched`; DENV-2's is `0.0036 naive`
-and `0.2154 matched`. Neither gap opens because the data changed. The
+overlap is `0.0102 naive` and `0.0888 matched`; DENV-2's is `0.0036 naive`
+and `0.2227 matched`. Neither gap opens because the data changed. The
 naive p-value asks whether these proteins are over-represented in pathways;
 the matched one asks whether they are over-represented *compared with
 proteins as well-connected as they are*. A third-of-a-percent result becomes

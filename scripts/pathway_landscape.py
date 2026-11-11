@@ -80,7 +80,13 @@ PHYSICALLY_INTERACTS_WITH = "PHYSICALLY_INTERACTS_WITH"
 DEPENDENCY = "dependency"
 DEGREE_BINS = 10
 MIN_PATHWAY_TARGETS = 5
-DEFAULT_PERMUTATIONS = 2000
+#: FIXED BY docs/prereg_pathway_overlap.md, which declares 100,000 under
+#: "Fixed in advance" and flags it **DECISION**. This was 2000 for as long
+#: as the registration has existed, so the document fixed a number and the
+#: run used another one -- which reads, to anyone checking, as a prereg that
+#: was honoured. tests/test_prereg_is_obeyed.py reads the figure out of the
+#: document rather than repeating it here.
+DEFAULT_PERMUTATIONS = 100_000
 
 
 # ------------------------------------------------------------------ census

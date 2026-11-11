@@ -78,7 +78,7 @@ def layers(tmp_path):
                           [{"id": DRUG, "class": "SmallMolecule",
                             "properties": {"smiles": "CC", "inchikey_skel": "A" * 14,
                                            "is_approved": True, "salt_collapsed": False,
-                                           "stereo_collapsed": False}}],
+                                           "stereo_collapsed": False, "tautomer_collapsed": True}}],
                           [_edge(DRUG, "INHIBITS", NSP5, "infores:chembl", "2021-03-04",
                                  # No `unquantified` here: this edge carries an
                                  # IC50, and the layer that wrote it cannot see

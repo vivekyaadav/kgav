@@ -697,6 +697,10 @@
         "score": 20.0
       },
       {
+        "drug": "INCHIKEY:ZXJXZNDDNMQXFV-UHFFFAOYSA-M",
+        "score": 20.0
+      },
+      {
         "drug": "INCHIKEY:ADYPXRFPBQGGAH-UMYZUSPBSA-N",
         "score": 19.0
       },
@@ -750,10 +754,6 @@
       },
       {
         "drug": "INCHIKEY:XUHFZJPQDLAZMY-UKSSEWCLSA-N",
-        "score": 19.0
-      },
-      {
-        "drug": "INCHIKEY:ZXJXZNDDNMQXFV-UHFFFAOYSA-M",
         "score": 19.0
       },
       {
@@ -939,14 +939,14 @@
   "provenance": {
     "release": {
       "id": "v0.1",
-      "nodes_sha": "3356fae68afdf18d",
-      "edges_sha": "f8a1ae20bfd89b37"
+      "nodes_sha": "c800b9005c8b074c",
+      "edges_sha": "e26239a4e87865b3"
     },
     "code": {
-      "commit": "020bbc49d66b25910cd0c39c73584f7e70a3e6ef",
+      "commit": "ae538bff92931b9baa9a50400c00f9cc1caed52e",
       "dirty": true
     },
-    "schema_version": "0.13.0",
-    "generated_utc": "2026-11-09T16:27:56+00:00"
+    "schema_version": "0.14.0",
+    "generated_utc": "2026-11-11T01:22:48+00:00"
   }
 }

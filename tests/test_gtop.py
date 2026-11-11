@@ -776,7 +776,7 @@ def test_the_emitted_edges_validate_against_the_schema():
     nodes = [{"id": NODE, "class": "SmallMolecule",
               "properties": {"smiles": "CCO", "inchikey_skel": SKEL,
                              "is_approved": False, "salt_collapsed": False,
-                             "stereo_collapsed": False}},
+                             "stereo_collapsed": False, "tautomer_collapsed": True}},
              {"id": "UniProtKB:P04637", "class": "Protein",
               "properties": {"taxon_id": "NCBITaxon:9606", "is_viral": False,
                              "sequence_hash": "ab", "reviewed": True}}]
@@ -838,7 +838,7 @@ def test_a_typed_potency_still_validates_against_the_schema():
     nodes = [{"id": NODE, "class": "SmallMolecule",
               "properties": {"smiles": "CCO", "inchikey_skel": SKEL,
                              "is_approved": False, "salt_collapsed": False,
-                             "stereo_collapsed": False}},
+                             "stereo_collapsed": False, "tautomer_collapsed": True}},
              {"id": "UniProtKB:P04637", "class": "Protein",
               "properties": {"taxon_id": "NCBITaxon:9606", "is_viral": False,
                              "sequence_hash": "ab", "reviewed": True}}]

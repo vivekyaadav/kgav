@@ -47,7 +47,7 @@ def release(tmp_path):
         return {"id": n, "class": "SmallMolecule",
                 "properties": {"smiles": "C", "inchikey_skel": n[-2:],
                                "is_approved": True, "salt_collapsed": False,
-                               "stereo_collapsed": False}}
+                               "stereo_collapsed": False, "tautomer_collapsed": True}}
 
     nodes = [{"id": V, "class": "OrganismTaxon",
               "properties": {"label": "SARS-CoV-2", "family": "Coronaviridae",
@@ -685,7 +685,7 @@ def _with_similarity_source(release, src: str):
         {"id": UNDATABLE, "class": "SmallMolecule",
          "properties": {"smiles": "CC", "inchikey_skel": "UN",
                         "is_approved": False, "salt_collapsed": False,
-                        "stereo_collapsed": False}}))
+                        "stereo_collapsed": False, "tautomer_collapsed": True}}))
     (out / "nodes.jsonl").write_text("\n".join(nodes))
     rows = []
     for line in (release / "edges.jsonl").read_text().splitlines():

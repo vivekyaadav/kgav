@@ -133,17 +133,17 @@
       "M6": {
         "n_pos": 1758,
         "n_neg": 11003,
-        "auc": 0.4992025910401724,
+        "auc": 0.49902506163124194,
         "evaluable": true,
-        "auc_ci_lo": 0.4846750591152044,
-        "auc_ci_hi": 0.5137301229651403,
+        "auc_ci_lo": 0.4844987874398575,
+        "auc_ci_hi": 0.5135513358226264,
         "imputed": true,
         "coverage_pos": 0.026166097838452786,
-        "coverage_neg": 0.027810597109879123,
-        "auc_ceiling": 0.4995415977667483,
-        "auc_headroom": -0.00045840223325172014,
-        "auc_floor": 0.49917775036428685,
-        "auc_skill": 0.06827223643069356
+        "coverage_neg": 0.028174134327001728,
+        "auc_ceiling": 0.49936458533338257,
+        "auc_headroom": -0.0006354146666174287,
+        "auc_floor": 0.4989959817557255,
+        "auc_skill": 0.0788920056101031
       },
       "M7": {
         "n_pos": 1758,
@@ -178,32 +178,32 @@
       "COMBINED": {
         "n_pos": 1758,
         "n_neg": 11003,
-        "auc": 0.5859875375802462,
+        "auc": 0.5858623777960236,
         "evaluable": true,
-        "auc_ci_lo": 0.5711317635062414,
-        "auc_ci_hi": 0.6008433116542511,
+        "auc_ci_lo": 0.5710066547413138,
+        "auc_ci_hi": 0.6007181008507333,
         "imputed": true,
         "coverage_pos": 0.48862343572241185,
-        "coverage_neg": 0.2934654185222212,
-        "auc_ceiling": 0.6692760491321169,
-        "auc_headroom": 0.1692760491321169,
-        "auc_floor": 0.5975790086000953,
-        "auc_skill": -0.1616729356447007
+        "coverage_neg": 0.2938289557393438,
+        "auc_ceiling": 0.6691830969255773,
+        "auc_headroom": 0.16918309692557731,
+        "auc_floor": 0.597397239991534,
+        "auc_skill": -0.16068432819724768
       },
       "degree": {
         "n_pos": 1758,
         "n_neg": 11003,
-        "auc": 0.5921626556083526,
+        "auc": 0.5917697024815964,
         "evaluable": true,
-        "auc_ci_lo": 0.5773059291189282,
-        "auc_ci_hi": 0.607019382097777,
+        "auc_ci_lo": 0.5769129449895787,
+        "auc_ci_hi": 0.6066264599736142,
         "imputed": true,
         "coverage_pos": 1.0,
         "coverage_neg": 1.0,
         "auc_ceiling": 1.0,
         "auc_headroom": 0.5,
         "auc_floor": 0.5,
-        "auc_skill": 0.18432531121670515
+        "auc_skill": 0.18353940496319288
       }
     },
     "DENV-2": {
@@ -2203,7 +2203,7 @@
         "missing_predicates": []
       },
       "M6": {
-        "drugs_reached": 546,
+        "drugs_reached": 551,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11137",
@@ -2348,7 +2348,7 @@
         "missing_predicates": []
       },
       "M6": {
-        "drugs_reached": 419,
+        "drugs_reached": 423,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11137",
@@ -2402,14 +2402,14 @@
   "provenance": {
     "release": {
       "id": "v0.1",
-      "nodes_sha": "3356fae68afdf18d",
-      "edges_sha": "f8a1ae20bfd89b37"
+      "nodes_sha": "c800b9005c8b074c",
+      "edges_sha": "e26239a4e87865b3"
     },
     "code": {
-      "commit": "020bbc49d66b25910cd0c39c73584f7e70a3e6ef",
+      "commit": "ae538bff92931b9baa9a50400c00f9cc1caed52e",
       "dirty": true
     },
-    "schema_version": "0.13.0",
-    "generated_utc": "2026-11-09T16:33:32+00:00"
+    "schema_version": "0.14.0",
+    "generated_utc": "2026-11-11T01:28:16+00:00"
   }
 }

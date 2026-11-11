@@ -1,8 +1,8 @@
 {
-  "measured_on": "2026-11-09",
+  "measured_on": "2026-11-11",
   "measured_by": "scripts/pathway_landscape.py",
   "release": "v0.1",
-  "permutations": 2000,
+  "permutations": 100000,
   "seed": 0,
   "seed_scheme": "per-row: Random(f'{seed}|{channel}|{virus}')",
   "degree_basis": "study",
@@ -13,66 +13,66 @@
     "NCBITaxon:11060": {
       "n_dependency": 50,
       "n_observed": 2,
-      "expected": 6.3985,
+      "expected": 6.27206,
       "p_naive": 0.958297634723827,
-      "p_matched": 0.9890054972513743,
-      "p_matched_less": 0.03648175912043978
+      "p_matched": 0.989780102198978,
+      "p_matched_less": 0.04067959320406796
     },
     "NCBITaxon:11082": {
       "n_dependency": 18,
       "n_observed": 0,
-      "expected": 2.5495,
+      "expected": 2.5041,
       "p_naive": 1.0,
       "p_matched": 1.0,
-      "p_matched_less": 0.06096951524237881
+      "p_matched_less": 0.06673933260667393
     },
     "NCBITaxon:11137": {
       "n_dependency": 1367,
       "n_observed": 128,
-      "expected": 134.9115,
+      "expected": 135.28168,
       "p_naive": 0.6012070838932202,
-      "p_matched": 0.7596201899050474,
-      "p_matched_less": 0.26936531734132935
+      "p_matched": 0.7675023249767502,
+      "p_matched_less": 0.26313736862631376
     },
     "NCBITaxon:1335626": {
       "n_dependency": 678,
       "n_observed": 60,
-      "expected": 66.3905,
+      "expected": 66.43628,
       "p_naive": 0.7494241094024914,
-      "p_matched": 0.8255872063968016,
-      "p_matched_less": 0.21639180409795103
+      "p_matched": 0.8206317936820632,
+      "p_matched_less": 0.21689783102168977
     },
     "NCBITaxon:2697049": {
       "n_dependency": 3460,
       "n_observed": 384,
-      "expected": 359.193,
+      "expected": 358.43022,
       "p_naive": 0.00039594571761246146,
-      "p_matched": 0.07096451774112944,
-      "p_matched_less": 0.9390304847576212
+      "p_matched": 0.05963940360596394,
+      "p_matched_less": 0.947560524394756
     },
     "NCBITaxon:277944": {
       "n_dependency": 57,
       "n_observed": 10,
-      "expected": 7.343,
+      "expected": 7.40355,
       "p_naive": 0.0414825079868797,
-      "p_matched": 0.18690654672663667,
-      "p_matched_less": 0.8910544727636182
+      "p_matched": 0.19877801221987781,
+      "p_matched_less": 0.8859811401885981
     },
     "NCBITaxon:31631": {
       "n_dependency": 657,
       "n_observed": 62,
-      "expected": 65.2855,
+      "expected": 65.19903,
       "p_naive": 0.5536848260049413,
-      "p_matched": 0.688655672163918,
-      "p_matched_less": 0.3568215892053973
+      "p_matched": 0.6843431565684344,
+      "p_matched_less": 0.3651563484365156
     },
     "NCBITaxon:64320": {
       "n_dependency": 815,
       "n_observed": 76,
-      "expected": 80.367,
+      "expected": 80.08348,
       "p_naive": 0.5993594534042439,
-      "p_matched": 0.7241379310344828,
-      "p_matched_less": 0.3168415792103948
+      "p_matched": 0.7093229067709322,
+      "p_matched_less": 0.33441665583344166
     }
   },
   "uncovered": [
@@ -89,10 +89,10 @@
     "NCBITaxon:11053": {
       "n_dependency": 53,
       "n_observed": 11,
-      "expected": 7.1525,
+      "expected": 7.10564,
       "p_naive": 0.010227126903944565,
-      "p_matched": 0.08595702148925537,
-      "p_matched_less": 0.9555222388805598,
+      "p_matched": 0.08883911160888391,
+      "p_matched_less": 0.9553604463955361,
       "n_hubs_excluded": 0,
       "binary_edges": 48,
       "total_edges": 53
@@ -100,10 +100,10 @@
     "NCBITaxon:11060": {
       "n_dependency": 271,
       "n_observed": 40,
-      "expected": 35.2695,
+      "expected": 35.38048,
       "p_naive": 0.003578939636135149,
-      "p_matched": 0.21539230384807595,
-      "p_matched_less": 0.8360819590204898,
+      "p_matched": 0.22270777292227079,
+      "p_matched_less": 0.8272817271827282,
       "n_hubs_excluded": 3,
       "binary_edges": 0,
       "total_edges": 276
@@ -111,10 +111,10 @@
     "NCBITaxon:11069": {
       "n_dependency": 33,
       "n_observed": 6,
-      "expected": 4.4055,
+      "expected": 4.41565,
       "p_naive": 0.08870156598074966,
-      "p_matched": 0.2813593203398301,
-      "p_matched_less": 0.8700649675162418,
+      "p_matched": 0.2747272527274727,
+      "p_matched_less": 0.8582314176858231,
       "n_hubs_excluded": 0,
       "binary_edges": 34,
       "total_edges": 34
@@ -122,10 +122,10 @@
     "NCBITaxon:11072": {
       "n_dependency": 7,
       "n_observed": 1,
-      "expected": 0.826,
+      "expected": 0.82642,
       "p_naive": 0.5040629069099035,
-      "p_matched": 0.5937031484257871,
-      "p_matched_less": 0.8185907046476761,
+      "p_matched": 0.5877041229587704,
+      "p_matched_less": 0.8043919560804392,
       "n_hubs_excluded": 0,
       "binary_edges": 7,
       "total_edges": 7
@@ -133,10 +133,10 @@
     "NCBITaxon:11082": {
       "n_dependency": 6,
       "n_observed": 4,
-      "expected": 0.868,
+      "expected": 0.90685,
       "p_naive": 0.001054211395153053,
-      "p_matched": 0.005497251374312844,
-      "p_matched_less": 1.0,
+      "p_matched": 0.006029939700602994,
+      "p_matched_less": 0.999570004299957,
       "n_hubs_excluded": 0,
       "binary_edges": 0,
       "total_edges": 6
@@ -144,10 +144,10 @@
     "NCBITaxon:11084": {
       "n_dependency": 35,
       "n_observed": 3,
-      "expected": 4.589,
+      "expected": 4.62535,
       "p_naive": 0.6612509263616324,
-      "p_matched": 0.8640679660169915,
-      "p_matched_less": 0.30634682658670664,
+      "p_matched": 0.8599714002859972,
+      "p_matched_less": 0.3015669843301567,
       "n_hubs_excluded": 0,
       "binary_edges": 35,
       "total_edges": 35
@@ -155,10 +155,10 @@
     "NCBITaxon:11137": {
       "n_dependency": 397,
       "n_observed": 34,
-      "expected": 49.938,
+      "expected": 50.16063,
       "p_naive": 0.7701774169622868,
-      "p_matched": 0.999000499750125,
-      "p_matched_less": 0.00399800099950025,
+      "p_matched": 0.996730032699673,
+      "p_matched_less": 0.005659943400565994,
       "n_hubs_excluded": 4,
       "binary_edges": 22,
       "total_edges": 412
@@ -166,10 +166,10 @@
     "NCBITaxon:1335626": {
       "n_dependency": 622,
       "n_observed": 64,
-      "expected": 79.688,
+      "expected": 79.7695,
       "p_naive": 0.27569174598850527,
-      "p_matched": 0.9775112443778111,
-      "p_matched_less": 0.030984507746126936,
+      "p_matched": 0.981710182898171,
+      "p_matched_less": 0.025489745102548974,
       "n_hubs_excluded": 6,
       "binary_edges": 337,
       "total_edges": 696
@@ -177,10 +177,10 @@
     "NCBITaxon:2697049": {
       "n_dependency": 3494,
       "n_observed": 438,
-      "expected": 426.227,
+      "expected": 426.06236,
       "p_naive": 7.701247527154864e-11,
-      "p_matched": 0.2353823088455772,
-      "p_matched_less": 0.7796101949025487,
+      "p_matched": 0.23835761642383577,
+      "p_matched_less": 0.7798022019779802,
       "n_hubs_excluded": 15,
       "binary_edges": 965,
       "total_edges": 8316
@@ -188,10 +188,10 @@
     "NCBITaxon:277944": {
       "n_dependency": 311,
       "n_observed": 32,
-      "expected": 40.7295,
+      "expected": 40.66339,
       "p_naive": 0.35078511187094513,
-      "p_matched": 0.9440279860069966,
-      "p_matched_less": 0.0814592703648176,
+      "p_matched": 0.9477305226947731,
+      "p_matched_less": 0.07551924480755193,
       "n_hubs_excluded": 4,
       "binary_edges": 22,
       "total_edges": 324
@@ -199,10 +199,10 @@
     "NCBITaxon:290028": {
       "n_dependency": 279,
       "n_observed": 25,
-      "expected": 36.712,
+      "expected": 36.62069,
       "p_naive": 0.6581340655222304,
-      "p_matched": 0.9910044977511244,
-      "p_matched_less": 0.01649175412293853,
+      "p_matched": 0.9893301066989331,
+      "p_matched_less": 0.01797982020179798,
       "n_hubs_excluded": 4,
       "binary_edges": 0,
       "total_edges": 284
@@ -210,10 +210,10 @@
     "NCBITaxon:31631": {
       "n_dependency": 289,
       "n_observed": 28,
-      "expected": 38.2455,
+      "expected": 38.17269,
       "p_naive": 0.4931590441833274,
-      "p_matched": 0.9765117441279361,
-      "p_matched_less": 0.03648175912043978,
+      "p_matched": 0.975190248097519,
+      "p_matched_less": 0.03898961010389896,
       "n_hubs_excluded": 4,
       "binary_edges": 4,
       "total_edges": 295
@@ -221,10 +221,10 @@
     "NCBITaxon:64320": {
       "n_dependency": 353,
       "n_observed": 47,
-      "expected": 45.0925,
+      "expected": 44.98429,
       "p_naive": 0.011949938001598881,
-      "p_matched": 0.3938030984507746,
-      "p_matched_less": 0.6671664167916042,
+      "p_matched": 0.3957260427395726,
+      "p_matched_less": 0.6646833531664683,
       "n_hubs_excluded": 0,
       "binary_edges": 0,
       "total_edges": 354
@@ -232,10 +232,10 @@
     "NCBITaxon:694009": {
       "n_dependency": 1238,
       "n_observed": 167,
-      "expected": 149.5115,
+      "expected": 149.22217,
       "p_naive": 1.945318018779076e-06,
-      "p_matched": 0.06046976511744128,
-      "p_matched_less": 0.9500249875062469,
+      "p_matched": 0.05570944290557094,
+      "p_matched_less": 0.953480465195348,
       "n_hubs_excluded": 6,
       "binary_edges": 450,
       "total_edges": 1422
@@ -346,14 +346,14 @@
   "provenance": {
     "release": {
       "id": "v0.1",
-      "nodes_sha": "3356fae68afdf18d",
-      "edges_sha": "f8a1ae20bfd89b37"
+      "nodes_sha": "c800b9005c8b074c",
+      "edges_sha": "e26239a4e87865b3"
     },
     "code": {
-      "commit": "020bbc49d66b25910cd0c39c73584f7e70a3e6ef",
+      "commit": "ae538bff92931b9baa9a50400c00f9cc1caed52e",
       "dirty": true
     },
     "schema_version": null,
-    "generated_utc": "2026-11-09T16:38:53+00:00"
+    "generated_utc": "2026-11-11T01:53:59+00:00"
   }
 }

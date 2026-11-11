@@ -39,7 +39,7 @@ def _nodes(n_members: int) -> list[dict]:
          "properties": {"smiles": "C", "inchikey_skel": "AAAAA",
                         "label": "adrug", "chembl_id": "CHEMBL9",
                         "is_approved": True, "salt_collapsed": False,
-                        "stereo_collapsed": False}},
+                        "stereo_collapsed": False, "tautomer_collapsed": True}},
         {"id": "REACT:BIG", "class": "Pathway",
          "properties": {"label": "Big pathway"}},
         {"id": "REACT:SMALL", "class": "Pathway",

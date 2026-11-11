@@ -154,7 +154,7 @@ def test_output_validates_against_schema(tmap):
         {"id": f"INCHIKEY:{KEY_A}", "class": "SmallMolecule",
          "properties": {"smiles": "C", "inchikey_skel": KEY_A[:14],
                         "is_approved": True, "salt_collapsed": False,
-                        "stereo_collapsed": False}},
+                        "stereo_collapsed": False, "tautomer_collapsed": True}},
         {"id": V, "class": "OrganismTaxon",
          "properties": {"label": "SARS-CoV-2", "family": "Coronaviridae",
                         "baltimore_class": "IV", "is_enveloped": True}},

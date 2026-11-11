@@ -36,11 +36,11 @@ def orch(tmp_path):
         {"id": DRUG, "class": "SmallMolecule",
          "properties": {"smiles": "C", "inchikey_skel": "NIRMA", "label": "nirmatrelvir",
                         "chembl_id": "CHEMBL1", "is_approved": True,
-                        "salt_collapsed": False, "stereo_collapsed": False}},
+                        "salt_collapsed": False, "stereo_collapsed": False, "tautomer_collapsed": True}},
         {"id": CYTO, "class": "SmallMolecule",
          "properties": {"smiles": "C", "inchikey_skel": "CYTOX", "label": "chloroquine",
                         "chembl_id": "CHEMBL2", "is_approved": True,
-                        "salt_collapsed": False, "stereo_collapsed": False}},
+                        "salt_collapsed": False, "stereo_collapsed": False, "tautomer_collapsed": True}},
     ]
 
     def e(s, p, o, q=None):
@@ -568,7 +568,7 @@ def test_a_brand_name_inside_an_english_word_is_not_resolved(tmp_path):
          "properties": {"smiles": "C", "inchikey_skel": "DEPEN",
                         "label": "depen", "chembl_id": "CHEMBL7",
                         "is_approved": True, "salt_collapsed": False,
-                        "stereo_collapsed": False}},
+                        "stereo_collapsed": False, "tautomer_collapsed": True}},
     ]
     (tmp_path / "nodes.jsonl").write_text(
         "\n".join(json.dumps(n) for n in nodes))

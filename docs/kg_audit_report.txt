@@ -5,7 +5,7 @@ Coronaviridae and Flaviviridae, and what it can and cannot be used to measure.
 ================================================================================
 
 Repository      github.com/vivekyaadav/kgav
-Schema version  0.13.0
+Schema version  0.14.0
 Release audited v0.1
 Scope           16 viruses — 7 Coronaviridae, 9 Flaviviridae
 
@@ -827,12 +827,24 @@ Three distinct capabilities, in increasing order of what they claim.
     channel takes the host partners of viral proteins, which is a larger
     and much softer set.
 
-    RESULT ON RELEASE v0.1, run 2026-11-09, degree_basis=study, 2,000
+    RESULT ON RELEASE v0.1, run 2026-11-11, degree_basis=study, 100,000
     permutations, seed 0: 22 rows tested, 44 tests with both directions,
     Bonferroni alpha 0.00114. ZERO rows clear it. The uncorrected version
     of the same test would have reported six. DENV-1's interactome
-    overlap is p=0.0102 naive and 0.0860 degree-matched; DENV-2's is
-    0.0036 and 0.2154. Neither gap opens because the data changed.
+    overlap is p=0.0102 naive and 0.0888 degree-matched; DENV-2's is
+    0.0036 and 0.2227. Neither gap opens because the data changed.
+
+    THE PERMUTATION COUNT IS THE REGISTERED ONE AS OF 2026-11-11, and was
+    not before. docs/prereg_pathway_overlap.md fixes 100,000 under "Fixed
+    in advance" and flags it DECISION; pathway_landscape.py defaulted to
+    2,000 and every run used it, so the registration named a number and
+    the analysis used another. At 2,000 only TWO attainable p-values lay
+    below the corrected alpha, so a negative result meant the test could
+    not reject rather than that it did not; at 100,000 there are 113. The
+    verdict is unchanged in every row and the p-values barely moved -- the
+    old estimates were accurate, they simply could not support the alpha
+    this document quotes. tests/test_prereg_is_obeyed.py reads the figure
+    out of the prereg and holds the code and the artifact to it.
     docs/evaluation.md holds the full table, machine-checked against the
     results file.
 

@@ -727,7 +727,19 @@ def ingest_activities(em, rows: list[dict], viral_targets: dict[str, dict[str, s
                 chembl_id=r["compound"],
                 max_phase=int(r["max_phase"]) if r.get("max_phase") is not None else None,
                 is_approved=bool(r.get("max_phase") == 4),
-                salt_collapsed=False, stereo_collapsed=False)
+                                # THE IDENTITY POLICY, DECLARED (fix-list L24). Not a
+                # per-compound measurement: normalize_chem's docstring
+                # says these record WHICH KEY IS THE NODE ID, so a
+                # constant is correct and both layers must state the
+                # same one. salt_collapsed was False on all 25,383
+                # nodes and that is wrong -- largest_fragment.choose
+                # runs before the InChIKey, so `Cl.X` and `X` really
+                # do share a node. stereo_collapsed stays False: the
+                # id is the FULL key and L- and D-alanine differ in it.
+                # tests/test_identity_policy.py derives both from what
+                # normalize_chemical actually does.
+                salt_collapsed=True, stereo_collapsed=False,
+                tautomer_collapsed=True)
 
         # A YEAR IS WRITTEN AS A YEAR (fix-list C10). This was
         # f"{year}-01-01", indistinguishable from a real 1 January -- and

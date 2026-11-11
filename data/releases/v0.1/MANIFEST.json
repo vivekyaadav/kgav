@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.13.0",
+  "schema_version": "0.14.0",
   "layers": {
     "spine": {
       "path": "data/releases/v0.1-spine",
@@ -29,7 +29,7 @@
     },
     "chembl": {
       "path": "data/releases/v0.1-chembl",
-      "nodes_sha": "0b5c03286e830cdc",
+      "nodes_sha": "39194972a6f36f56",
       "edges_sha": "70cc2cf4bdebd549",
       "sources": {
         "chembl": "chembl_37"
@@ -57,7 +57,7 @@
     },
     "hosttargets": {
       "path": "data/releases/v0.1-hosttargets",
-      "nodes_sha": "e4dcdef2e47e1d6f",
+      "nodes_sha": "204080345186d1bb",
       "edges_sha": "6cd92315cbdb031f",
       "sources": {
         "chembl": "chembl_37"
@@ -66,14 +66,14 @@
     "similarity": {
       "path": "data/releases/v0.1-similarity",
       "nodes_sha": "e3b0c44298fc1c14",
-      "edges_sha": "4534b5486b3640e1",
+      "edges_sha": "28589ce9ddd139ea",
       "sources": {
         "rdkit": "2026.03.6"
       }
     },
     "ncats": {
       "path": "data/releases/v0.1-ncats",
-      "nodes_sha": "c4d45494d8a998c4",
+      "nodes_sha": "1542ef0fcca30832",
       "edges_sha": "0f6ff50fd4b226a8",
       "sources": null
     },
@@ -85,7 +85,7 @@
     }
   },
   "nodes": 78789,
-  "edges": 392363,
+  "edges": 392375,
   "nodes_by_class": {
     "OrganismTaxon": 16,
     "Protein": 20888,
@@ -107,7 +107,7 @@
     "MEASURED_INACTIVE_AGAINST": 2421,
     "INHIBITS": 3888,
     "TARGETS": 17982,
-    "CHEMICALLY_SIMILAR_TO": 3154,
+    "CHEMICALLY_SIMILAR_TO": 3166,
     "MEMBER_OF_CLASS": 158,
     "FOLD_SIMILAR_TO": 24
   },
@@ -177,7 +177,7 @@
   "release": "v0.1",
   "hub_cut_degree": 460,
   "code": {
-    "commit": "5ab4a38ebe40f65f98e316f340a5d6f74d7bbaba",
+    "commit": "ae538bff92931b9baa9a50400c00f9cc1caed52e",
     "dirty": true
   }
 }

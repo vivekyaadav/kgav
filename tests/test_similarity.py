@@ -101,7 +101,7 @@ def test_default_threshold_matches_the_schema_floor():
 def test_output_validates_against_schema(tmp_path):
     nodes = [{"id": f"INCHIKEY:{n}", "class": "SmallMolecule",
               "properties": {"smiles": smi, "inchikey_skel": n, "is_approved": True,
-                             "salt_collapsed": False, "stereo_collapsed": False}}
+                             "salt_collapsed": False, "stereo_collapsed": False, "tautomer_collapsed": True}}
              for n, smi in (("Q", ASPIRIN_ME), ("R", ASPIRIN))]
     em = Emit()
     build(em, {n["id"]: n["properties"]["smiles"] for n in nodes},

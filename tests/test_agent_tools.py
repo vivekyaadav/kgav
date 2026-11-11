@@ -31,7 +31,7 @@ def graph(tmp_path):
                 "properties": {"smiles": "C", "inchikey_skel": nid[-5:],
                                "chembl_id": name, "is_approved": True,
                                "label": name,
-                               "salt_collapsed": False, "stereo_collapsed": False}}
+                               "salt_collapsed": False, "stereo_collapsed": False, "tautomer_collapsed": True}}
 
     nodes = [
         {"id": V, "class": "OrganismTaxon",
@@ -294,7 +294,7 @@ def resolution_release(tmp_path):
                       "properties": {"smiles": "C", "inchikey_skel": d[-6:],
                                      "chembl_id": "CH" + d[-3:],
                                      "salt_collapsed": False,
-                                     "stereo_collapsed": False}})
+                                     "stereo_collapsed": False, "tautomer_collapsed": True}})
 
     def e(s_, p_, o_, q=None):
         return {"subject": s_, "predicate": p_, "object": o_,
@@ -458,7 +458,7 @@ def two_virus_graph(tmp_path):
                 "properties": {"smiles": "C", "inchikey_skel": nid[-5:],
                                "chembl_id": name, "is_approved": True,
                                "label": name, "salt_collapsed": False,
-                               "stereo_collapsed": False}}
+                               "stereo_collapsed": False, "tautomer_collapsed": True}}
     nodes = [
         {"id": V, "class": "OrganismTaxon",
          "properties": {"label": "SARS-CoV-2", "family": "Coronaviridae",
@@ -595,7 +595,7 @@ def contradicted_release(tmp_path):
         {"id": "INCHIKEY:TWOFACED", "class": "SmallMolecule",
          "properties": {"smiles": "C", "inchikey_skel": "TWOFAC",
                         "chembl_id": "CHEMBL9", "salt_collapsed": False,
-                        "stereo_collapsed": False}},
+                        "stereo_collapsed": False, "tautomer_collapsed": True}},
     ]
 
     def e(s_, p_, o_, q=None):
@@ -1072,7 +1072,7 @@ def _two_virus_graph(tmp_path, *, with_selectivity: bool,
          "properties": {"smiles": "C", "inchikey_skel": "NIRMA",
                         "chembl_id": "thecompound", "is_approved": True,
                         "label": "thecompound", "salt_collapsed": False,
-                        "stereo_collapsed": False}},
+                        "stereo_collapsed": False, "tautomer_collapsed": True}},
     ]
 
     def e(s, p, o, q=None):

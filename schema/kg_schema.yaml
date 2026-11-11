@@ -1,4 +1,4 @@
-schema_version: "0.13.0"
+schema_version: "0.14.0"
 scope: "Coronaviridae v1 — SARS-CoV-2, SARS-CoV, MERS-CoV, HCoV-229E, HCoV-OC43, HCoV-NL63, HCoV-HKU1"
 
 # ---------------------------------------------------------------------------
@@ -134,8 +134,31 @@ node_classes:
       approval_year: {type: int, min: 1900, max: 2100}
       is_approved:   {type: bool, required: true}
       ecfp4:         {type: string, doc: "hex-encoded 2048-bit fingerprint"}
-      salt_collapsed:   {type: bool, required: true}
-      stereo_collapsed: {type: bool, required: true}
+      # THE IDENTITY POLICY, not per-compound measurements. These record
+      # WHICH KEY IS THE NODE ID, so they are constant across the graph and
+      # every layer must declare the same values -- see normalize_chem's
+      # module docstring. 0.14.0 corrected salt_collapsed, which was `false`
+      # on all 25,383 compounds while largest_fragment.choose ran before the
+      # InChIKey, and added tautomer_collapsed, which was the policy behind
+      # fix-list L19 and had never been stated. Derived from what
+      # normalize_chemical actually does by tests/test_identity_policy.py.
+      salt_collapsed:     {type: bool, required: true}
+      stereo_collapsed:   {type: bool, required: true}
+      tautomer_collapsed: {type: bool, required: true}
+      # fix-list L18. The source's own structure string, kept where
+      # normalisation changed the SUBSTANCE -- a counterion stripped, a
+      # charge neutralised, a proton moved -- and not where it merely
+      # changed the spelling. ncats supplies salt and deprotonated forms for
+      # compounds keyed on the free base, so its string resolved to a
+      # different InChIKey than the node it sat on. Overwriting it would
+      # lose the source's statement; `smiles` now describes the node and
+      # this describes the row.
+      #
+      # THE FIRST RULE WAS `struct != cid.smiles` and it put this on 5,134
+      # of 5,234 ncats nodes, because cid.smiles is RDKit's canonical
+      # spelling. A property present on 98% of a layer says nothing and
+      # buried the cases it exists for.
+      smiles_as_supplied: {type: string}
 
   Protein:
     id_prefixes: [UniProtKB]

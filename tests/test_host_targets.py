@@ -179,11 +179,24 @@ def test_unconvertible_units_are_dropped(built):
 # ------------------------------------------------------------------ integrity
 def test_compound_properties_match_the_day7_layer(built):
     """A mismatch here produces property conflicts on thousands of shared
-    compounds at assembly time."""
+    compounds at assembly time.
+
+    THIS TEST HELD THE DEFECT IN PLACE (fix-list L24). It asserted
+    `salt_collapsed is False and stereo_collapsed is False` as literals, and
+    those were the values the ingests wrote -- so the check and the code
+    agreed with each other while neither agreed with what the node id
+    actually does. `largest_fragment.choose` runs before the InChIKey, so
+    salts DO collapse and `salt_collapsed: false` was wrong on all 25,383
+    compounds in v0.1. The identity policy is now asserted in one place,
+    against the normaliser, by tests/test_identity_policy.py; this test
+    keeps the property it is actually for -- that the two layers AGREE --
+    and no longer restates the values they should agree on.
+    """
     em, _, _ = built
     for n in em.nodes.values():
         p = n["properties"]
-        assert p["salt_collapsed"] is False and p["stereo_collapsed"] is False
+        for flag in ("salt_collapsed", "stereo_collapsed", "tautomer_collapsed"):
+            assert flag in p, f"{flag} missing; the day-7 layer declares it"
         assert p["inchikey_skel"] == n["id"].split(":", 1)[1][:14]
 
 

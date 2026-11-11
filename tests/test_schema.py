@@ -15,7 +15,7 @@ def schema():
 
 def _mol(nid="INCHIKEY:RWWYLEGWBNMMLJ-YSOARWBDSA-N", **over):
     props = {"smiles": "CCO", "inchikey_skel": "RWWYLEGWBNMM", "is_approved": True,
-             "salt_collapsed": True, "stereo_collapsed": False}
+             "salt_collapsed": True, "stereo_collapsed": False, "tautomer_collapsed": True}
     props.update(over)
     return {"id": nid, "class": "SmallMolecule", "properties": props}
 

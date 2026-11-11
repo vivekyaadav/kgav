@@ -59,7 +59,7 @@ def _graph2(tmp_path: Path, n_prot: int, n_path: int) -> Graph:
     nodes = [{"id": "INCHIKEY:D", "class": "SmallMolecule",
               "properties": {"smiles": "C", "inchikey_skel": "DD",
                              "is_approved": True, "salt_collapsed": False,
-                             "stereo_collapsed": False}}]
+                             "stereo_collapsed": False, "tautomer_collapsed": True}}]
     edges = []
     for i in range(n_prot):
         pid = f"UniProtKB:P{i:04d}"
@@ -95,7 +95,7 @@ def _graph(tmp_path: Path, n_targets: int) -> Graph:
     nodes = [{"id": "INCHIKEY:D", "class": "SmallMolecule",
               "properties": {"smiles": "C", "inchikey_skel": "DD",
                              "is_approved": True, "salt_collapsed": False,
-                             "stereo_collapsed": False}}]
+                             "stereo_collapsed": False, "tautomer_collapsed": True}}]
     edges = []
     for i in range(n_targets):
         pid = f"UniProtKB:P{i:04d}"

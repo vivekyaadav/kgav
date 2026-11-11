@@ -187,17 +187,17 @@
       "COMBINED": {
         "n_pos": 678,
         "n_neg": 155,
-        "auc": 0.41752783328575505,
+        "auc": 0.41751831763250546,
         "evaluable": true,
-        "auc_ci_lo": 0.36626883924632414,
-        "auc_ci_hi": 0.46878682732518595,
+        "auc_ci_lo": 0.3662593291723276,
+        "auc_ci_hi": 0.4687773060926833,
         "imputed": true,
         "coverage_pos": 0.14749262536873156,
         "coverage_neg": 0.3032258064516129,
         "auc_ceiling": 0.44449519459510894,
         "auc_headroom": -0.055504805404891056,
         "auc_floor": 0.4221334094585593,
-        "auc_skill": -0.20595744680851097
+        "auc_skill": -0.20638297872340391
       },
       "degree": {
         "n_pos": 678,
@@ -1622,7 +1622,7 @@
         "missing_predicates": []
       },
       "M6": {
-        "drugs_reached": 530,
+        "drugs_reached": 535,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11137",
@@ -1767,7 +1767,7 @@
         "missing_predicates": []
       },
       "M6": {
-        "drugs_reached": 414,
+        "drugs_reached": 418,
         "viruses_reached": [
           "NCBITaxon:11060",
           "NCBITaxon:11137",
@@ -1821,14 +1821,14 @@
   "provenance": {
     "release": {
       "id": "v0.1",
-      "nodes_sha": "3356fae68afdf18d",
-      "edges_sha": "f8a1ae20bfd89b37"
+      "nodes_sha": "c800b9005c8b074c",
+      "edges_sha": "e26239a4e87865b3"
     },
     "code": {
-      "commit": "020bbc49d66b25910cd0c39c73584f7e70a3e6ef",
+      "commit": "ae538bff92931b9baa9a50400c00f9cc1caed52e",
       "dirty": true
     },
-    "schema_version": "0.13.0",
-    "generated_utc": "2026-11-09T16:38:09+00:00"
+    "schema_version": "0.14.0",
+    "generated_utc": "2026-11-11T01:32:47+00:00"
   }
 }

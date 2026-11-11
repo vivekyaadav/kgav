@@ -558,12 +558,61 @@ def ingest_cpe(em, rows: list[dict], cols: dict, normalizer, *,
         if drug in existing_compounds:
             stats["joined_existing_compound"] += 1
         else:
+            # fix-list L18. `smiles` DESCRIBES THE NODE, not the row.
+            # ncats supplies salt and deprotonated forms for compounds whose
+            # id is the free base's InChIKey -- `...fumarate`, `Cl.X`, a
+            # carboxylate `C([O-])=O` -- so storing the raw string put a
+            # structure that resolves to a DIFFERENT key on the node. 108 of
+            # them within this layer alone, measured 2026-11-11; the row had
+            # it filed at 4, from a cross-layer diagnostic on a build that
+            # was declined. cid.smiles is the de-salted, uncharged parent
+            # that the id was derived from, so the two now agree.
+            #
+            # THE SOURCE'S OWN STRING IS KEPT, not overwritten -- it is
+            # ncats's statement about its sample and losing it would be the
+            # opposite error -- but only where normalisation changed the
+            # SUBSTANCE, not merely its spelling.
+            #
+            # `struct != cid.smiles` WAS THE WRONG TEST AND THE REBUILD SAID
+            # SO: cid.smiles is RDKit's canonical SMILES, which differs from
+            # the source's spelling for almost every compound, so the
+            # property landed on 5,134 of 5,234 ncats nodes. A field present
+            # on 98% of a layer carries almost no information, and it buried
+            # the ~108 cases this row is about -- the salt and deprotonated
+            # forms -- among 5,026 cosmetic reorderings. The flags below are
+            # the ones that mean "a different form of the compound was
+            # supplied": a counterion was stripped or a charge neutralised.
+            #
+            # tautomer_changed IS NOT ONE OF THEM, and the first attempt
+            # included it. Measured on the rebuild: of 1,352 nodes it
+            # selected, 1,130 (84%) were tautomer canonicalisation ALONE
+            # against 124 salts and 98 charged forms -- so it buried the
+            # cases this row is about for the second time. Under InChI's
+            # mobile-H layer two tautomers are the SAME COMPOUND, which is
+            # why these nodes exist at all (fix-list L19) and why the graph
+            # now declares `tautomer_collapsed: true`. A canonicalised
+            # tautomer is a different spelling of what the node holds, not
+            # a different substance.
+            differs = cid.had_multiple_fragments or cid.was_charged
             em.node(drug, "SmallMolecule",
-                    smiles=struct,
+                    smiles=cid.smiles,
+                    smiles_as_supplied=(struct if differs else None),
                     inchikey_skel=cid.inchikey[:14],
                     # See the docstring: a floor, not a claim.
                     is_approved=False,
-                    salt_collapsed=False, stereo_collapsed=False)
+                                        # THE IDENTITY POLICY, DECLARED (fix-list L24). Not a
+                    # per-compound measurement: normalize_chem's docstring
+                    # says these record WHICH KEY IS THE NODE ID, so a
+                    # constant is correct and both layers must state the
+                    # same one. salt_collapsed was False on all 25,383
+                    # nodes and that is wrong -- largest_fragment.choose
+                    # runs before the InChIKey, so `Cl.X` and `X` really
+                    # do share a node. stereo_collapsed stays False: the
+                    # id is the FULL key and L- and D-alanine differ in it.
+                    # tests/test_identity_policy.py derives both from what
+                    # normalize_chemical actually does.
+                    salt_collapsed=True, stereo_collapsed=False,
+                    tautomer_collapsed=True)
             stats["new_compound_node"] += 1
         em.edge(drug, ANTIVIRAL_PREDICATE, taxon,
                 source=source, date=date, tier=1, quals=quals,

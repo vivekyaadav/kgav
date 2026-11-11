@@ -49,6 +49,17 @@ class FakeId:
             raise ValueError("unparseable")
         self.inchikey = "".join(c for c in structure if c.isalnum()).upper().ljust(27, "X")[:27]
         self.curie = f"INCHIKEY:{self.inchikey}"
+        # THE PARENT STRUCTURE, which fix-list L18 made the ingest store on
+        # the node instead of the raw row. The real ChemId returns the
+        # de-salted, uncharged structure the id was derived from, so the
+        # fake strips a leading counterion the same way -- a fake that
+        # returned the input unchanged would let `smiles=cid.smiles` pass
+        # here while storing the salt in production, which is the defect
+        # L18 is about.
+        self.smiles = structure.split(".")[-1] if "." in structure else structure
+        self.had_multiple_fragments = "." in structure
+        self.was_charged = "[O-]" in structure or "[NH+]" in structure
+        self.tautomer_changed = False
 
 
 def norm(s):
@@ -420,7 +431,7 @@ def test_output_validates_against_schema(ingested):
         {"id": FakeId("CCC").curie, "class": "SmallMolecule",
          "properties": {"smiles": "CCC", "inchikey_skel": "CCCXXXXXXXXXXX",
                         "is_approved": True, "salt_collapsed": False,
-                        "stereo_collapsed": False}},
+                        "stereo_collapsed": False, "tautomer_collapsed": True}},
         {"id": SARS_COV_2, "class": "OrganismTaxon",
          "properties": {"label": "SARS-CoV-2", "family": "Coronaviridae",
                         "baltimore_class": "IV", "is_enveloped": True}}]
@@ -526,7 +537,7 @@ def test_peer_layers_overlap_so_the_node_set_must_be_deduped(tmp_path):
     shared = {"id": "INCHIKEY:SHARED", "class": "SmallMolecule",
               "properties": {"smiles": "C", "inchikey_skel": "SHAREDXXXXXXXX",
                              "is_approved": True, "salt_collapsed": False,
-                             "stereo_collapsed": False}}
+                             "stereo_collapsed": False, "tautomer_collapsed": True}}
     rows = [json.dumps(shared), json.dumps(shared)]      # two layers, one node
 
     # concatenated: the validator objects, correctly

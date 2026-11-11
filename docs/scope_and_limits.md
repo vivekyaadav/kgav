@@ -213,27 +213,27 @@ degree-matched expectation.
 | channel | virus | expected | observed | min. detectable | depletion |
 |---|---|---:|---:|---:|---|
 | interactome | JEV | 0.83 | 1 | 6 hits = **7.26x** | **no rejection region** |
-| interactome | West Nile | 0.87 | 4 | 6 hits = **6.91x** | **no rejection region** |
-| pathway | West Nile | 2.55 | 0 | 10 hits = **3.92x** | **no rejection region** |
-| interactome | DENV-3 | 4.41 | 6 | 13 hits = **2.95x** | **no rejection region** |
-| interactome | TBEV | 4.59 | 3 | 13 hits = **2.83x** | **no rejection region** |
-| pathway | DENV-2 | 6.40 | 2 | 16 hits = **2.50x** | **no rejection region** |
-| pathway | HCoV-NL63 | 7.34 | 10 | 18 hits = **2.45x** | testable |
-| interactome | DENV-1 | 7.15 | 11 | 18 hits = **2.52x** | testable |
-| interactome | DENV-2 | 35.27 | 40 | 56 hits = **1.59x** | testable |
-| interactome | HCoV-HKU1 | 36.71 | 25 | 58 hits = **1.58x** | testable |
-| interactome | HCoV-OC43 | 38.25 | 28 | 59 hits = **1.54x** | testable |
-| interactome | HCoV-NL63 | 40.73 | 32 | 63 hits = **1.55x** | testable |
-| interactome | Zika | 45.09 | 47 | 68 hits = **1.51x** | testable |
-| interactome | HCoV-229E | 49.94 | 34 | 74 hits = **1.48x** | testable |
-| pathway | HCoV-OC43 | 65.29 | 62 | 92 hits = **1.41x** | testable |
-| pathway | MERS-CoV | 66.39 | 60 | 94 hits = **1.42x** | testable |
-| pathway | Zika | 80.37 | 76 | 110 hits = **1.37x** | testable |
-| interactome | MERS-CoV | 79.69 | 64 | 109 hits = **1.37x** | testable |
-| pathway | HCoV-229E | 134.91 | 128 | 173 hits = **1.28x** | testable |
-| interactome | SARS-CoV | 149.51 | 167 | 189 hits = **1.26x** | testable |
-| pathway | SARS-CoV-2 | 359.19 | 384 | 419 hits = **1.17x** | testable |
-| interactome | SARS-CoV-2 | 426.23 | 438 | 492 hits = **1.15x** | testable |
+| interactome | West Nile | 0.91 | 4 | 6 hits = **6.62x** | **no rejection region** |
+| pathway | West Nile | 2.50 | 0 | 10 hits = **3.99x** | **no rejection region** |
+| interactome | DENV-3 | 4.42 | 6 | 13 hits = **2.94x** | **no rejection region** |
+| interactome | TBEV | 4.63 | 3 | 13 hits = **2.81x** | **no rejection region** |
+| pathway | DENV-2 | 6.27 | 2 | 16 hits = **2.55x** | **no rejection region** |
+| interactome | DENV-1 | 7.11 | 11 | 17 hits = **2.39x** | testable |
+| pathway | HCoV-NL63 | 7.40 | 10 | 18 hits = **2.43x** | testable |
+| interactome | DENV-2 | 35.38 | 40 | 56 hits = **1.58x** | testable |
+| interactome | HCoV-HKU1 | 36.62 | 25 | 57 hits = **1.56x** | testable |
+| interactome | HCoV-OC43 | 38.17 | 28 | 59 hits = **1.55x** | testable |
+| interactome | HCoV-NL63 | 40.66 | 32 | 62 hits = **1.52x** | testable |
+| interactome | Zika | 44.98 | 47 | 68 hits = **1.51x** | testable |
+| interactome | HCoV-229E | 50.16 | 34 | 74 hits = **1.48x** | testable |
+| pathway | HCoV-OC43 | 65.20 | 62 | 92 hits = **1.41x** | testable |
+| pathway | MERS-CoV | 66.44 | 60 | 94 hits = **1.41x** | testable |
+| interactome | MERS-CoV | 79.77 | 64 | 109 hits = **1.37x** | testable |
+| pathway | Zika | 80.08 | 76 | 110 hits = **1.37x** | testable |
+| pathway | HCoV-229E | 135.28 | 128 | 173 hits = **1.28x** | testable |
+| interactome | SARS-CoV | 149.22 | 167 | 189 hits = **1.27x** | testable |
+| pathway | SARS-CoV-2 | 358.43 | 384 | 419 hits = **1.17x** | testable |
+| interactome | SARS-CoV-2 | 426.06 | 438 | 491 hits = **1.15x** | testable |
 
 **Six of the twenty-two downward tests have no rejection region at all.**
 Under a Poisson background with mean *m* the most extreme downward
@@ -246,22 +246,35 @@ matched expectation and not on any outcome, so it is not choosing tests
 after seeing them — but the family belongs in a preregistration that does
 not exist yet, and it is left alone until it does.
 
-**Eight of the twenty-two need a 2.4x excess or more**, and two need
-roughly 7x. (This read *seven* until 2026-11-10, and the test beside it
-asserted the word `Seven` — a check written with the same literal it was
-checking, so the pair agreed with each other and not with
-`pathway_landscape.json`. The count now comes from the file: the eighth row
-is `pathway` HCoV-NL63 at 2.45, and the next one down is 1.59, so nothing
-about this sits on a rounding boundary.) Those are the rows where a real but moderate effect would be
+**Seven of the twenty-two need a 2.4x excess or more**, and two need
+roughly 7x. (This count has now moved three times and the figure has never
+been wrong by more than one row. It read *seven* until 2026-11-10, when a
+rebuild made it eight and exposed the test beside it asserting the word
+`Seven` — a check written with the same literal it was checking, so the
+pair agreed with each other and not with `pathway_landscape.json`. The
+2026-11-11 rebuild moved it back to seven, and **the row that crossed is
+`interactome` DENV-1, from 2.52x to 2.39x** -- not the one the earlier note
+pointed at. That note named `pathway` HCoV-NL63 as the eighth row at 2.45,
+said the next one down was 1.59, and concluded "nothing about this sits on
+a rounding boundary". Two of those three statements were wrong: DENV-1 at
+2.52 was the next one down, and it was 0.12 from the boundary. HCoV-NL63
+has since moved to 2.43 and is still above. **Two rows now sit within 0.05
+of the line**, so this count should be expected to move whenever the graph
+does. The count is derived from the file on every run, which is the only
+reason any of this is visible.) Those are the rows where a real but moderate effect would be
 invisible, and they are all flaviviruses or the small coronaviruses — the
 taxa this release covers thinnest. The large-*m* rows at the bottom of
 the table are sensitive to a 15–30% excess and found none, which is the
 part of the null that carries weight.
 
-A separate limit compounds this: at 2,000 permutations only **two**
-attainable p-values lie below 0.001136, so the test can distinguish
-"significant" from "not" and little else. `src/kgav/landscape.py` reports
-this and states that 8,799 permutations would give ten.
+That limit was compounded by resolution until 2026-11-11: at 2,000
+permutations only **two** attainable p-values lay below 0.001136, so the
+test could distinguish "significant" from "not" and little else. The run
+now on disk uses the **100,000** permutations
+`docs/prereg_pathway_overlap.md` fixes in advance, giving **113** attainable
+values below alpha. No verdict changed and no p-value moved by more than
+0.015, so what the extra resolution bought is not a different answer but
+the right to state this one: the test was powered to reject and did not.
 
 ## What the graph cannot be asked
 

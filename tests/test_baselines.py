@@ -54,7 +54,7 @@ def _drug(nid):
     return {"id": nid, "class": "SmallMolecule",
             "properties": {"smiles": "C", "inchikey_skel": nid[-2:], "is_approved": True,
                            "chembl_id": "CHEMBL_" + nid[-2:],
-                           "salt_collapsed": False, "stereo_collapsed": False}}
+                           "salt_collapsed": False, "stereo_collapsed": False, "tautomer_collapsed": True}}
 
 
 def _e(s, p, o, q=None, date="2020-01-01"):
@@ -931,7 +931,7 @@ def test_metapath_reach_reports_a_metapath_that_reaches_nothing(tmp_path):
                         "is_viral": True}},
         {"id": "INCHIKEY:D", "class": "SmallMolecule",
          "properties": {"smiles": "C", "inchikey_skel": "D", "is_approved": True,
-                        "salt_collapsed": False, "stereo_collapsed": False}},
+                        "salt_collapsed": False, "stereo_collapsed": False, "tautomer_collapsed": True}},
     ]
 
     def e(s, p, o, q=None):
