@@ -147,6 +147,51 @@ probability about 0.06, and ≤2 of 6.75 about 0.08 — both unremarkable.
 **They must not be read as depletion.** What they establish is that two
 more viruses, in a second family, were examined.
 
+### Nine nodes hold two compounds' screening results
+
+<!-- FIGURE: tautomer_conflation -->
+The node id is an InChIKey, and standard InChI's mobile-H layer treats
+annular tautomers as one compound — `normalize_chemical` also canonicalises
+the tautomer before keying. Every compound node therefore declares
+`tautomer_collapsed: true`, and on **9 nodes that policy pools two distinct
+NCATS library members**: 18 substances on 9 ids. The clearest pair differs
+only in whether a guanidine is written `CCCN=C(N)N` or `CCCNC(N)=N`
+(`NCGC00390264` and `NCGC00386242`).
+
+**They are counted by the build, not estimated here.** `ingest_ncats`
+reports `tautomer_conflated_nodes` and `tautomer_conflated_members` on every
+run, and `make diagnose-tautomer-conflation` lists them.
+
+**It is not fixable by changing the identifier, which is why it is stated
+rather than repaired.** Canonical-tautomer SMILES would separate these nine
+and split compounds every source treats as one; tautomers are frequently not
+separable experimentally either. The alternative is a different identity for
+the whole graph to resolve nine nodes out of 25,383, and the honest trade is
+to declare the policy on every node and count the cases.
+
+**What it costs a reader, measured rather than assumed:** on those nine, an
+activity or inactivity call pools two molecules — and they are not off to one
+side of the evaluation. **8 of the 9 carry a `HAS_ANTIVIRAL_ACTIVITY_AGAINST`
+label and 5 carry a traversable edge**, so a channel can reach them;
+`MQQNFDZXWVTQEH` holds 16 `TARGETS` edges and a similarity edge. Against
+21,371 labelled compounds that is 8 labels, so no figure in
+`docs/evaluation.md` moves measurably — but the right statement is the one
+with the count in it, not the one that puts them outside the analysis.
+
+**THE FIRST DRAFT OF THAT PARAGRAPH SAID THE OPPOSITE.** It read "None is
+among the compounds any evaluated channel reaches, so no figure in
+docs/evaluation.md depends on them", written from the assumption that nine
+tautomer oddities would be peripheral. They are ordinary screened drugs.
+Checked before the sentence shipped, and recorded here because the asymmetry
+matters: the wrong version was the comfortable one.
+
+**THE NUMBER TOOK FOUR READINGS TO GET RIGHT** (8, 11, 12, then 9), and the
+record is fix-list L19. Two defects of method, not of chemistry: a classifier
+that discarded any key containing a salt spelling, which made a subset report
+more conflations than its superset; and counting NCGC sample *lots* as
+distinct compounds, where 815 of 8,596 base ids appear under more than one
+lot. Both were caught by two measurements disagreeing, neither by review.
+
 ### 4,839 label edges carry an extrapolated potency
 
 ChEMBL's curators flag a value read outside the dose range they tested
