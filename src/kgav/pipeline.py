@@ -2,40 +2,54 @@
 
 WHY THIS EXISTS AS DATA. The order is not obvious and not recoverable from
 LAYER_PRECEDENCE, which ranks layers for qualifier conflicts and says nothing
-about when to run them. Three layers -- selectivity, similarity and gtop --
-read the ASSEMBLED release rather than the per-layer ones, so they cannot run
-until assemble_release has written v0.1, and assemble_release must then run
-again to pick them up. A hand-typed sequence gets that wrong silently: the
-layer still builds, from the PREVIOUS release, and nothing says so.
+about when to run them. A hand-typed sequence gets it wrong silently: a layer
+built out of order still builds, from stale inputs, and nothing says so.
 
 PHASES
 
-  1  reads raw inputs and per-layer releases only
-  2  assemble_release -> data/releases/v0.1
-  3  reads the assembled v0.1
-  4  assemble_release again, now including the phase-3 layers
+  1  reads raw inputs only
+  2  reads the layer directories built before it (`reads_peers`)
+  3  assemble_release -> data/releases/v0.1, ONCE, last
 
-ONE PASS OF 3 THEN 4 IS NOT ENOUGH, AND THIS SAID IT WAS. The claim here
-read "no phase-3 layer's output depends on its own input, so the second
-assemble is a fixed point rather than the start of an iteration". The first
-half is true and the conclusion does not follow, because phase 2 assembles
-the PREVIOUS run's phase-3 layer directories: what similarity reads at
-phase 3 contains gtop's output from the last rebuild, and gtop is itself a
-phase 3 layer. ingest_similarity splits compounds into query and reference
-by their TARGETS / INHIBITS / MEASURED_INACTIVE_AGAINST subjects, and gtop
-contributes TARGETS -- so the dependency is mutual between two phase-3
-layers through the assembly that sits between them, not self-dependence.
+NO LAYER READS THE ASSEMBLED RELEASE, and that is what makes one assemble
+enough. Until 2026-11-11 three did -- selectivity, similarity and gtop --
+so an assemble had to run in the middle, and THAT ASSEMBLE CONSUMED THE
+PREVIOUS RUN'S OUTPUT OF THOSE SAME THREE LAYERS. Two defects followed from
+it, both measured rather than argued:
 
-MEASURED 2026-11-10, reverting fix-list B1, a phase-1 change: rebuild one
-went edges_sha af01e12ce8a86891 -> 8402bbaf9ed5c531, differing from the
-intended release by exactly one CHEMICALLY_SIMILAR_TO edge; rebuild two
-went -> f8a1ae20bfd89b37, byte-identical to the release before B1. Two
-passes converged, and nothing in the pipeline checks that they did:
-rebuild_release.py prints "The release CHANGED this run" either way, which
-is true on an unconverged run and on a genuinely new one, and a reader
-cannot tell which from the line. Filed as L20. data_audit_2026-11-07's P17
-predicted this and was closed with "document the fixed point" -- so the
-document asserting one is the fix that was applied.
+  L20  NON-CONVERGENCE. ingest_similarity partitions compounds by their
+       TARGETS / INHIBITS / MEASURED_INACTIVE_AGAINST subjects and gtop
+       contributes TARGETS, so the two were mutually dependent through the
+       assembly between them. Reverting fix-list B1 went edges_sha
+       af01e12ce8a86891 -> 8402bbaf9ed5c531, off by exactly one
+       CHEMICALLY_SIMILAR_TO edge, then -> f8a1ae20bfd89b37 and stopped.
+       Two passes, and the output said "The release CHANGED this run" both
+       times.
+
+  L25  A HARD STOP. Renaming a phase-3 layer's qualifier (L11) made the
+       middle assemble validate 4,264 edges carrying the now-undeclared
+       name and exit 1 -- before the ingest that would have replaced them.
+       Not avoidable by running twice: every pass began by assembling the
+       same stale directory. It had killed this script twice on 2026-11-02
+       the same way.
+
+FIXED 2026-11-11, L20 option (b), chosen by the owner. The three layers read
+`peer_nodes` / `peer_edges`, which serve the layer directories named by
+`layers_before(name)` in LAYER_PRECEDENCE order -- the assembler's own
+precedence, so property resolution matches. MEASURED BEFORE THE CHANGE, and
+both substitutions are exact rather than close: the union of those
+directories holds the assembled node set precisely (78,789 both ways, zero
+difference, and no peer-reading layer emits nodes), and phase 1 + gtop gives
+similarity the identical 9,791-compound partition the assembly gave it.
+Reading phase 1 ALONE would NOT have been neutral -- 1,082 compounds are
+annotated only by gtop and would have moved into the query set -- which is
+why the order inside phase 2 is a declared dependency and not a convention.
+
+CONFIRMED BY REBUILD: byte-identical release, nodes_sha c800b9005c8b074c and
+edges_sha ad7121bc2195a93a unmoved, and it converged on the FIRST pass. The
+loop is gone rather than reported, which is what distinguishes (b) from
+option (a): looping until the fingerprint repeated would not have helped
+L25 at all, because every iteration re-read the same stale directory.
 
 REQUIRED AND OPTIONAL. spine and host are the graph; without them there is
 nothing to assemble and the run stops. Every other layer has raw inputs that
@@ -65,7 +79,20 @@ CHEMBL_DB = Path("data/raw/chembl/chembl_37/chembl_37_sqlite/chembl_37.db")
 class Layer:
     name: str                       # matches its LAYER_PRECEDENCE entry
     script: str                     # scripts/<script>
-    phase: int                      # 1 or 3; see the module docstring
+    phase: int                      # 1 or 2; see the module docstring
+    # READS THE LAYERS BUILT BEFORE IT, rather than the assembled release
+    # (fix-list L20, option (b)). A layer with this set is given the peer
+    # layer DIRECTORIES -- `layers_before(its own name)`, resolved in
+    # LAYER_PRECEDENCE order so property resolution matches the
+    # assembler's -- and the pipeline needs only ONE assemble, at the end.
+    #
+    # It replaces the arrangement that made L20 and L25 possible: three
+    # layers read the ASSEMBLED release, so an assemble had to run in the
+    # middle, and that middle assemble consumed the PREVIOUS run's output
+    # of those same three layers. Mutual dependence through the assembly
+    # between them -- non-convergence when a subject set moved, and a hard
+    # SCHEMA FAIL when one of their qualifiers was renamed.
+    reads_peers: bool = False
     required: bool = False
     files: tuple[str, ...] = ()     # paths under the repo root, all needed
     globs: tuple[str, ...] = ()     # EVERY pattern must match something
@@ -144,16 +171,35 @@ LAYERS: tuple[Layer, ...] = (
           files=("data/raw/folds/phase2_chains.json",)),
     # ---------------------------------------------------------- phase 3
     # These three read data/releases/v0.1, the ASSEMBLED release.
-    Layer("selectivity", "ingest_selectivity.py", 3, files=(str(CHEMBL_DB),)),
-    Layer("similarity", "ingest_similarity.py", 3),
+    # ------------------------------------------------------------ phase 2
+    # These three read the layers built before them, not the assembled
+    # release, so there is ONE assemble and it is last (L20 option (b)).
+    #
+    # THE ORDER WITHIN THIS PHASE IS A REAL DEPENDENCY, not a convention.
+    # similarity partitions compounds by their TARGETS / INHIBITS /
+    # MEASURED_INACTIVE_AGAINST subjects, and gtop contributes TARGETS, so
+    # similarity must come after it. selectivity emits
+    # HAS_ANTIVIRAL_ACTIVITY_AGAINST, which is in neither set, so nothing
+    # here depends on selectivity and its position is free.
+    #
+    # MEASURED BEFORE THE CHANGE, because the naive form of (b) -- read
+    # only phase 1 -- would have altered meaning: 1,082 compounds are
+    # annotated ONLY by gtop and would have moved into similarity's query
+    # set, acquiring cold-start edges they do not need. Reading
+    # phase 1 + gtop gives the identical 9,791-compound partition the
+    # assembly gave, so this ordering is semantically neutral and L20's
+    # "changes what annotated means" caveat does not apply to it.
+    Layer("selectivity", "ingest_selectivity.py", 2, reads_peers=True,
+          files=(str(CHEMBL_DB),)),
     # ingest_gtop needs interactions.csv AND a ligand file, which may be
     # either ligands.csv or ligand_id_mapping.csv. Declaring only
     # interactions.csv reported the layer ready with half its inputs, and
     # the run would then exit on the missing one.
-    Layer("gtop", "ingest_gtop.py", 3,
+    Layer("gtop", "ingest_gtop.py", 2, reads_peers=True,
           globs=("data/raw/gtop/interactions.csv",),
           any_globs=(("data/raw/gtop/ligands.csv",
                       "data/raw/gtop/ligand_id_mapping.csv"),)),
+    Layer("similarity", "ingest_similarity.py", 2, reads_peers=True),
 )
 
 ASSEMBLE = "assemble_release.py"
@@ -246,6 +292,90 @@ def train_dir(root: Path, year: int = 2021) -> Path:
     return root / "data" / "releases" / f"v0.1-train{year}"
 
 
+def peer_dirs(root: Path, name: str, releases: Path | None = None) -> list[Path]:
+    """The layer directories `name` reads, in the order the assembler merges.
+
+    LAYER_PRECEDENCE ORDER, NOT BUILD ORDER, and the distinction is the
+    whole point. A caller that unions these dedupes by node id with the
+    first writer winning -- which is what `assemble_release` does -- so it
+    reproduces the assembly's property resolution only if it walks them in
+    the same order. Build order would give a different `smiles` for any
+    compound two layers describe differently, and fix-list L18 found 222 of
+    those in one layer alone.
+
+    Restricted to `layers_before(name)`, so a peer-reading layer sees
+    exactly what was built before it and nothing that depends on it. That
+    is what makes the dependency a DAG and lets the pipeline assemble once.
+
+    Directories that do not exist are dropped: data/raw is hand-populated,
+    an absent layer is an ordinary state of a checkout, and the caller
+    reports what it found rather than failing on what it did not.
+    """
+    from .assemble import LAYER_PRECEDENCE
+    allowed = set(layers_before(name))
+    out = []
+    for layer in LAYER_PRECEDENCE:
+        if layer in allowed:
+            # `releases` lets a caller point at a directory of per-layer
+            # releases that is not root/data/releases -- which is what the
+            # ingests' --peers flag passes, and what a test needs in a
+            # tmp_path. Without it the override would have to be
+            # reconstructed from the path, which the first version of this
+            # did by inspecting the directory NAME.
+            d = (releases / f"v0.1-{layer}") if releases else layer_dir(root, layer)
+            if (d / "nodes.jsonl").exists() or (d / "edges.jsonl").exists():
+                out.append(d)
+    return out
+
+
+def peer_nodes(root: Path, name: str, releases: Path | None = None) -> list[dict]:
+    """Every node the layers before `name` hold, deduped, first writer wins.
+
+    THE SUBSTITUTE FOR READING THE ASSEMBLED RELEASE. Measured on v0.1
+    before the change: the union of the phase-1 layer directories holds
+    78,789 node ids and the assembled release holds 78,789, with zero in
+    either direction and zero nodes emitted by any peer-reading layer. So
+    for the question every one of them actually asks -- which compounds and
+    proteins exist -- the union is not an approximation.
+
+    First writer wins in LAYER_PRECEDENCE order, which is `assemble_release`
+    own rule; `ingest_ncats` has read its peers this way since 2026-10-09
+    and documents the same reasoning. Concatenating without the dedupe hands
+    a validator the same id repeatedly and it correctly reports
+    DUPLICATE_NODE, which says nothing about the layer under test.
+    """
+    import json
+    by_id: dict[str, dict] = {}
+    for d in peer_dirs(root, name, releases):
+        f = d / "nodes.jsonl"
+        if not f.exists():
+            continue
+        for line in f.read_text().splitlines():
+            if line.strip():
+                node = json.loads(line)
+                by_id.setdefault(node["id"], node)
+    return list(by_id.values())
+
+
+def peer_edges(root: Path, name: str, releases: Path | None = None):
+    """Every edge the layers before `name` hold, in precedence order.
+
+    Not deduped: the caller asks a question about predicates and subjects,
+    and two layers stating the same edge is a merge concern rather than a
+    reading one. `ingest_similarity` is the only caller -- it needs the
+    subjects carrying TARGETS / INHIBITS / MEASURED_INACTIVE_AGAINST, and a
+    subject counted twice is still one member of a set.
+    """
+    import json
+    for d in peer_dirs(root, name, releases):
+        f = d / "edges.jsonl"
+        if not f.exists():
+            continue
+        for line in f.read_text().splitlines():
+            if line.strip():
+                yield json.loads(line)
+
+
 def plan(root: Path, env: dict | None = None) -> list[dict]:
     """The steps a rebuild would run, in order, each with its verdict.
 
@@ -266,7 +396,7 @@ def plan(root: Path, env: dict | None = None) -> list[dict]:
     built with no host factors while every count reads correctly.
     """
     steps: list[dict] = []
-    for phase in (1, 3):
+    for phase in sorted({x.phase for x in LAYERS}):
         for layer in (x for x in LAYERS if x.phase == phase):
             ok, why = availability(layer, root, env)
             d = layer_dir(root, layer.name)
@@ -288,12 +418,19 @@ def plan(root: Path, env: dict | None = None) -> list[dict]:
                           "code": code, "code_reason": code_reason,
                           "written": (d.stat().st_mtime if d.exists()
                                       else None)})
-        steps.append({"kind": "assemble", "name": "assemble",
-                      "script": ASSEMBLE, "phase": phase + 1,
-                      "args": [],
-                      "run": True, "reason": "", "required": True,
-                      "existing": False, "code": "n/a", "code_reason": "",
-                      "written": None})
+    # ONE ASSEMBLE, AND IT IS LAST (fix-list L20, option (b)). There were
+    # two, one after each phase, because three layers read the ASSEMBLED
+    # release and so needed one to exist before they ran. They now read the
+    # layer directories built before them, so nothing needs an assembly
+    # until everything has been built -- which removes the loop L20
+    # describes and the hard failure L25 describes, rather than reporting
+    # them.
+    steps.append({"kind": "assemble", "name": "assemble",
+                  "script": ASSEMBLE, "phase": max(x.phase for x in LAYERS) + 1,
+                  "args": [],
+                  "run": True, "reason": "", "required": True,
+                  "existing": False, "code": "n/a", "code_reason": "",
+                  "written": None})
     return steps
 
 

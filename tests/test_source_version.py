@@ -116,13 +116,28 @@ def _gtop_raw(tmp_path, inter_version, ligand_version):
 
 
 def _run_ingest(raw, out, release):
+    """`release` is now a PEERS directory (L20 option (b)): gtop reads the
+    layer directories built before it, not an assembled release. The
+    caller's fixture writes nodes.jsonl under it, so this wraps it in the
+    one layer directory gtop will look for."""
+    import json
     import subprocess
     import sys
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
+    peers = Path(release).parent / "peers"
+    layer = peers / "v0.1-chembl"
+    layer.mkdir(parents=True, exist_ok=True)
+    src = Path(release) / "nodes.jsonl"
+    if src.exists():
+        (layer / "nodes.jsonl").write_text(src.read_text())
+    else:
+        (layer / "nodes.jsonl").write_text(json.dumps(
+            {"id": "UniProtKB:P04637", "class": "Protein",
+             "properties": {"is_viral": False}}))
     return subprocess.run(
         [sys.executable, str(root / "scripts" / "ingest_gtop.py"),
-         "--raw", str(raw), "--out", str(out), "--release", str(release)],
+         "--raw", str(raw), "--out", str(out), "--peers", str(peers)],
         capture_output=True, text=True, cwd=root)
 
 

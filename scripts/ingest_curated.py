@@ -38,6 +38,7 @@ from kgav.curated import (  # noqa: E402
 )
 from kgav.emit import Emit  # noqa: E402
 from kgav.orcs import build_gene_to_proteins  # noqa: E402
+from kgav.pipeline import layer_dir
 
 
 def built_taxa(spine: Path) -> set[str]:
@@ -110,11 +111,11 @@ def main(argv=None) -> int:
     ap.add_argument("--tables", type=Path,
                     default=ROOT / "data" / "raw" / "curated_screens")
     ap.add_argument("--host", type=Path,
-                    default=ROOT / "data" / "releases" / "v0.1-host")
+                    default=layer_dir(ROOT, "host"))
     ap.add_argument("--spine", type=Path,
-                    default=ROOT / "data" / "releases" / "v0.1-spine")
+                    default=layer_dir(ROOT, "spine"))
     ap.add_argument("--out", type=Path,
-                    default=ROOT / "data" / "releases" / "v0.1-curated")
+                    default=layer_dir(ROOT, "curated"))
     ap.add_argument("--inspect", action="store_true")
     ap.add_argument("--resolve", type=Path, default=None,
                     help="a file of gene SYMBOLS, one per line; prints a TSV "

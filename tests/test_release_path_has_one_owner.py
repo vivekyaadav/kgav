@@ -45,7 +45,17 @@ OWNER = ROOT / "src/kgav/pipeline.py"
 #: pattern catches is a second place that COMPUTES the path, which is the
 #: thing that can drift from pipeline.py without anyone noticing.
 LITERAL = re.compile(
-    r'(?:[\w.\]\)]\s*/\s*|Path\(\s*)"data/releases/v0\.1[^"]*"')
+    r'(?:[\w.\]\)]\s*/\s*|Path\(\s*)"data/releases/v0\.1[^"]*"'
+    #: AND THE COMPONENT-WISE FORM, which escaped both the fix-list L14
+    #: migration and the first version of this test. ingest_gtop.py had
+    #: `default=ROOT / "data" / "releases" / "v0.1"` -- the same path, built
+    #: from four strings instead of one, so a pattern anchored on the joined
+    #: literal could not see it. Found on 2026-11-11 by reading that file for
+    #: an unrelated reason, which is the 40th site and the third wrong count
+    #: of this defect. A test that can only see one spelling of the thing it
+    #: forbids is a test that reports the spellings it knows.
+    r'|"data"\s*/\s*"releases"\s*/\s*"v0\.1'
+    r'|"releases"\s*/\s*"v0\.1')
 
 
 def _code_lines(path: Path) -> list[tuple[int, str]]:

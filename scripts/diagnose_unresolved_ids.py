@@ -46,6 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from kgav.aliases import AliasIndex
 from kgav.vhppi import classify_row, file_taxon, slug
 from kgav.virus_register import declared_taxa, family_of, ppi_accession_map
+from kgav.pipeline import layer_dir
 
 
 def select_files(files: list, doc: dict, taxon_map: dict,
@@ -79,8 +80,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", type=Path, default=root / "config" / "viruses.yaml")
     ap.add_argument("--vhppi-dir", type=Path, default=root / "data" / "raw" / "vhppi")
-    ap.add_argument("--spine", type=Path, default=root / "data" / "releases" / "v0.1-spine")
-    ap.add_argument("--host", type=Path, default=root / "data" / "releases" / "v0.1-host")
+    ap.add_argument("--spine", type=Path, default=layer_dir(root, "spine"))
+    ap.add_argument("--host", type=Path, default=layer_dir(root, "host"))
     ap.add_argument("--samples", type=int, default=6,
                     help="verbatim identifiers to print per taxon")
     ap.add_argument("--family", default=None,

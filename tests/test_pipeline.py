@@ -68,24 +68,58 @@ def _reads_assembled(script: str) -> bool:
 
 
 @pytest.mark.parametrize("layer", LAYERS, ids=lambda x: x.name)
-def test_a_layer_reading_the_assembled_release_runs_after_an_assemble(layer):
-    """THE ONE THAT MATTERS. selectivity, similarity and gtop read
-    data/releases/v0.1, so they cannot run before assemble_release has
-    written it -- and assemble must then run again to include them. A layer
-    put in phase 1 by mistake still builds, from the PREVIOUS release, and
-    nothing in the output says so."""
-    expected = 3 if _reads_assembled(layer.script) else 1
-    assert layer.phase == expected, (
-        f"{layer.name} reads "
-        f"{'the assembled' if expected == 3 else 'only per-layer'} release, "
-        f"so it belongs in phase {expected}, not {layer.phase}")
+def test_NO_LAYER_READS_THE_ASSEMBLED_RELEASE(layer):
+    """THE INVARIANT THAT REPLACED THE PHASE MODEL (L20, option (b)).
+
+    This test used to assert the opposite shape: that a layer reading
+    data/releases/v0.1 must sit in phase 3, after an assemble, with a
+    second assemble to follow. That arrangement is what made L20 and L25
+    possible -- the middle assemble consumed the PREVIOUS run's output of
+    the very layers that were about to be rebuilt, so a moved subject set
+    meant non-convergence and a renamed qualifier meant a hard SCHEMA FAIL.
+
+    Three layers read the assembly and now read `pipeline.peer_nodes` /
+    `peer_edges` instead, which serve the layer directories built before
+    them. Measured before the change: that union is the assembled node set
+    exactly, 78,789 both ways with zero difference, and for similarity's
+    partition phase 1 + gtop gives the identical 9,791 compounds.
+
+    So the invariant is stronger and simpler than a phase number: NOTHING
+    reads the assembly, therefore ONE assemble suffices and it goes last.
+    """
+    assert not _reads_assembled(layer.script), (
+        f"{layer.name} reads the ASSEMBLED release. That reintroduces the "
+        f"mid-pipeline assemble, and with it L20's loop and L25's hard "
+        f"failure. Read the layers before it with pipeline.peer_nodes / "
+        f"peer_edges instead")
 
 
-def test_at_least_one_layer_is_in_each_phase():
-    """If this ever fails the two-phase structure has gone, and the second
-    assemble is doing nothing."""
-    phases = {x.phase for x in LAYERS}
-    assert phases == {1, 3}
+def test_a_peer_reading_layer_declares_it_and_comes_after_its_dependencies():
+    """`reads_peers` is what earns a later phase, and the ORDER inside that
+    phase is a real dependency: similarity partitions on TARGETS and gtop
+    contributes TARGETS, so similarity must follow it. selectivity emits
+    HAS_ANTIVIRAL_ACTIVITY_AGAINST, which is in neither set, so nothing
+    depends on it."""
+    order = [x.name for x in LAYERS]
+    peer = {x.name for x in LAYERS if x.reads_peers}
+    assert peer == {"selectivity", "gtop", "similarity"}, peer
+    assert order.index("similarity") > order.index("gtop"), (
+        "similarity partitions compounds by their TARGETS subjects and gtop "
+        "contributes TARGETS; built first, similarity sees 1,082 fewer "
+        "annotated compounds and gives them cold-start edges they do not need")
+    for x in LAYERS:
+        assert (x.phase > 1) == x.reads_peers, (
+            f"{x.name}: phase {x.phase} and reads_peers={x.reads_peers}")
+
+
+def test_there_is_exactly_one_assemble_and_it_is_last(tmp_path):
+    """The point of (b). Two assembles existed only because three layers
+    needed one to have run before them."""
+    steps = plan(tmp_path, env={})
+    assembles = [i for i, s in enumerate(steps) if s["kind"] == "assemble"]
+    assert len(assembles) == 1, (
+        f"{len(assembles)} assembles; (b) leaves exactly one")
+    assert assembles[0] == len(steps) - 1, "the assemble must be the last step"
 
 
 def test_hosttargets_follows_orcs():
@@ -144,22 +178,18 @@ def test_a_layer_with_no_declared_inputs_always_runs(tmp_path):
 
 
 # -------------------------------------------------------------------- plan
-def test_assemble_runs_between_the_phases_and_again_at_the_end(tmp_path):
-    steps = plan(tmp_path, env={})
-    kinds = [(s["kind"], s["phase"]) for s in steps]
-    assert kinds.count(("assemble", 2)) == 1
-    assert kinds.count(("assemble", 4)) == 1
-    first = next(i for i, s in enumerate(steps) if s["kind"] == "assemble")
-    after = [s for s in steps[first:] if s["kind"] == "layer"]
-    assert after and all(s["phase"] == 3 for s in after)
-
-
-def test_every_phase_one_layer_precedes_the_first_assemble(tmp_path):
+def test_every_layer_precedes_the_assemble(tmp_path):
+    """There is one assemble and it is last, so EVERY layer precedes it --
+    which is the whole of the ordering constraint now. The two tests this
+    replaced asserted an assemble between the phases and the phase-1 set
+    before it; both described the arrangement (b) removed."""
     steps = plan(tmp_path, env={})
     first = next(i for i, s in enumerate(steps) if s["kind"] == "assemble")
-    before = [s for s in steps[:first] if s["kind"] == "layer"]
-    assert {s["name"] for s in before} == {x.name for x in LAYERS
-                                           if x.phase == 1}
+    before = {s["name"] for s in steps[:first] if s["kind"] == "layer"}
+    assert before == {x.name for x in LAYERS}
+    assert not [s for s in steps[first:] if s["kind"] == "layer"], (
+        "no layer may run after the assemble; one that did would not be in "
+        "the release it was built from")
 
 
 def test_a_skipped_layer_still_appears_in_the_plan(tmp_path):

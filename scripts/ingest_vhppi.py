@@ -17,6 +17,7 @@ from kgav.emit import Emit
 from kgav.temporal import PLACEHOLDER_DATE
 from kgav.vhppi import file_source, file_taxon, ingest_mitab, slug
 from kgav.virus_register import declared_taxa, ppi_accession_map
+from kgav.pipeline import layer_dir
 
 #: Gates a zero-edge virus is reported against, worst-first. Not every gate
 #: in classify_row: host_host and not_a_protein cannot explain a vhn file,
@@ -151,9 +152,9 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", type=Path, default=root / "config" / "viruses.yaml")
     ap.add_argument("--vhppi-dir", type=Path, default=root / "data" / "raw" / "vhppi")
-    ap.add_argument("--spine", type=Path, default=root / "data" / "releases" / "v0.1-spine")
-    ap.add_argument("--host", type=Path, default=root / "data" / "releases" / "v0.1-host")
-    ap.add_argument("--out", type=Path, default=root / "data" / "releases" / "v0.1-vhppi")
+    ap.add_argument("--spine", type=Path, default=layer_dir(root, "spine"))
+    ap.add_argument("--host", type=Path, default=layer_dir(root, "host"))
+    ap.add_argument("--out", type=Path, default=layer_dir(root, "vhppi"))
     # IT IS A FALLBACK NOW. It was documented as one and applied to every
     # row, so all 12,514 edges in this layer were dated 2024-01-01 and 0 of
     # them survive a 2021 temporal cut -- M3 and M5 had nothing to traverse

@@ -42,6 +42,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 # whichever member was written last.
 from kgav.emit import Emit
 from kgav.mondo import load_labels
+from kgav.pipeline import layer_dir
 
 PRO_RE = re.compile(r"^PRO_\d+$")
 # nsp11 is a short peptide with no known enzymatic role; kept for completeness.
@@ -588,7 +589,7 @@ def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap.add_argument("--config", type=Path, default=root / "config" / "viruses.yaml")
     ap.add_argument("--proteomes", type=Path, default=root / "data" / "raw" / "proteomes")
-    ap.add_argument("--out", type=Path, default=root / "data" / "releases" / "v0.1-spine")
+    ap.add_argument("--out", type=Path, default=layer_dir(root, "spine"))
     ap.add_argument("--mondo", type=Path,
                     default=root / "data" / "raw" / "mondo" / "mondo.json",
                     help="MONDO ontology release the Disease labels come "

@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from kgav.emit import Emit
 from kgav.provenance import string_release, write_source
+from kgav.pipeline import layer_dir
 from kgav.host import (
     EXPERIMENTAL_MIN,
     build_ensp_map,
@@ -47,7 +48,7 @@ def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
     ap.add_argument("--host-dir", type=Path, default=root / "data" / "raw" / "host")
-    ap.add_argument("--out", type=Path, default=root / "data" / "releases" / "v0.1-host")
+    ap.add_argument("--out", type=Path, default=layer_dir(root, "host"))
     ap.add_argument("--experimental-min", type=int, default=EXPERIMENTAL_MIN)
     args = ap.parse_args()
 

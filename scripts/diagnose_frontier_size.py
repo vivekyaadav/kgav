@@ -30,6 +30,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from kgav import baselines as B            # noqa: E402
 from kgav.schema import load_schema        # noqa: E402
+from kgav.pipeline import release_dir
 
 
 def max_frontier(g, start, path, constraints, blocked, w=B.DEFAULT_W):
@@ -61,7 +62,7 @@ def max_frontier(g, start, path, constraints, blocked, w=B.DEFAULT_W):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--release", type=Path,
-                    default=ROOT / "data" / "releases" / "v0.1")
+                    default=release_dir(ROOT))
     ap.add_argument("--metapath", default=None,
                     help="measure only this one (M4 is the slow one)")
     args = ap.parse_args()

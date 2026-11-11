@@ -38,6 +38,7 @@ from kgav.orcs import (
     virus_taxon,
 )
 from kgav.schema import load_schema, report_violations
+from kgav.pipeline import layer_dir
 
 API = "https://orcsws.thebiogrid.org"
 
@@ -87,9 +88,9 @@ def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
     ap.add_argument("--orcs-dir", type=Path, default=root / "data" / "raw" / "orcs")
-    ap.add_argument("--host", type=Path, default=root / "data" / "releases" / "v0.1-host")
-    ap.add_argument("--spine", type=Path, default=root / "data" / "releases" / "v0.1-spine")
-    ap.add_argument("--out", type=Path, default=root / "data" / "releases" / "v0.1-orcs")
+    ap.add_argument("--host", type=Path, default=layer_dir(root, "host"))
+    ap.add_argument("--spine", type=Path, default=layer_dir(root, "spine"))
+    ap.add_argument("--out", type=Path, default=layer_dir(root, "orcs"))
     ap.add_argument("--overrides", type=Path,
                     default=root / "config" / "orcs_polarity_overrides.json")
     ap.add_argument("--index-only", action="store_true",

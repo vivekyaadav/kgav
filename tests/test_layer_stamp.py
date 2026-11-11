@@ -265,24 +265,37 @@ def test_the_plan_carries_the_code_status_for_every_layer(tmp_path):
 
 def test_rebuild_names_a_stale_phase_three_layer_and_its_consequence(
         tmp_path, capsys):
-    """THE WHOLE POINT. gtop reused from before its module was patched is
-    read by the phase-2 assemble of the next run, which validates it and
-    exits 1 -- so the ingest that would fix it never runs. The message
-    has to say that, and say to delete the directory."""
+    """THE STALENESS IS STILL NAMED; THE CONSEQUENCE IT WARNED OF IS GONE.
+
+    This asserted that the message say gtop is PHASE 3, that the phase-2
+    assemble runs first, and that the stale output is therefore validated
+    before the ingest that would fix it -- the failure that killed this
+    script twice on 2026-11-02 and once on 2026-11-11 (fix-list L25).
+
+    L20 option (b) removed that hazard rather than reporting it: the three
+    layers that read the assembled release now read the layer directories
+    built before them, so there is ONE assemble and it is last, and every
+    stale layer's ingest re-runs before anything reads it. Asserting the
+    old sentences here would hold the driver to a description of a pipeline
+    that no longer exists.
+
+    What must survive is the part that is still true and still useful: the
+    layer is named, the changed module is named, and a layer that is NOT
+    queued this run is called out, because a skipped layer is REUSED and
+    reuse is only correct if nothing it depends on changed.
+    """
     import rebuild_release
     rebuild_release.main(["--plan", "--root", str(_repo(tmp_path, True))])
     out = capsys.readouterr().out
     assert "WRITTEN BY CODE THAT HAS SINCE CHANGED" in out
     assert "src/kgav/gtop.py" in out
-    assert "PHASE 3" in out
-    # THE CONDITION, NOT JUST THE WORDS. gtop's raw inputs exist in this
-    # fixture, so its ingest IS queued to run -- exactly as on 2026-11-02.
-    # A warning gated on "will not be re-run" stays silent here, which is
-    # silent through the only failure it was written for.
-    assert "even though it is queued to run this pass" in out
-    assert "the phase-2 assemble runs first" in out
-    assert "Delete the directory instead" in out
-    assert "absent layer is left out" in out
+    assert "gtop" in out
+    # ONE ASSEMBLE, which is what makes the old consequence false.
+    assert "1 assemble pass" in out
+    assert "assemble passes" not in out
+    # And the retired sentences must NOT come back.
+    assert "the phase-2 assemble runs first" not in out, (
+        "there is no phase-2 assemble any more")
 
 
 def test_rebuild_says_nothing_about_code_when_everything_matches(

@@ -17,7 +17,10 @@ from kgav.provenance import chembl_release, write_source
 from kgav.schema import load_schema, report_violations
 from kgav.selectivity import SI_THRESHOLD, ingest_selectivity, query_pairs
 from kgav.virus_register import declared_taxa
-from kgav.pipeline import layer_dir, release_dir
+from kgav.pipeline import layer_dir, peer_nodes
+
+#: This layer's own name, so peer_nodes can exclude it.
+SELF_LAYER = "selectivity"
 
 
 def main() -> int:
@@ -26,7 +29,12 @@ def main() -> int:
     ap.add_argument("--db", type=Path,
                     default=root / "data/raw/chembl/chembl_37/chembl_37_sqlite/chembl_37.db")
     ap.add_argument("--config", type=Path, default=root / "config" / "viruses.yaml")
-    ap.add_argument("--release", type=Path, default=release_dir(root))
+    # --peers, NOT --release. This layer no longer reads the assembled
+    # graph; it reads the layer directories built before it (L20 (b)).
+    # Same flag name and same default as ingest_ncats, which has read
+    # its peers this way since 2026-10-09.
+    ap.add_argument("--peers", type=Path, default=root / "data/releases",
+                    help="directory holding the per-layer releases")
     ap.add_argument("--out", type=Path, default=layer_dir(root, "selectivity"))
     ap.add_argument("--threshold", type=float, default=SI_THRESHOLD)
     args = ap.parse_args()
@@ -148,8 +156,13 @@ def main() -> int:
         for tid, n in per_virus.most_common():
             print(f"  {tid:<22} {n:>6,}")
 
-    nodes = [json.loads(x) for x in (args.release / "nodes.jsonl").read_text().splitlines()
-             if x.strip()]
+    # READS THE LAYERS BEFORE IT, not the assembled release (fix-list
+    # L20, option (b)). pipeline.peer_nodes dedupes by id in
+    # LAYER_PRECEDENCE order, which is assemble_release's own rule, and
+    # on v0.1 reproduces the assembled node set exactly -- 78,789 both
+    # ways, zero difference. Nothing needs an assembly to exist before
+    # this layer runs, so the pipeline assembles once, at the end.
+    nodes = peer_nodes(root, SELF_LAYER, releases=args.peers)
     known = {n["id"] for n in nodes}
     dangling = [e for e in em.edges if e["subject"] not in known or e["object"] not in known]
     if dangling:

@@ -383,14 +383,17 @@ def test_the_driver_writes_nothing_when_no_edge_survives(tmp_path, capsys):
     (raw / "ligands.csv").write_text(
         GTOP_VERSION_LINE + "\n" + LHEAD + "\n"
         + _row_text(LHEAD, **{"Ligand ID": "1", "InChIKey": "KEY-1"}) + "\n")
-    rel = tmp_path / "rel"
-    rel.mkdir()
+    # A PEERS DIRECTORY, not a release (L20 option (b)). gtop reads the
+    # layer directories built before it, so the fixture puts its node in
+    # one of them -- chembl, which LAYER_PRECEDENCE places before gtop.
+    peers = tmp_path / "peers"
+    (peers / "v0.1-chembl").mkdir(parents=True)
     import json as _json
-    (rel / "nodes.jsonl").write_text(_json.dumps(
+    (peers / "v0.1-chembl" / "nodes.jsonl").write_text(_json.dumps(
         {"id": "UniProtKB:P04637", "class": "Protein",
          "properties": {"is_viral": False}}))
     out = tmp_path / "out"
-    assert D.main(["--raw", str(raw), "--release", str(rel),
+    assert D.main(["--raw", str(raw), "--peers", str(peers),
                    "--out", str(out)]) == 1
     assert not out.exists()
     assert "would assemble silently" in capsys.readouterr().out

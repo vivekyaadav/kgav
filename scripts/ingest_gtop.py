@@ -43,26 +43,42 @@ from kgav.gtop import (  # noqa: E402
     ligand_inchikeys,
     parse_version,
 )
+from kgav.pipeline import layer_dir, peer_nodes  # noqa: E402
 from kgav.provenance import SOURCE_STAMP_NAME, write_source  # noqa: E402
 
+#: This layer's own name, so peer_nodes excludes it.
+SELF_LAYER = "gtop"
 
-def graph_ids(release: Path) -> tuple[set[str], CompoundIndex]:
-    """(human protein ids, the compound index) for a built release."""
+
+def graph_ids_from_nodes(all_nodes) -> tuple[set[str], CompoundIndex]:
+    """(human protein ids, the compound index) for a set of node dicts.
+
+    Split out of `graph_ids` for fix-list L20 option (b): this layer reads
+    the layer directories built before it rather than the assembled
+    release, so its input arrives as node dicts from
+    `pipeline.peer_nodes`. On v0.1 that set is the assembled node set
+    exactly -- 78,789 both ways, zero difference either direction -- which
+    is what makes the substitution sound for the only question asked here,
+    which proteins and compounds exist.
+    """
     proteins: set[str] = set()
     nodes: list[dict] = []
-    p = release / "nodes.jsonl"
-    if not p.exists():
-        return proteins, CompoundIndex(frozenset())
-    for line in p.read_text().splitlines():
-        if not line.strip():
-            continue
-        n = json.loads(line)
+    for n in all_nodes:
         if n.get("class") == "Protein" and not (
                 n.get("properties") or {}).get("is_viral"):
             proteins.add(n["id"])
         elif n.get("class") == "SmallMolecule":
             nodes.append(n)
     return proteins, CompoundIndex.from_nodes(nodes)
+
+
+def graph_ids(release: Path) -> tuple[set[str], CompoundIndex]:
+    """(human protein ids, the compound index) for a built release directory."""
+    p = release / "nodes.jsonl"
+    if not p.exists():
+        return set(), CompoundIndex(frozenset())
+    return graph_ids_from_nodes(
+        json.loads(line) for line in p.read_text().splitlines() if line.strip())
 
 
 def main(argv=None) -> int:
@@ -76,10 +92,15 @@ def main(argv=None) -> int:
     ap.add_argument("--refs", type=Path, default=ROOT / "data" / "raw" / "refs",
                     help="directory holding sec_ac.txt and delac_sp.txt; an "
                          "absent file degrades to the old behaviour")
-    ap.add_argument("--release", type=Path,
-                    default=ROOT / "data" / "releases" / "v0.1")
+    # --peers, NOT --release. THIS DEFAULT ALSO ESCAPED fix-list L14: it
+    # was built from separate path components rather than one string, so
+    # neither the migration's pattern nor the test that guards it could
+    # see the literal. It is the 40th site, found by reading this file for
+    # another reason.
+    ap.add_argument("--peers", type=Path, default=ROOT / "data" / "releases",
+                    help="directory holding the per-layer releases")
     ap.add_argument("--out", type=Path,
-                    default=ROOT / "data" / "releases" / "v0.1-gtop")
+                    default=layer_dir(ROOT, "gtop"))
     ap.add_argument("--inspect", action="store_true")
     ap.add_argument("--mint", action="store_true",
                     help="also emit edges for ligands not already in the "
@@ -126,9 +147,11 @@ def main(argv=None) -> int:
 
     print(f"{len(rows):,} interactions, {len(keys):,} ligands with an "
           f"InChIKey, {len(chembl):,} with a ChEMBL id\n")
-    proteins, compounds = graph_ids(args.release)
+    # THE LAYERS BEFORE THIS ONE, not the assembled release (L20 (b)).
+    proteins, compounds = graph_ids_from_nodes(
+        peer_nodes(ROOT, SELF_LAYER, releases=args.peers))
     if not proteins:
-        print(f"no nodes under {args.release}; build the release first")
+        print(f"no layer nodes under {args.peers}; build the other layers first")
         return 2
     print(f"graph: {len(proteins):,} human proteins, "
           f"{len(compounds.exact):,} small molecules "

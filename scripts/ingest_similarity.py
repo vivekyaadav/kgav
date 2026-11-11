@@ -16,12 +16,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from kgav.emit import Emit
 from kgav.provenance import rdkit_release, write_source
 from kgav.schema import load_schema, report_violations
-from kgav.pipeline import layer_dir, release_dir
+from kgav.pipeline import layer_dir, peer_edges, peer_nodes
+
+#: This layer's own name, so the peer readers exclude it.
+SELF_LAYER = "similarity"
 from kgav.similarity import (
     ANNOTATING,
     build,
+    compounds_from_nodes,
     fingerprints,
-    load_compounds,
     similarity_distribution,
 )
 
@@ -29,7 +32,8 @@ from kgav.similarity import (
 def main() -> int:
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser()
-    ap.add_argument("--release", type=Path, default=release_dir(root))
+    ap.add_argument("--peers", type=Path, default=root / "data/releases",
+                    help="directory holding the per-layer releases")
     ap.add_argument("--out", type=Path, default=layer_dir(root, "similarity"))
     ap.add_argument("--threshold", type=float, default=0.7)
     ap.add_argument("--top-k", type=int, default=10)
@@ -50,8 +54,16 @@ def main() -> int:
                     f"{floor} for tanimoto_ecfp4. Change the schema (with a "
                     f"version bump) if the cut should move.")
 
-    smiles = load_compounds(args.release)
-    print(f"{len(smiles):,} compounds in the release")
+    # READS THE LAYERS BEFORE IT, not the assembled release (L20 (b)).
+    # gtop is one of them, deliberately: it contributes TARGETS, which is
+    # in ANNOTATING, so the partition below depends on it. Measured before
+    # the change -- reading phase 1 only would have moved 1,082 compounds
+    # annotated ONLY by gtop into the query set, giving them cold-start
+    # edges they do not need; reading phase 1 + gtop reproduces the
+    # assembly's partition exactly, 9,791 both ways.
+    peers = peer_nodes(root, SELF_LAYER, releases=args.peers)
+    smiles = compounds_from_nodes(peers)
+    print(f"{len(smiles):,} compounds across the layers built before this one")
 
     # Reference set = compounds that already have target annotations, since M6
     # exists to borrow those. Query set = compounds that have none.
@@ -77,10 +89,7 @@ def main() -> int:
     # constraints. Erring toward not contradicting a measurement.
     annotated: set[str] = set()
     measured_inactive: set[str] = set()
-    for line in (args.release / "edges.jsonl").read_text().splitlines():
-        if not line.strip():
-            continue
-        e = json.loads(line)
+    for e in peer_edges(root, SELF_LAYER, releases=args.peers):
         if e["predicate"] in ANNOTATING:
             annotated.add(e["subject"])
             if e["predicate"] == "MEASURED_INACTIVE_AGAINST":
@@ -153,9 +162,8 @@ def main() -> int:
               f"as two InChIKeys of one\n  molecule (shared 14-character "
               f"skeleton), not as neighbours")
 
-    # Endpoints all exist in the release, so validate against its nodes.
-    nodes = [json.loads(x) for x in (args.release / "nodes.jsonl").read_text().splitlines()
-             if x.strip()]
+    # Endpoints all exist among the peers, so validate against those.
+    nodes = peers
     violations = load_schema().validate_batch(nodes, em.edges)
     if report_violations(violations):
         return 1

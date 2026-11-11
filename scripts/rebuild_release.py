@@ -147,8 +147,12 @@ def main(argv=None) -> int:
     runnable = [s for s in layers if s["run"]]
     skipped = [s for s in layers if not s["run"]]
 
+    # COUNTED, NOT TYPED. This said "2 assemble passes" as a literal, and
+    # L20 option (b) left exactly one, so the line would have described the
+    # old pipeline while running the new one.
+    n_assemble = sum(1 for s in steps if s["kind"] == "assemble")
     print(f"{len(runnable)} layer(s) to run, {len(skipped)} skipped, "
-          f"2 assemble passes\n")
+          f"{n_assemble} assemble pass{'es' if n_assemble != 1 else ''}\n")
     for s in steps:
         if s["kind"] == "assemble":
             print(f"  phase {s['phase']}  ASSEMBLE   {s['script']}")
@@ -194,27 +198,26 @@ def main(argv=None) -> int:
         print("WRITTEN BY CODE THAT HAS SINCE CHANGED:")
         for s in stale:
             print(f"  phase {s['phase']}  {s['code_reason']}")
-        # PHASE, NOT RUNNABILITY. The first version of this said "phase 3
-        # and will NOT be re-run", which is the wrong condition and would
-        # have stayed silent through the failure it was written for: on
-        # 2026-11-02 gtop WAS runnable and DID re-run. It never got the
-        # chance, because phase 2 assembles before phase 3 runs, so the
-        # stale output is validated first and the run exits 1 there. A
-        # stale phase-3 layer is dangerous whether or not its ingest is
-        # queued behind the assemble that will reject it.
-        p3 = [s for s in stale if s["phase"] == 3]
-        if p3:
-            names = ", ".join(s["name"] for s in p3)
-            queued = [s for s in p3 if s["run"]]
-            print(f"\n  {names} {'is' if len(p3) == 1 else 'are'} PHASE 3, "
-                  f"and the phase-2 assemble runs first.")
-            print("  It reads the stale output and validates it, so if those "
-                  "qualifiers no longer\n  validate this run exits there -- "
-                  + ("before the phase-3 ingest that would\n  replace them, "
-                     "even though it is queued to run this pass.\n"
-                     if queued else "and the ingest is not queued either.\n")
-                  + "  Delete the directory instead: an absent layer is left "
-                    "out, a stale one is not.")
+        # THE HAZARD THIS BLOCK USED TO DESCRIBE IS GONE (L20 option (b)).
+        # It read: a stale PHASE 3 layer is dangerous because the phase-2
+        # assemble consumes it, validates it, and exits 1 before the ingest
+        # that would replace it can run -- which killed this script twice on
+        # 2026-11-02 and once more on 2026-11-11, on the L11 qualifier
+        # rename (fix-list L25). There is now ONE assemble and it is last,
+        # so every stale layer's ingest re-runs before anything reads it.
+        #
+        # The warning stays because staleness is still worth knowing: a
+        # layer that is skipped this run is REUSED, and reuse is only
+        # correct if nothing it depends on has changed. What is dropped is
+        # the consequence, which is no longer true and would now be a
+        # confident sentence about a pipeline that does not exist.
+        not_queued = [s for s in stale if not s["run"]]
+        if not_queued:
+            names = ", ".join(s["name"] for s in not_queued)
+            print(f"\n  {names} {'is' if len(not_queued) == 1 else 'are'} "
+                  f"not queued to run this pass, so the stale output is what "
+                  f"the\n  assemble will read. Delete the directory instead: "
+                  f"an absent layer is left out,\n  a stale one is not.")
         print()
     unstamped = [s for s in layers if s["code"] == "unstamped"]
     if unstamped:

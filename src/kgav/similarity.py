@@ -284,14 +284,28 @@ def build(em, smiles_by_id: dict[str, str], query_ids: set[str], ref_ids: set[st
     return stats
 
 
-def load_compounds(release: Path) -> dict[str, str]:
-    """node id -> SMILES for every SmallMolecule in a release."""
-    import json
+def compounds_from_nodes(nodes) -> dict[str, str]:
+    """node id -> SMILES for every SmallMolecule among `nodes`.
+
+    Split out of `load_compounds` for fix-list L20 option (b): this layer
+    now reads the layer directories built before it rather than the
+    assembled release, so its input arrives as a list of node dicts that
+    `pipeline.peer_nodes` has already deduped by id in LAYER_PRECEDENCE
+    order. That order is what makes the SMILES here the same one the
+    assembler would have resolved -- 222 compounds have a layer stating a
+    different structure (L18), so walking the peers in build order instead
+    would hand this layer a structure the release does not hold.
+    """
     out: dict[str, str] = {}
-    for line in (Path(release) / "nodes.jsonl").read_text().splitlines():
-        if not line.strip():
-            continue
-        n = json.loads(line)
+    for n in nodes:
         if n["class"] == "SmallMolecule":
-            out[n["id"]] = n["properties"].get("smiles") or ""
+            out[n["id"]] = (n.get("properties") or {}).get("smiles") or ""
     return out
+
+
+def load_compounds(release: Path) -> dict[str, str]:
+    """node id -> SMILES for every SmallMolecule in a release directory."""
+    import json
+    return compounds_from_nodes(
+        json.loads(x) for x in
+        (Path(release) / "nodes.jsonl").read_text().splitlines() if x.strip())
