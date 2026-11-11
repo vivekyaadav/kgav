@@ -415,7 +415,7 @@ def _attach_spread(quals: dict, values: dict[str, list[float]],
     state no median (counted as `affinity_range_without_median`), so there
     is no row anywhere in this export where the two coexist. The range
     therefore comes from collapsing the duplicate rows of one pair -- the
-    same thing host_targets counts -- which is what makes `potency_n` mean
+    same thing host_targets counts -- which is what makes `potency_rows` mean
     ONE thing across both layers: source records collapsed into the named
     potency, with n=1 implying min == max == the point.
 
@@ -438,7 +438,7 @@ def _attach_spread(quals: dict, values: dict[str, list[float]],
                                        -POTENCY_FIELD_ORDER.index(q)))
     rows = values[named]
     quals["potency_spread_field"] = named
-    quals["potency_n"] = len(rows)
+    quals["potency_rows"] = len(rows)
     quals["potency_min_nm"] = float(min(rows))
     quals["potency_max_nm"] = float(max(rows))
     if len(rows) > 1:

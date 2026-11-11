@@ -204,7 +204,7 @@ def main(argv=None) -> int:
               f"several rows into one potency, of which\n          "
               f"{s['edges_whose_rows_disagree']:,} span rows that disagree. "
               f"Every edge with a potency states its\n          range, so "
-              f"potency_n=1 means one row rather than an unrecorded spread")
+              f"potency_rows=1 means one row rather than an unrecorded spread")
     if s["edge_measures_several_fields_one_spread_kept"]:
         print(f"  {s['edge_measures_several_fields_one_spread_kept']:7,} "
               f"edge(s) hold more than one measurement type and have one\n"

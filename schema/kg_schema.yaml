@@ -1,4 +1,4 @@
-schema_version: "0.14.0"
+schema_version: "0.15.0"
 scope: "Coronaviridae v1 — SARS-CoV-2, SARS-CoV, MERS-CoV, HCoV-229E, HCoV-OC43, HCoV-NL63, HCoV-HKU1"
 
 # ---------------------------------------------------------------------------
@@ -614,15 +614,27 @@ edge_classes:
       # below are the A4 defect wearing new names. One (drug, target) pair
       # can carry an IC50 row AND a Ki row: 3,801 of 14,381 pairs do, and
       # they merge on (subject, predicate, object), so a single
-      # potency_n/min/max slot would describe one quantity while the edge
+      # potency_rows/min/max slot would describe one quantity while the edge
       # states two. An edge has ONE range slot, so a layer holding two
       # measurements names the field with the most rows behind it and
       # counts what it could not record.
       potency_spread_field:
                       {type: string, enum: potency_field,
                        doc: "which potency qualifier the range describes"}
-      potency_n:      {type: int, min: 1,
-                       doc: "rows collapsed into this edge's potency"}
+      # NAMED potency_rows, NOT potency_n (fix-list L11). It counts the
+      # SOURCE ROWS this project collapsed onto this edge's potency -- one
+      # row implying min == max == the point. It is NOT the number of times
+      # the compound was measured, and the two diverge in both directions:
+      # ChEMBL states its own replicate count in activity_comment as
+      # "No. Measurements = N", 9,200 candidate rows carry it and 8,736 of
+      # them say = 1. So an edge gathering three rows that each say = 1
+      # read potency_n = 3, and an edge carrying one row that says = 8 read
+      # potency_n = 1. Neither number was wrong and the name answered the
+      # other question. If ChEMBL's count is ever wanted on the edge it
+      # needs its own qualifier, not this one.
+      potency_rows:   {type: int, min: 1,
+                       doc: "source rows collapsed into this edge's potency;
+                             NOT the source's own replicate count"}
       potency_min_nm: {type: float, min: 0,
                        doc: "smallest potency among those rows"}
       potency_max_nm: {type: float, min: 0,

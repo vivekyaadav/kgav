@@ -366,7 +366,7 @@ def merge_edges(a: dict, b: dict, derive: DeriveFn | None = None,
 #: two layers that emit TARGETS, and each writes all four or none, which is
 #: what keeps the group intact through a merge: every name here resolves to
 #: the same side, so a surviving range is one layer's throughout.
-_RANGE_QUALS = ("potency_spread_field", "potency_n",
+_RANGE_QUALS = ("potency_spread_field", "potency_rows",
                 "potency_min_nm", "potency_max_nm")
 
 #: The order a layer names its spread field in when it measured more than

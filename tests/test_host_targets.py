@@ -532,13 +532,13 @@ def test_every_row_undated_still_leaves_the_placeholder():
 
 
 def test_a_single_row_still_carries_the_range():
-    """potency_n=1 with min==max==the value. Emitting these only for
+    """potency_rows=1 with min==max==the value. Emitting these only for
     replicates would make their absence mean two things -- one
     measurement, or a layer predating this -- and an absent qualifier is
     the ambiguity this project keeps paying for."""
     em, _ = _emit_dups(_dup_rows([2014], values=[50.0]))
     q = em.edges[0]["qualifiers"]
-    assert q["potency_n"] == 1
+    assert q["potency_rows"] == 1
     assert q["potency_min_nm"] == q["potency_max_nm"] == 50.0
     assert q["potency_spread_field"] == "ic50_nm"
 
@@ -548,7 +548,7 @@ def test_the_range_spans_every_collapsed_row_and_the_point_does_not_move():
         _dup_rows([2014, 2015, 2016], values=[1.0, 1000.0, 7.0]))
     q = em.edges[0]["qualifiers"]
     assert q["ic50_nm"] == 1.0, "the retained point must not have changed"
-    assert q["potency_n"] == 3
+    assert q["potency_rows"] == 3
     assert (q["potency_min_nm"], q["potency_max_nm"]) == (1.0, 1000.0)
     assert stats["edges_collapsing_several_rows"] == 1
     assert stats["edges_whose_rows_disagree"] == 1
@@ -611,7 +611,7 @@ def test_an_orphaned_range_is_dropped_by_the_merge():
                 "object": "UniProtKB:P1", "qualifiers": dict(quals),
                 "primary_knowledge_source": "infores:x", "evidence_tier": 1,
                 "first_asserted_date": "2020"}
-    held = {"potency_spread_field": "ic50_nm", "potency_n": 1,
+    held = {"potency_spread_field": "ic50_nm", "potency_rows": 1,
             "potency_min_nm": 1.1, "potency_max_nm": 1.1}
     stats = Counter()
     # the winning side states a potency the range does not contain
@@ -646,7 +646,7 @@ def test_the_release_keeps_the_invariant_through_assembly():
         if e["predicate"] != "TARGETS":
             continue
         q = e.get("qualifiers") or {}
-        if "potency_n" not in q:
+        if "potency_rows" not in q:
             continue
         named = q.get("potency_spread_field")
         assert named, f"a range with no field: {e['subject']} -> {e['object']}"

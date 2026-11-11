@@ -572,7 +572,7 @@ def ingest_host_targets(em, rows: list[dict], mechanisms: dict[tuple[str, str], 
             stats["no_publication"] += 1
         # THE THREE SPREAD QUALIFIERS (fix-list P13, option b). Emitted on
         # EVERY edge, including the 11,763 keys with a single row, where
-        # they read potency_n=1 and min==max==the value. Emitting them only
+        # they read potency_rows=1 and min==max==the value. Emitting them only
         # for replicates would make their absence mean two things -- one
         # measurement, or a layer that predates this -- and an absent
         # qualifier is the ambiguity this project keeps paying for.
@@ -583,7 +583,7 @@ def ingest_host_targets(em, rows: list[dict], mechanisms: dict[tuple[str, str], 
         # unnamed range would describe one quantity on an edge stating two
         # -- which is fix-list A4 reintroduced under new qualifier names.
         rec["quals"]["potency_spread_field"] = rec["potency_field"]
-        rec["quals"]["potency_n"] = len(values)
+        rec["quals"]["potency_rows"] = len(values)
         rec["quals"]["potency_min_nm"] = float(min(values))
         rec["quals"]["potency_max_nm"] = float(max(values))
         if len(values) > 1:

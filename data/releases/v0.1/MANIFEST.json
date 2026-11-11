@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.14.0",
+  "schema_version": "0.15.0",
   "layers": {
     "spine": {
       "path": "data/releases/v0.1-spine",
@@ -46,7 +46,7 @@
     "gtop": {
       "path": "data/releases/v0.1-gtop",
       "nodes_sha": "e3b0c44298fc1c14",
-      "edges_sha": "c0b5ba84a9dfe4c3",
+      "edges_sha": "9ca3b577a0e56e95",
       "sources": {
         "guidetopharmacology": {
           "published": "2026-10-12",
@@ -58,7 +58,7 @@
     "hosttargets": {
       "path": "data/releases/v0.1-hosttargets",
       "nodes_sha": "204080345186d1bb",
-      "edges_sha": "6cd92315cbdb031f",
+      "edges_sha": "c89b0e973896d594",
       "sources": {
         "chembl": "chembl_37"
       }
@@ -135,7 +135,7 @@
     "qualifier_precedence_decided:kd_nm": 88,
     "qualifier_precedence_decided:ki_nm": 446,
     "qualifier_precedence_decided:potency_spread_field": 4764,
-    "qualifier_precedence_decided:potency_n": 3992,
+    "qualifier_precedence_decided:potency_rows": 3992,
     "qualifier_precedence_decided:potency_min_nm": 6124,
     "qualifier_precedence_decided:potency_max_nm": 6143,
     "qualifier_kept_more_specific:direction": 47,
@@ -177,7 +177,7 @@
   "release": "v0.1",
   "hub_cut_degree": 460,
   "code": {
-    "commit": "ae538bff92931b9baa9a50400c00f9cc1caed52e",
+    "commit": "21c0f9299b20e82bf832548f1a69b8caa83ccb79",
     "dirty": true
   }
 }

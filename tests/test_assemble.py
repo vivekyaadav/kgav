@@ -988,9 +988,9 @@ def test_a_surviving_range_is_one_layers_throughout():
                 "primary_knowledge_source": "infores:x", "evidence_tier": 1,
                 "first_asserted_date": "2020"}
     hi = {"ic50_nm": 10.0, "potency_spread_field": "ic50_nm",
-          "potency_n": 2, "potency_min_nm": 10.0, "potency_max_nm": 90.0}
+          "potency_rows": 2, "potency_min_nm": 10.0, "potency_max_nm": 90.0}
     lo = {"ic50_nm": 50.0, "ki_nm": 7.0, "potency_spread_field": "ki_nm",
-          "potency_n": 4, "potency_min_nm": 1.0, "potency_max_nm": 7.0}
+          "potency_rows": 4, "potency_min_nm": 1.0, "potency_max_nm": 7.0}
     for a, b in ((hi, lo), (lo, hi)):
         q = merge_edges(edge(a), edge(b), None, Counter())["qualifiers"]
         kept = {k: q[k] for k in _RANGE_QUALS if k in q}
@@ -1012,7 +1012,7 @@ def test_a_layer_that_writes_half_the_group_is_what_the_drop_rule_is_for():
          "object": "UniProtKB:P1", "qualifiers": {"ic50_nm": 500.0},
          "primary_knowledge_source": "infores:x", "evidence_tier": 1}
     b = {**a, "qualifiers": {"ic50_nm": 10.0, "potency_spread_field": "ic50_nm",
-                             "potency_n": 2, "potency_min_nm": 10.0,
+                             "potency_rows": 2, "potency_min_nm": 10.0,
                              "potency_max_nm": 90.0}}
     q = merge_edges(a, b, None, stats)["qualifiers"]
     assert q["ic50_nm"] == 500.0

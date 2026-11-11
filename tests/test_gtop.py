@@ -989,7 +989,7 @@ def test_a_single_row_states_a_range_of_one():
     ingest_interactions(em, [_inter()], KEYS, PROTS, IDX)
     q = em.edges[0]["qualifiers"]
     assert q["potency_spread_field"] == "ki_nm"
-    assert (q["potency_n"], q["potency_min_nm"], q["potency_max_nm"]) == (
+    assert (q["potency_rows"], q["potency_min_nm"], q["potency_max_nm"]) == (
         1, 40.0, 40.0)
 
 
@@ -1008,7 +1008,7 @@ def test_duplicate_rows_become_the_range_and_leave_the_point_alone():
     assert s["edges"] == 1
     q = em.edges[0]["qualifiers"]
     assert q["ki_nm"] == 40.0, "the point moved"
-    assert (q["potency_n"], q["potency_min_nm"], q["potency_max_nm"]) == (
+    assert (q["potency_rows"], q["potency_min_nm"], q["potency_max_nm"]) == (
         3, 40.0, 4000.0)
     assert s["edges_collapsing_several_rows"] == 1
     assert s["edges_whose_rows_disagree"] == 1
@@ -1024,7 +1024,7 @@ def test_rows_that_agree_are_counted_apart_from_rows_that_do_not():
     assert s["edges_collapsing_several_rows"] == 1
     assert not s["edges_whose_rows_disagree"]
     q = em.edges[0]["qualifiers"]
-    assert q["potency_n"] == 3 and q["potency_min_nm"] == q["potency_max_nm"]
+    assert q["potency_rows"] == 3 and q["potency_min_nm"] == q["potency_max_nm"]
 
 
 def test_the_named_field_is_the_one_with_rows_behind_it():
@@ -1127,7 +1127,7 @@ def test_the_export_never_states_a_median_and_a_range_on_one_row():
     """THE MEASUREMENT _attach_spread RESTS ON, re-derived from the
     download rather than quoted from it. If GtoPdb ever ships both on one
     row, the range should come from the source's own interval instead of
-    from counting duplicates -- and `potency_n` would stop meaning the same
+    from counting duplicates -- and `potency_rows` would stop meaning the same
     thing it means in host_targets, which is the reason this is a test and
     not a comment."""
     import re

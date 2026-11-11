@@ -5,7 +5,7 @@ Coronaviridae and Flaviviridae, and what it can and cannot be used to measure.
 ================================================================================
 
 Repository      github.com/vivekyaadav/kgav
-Schema version  0.14.0
+Schema version  0.15.0
 Release audited v0.1
 Scope           16 viruses — 7 Coronaviridae, 9 Flaviviridae
 

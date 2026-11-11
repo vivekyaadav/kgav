@@ -12,7 +12,7 @@ hard-negatives analysis and not to this one, and is left out rather than
 listed here for completeness.
 
 Date drafted: 2026-11-02. Release: v0.1 (78,789 nodes / 392,375 edges,
-`nodes_sha` c800b9005c8b074c, `edges_sha` e26239a4e87865b3). Scripts:
+`nodes_sha` c800b9005c8b074c, `edges_sha` ad7121bc2195a93a). Scripts:
 `scripts/pathway_landscape.py`, read by `src/kgav/landscape.py`.
 
 **The release identification has now been updated eight times -- 2026-11-08
