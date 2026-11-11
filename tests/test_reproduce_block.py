@@ -402,3 +402,26 @@ def test_check_results_is_the_last_command():
         f"the last command is {cmds[-1]!r}, so check-results is not "
         f"auditing everything the block writes")
     assert sum(c == "make check-results" for c in cmds) == 1
+
+
+def test_every_marked_table_agrees_with_its_own_derivation():
+    """FIX-LIST P10. Five tables in docs/ carry a machine-readable marker
+    and a test that derives them cell by cell; scripts/
+    rewrite_derived_tables.py writes that derivation back, so the figures
+    stop being maintained by hand.
+
+    This is the standing check that they have not drifted -- and the reason
+    it exists is that hand maintenance measurably failed: the 2026-11-11
+    rebuild left 111 figure assertions failing, and three figures typed by
+    hand in that same session were wrong (a pooled count of 18,914 for
+    18,900, a delta subtracted from displayed four-decimal values, and an
+    AUC literal from memory). Every derived figure was right.
+    """
+    import subprocess
+    import sys
+    out = subprocess.run(
+        [sys.executable, "scripts/rewrite_derived_tables.py", "--check"],
+        cwd=ROOT, capture_output=True, text=True, timeout=600)
+    assert out.returncode == 0, (
+        "a marked table disagrees with its own derivation; run "
+        "`make rewrite-tables`.\n" + out.stdout[-1500:])

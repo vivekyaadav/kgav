@@ -18,8 +18,8 @@ diagnostic that produced the design facts below was built with a boundary it
 cannot cross -- `tests/test_prereg_structure_scorer.py` fails if it ever
 computes a similarity.
 
-Date: 2026-11-11. Release: v0.1 (78,789 nodes / 392,375 edges, `nodes_sha`
-c800b9005c8b074c, `edges_sha` ad7121bc2195a93a). Scripts to be written:
+Date: 2026-11-11. Release: v0.1 (78,500 nodes / 391,727 edges, `nodes_sha`
+b0d6fc69d63942c2, `edges_sha` 545fb7d87b0aec08). Scripts to be written:
 `scripts/structure_scorer.py`. Design facts below: `make
 diagnose-structure-design`.
 
@@ -52,8 +52,8 @@ entirely `auc_floor`, the free credit a coverage gap pays, and the ranking
 contributes a rounding error.
 
 A structure-derived scorer is the only candidate measured to escape that.
-**Every labelled compound carries a SMILES: 13,417 of 13,417 under the
-ChEMBL-only population registered below, and 18,998 of 18,998 pooled.**
+**Every labelled compound carries a SMILES: 13,345 of 13,345 under the
+ChEMBL-only population registered below, and 18,900 of 18,900 pooled.**
 Both are 100.0%, and the registered figure is the first -- quoting the
 pooled one for a ChEMBL-only study is the cross-population slip this
 document made in its own first draft. So the coverage gap is zero, the floor
@@ -170,20 +170,20 @@ negatives.
   class sizes could distinguish from chance. That figure, uncorrected at
   z=1.96 from this project's own interval, is:
 
-      SARS-CoV-2     (2697049)    1,786 / 5,362    0.5156
-      DENV-2         (11060)        996 / 3,043    0.5208
-      Zika           (64320)        748 / 2,577    0.5237
-      West Nile      (11082)        261 /   311    0.5475
-      Yellow fever   (11089)        135 /   882    0.5533
-      DENV-1         (11053)        195 /   123    0.5640
-      DENV-3         (11069)        213 /    95    0.5680
-      DENV-4         (11070)        153 /   109    0.5697
-      SARS-CoV       (694009)       143 /    96    0.5732
-      HCoV-229E      (11137)        120 /    88    0.5778
-      HCoV-OC43      (31631)        164 /    70    0.5781
-      TBEV           (11084)         72 /    65    0.5948
-      MERS-CoV       (1335626)      133 /    41    0.5957
-      JEV            (11072)         19 /    27    0.6632
+      SARS-CoV-2    (2697049)    1,761 / 5,320    0.5157
+      DENV-2        (11060)        995 / 3,043    0.5208
+      Zika          (64320)        748 / 2,577    0.5237
+      West Nile     (11082)        261 /   311    0.5475
+      Yellow fever  (11089)        135 /   882    0.5533
+      DENV-1        (11053)        195 /   123    0.5640
+      DENV-3        (11069)        213 /    95    0.5680
+      DENV-4        (11070)        153 /   109    0.5697
+      SARS-CoV      (694009)       142 /    96    0.5733
+      HCoV-229E     (11137)        119 /    88    0.5780
+      HCoV-OC43     (31631)        162 /    70    0.5783
+      TBEV          (11084)         72 /    65    0.5948
+      MERS-CoV      (1335626)      131 /    41    0.5959
+      JEV           (11072)         19 /    27    0.6632
 
   **HCoV-NL63 (277944) is NOT readable and is not in the family** (5
   positives against 7; it needs AUC >= 0.7842 to clear chance uncorrected).
@@ -210,7 +210,7 @@ negatives.
 ## The hazards, quantified before signing
 
 Measured by `make diagnose-structure-design` on `edges_sha
-ad7121bc2195a93a`, with no score computed:
+545fb7d87b0aec08`, with no score computed:
 
 - **Near-duplicate chemistry inside the label sets is LOW by exact skeleton
   identity.** On the registered ChEMBL-only population, positives run 0% to
@@ -336,7 +336,7 @@ should be recorded as one.
 
 Run 2026-11-11, `make structure-scorer`, written to
 `data/results/structure_scorer.json`. Release v0.1, `edges_sha`
-ad7121bc2195a93a. The registration above is unchanged; this section is
+545fb7d87b0aec08. The registration above is unchanged; this section is
 appended beneath it.
 
 | | prediction | outcome |

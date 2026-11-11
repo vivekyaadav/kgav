@@ -12,8 +12,8 @@ held all six of its predictions and then named this study as the thing that
 would decide whether to believe them. Fixing the parameters before the run
 is what the signature buys; it does not make this independent.
 
-Date: 2026-11-11. Release: v0.1 (78,789 nodes / 392,375 edges, `nodes_sha`
-c800b9005c8b074c, `edges_sha` ad7121bc2195a93a). Prior runs:
+Date: 2026-11-11. Release: v0.1 (78,500 nodes / 391,727 edges, `nodes_sha`
+b0d6fc69d63942c2, `edges_sha` 545fb7d87b0aec08). Prior runs:
 `data/results/structure_scorer.json` (publication control),
 `data/results/structure_scorer_symmetric.json` (k=10).
 
@@ -197,7 +197,7 @@ rather than declaring it unmeasurable.
 
 Run 2026-11-11, `make structure-scorer-strength`, written to
 `data/results/structure_scorer_strength_matched.json`. Release v0.1,
-`edges_sha` ad7121bc2195a93a. The registration above is unchanged.
+`edges_sha` 545fb7d87b0aec08. The registration above is unchanged.
 
 | | prediction | outcome |
 |---|---|---|

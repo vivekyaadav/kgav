@@ -249,6 +249,14 @@ kg-report:
 kg-report-check:
 	python scripts/write_kg_report.py --check
 
+# FIX-LIST P10: the marked tables, written from the derivations their own
+# tests already compute. --check reports drift and exits 1 without writing.
+rewrite-tables:
+	python scripts/rewrite_derived_tables.py $(ARGS)
+
+rewrite-tables-check:
+	python scripts/rewrite_derived_tables.py --check
+
 pathway-landscape:
 	python scripts/pathway_landscape.py \
 	  --out data/results/pathway_landscape.json

@@ -260,3 +260,29 @@ def test_the_diagnostic_computes_no_similarity(prereg):
             f"the design diagnostic calls {banned}; it is registered as "
             f"computing no score, and a similarity distribution over the "
             f"label classes is the outcome itself")
+
+
+def test_the_pooled_figure_it_quotes_beside_the_registered_one(prereg, design):
+    """THE FIGURE I FABRICATED. Updating this registration after the L27
+    rebuild, I replaced the pooled count `18,998 of 18,998` with
+    `18,914 of 18,914` -- a number I did not measure and which was simply
+    wrong; the pooled population holds 18,900. Every other figure in the
+    document was pinned by a test and this one was not, so it passed.
+
+    The registration quotes the pooled count only to say that the
+    REGISTERED population is the ChEMBL one, so the contrast is the whole
+    point of the sentence. It is now derived too.
+    """
+    from kgav.labels import build_labels
+    from kgav.pipeline import release_dir
+    rd = release_dir(ROOT)
+    if not (rd / "nodes.jsonl").exists():
+        pytest.skip("no assembled release on disk")
+    pooled = build_labels(rd)
+    ids = set()
+    for v in set(pooled.positives) | set(pooled.negatives):
+        ids |= pooled.positives.get(v, set()) | pooled.negatives.get(v, set())
+    assert f"{len(ids):,} of {len(ids):,} pooled" in prereg, (
+        f"the pooled population holds {len(ids):,} labelled compounds and "
+        f"the registration quotes a different figure beside the registered "
+        f"one")

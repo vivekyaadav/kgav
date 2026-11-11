@@ -16,8 +16,8 @@ would not be ordinary is choosing this protocol's parameters after seeing
 what they produce, and that is what the signature forbids. The distinction
 is stated here so no reader has to infer it.
 
-Date: 2026-11-11. Release: v0.1 (78,789 nodes / 392,375 edges, `nodes_sha`
-c800b9005c8b074c, `edges_sha` ad7121bc2195a93a). Prior run:
+Date: 2026-11-11. Release: v0.1 (78,500 nodes / 391,727 edges, `nodes_sha`
+b0d6fc69d63942c2, `edges_sha` 545fb7d87b0aec08). Prior run:
 `data/results/structure_scorer.json`.
 
 ## The defect this registers a fix for
@@ -238,7 +238,7 @@ k ∈ {1, 3, 10} rather than a finer curve.
 
 Run 2026-11-11, `make structure-scorer-symmetric`, written to
 `data/results/structure_scorer_symmetric.json`. Release v0.1, `edges_sha`
-ad7121bc2195a93a. The registration above is unchanged; this is appended
+545fb7d87b0aec08. The registration above is unchanged; this is appended
 beneath it.
 
 | | prediction | outcome |

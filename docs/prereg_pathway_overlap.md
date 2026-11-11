@@ -38,7 +38,7 @@ this repository can settle that, so it is named here and left standing.
 **ONE EDIT LANDED AFTER THE RUN AND IT IS NOT A REGISTERED VALUE.** Commit
 `d43c316` (2026-11-11 10:01:55 +05:30, nine minutes after the run) changed
 this file by exactly one line, `edges_sha e26239a4e87865b3` ->
-`ad7121bc2195a93a` in the release identification below. So at the moment the
+`545fb7d87b0aec08` in the release identification below. So at the moment the
 run executed, this document named a release the run did not read -- the
 release had already moved and the identification had not caught up. It is a release
 identification rather than a parameter, and the whole of it is visible in
@@ -69,8 +69,8 @@ recording it requires regenerating the file, which is another 100,000
 permutations, and doing so AFTER this signature is the correct order for the
 first time in this document's history.
 
-Date drafted: 2026-11-02. Release: v0.1 (78,789 nodes / 392,375 edges,
-`nodes_sha` c800b9005c8b074c, `edges_sha` ad7121bc2195a93a). Scripts:
+Date drafted: 2026-11-02. Release: v0.1 (78,500 nodes / 391,727 edges,
+`nodes_sha` b0d6fc69d63942c2, `edges_sha` 545fb7d87b0aec08). Scripts:
 `scripts/pathway_landscape.py`, read by `src/kgav/landscape.py`.
 
 **The release identification has now been updated eleven times -- once on

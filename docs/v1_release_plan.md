@@ -13,7 +13,7 @@ scoring method for drug repurposing comes after, not in this release.
 
 ## Where the graph stands
 
-Release v0.1: 78,789 nodes, 392,375 edges, schema 0.14.0, `schema: PASS`.
+Release v0.1: 78,500 nodes, 391,727 edges, schema 0.15.0, `schema: PASS`.
 Sixteen viruses — seven coronaviruses and nine flaviviruses — after the
 2026-10-23 promotion took the built set from eight.
 
@@ -37,14 +37,14 @@ taxon clears the corrected threshold in either direction.**
 
 | virus | dependency factors | observed | matched expectation | ratio | p naive | p matched |
 |---|---:|---:|---:|---:|---:|---:|
-| HCoV-NL63 | 57 | 10 | 7.4 | **1.35** | 0.04148 | 0.1988 |
-| SARS-CoV-2 | 3,460 | 384 | 358.4 | **1.07** | 0.0003959 | 0.05964 |
-| HCoV-229E | 1,367 | 128 | 135.3 | **0.95** | 0.6012 | 0.7675 |
-| HCoV-OC43 | 657 | 62 | 65.2 | **0.95** | 0.5537 | 0.6843 |
-| Zika | 815 | 76 | 80.1 | **0.95** | 0.5994 | 0.7093 |
-| MERS-CoV | 678 | 60 | 66.4 | **0.90** | 0.7494 | 0.8206 |
-| DENV-2 | 50 | 2 | 6.3 | **0.32** | 0.9583 | 0.9898 |
-| West Nile | 18 | 0 | 2.5 | **0.00** | 1 | 1 |
+| HCoV-NL63 | 57 | 10 | 7.4 | 1.35 | 0.04062 | 0.1978 |
+| SARS-CoV-2 | 3,460 | 383 | 357.4 | 1.07 | 0.0003728 | 0.05909 |
+| HCoV-229E | 1,367 | 128 | 134.8 | 0.95 | 0.5839 | 0.7538 |
+| HCoV-OC43 | 657 | 62 | 65.0 | 0.95 | 0.5416 | 0.6765 |
+| Zika | 815 | 76 | 79.8 | 0.95 | 0.5862 | 0.6975 |
+| MERS-CoV | 678 | 59 | 66.2 | 0.89 | 0.7819 | 0.8467 |
+| DENV-2 | 50 | 2 | 6.3 | 0.32 | 0.9576 | 0.9899 |
+| West Nile | 18 | 0 | 2.5 | 0.00 | 1 | 1 |
 
 **THIS PARAGRAPH CLAIMED A DEPLETION IN EVERY TAXON AND THAT WAS FALSE**
 (fix-list D4). It read "0.86–0.94 times the rate ... in every one of the
