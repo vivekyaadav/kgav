@@ -377,3 +377,18 @@ NCATS cell both survive a control that removes as many references as
 publication-disjointness did while removing the same number from each
 class, the finding is secure. If they collapse, then k=10 was simply a
 weaker test and this verdict is measuring its own leniency.
+
+**IT IS NOW REGISTERED:** `docs/prereg_structure_scorer_strength_matched.md`,
+signed 2026-11-11 before its code, with `k_cell = ceil(max(pub_per_positive,
+pub_per_negative))` per cell -- 4 for West Nile up to 33 for SARS-CoV-2, all
+fourteen feasible, the tightest keeping 6 references. **And it found one
+thing this verdict got wrong and one it could not have known.** The claim
+that MERS-CoV holds "the smallest negative class in the family" is false --
+JEV's 27 is smaller than its 41, and JEV moved the opposite way, so
+small-sample noise does not account for MERS-CoV's direction on its own;
+both documents now say second-smallest. And **the plate-matched cell cannot
+be strength-matched at all**: publication-disjointness removed 88.00
+references per positive and 89.00 per negative there out of 88, so the
+matching k is 89 and leaves -1. The 0.22 AUC collection-confound bound
+therefore rests on a k=10 comparison, which the new study re-measures at
+k=33 rather than confirms.
