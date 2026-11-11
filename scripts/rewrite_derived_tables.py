@@ -39,10 +39,12 @@ sys.path.insert(0, str(ROOT / "tests"))
 #: Each test module that owns a marked table and derives it.
 MODULES = ("test_evaluation_table", "test_temporal_table",
            "test_landscape_table", "test_auc_decomposition",
-           "test_release_plan_figures")
+           "test_release_plan_figures", "test_sequence_table",
+           "test_scope_table", "test_landscape")
 
 
-def rewrite(doc: Path, marker: str, rows: dict[str, list[str]]) -> int:
+def rewrite(doc: Path, marker: str, rows: dict[str, list[str]],
+            keep: int | None = None) -> int:
     """Replace the marked table's body with `rows`. Returns cells changed.
 
     THE KEY MAY SPAN SEVERAL COLUMNS, and the first version of this assumed
@@ -53,6 +55,14 @@ def rewrite(doc: Path, marker: str, rows: dict[str, list[str]]) -> int:
     is the same shape as a check that cannot fail, which is the defect this
     repository keeps finding, so the key width is read off the derivation
     and an unmatched row is REFUSED rather than passed over.
+
+    `keep` IS FOR A LEADING COLUMN THAT IS PROSE RATHER THAN DATA. The
+    sequence table's second column is the protocol's description -- the
+    document's own words, which no results file produces -- so its rows are
+    keyed on the row number alone while two leading columns must survive
+    untouched. A module declares that with `KEEP_COLUMNS`; without one, the
+    key columns and the preserved columns are the same, which is the case
+    for the other five tables.
     """
     text = doc.read_text()
     assert marker in text, f"{doc.name} has no marker {marker!r}"
@@ -65,6 +75,26 @@ def rewrite(doc: Path, marker: str, rows: dict[str, list[str]]) -> int:
 
     # how many leading columns make up a row's key, from the derivation
     nkey = 1 + max(k.count(" | ") for k in rows) if rows else 1
+    nkeep = nkey if keep is None else keep
+    assert nkeep >= nkey, (
+        f"{doc.name}: KEEP_COLUMNS={keep} is narrower than the "
+        f"{nkey}-column key the derivation uses")
+
+    # PADDING IS COPIED ONLY FROM A TABLE THAT HAS SOME. The first version
+    # padded every cell to the width the OLD value had, so a value that got
+    # shorter left a trailing space: "| 9 hits = **3.61x**  |" for a table
+    # whose rows were single-spaced, and
+    # test_every_row_of_the_published_table_is_re_derived -- which matches a
+    # row as a literal substring -- failed on whitespace while every figure
+    # in it was right. So a column is padded only if the document already
+    # aligns it: every data row the same width in that column.
+    data = [[c.strip() for c in ln.strip().strip("|").split("|")]
+            for ln in lines[first + 2:last]]
+    aligned: dict[int, int] = {}
+    for col in range(max((len(r) for r in data), default=0)):
+        ws = {len(r[col]) for r in data if col < len(r)}
+        if len(ws) == 1 and len(data) > 1:
+            aligned[col] = ws.pop()
 
     changed, missing = 0, []
     out = []
@@ -84,16 +114,29 @@ def rewrite(doc: Path, marker: str, rows: dict[str, list[str]]) -> int:
             out.append(ln)
             continue
         want = list(rows[key])
-        have = [c.strip("*") for c in cells[nkey:]]
+        have = [c.strip("*") for c in cells[nkeep:]]
         # re-wrap each value in whatever emphasis its cell already carried
-        marks = [c[:len(c) - len(c.lstrip("*"))] for c in cells[nkey:]]
-        if have != want:
-            changed += sum(1 for a, b in zip(have, want) if a != b)
-            changed += abs(len(have) - len(want))
-        widths = [len(c) for c in cells]
-        want = [f"{m}{v}{m}" if m else v
+        marks = [c[:len(c) - len(c.lstrip("*"))] for c in cells[nkeep:]]
+        # COMPARED WITH EMPHASIS STRIPPED FROM BOTH SIDES, or a derived
+        # value that carries its own asterisks counts as changed on every
+        # run: the document holds "**not evaluable**", `have` strips it to
+        # "not evaluable", and the derivation returns it emphasised. That
+        # made --check report two cells forever while rewriting nothing,
+        # which is the drift alarm crying wolf at its own output.
+        bare = [v.strip("*") for v in want]
+        if have != bare:
+            changed += sum(1 for a, b in zip(have, bare) if a != b)
+            changed += abs(len(have) - len(bare))
+        widths = [aligned.get(j, 0) for j in range(len(cells))]
+        # AND A DERIVATION MAY CARRY ITS OWN EMPHASIS. The sequence
+        # table's M1 cell is "**not evaluable**" when a protocol reaches
+        # too few positives -- the asterisks come from the derivation, not
+        # the document -- and re-applying the cell's existing marks on top
+        # produced "****not evaluable****", which the test then rejected.
+        # So a value that is already emphasised is used as it comes.
+        want = [v if v.startswith("*") or not m else f"{m}{v}{m}"
                 for v, m in zip(want, marks + [""] * 12)]
-        new_cells = cells[:nkey] + want
+        new_cells = cells[:nkeep] + want
         indent = ln[:len(ln) - len(ln.lstrip())]
         out.append(f"{indent}| " + " | ".join(
             c.ljust(w) for c, w in zip(new_cells, widths + [0] * 12)).rstrip()
@@ -122,12 +165,13 @@ def main(argv=None) -> int:
         mod = importlib.import_module(name)
         marker, doc = mod.MARKER, mod.DOC
         rows = mod.derive()
+        keep = getattr(mod, "KEEP_COLUMNS", None)
         if args.check:
             before = doc.read_text()
-            n = rewrite(doc, marker, rows)
+            n = rewrite(doc, marker, rows, keep)
             doc.write_text(before)
         else:
-            n = rewrite(doc, marker, rows)
+            n = rewrite(doc, marker, rows, keep)
         total += n
         print(f"  {name:<28} {doc.name:<20} {n:>3} cell(s) "
               f"{'would change' if args.check else 'rewritten'}")

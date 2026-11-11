@@ -1086,6 +1086,40 @@ def test_the_powerless_depletion_tests_are_named():
             assert r.expected > L.min_expected_hits(r.alpha)
 
 
+MARKER = "<!-- TABLE: landscape_power"
+DOC = SCOPE
+KEEP_COLUMNS = 2        #: channel and virus lead each row
+
+
+def derive() -> dict[str, list[str]]:
+    """The power table scope_and_limits.md publishes, as rendered cells.
+
+    FOR scripts/rewrite_derived_tables.py (fix-list P10). Every column is
+    a function of pathway_landscape.json: the degree-matched expectation,
+    the observed count, the minimum detectable effect, and the verdict --
+    "**no rejection region**" exactly when the row is in
+    `powerless_depletion()`. Before this the twenty-two rows were
+    maintained by hand against the test below, which is how six of them
+    came to carry a superseded expectation.
+    """
+    import yaml
+    reg = {str(v["taxon"]): v["name"]
+           for v in yaml.safe_load((_ROOT / "config/viruses.yaml").read_text())
+           ["viruses"]}
+    land = L.load(RESULTS, release="v0.1")
+    dead = {(r.channel, r.virus) for r in land.powerless_depletion()}
+    out = {}
+    for r in land.family:
+        name = reg.get(r.virus.split(":")[1], r.virus)
+        k, ratio, _ = r.minimum_detectable
+        out[f"{r.channel} | {name}"] = [
+            f"{r.expected:.2f}", f"{r.n_observed}",
+            f"{k} hits = **{ratio:.2f}x**",
+            "**no rejection region**"
+            if (r.channel, r.virus) in dead else "testable"]
+    return out
+
+
 def test_every_row_of_the_published_table_is_re_derived():
     """The document is the deliverable S4 asks for, so it is checked
     against the run rather than trusted."""

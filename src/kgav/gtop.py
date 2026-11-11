@@ -12,7 +12,7 @@ this closes the one that matters more.
   is made of.
 
   IT WORKED, AND THE FIGURE ABOVE IS NOT v0.1's. On the assembled v0.1,
-  which CONTAINS this layer, 10,395 of 17,982 TARGETS edges state no
+  which CONTAINS this layer, 10,175 of 17,587 TARGETS edges state no
   direction -- 57.8%, down from 84.5%. The directed count went 2,226 ->
   7,587, a 3.4x rise, by two routes: new directed edges, and existing
   ChEMBL edges gaining an action through the qualifier ladder. The

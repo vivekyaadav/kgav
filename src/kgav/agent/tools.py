@@ -906,21 +906,21 @@ class GraphTools:
         IT WAS NOT VIRUS-SCOPED. It took the minimum over every INHIBITS
         edge the compound has, whatever virus the protein belongs to, and
         the triage caller then printed it beside a named virus. Measured on
-        v0.1 of 2026-11-09 over 3,823 (compound, virus) pairs: **133 report
+        v0.1 of 2026-11-11 over 3,809 (compound, virus) pairs: **132 report
         a potency measured against a different virus**, and 4 report one
         for a virus whose scoped set holds no potency at all. 132 compounds
         inhibit proteins of several viruses, which is what makes the error
         reachable rather than theoretical.
 
-        Scope and preference together, 258 of the pairs change the number
-        they report -- more than the 133 above, because the preference order
+        Scope and preference together, 257 of the pairs change the number
+        they report -- more than the 132 above, because the preference order
         also overrides a smaller binding constant where both quantities
         describe the same virus.
 
         AND IT MIXED THREE QUANTITIES UNDER ONE NAME. ic50_nm, ki_nm and
         kd_nm went into one `min`, so a binding constant competed with a
         functional inhibition -- and won, because binding constants read
-        lower. **439 of the 3,823 pairs have a best value that is not an
+        lower. **439 of the 3,809 pairs have a best value that is not an
         IC50 and was labelled one.** Under the preference order below only
         312 pairs have no IC50 at all, and those now say Ki or Kd. The
         worst case found is

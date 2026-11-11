@@ -229,8 +229,8 @@ def test_cell_line_extraction_prefers_the_specific_line(text, expected):
 def test_vero_lines_are_the_dominant_evidence_base():
     """A RECORDED MEASUREMENT, NOW DERIVED FROM THE LAYER IT DESCRIBES.
 
-    1,149 of 2,277 selectivity edges naming a cell line come from Vero
-    lines, against 55 from Calu-3 and 207 from A549: 4.4 times more evidence
+    1,108 of 2,166 selectivity edges naming a cell line come from Vero
+    lines, against 54 from Calu-3 and 203 from A549: 4.3 times more evidence
     from the system that misled the field in 2020 than from the two where
     results transfer.
 
@@ -317,11 +317,15 @@ def test_no_comment_in_this_module_still_claims_the_worst_is_kept():
 # antiviral activity in one cell line and cytotoxicity in another, and the
 # ratio is then a potency in Calu-3 over a toxicity in Vero.
 #
-# Measured on the release of 2026-11-09, over the 2,758 emitted edges:
-# 1,694 agree, 253 name DIFFERENT cell lines, 811 have a side unnamed. The
-# figures were 2,244 / 337 / 1,586 over 4,167 and were two releases stale;
+# Measured on the release of 2026-11-11, over the 2,638 emitted edges:
+# 1,609 agree, 244 name DIFFERENT cell lines, 785 have a side unnamed. They
+# read 1,694 / 253 / 811 over "2,758 emitted edges" until 2026-11-11, which
+# was the PRE-drop set reported as the layer; the earlier figures were
+# 2,244 / 337 / 1,586 over 4,167 and were two releases stale.
 # test_the_verified_share_is_the_layers_own derives the first of them, which
-# is the only one an edge records.
+# is the only one an edge records -- and it is what caught the pre-drop
+# reporting, because 1,609 is what the file holds and 1,694 is what the run
+# printed.
 def test_matching_cell_lines_are_verified(tmap):
     em = Emit()
     stats = ingest_selectivity(

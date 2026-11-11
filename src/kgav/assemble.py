@@ -66,7 +66,7 @@ EquivalenceFn = Callable[[Any, Any], bool]
 #: on essentially every interaction; ChEMBL's bulk activity table records
 #: potency and left direction unstated on 12,155 of 14,381 edges before
 #: this layer entered the order -- 84.5%. On the assembled v0.1, which
-#: contains it, 10,395 of 17,982 are unstated: 57.8%. The pre-gtop figure
+#: contains it, 10,175 of 17,587 are unstated: 57.9%. The pre-gtop figure
 #: was labelled "v0.1's" here, which is the error worth naming: the
 #: numbers were right and the release they were attributed to was not.
 #: Earlier wins a qualifier conflict, so the curated action wins.

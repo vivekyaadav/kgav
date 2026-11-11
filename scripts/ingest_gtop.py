@@ -15,7 +15,7 @@ UniProt filter and the InChIKey join, which is the number that says
 whether the layer is worth assembling.
 
 WHAT IT ADDS, in order of value: a DIRECTION on edges that have none
-(12,155 of 14,381 stated nothing before this layer; 10,395 of 17,982 do
+(12,155 of 14,381 stated nothing before this layer; 10,175 of 17,587 do
 on the assembled v0.1, which contains it), then reach for approved and
 clinical ligands the chemistry layer missed.
 """
@@ -193,8 +193,8 @@ def main(argv=None) -> int:
         print(f"\n  {known:,} of {s['edges']:,} state a direction "
               f"({known / s['edges']:.1%}). Before this layer existed, "
               f"the ChEMBL-only TARGETS layer stated one on 2,226 of "
-              f"14,381 (15.5%); on the assembled v0.1 it is 7,587 of "
-              f"17,982 (42.2%).")
+              f"14,381 (15.5%); on the assembled v0.1 it is 7,412 of "
+              f"17,587 (42.1%).")
     for k in ("compound_by_skeleton", "compound_by_chembl_id"):
         if s[k]:
             print(f"  {k.removeprefix('compound_by_'):<12} {s[k]:7,} edges "

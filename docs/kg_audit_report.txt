@@ -33,7 +33,7 @@ One question, asked two ways.
 
 The FIRST question is "which existing drug works against this virus". It
 needs antiviral activity labels, and it is the question the evaluation in
-docs/evaluation.md failed to answer honestly: 89.3% of labelled compounds
+docs/evaluation.md failed to answer honestly: 88.8% of labelled compounds
 share a publication between the evidence edge and the label it was
 supposed to predict, so a scorer is partly reading its own answer sheet.
 The result on this release is that 12 of 15 scored viruses have no
@@ -186,7 +186,7 @@ DIRECTORY LAYOUT
                       scripts/ingest_spine.py, so "one per source layer"
                       is true of the SCRIPTS and not of this directory.
     src/kgav/agent/   orchestrator, guards, tools, verify, llm
-    scripts/          68 entry points: 12 ingests, the assembler, the
+    scripts/          69 entry points: 12 ingests, the assembler, the
                       evaluation protocols, the diagnostics, the audits,
                       and one shell script (tier_spotcheck.sh)
     tests/            the gate; every figure in docs/ that a rebuild
@@ -831,8 +831,8 @@ Three distinct capabilities, in increasing order of what they claim.
     permutations, seed 0: 22 rows tested, 44 tests with both directions,
     Bonferroni alpha 0.00114. ZERO rows clear it. The uncorrected version
     of the same test would have reported six. DENV-1's interactome
-    overlap is p=0.0102 naive and 0.0888 degree-matched; DENV-2's is
-    0.0036 and 0.2227. Neither gap opens because the data changed.
+    overlap is p=0.0100 naive and 0.0892 degree-matched; DENV-2's is
+    0.0034 and 0.2201. Neither gap opens because the data changed.
 
     THE PERMUTATION COUNT IS THE REGISTERED ONE AS OF 2026-11-11, and was
     not before. docs/prereg_pathway_overlap.md fixes 100,000 under "Fixed

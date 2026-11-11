@@ -19,10 +19,11 @@ Cross-document pairing would yield far more pairs and would be much weaker. It
 is not done here; compounds without a same-document pair are marked
 `selectivity_verified: false` rather than being given a fabricated ratio.
 
-WHAT THE PAIRING FOUND. 3,672 matched (compound, document, virus) rows, which
-collapse to 2,758 (compound, virus) edges carrying a selectivity index. Of
-those, 1,028 -- 37% -- fall below 10, the conventional threshold under which a
-cell-based antiviral hit is not pursued. Roughly two in five compounds that
+WHAT THE PAIRING FOUND. 3,672 matched (compound, document, virus) rows, 149
+of which name a compound the release does not hold and are dropped before the
+emit, collapsing to 2,638 (compound, virus) edges carrying a selectivity
+index. Of those, 987 -- 37% -- fall below 10, the conventional threshold under
+which a cell-based antiviral hit is not pursued. Roughly two in five compounds that
 look active in a coronavirus cell assay are cytotoxic enough that the activity
 is suspect.
 
@@ -42,7 +43,9 @@ same document's cell-based EC50 of 40,100 nM gives 1.8.
 Correcting it moved the layer from 3,226 edges to 2,758 and the selective
 share from 69% to 63%: 482 (compound, virus) pairs are no longer called
 selective, and 113 more carry a cell line that can actually be verified. The
-median index fell from 27.50 to 18.59.
+median index fell from 27.50 to 18.59. On the L27-repaired release of
+2026-11-11 the layer holds 2,638 edges at a median index of 18.18, the
+selective share unchanged at 63%.
 
 CONSEQUENCE FOR THE EVALUATION. The positive set used in every earlier
 evaluation treats those compounds as actives. Re-running the hard-negative
@@ -469,11 +472,18 @@ def ingest_selectivity(em, rows: list[dict], taxon_map: dict[str, str],
         # another, and then the ratio is not a selectivity index -- it is a
         # potency in Calu-3 divided by a toxicity in Vero.
         #
-        # Measured on the release of 2026-11-09, over the 2,758 emitted
-        # edges: 1,694 agree, 253 name DIFFERENT cell lines, and 811 have at
+        # Measured on the release of 2026-11-11, over the 2,638 emitted
+        # edges: 1,609 agree, 244 name DIFFERENT cell lines, and 785 have at
         # least one side unnamed. Only the first group can be verified.
-        # (The figures were 2,244 / 337 / 1,586 over 4,167 and were two
-        # releases stale. They now print on every run as the context_*
+        # (They read 1,694 / 253 / 811 over "2,758 emitted edges" until
+        # 2026-11-11 and described the PRE-drop set: the 149 rows naming a
+        # compound the release does not hold were removed after these
+        # counters were taken and after they were printed, so three classes
+        # summing to 2,758 were reported for a file holding 2,638. The rows
+        # are filtered before the emit now -- see ingest_selectivity.py --
+        # and the emitted layer is byte-identical either way. Before that
+        # they were 2,244 / 337 / 1,586 over 4,167 and were two releases
+        # stale. They now print on every run as the context_*
         # counters, and tests/test_selectivity.py derives the verified share
         # from the layer -- an edge records that much and no more.)
         # The other two are not errors in the source; they are the limit of

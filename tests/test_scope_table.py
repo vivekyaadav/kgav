@@ -91,6 +91,28 @@ def _derive() -> dict[str, dict]:
     return out
 
 
+# ------------------------------- the derivation the writer reads (P10)
+MARKER = START          #: scripts/rewrite_derived_tables.py reads this
+KEEP_COLUMNS = 2        #: name and taxon lead each row
+
+
+def derive() -> dict[str, list[str]]:
+    """The table the release implies: "name | taxon" -> the six cells.
+
+    FOR scripts/rewrite_derived_tables.py. This table's header has said
+    "generated" since it was written and NOTHING GENERATED IT -- the rows
+    were maintained by hand against `test_each_column_matches_the_release`,
+    which is the state fix-list P10 is about. Two leading columns are the
+    key because the name is what a reader looks up and the taxon is what
+    the register keys on; both are the document's and neither is rewritten.
+    """
+    return {f"{r['name']} | {t}": [
+                r["family"], f"{r['dependency']:,}", f"{r['restriction']:,}",
+                f"{r['antiviral']:,}", r["chain_source"],
+                "yes" if r["in_overlap"] == "yes" else "**no**"]
+            for t, r in _derive().items()}
+
+
 # ------------------------------------------------------------- the table
 @needs_release
 def test_every_built_virus_is_in_the_table():

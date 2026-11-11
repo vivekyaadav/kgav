@@ -189,21 +189,24 @@ def contested_potency(edge: dict, inactive_above_nm: float,
     been written `("ic50_nm", "ec50_nm", ...)` it would have classified
     INACTIVE. The verdict came from the declaration order of a constant.
 
-    MEASURED on data/releases/v0.1 of 2026-11-09, over 26,017
+    MEASURED on data/releases/v0.1 of 2026-11-11, over 25,949
     HAS_ANTIVIRAL_ACTIVITY_AGAINST edges:
 
-        edges carrying 2+ potency fields     1,512
-        of those, fields DISAGREE              165
-          currently called active              106
+        edges carrying 2+ potency fields     1,478
+        of those, fields DISAGREE              169
+          currently called active              110
           currently called inactive             59
         distinct field pairs involved            1   (ec50_nm + ic50_nm)
 
-    (1,578 / 173 / 118 / 55 over 26,278 edges before the L5 rebuild, which
-    removed the biochemical IC50s this layer had been pairing against a
-    cell CC50 -- so the field pair that disagrees is rarer now for the
-    same reason the disagreement existed.)
+    (1,512 / 165 / 106 / 59 over 26,017 edges before the L27 identity
+    repair, and 1,578 / 173 / 118 / 55 over 26,278 before the L5 rebuild,
+    which removed the biochemical IC50s this layer had been pairing against
+    a cell CC50 -- so the field pair that disagrees is rarer now for the
+    same reason the disagreement existed. L27 collapsed salt forms onto
+    their parents, which merged more records into each edge: FEWER edges
+    carry two potency fields and MORE of those disagree.)
 
-    So 165 label verdicts were decided by a tuple's order, 106 of them
+    So 169 label verdicts were decided by a tuple's order, 110 of them
     becoming positives. The module's own rule settles what to do with
     them: "a compound with both an active and an inactive measurement
     against the same virus is real -- different cell lines, different

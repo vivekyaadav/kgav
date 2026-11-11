@@ -34,6 +34,19 @@ this repository can settle that, so it is named here and left standing.
 | Correction family: every test, both channels, both directions | `b443f4b`, 2026-11-02 | 9 days before |
 | Drug-target admission: `floor` | `0c2d3e4`, 2026-11-10 | 1 day before |
 | **This signature** | 2026-11-11, after the run | **after** |
+| The re-run on the L27-repaired release | 2026-11-11 11:28:33 UTC | **after the signature** |
+
+**AND THE RESULT NOW ON DISK IS THE ONE RUN IN THE RIGHT ORDER.** The run
+this signature argues about was executed at **04:22:49 UTC** and signed
+afterwards. The L27 identity repair then rebuilt the release, and
+`data/results/pathway_landscape.json` was regenerated at **11:28:33 UTC** --
+*after* the signature, which is the order the draft asked for and the first
+time this document has had it. Every registered value predates that run by
+construction, since they were all fixed before the signature, so the
+re-run's figures are the ones the registration can claim without
+qualification. The 04:22:49 run's ordering problem is kept recorded above
+because it happened, not because it still governs the figures below. The
+operand it moved is recorded under *A registered operand moved*.
 
 **ONE EDIT LANDED AFTER THE RUN AND IT IS NOT A REGISTERED VALUE.** Commit
 `d43c316` (2026-11-11 10:01:55 +05:30, nine minutes after the run) changed
@@ -327,24 +340,24 @@ expectation. Both tails from the same null.
 
       interactome  JEV          0.83 expected
       interactome  West Nile    0.91
-      pathway      West Nile    2.50
+      pathway      West Nile    2.49
       interactome  DENV-3       4.42
-      interactome  TBEV         4.63
-      pathway      DENV-2       6.27
+      interactome  TBEV         4.61
+      pathway      DENV-2       6.26
 
   Dropping them would give 0.05/38 = 0.001316 and is defensible: emptiness
   depends on the matched expectation, which the degree-matched design fixes
   before any outcome is looked at, so it is not choosing tests after seeing
   them. The proposal is to KEEP them, for two reasons. The threshold moves
   16%, from 0.001136 to 0.001316, and the smallest p in the family is
-  0.005660 -- 4.3x the looser bar -- so nothing turns on it. And a family
+  0.005760 -- 4.4x the looser bar -- so nothing turns on it. And a family
   defined as "the tests that could have rejected" has to be recomputed
   whenever an expectation moves, which makes the correction depend on the
   release in a way a reader cannot check by counting.
 
 - **Both procedures reported: Bonferroni and Benjamini-Hochberg at
   q = 0.05.** On the 2026-11-11 figures both reject nothing, and the
-  smallest p is 0.005660 against a Bonferroni bar of 0.001136 and a BH
+  smallest p is 0.005760 against a Bonferroni bar of 0.001136 and a BH
   critical value of 0.001136 at k=1. Bonferroni over 22 correlated rows is
   over-conservative and that objection is worth answering with a number
   rather than a sentence. Primary is Bonferroni; BH is reported beside it.
@@ -387,7 +400,7 @@ The null this document points at, stated so that failing to reject it is a
 result rather than an absence.
 
 **P2. Raising the permutation count will not produce a rejection.** The
-smallest p in the 2026-11-11 family is 0.005660, which is 5.0x the
+smallest p in the 2026-11-11 family is 0.005760, which is 5.1x the
 Bonferroni threshold. Resolution was never what blocked a finding, and this
 prediction says so in advance: if a rejection appears at 100,000
 permutations it did not come from finer resolution and something else

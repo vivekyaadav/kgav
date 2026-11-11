@@ -125,6 +125,33 @@ def main() -> int:
     for k in sorted(k for k in q if k.startswith(("av_unit:", "tox_unit:"))):
         print(f"    {q[k]:>8,}  {k}")
 
+    # THE COMPOUNDS THE RELEASE DOES NOT HOLD ARE DROPPED BEFORE THE EMIT,
+    # NOT AFTER IT, so every counter below describes the layer that ships.
+    # Until 2026-11-11 the dangling edges were removed at the END and the
+    # breakdown printed above them, so the run reported "2,758 emitted edges:
+    # 1,694 agree, 253 ..., 811 ..." for a layer holding 2,638 edges with
+    # 1,609 verified -- the three classes summed to the PRE-drop set and were
+    # read as describing the file. The emitted edge set is unchanged by moving
+    # the filter: `dangling` tested subject-or-object, the objects are taxa
+    # and always present, so compound presence is the whole of it. Verified
+    # byte-identical against the post-filter run before this landed.
+    #
+    # AND THEY ARE NOT AN L27 SYMPTOM, which was the first thing to rule out:
+    # this layer keys compounds on ChEMBL's `standard_inchi_key` exactly as
+    # chembl.py did before the identity repair. Measured on this release --
+    # of the 121 paired compound ids absent from the release, the identity
+    # policy maps ZERO of them onto a node that is present. They are
+    # compounds the chemistry layer filtered out, which is what the comment
+    # below always said.
+    nodes = peer_nodes(root, SELF_LAYER, releases=args.peers)
+    known = {n["id"] for n in nodes}
+    before = len(rows)
+    rows = [r for r in rows
+            if not r.get("inchikey") or f"INCHIKEY:{r['inchikey']}" in known]
+    if before != len(rows):
+        print(f"\n  {before - len(rows):,} paired row(s) name a compound the "
+              f"release does not hold and are dropped before the emit")
+
     em = Emit()
     s = ingest_selectivity(em, rows, taxon_map, "infores:chembl", args.threshold)
 
@@ -162,15 +189,18 @@ def main() -> int:
     # on v0.1 reproduces the assembled node set exactly -- 78,789 both
     # ways, zero difference. Nothing needs an assembly to exist before
     # this layer runs, so the pipeline assembles once, at the end.
-    nodes = peer_nodes(root, SELF_LAYER, releases=args.peers)
-    known = {n["id"] for n in nodes}
-    dangling = [e for e in em.edges if e["subject"] not in known or e["object"] not in known]
+    dangling = [e for e in em.edges
+                if e["subject"] not in known or e["object"] not in known]
+    # KEPT AS A GUARD RATHER THAN AS THE FILTER. The rows were filtered
+    # above, so this must now find nothing; if it finds something, a
+    # dangling endpoint is arriving by some route the row filter does not
+    # see and the run REFUSES rather than quietly trimming.
     if dangling:
-        # A compound paired here but absent from the release means the
-        # chemistry layer filtered it out; emitting the edge would dangle.
-        print(f"\n  {len(dangling):,} edges reference compounds absent from the "
-              f"release and are dropped")
-        em.edges = [e for e in em.edges if e not in dangling]
+        print(f"\n  ! {len(dangling):,} emitted edge(s) still dangle after "
+              f"the row filter, e.g. {dangling[0]['subject']} -> "
+              f"{dangling[0]['object']}. An endpoint is reaching the emit by "
+              f"a route the filter does not cover.")
+        return 1
 
     violations = load_schema().validate_batch(nodes, em.edges)
     if report_violations(violations):

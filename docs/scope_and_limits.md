@@ -23,33 +23,33 @@ Seven coronaviruses and nine flaviviruses, built from
 
 | virus        | taxon | family | dependency | restriction | antiviral | chain source | in overlap table |
 |--------------|------:|--------|-----------:|------------:|----------:|--------------|------------------|
-| SARS-CoV-2   | 2697049 | Coronaviridae | 3,460 | 1,122 | 14,772 | species | yes |
-| HCoV-229E    | 11137 | Coronaviridae | 1,367 | 9 | 211 | species | yes |
-| Zika         | 64320 | Flaviviridae | 815 | 0 | 3,401 | species | yes |
-| MERS-CoV     | 1335626 | Coronaviridae | 678 | 0 | 183 | strain 1263720 | yes |
-| HCoV-OC43    | 31631 | Coronaviridae | 657 | 6 | 257 | species | yes |
-| HCoV-NL63    | 277944 | Coronaviridae | 57 | 24 | 12 | species | yes |
-| DENV-2       | 11060 | Flaviviridae | 50 | 0 | 4,163 | strain 31634 | yes |
-| West Nile    | 11082 | Flaviviridae | 18 | 0 | 591 | species | yes |
+| SARS-CoV-2 | 2697049 | Coronaviridae | 3,460 | 1,122 | 14,711 | species | yes |
+| HCoV-229E | 11137 | Coronaviridae | 1,367 | 9 | 210 | species | yes |
+| Zika | 64320 | Flaviviridae | 815 | 0 | 3,401 | species | yes |
+| MERS-CoV | 1335626 | Coronaviridae | 678 | 0 | 181 | strain 1263720 | yes |
+| HCoV-OC43 | 31631 | Coronaviridae | 657 | 6 | 255 | species | yes |
+| HCoV-NL63 | 277944 | Coronaviridae | 57 | 24 | 12 | species | yes |
+| DENV-2 | 11060 | Flaviviridae | 50 | 0 | 4,162 | strain 31634 | yes |
+| West Nile | 11082 | Flaviviridae | 18 | 0 | 591 | species | yes |
 | Yellow fever | 11089 | Flaviviridae | 0 | 0 | 1,030 | strain 11090 | **no** |
-| DENV-1       | 11053 | Flaviviridae | 0 | 0 | 349 | strain 408685 | **no** |
-| DENV-4       | 11070 | Flaviviridae | 0 | 0 | 312 | strain 408689 | **no** |
-| DENV-3       | 11069 | Flaviviridae | 0 | 0 | 311 | strain 408870 | **no** |
-| SARS-CoV     | 694009 | Coronaviridae | 0 | 0 | 242 | species | **no** |
-| TBEV         | 11084 | Flaviviridae | 0 | 0 | 137 | strain 70733 | **no** |
-| JEV          | 11072 | Flaviviridae | 0 | 0 | 46 | strain 11073 | **no** |
-| HCoV-HKU1    | 290028 | Coronaviridae | 0 | 0 | 0 | strain 443239 | **no** |
+| DENV-1 | 11053 | Flaviviridae | 0 | 0 | 349 | strain 408685 | **no** |
+| DENV-4 | 11070 | Flaviviridae | 0 | 0 | 312 | strain 408689 | **no** |
+| DENV-3 | 11069 | Flaviviridae | 0 | 0 | 311 | strain 408870 | **no** |
+| SARS-CoV | 694009 | Coronaviridae | 0 | 0 | 241 | species | **no** |
+| TBEV | 11084 | Flaviviridae | 0 | 0 | 137 | strain 70733 | **no** |
+| JEV | 11072 | Flaviviridae | 0 | 0 | 46 | strain 11073 | **no** |
+| HCoV-HKU1 | 290028 | Coronaviridae | 0 | 0 | 0 | strain 443239 | **no** |
 
 <!-- END TABLE: scope_by_virus -->
 
-7,102 dependency and 1,161 restriction factors, 26,017 antiviral activity
+7,102 dependency and 1,161 restriction factors, 25,949 antiviral activity
 edges. **8 of the 16 viruses have no dependency factor at all** and are
 therefore absent from the overlap analysis entirely.
 
 **"Antiviral activity edges" is the predicate's name, not a description of
 its contents.** `HAS_ANTIVIRAL_ACTIVITY_AGAINST` means "this compound was
-measured against this virus", and `kgav.labels.classify` over those 26,017
-edges reads **20,239 inactive (77.8%)**, 5,232 active (20.1%) and 546 that
+measured against this virus", and `kgav.labels.classify` over those 25,949
+edges reads **20,197 inactive (77.8%)**, 5,200 active (20.0%) and 552 that
 decide nothing. Three quarters of this predicate is evidence that a compound
 does NOT work -- which is the most valuable part of it, because measured
 inactives are the negatives every evaluation here depends on, and they are
@@ -97,7 +97,7 @@ species is a claim about one isolate of it.
 
 ### Most drug–target edges do not say which direction
 
-10,376 of 17,982 `TARGETS` edges state `direction: unknown` — **57.7%**
+10,175 of 17,587 `TARGETS` edges state `direction: unknown` — **57.9%**
 on the assembled v0.1. It was 12,155 of 14,381 — **84.5%** — before the
 gtop layer landed, and that pre-gtop figure was quoted here, and in six
 other places, as though it described v0.1.
@@ -112,16 +112,16 @@ qualification on any mechanistic reading of a path.
 `make data-audit` reports it; `src/kgav/gtop.py` exists to reduce it and
 its input is not downloaded.
 
-### The analysable set is 16.3% of the molecules
+### The analysable set is 15.8% of the molecules
 
 <!-- FIGURE: analysable_set -->
-Of 25,383 small molecules, **4,130** carry a human `TARGETS` edge and can
+Of 25,094 small molecules, **3,957** carry a human `TARGETS` edge and can
 be placed in a pathway. The rest have no human target in this graph:
-**520** approved, **973** clinical, **35** phase 1, **95** preclinical and
-**19,630** unknown.
+**479** approved, **961** clinical, **35** phase 1, **89** preclinical and
+**19,573** unknown.
 
 A curated drug-target source covers the approved and clinical end, so
-**1,493** is the ceiling on what one could add — not 21,253. The
+**1,440** is the ceiling on what one could add — not 21,137. The
 remainder are bulk screening compounds no curated source describes.
 
 **Every figure in this paragraph was wrong until 2026-11-10, and not
@@ -255,30 +255,37 @@ family is forty-four and the Bonferroni threshold is 0.05/44 =
 whose Poisson upper tail falls below that threshold, as a multiple of the
 degree-matched expectation.
 
+<!-- TABLE: landscape_power — written from tests/test_landscape.py::derive
+     by `make rewrite-tables`, and checked cell by cell by
+     test_every_row_of_the_published_table_is_re_derived. Do not hand-edit:
+     every column is a function of data/results/pathway_landscape.json.
+     The `depletion` column is the verdict, "**no rejection region**" iff
+     the row is in powerless_depletion(). -->
+
 | channel | virus | expected | observed | min. detectable | depletion |
 |---|---|---:|---:|---:|---|
-| interactome | JEV | 0.83 | 1 | 6 hits = **7.26x** | **no rejection region** |
+| interactome | JEV | 0.83 | 1 | 6 hits = **7.25x** | **no rejection region** |
 | interactome | West Nile | 0.91 | 4 | 6 hits = **6.62x** | **no rejection region** |
-| pathway | West Nile | 2.50 | 0 | 10 hits = **3.99x** | **no rejection region** |
+| pathway | West Nile | 2.49 | 0 | 9 hits = **3.61x** | **no rejection region** |
 | interactome | DENV-3 | 4.42 | 6 | 13 hits = **2.94x** | **no rejection region** |
-| interactome | TBEV | 4.63 | 3 | 13 hits = **2.81x** | **no rejection region** |
-| pathway | DENV-2 | 6.27 | 2 | 16 hits = **2.55x** | **no rejection region** |
-| interactome | DENV-1 | 7.11 | 11 | 17 hits = **2.39x** | testable |
-| pathway | HCoV-NL63 | 7.40 | 10 | 18 hits = **2.43x** | testable |
-| interactome | DENV-2 | 35.38 | 40 | 56 hits = **1.58x** | testable |
+| interactome | TBEV | 4.61 | 3 | 13 hits = **2.82x** | **no rejection region** |
+| pathway | DENV-2 | 6.26 | 2 | 16 hits = **2.56x** | **no rejection region** |
+| interactome | DENV-1 | 7.10 | 11 | 17 hits = **2.39x** | testable |
+| pathway | HCoV-NL63 | 7.39 | 10 | 18 hits = **2.44x** | testable |
+| interactome | DENV-2 | 35.35 | 40 | 56 hits = **1.58x** | testable |
 | interactome | HCoV-HKU1 | 36.62 | 25 | 57 hits = **1.56x** | testable |
-| interactome | HCoV-OC43 | 38.17 | 28 | 59 hits = **1.55x** | testable |
-| interactome | HCoV-NL63 | 40.66 | 32 | 62 hits = **1.52x** | testable |
-| interactome | Zika | 44.98 | 47 | 68 hits = **1.51x** | testable |
-| interactome | HCoV-229E | 50.16 | 34 | 74 hits = **1.48x** | testable |
-| pathway | HCoV-OC43 | 65.20 | 62 | 92 hits = **1.41x** | testable |
-| pathway | MERS-CoV | 66.44 | 60 | 94 hits = **1.41x** | testable |
-| interactome | MERS-CoV | 79.77 | 64 | 109 hits = **1.37x** | testable |
-| pathway | Zika | 80.08 | 76 | 110 hits = **1.37x** | testable |
-| pathway | HCoV-229E | 135.28 | 128 | 173 hits = **1.28x** | testable |
-| interactome | SARS-CoV | 149.22 | 167 | 189 hits = **1.27x** | testable |
-| pathway | SARS-CoV-2 | 358.43 | 384 | 419 hits = **1.17x** | testable |
-| interactome | SARS-CoV-2 | 426.06 | 438 | 491 hits = **1.15x** | testable |
+| interactome | HCoV-OC43 | 38.15 | 28 | 59 hits = **1.55x** | testable |
+| interactome | HCoV-NL63 | 40.58 | 32 | 62 hits = **1.53x** | testable |
+| interactome | Zika | 44.91 | 47 | 68 hits = **1.51x** | testable |
+| interactome | HCoV-229E | 50.07 | 34 | 74 hits = **1.48x** | testable |
+| pathway | HCoV-OC43 | 65.00 | 62 | 92 hits = **1.42x** | testable |
+| pathway | MERS-CoV | 66.23 | 59 | 93 hits = **1.40x** | testable |
+| interactome | MERS-CoV | 79.70 | 64 | 109 hits = **1.37x** | testable |
+| pathway | Zika | 79.84 | 76 | 109 hits = **1.37x** | testable |
+| pathway | HCoV-229E | 134.84 | 128 | 173 hits = **1.28x** | testable |
+| interactome | SARS-CoV | 149.01 | 167 | 189 hits = **1.27x** | testable |
+| pathway | SARS-CoV-2 | 357.41 | 383 | 417 hits = **1.17x** | testable |
+| interactome | SARS-CoV-2 | 425.17 | 438 | 490 hits = **1.15x** | testable |
 
 **Six of the twenty-two downward tests have no rejection region at all.**
 Under a Poisson background with mean *m* the most extreme downward

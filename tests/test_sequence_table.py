@@ -100,6 +100,26 @@ def mismatches(cells: list[str], doc: dict) -> list[str]:
             for n, g, w in zip(names, cells, want) if g != w]
 
 
+KEEP_COLUMNS = 2        #: '#' and the protocol prose are the document's
+
+
+def derive() -> dict[str, list[str]]:
+    """The table the five results files imply: row number -> pos..M1 cells.
+
+    FOR scripts/rewrite_derived_tables.py, so this table is written from
+    its own derivation rather than by hand against `mismatches()`. The
+    keys are row numbers; the protocol column beside them is prose no
+    results file produces, which is why this module declares
+    `KEEP_COLUMNS = 2`.
+
+    A row whose results file is absent is LEFT OUT rather than filled with
+    a placeholder, and the rewriter refuses a document row it cannot
+    derive -- so a missing file stops the rewrite by name instead of
+    quietly publishing whatever was there.
+    """
+    return {n: derive_row(doc) for n, doc in sorted(_available().items())}
+
+
 def parse() -> dict[str, list[str]]:
     """The table as the document prints it: row number -> pos..M1 cells."""
     text = DOC.read_text()

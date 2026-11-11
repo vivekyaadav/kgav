@@ -139,7 +139,7 @@ All of it is measured, and the honesty is the contribution:
   `chain_source` has always meant.
 - **CLOSED BY gtop.** 12,155 of 14,381 `TARGETS` edges stated no
   direction (84.5%) before that layer landed; on the assembled v0.1 it is
-  10,395 of 17,982 (57.8%), and the directed count rose 2,226 -> 7,587.
+  10,175 of 17,587 (57.9%), and the directed count rose 2,226 -> 7,412.
   The original statement, kept because the reasoning still holds: so
   "this drug targets a dependency factor" is not "inhibiting it would
   help", and the landscape says so in its own output.
@@ -277,5 +277,5 @@ before writing, not work to schedule.
 6,617 edges on the assembled release, so it is no longer waiting for a
 rebuild. The three remaining items are the agent and scope ones, and A3's
 figures have moved since it was written — the drugged-proteome share it
-quotes as 11.8% is 16.3% on this release, which
+quotes as 11.8% is 15.8% on this release, which
 `docs/scope_and_limits.md` now derives by test rather than restating.
