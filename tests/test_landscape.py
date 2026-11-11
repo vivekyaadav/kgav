@@ -1189,9 +1189,15 @@ def test_the_committed_results_file_predates_the_fix():
 # A pre-registration that drifts from the code it registers is worse than
 # none: it reads as a commitment and documents a different study. Every
 # constant the document quotes is re-derived here from the thing it
-# describes. The DECISION items are deliberately not pinned -- they are
-# proposals awaiting a signature, and a test asserting a proposal would
-# make the signature meaningless.
+# describes.
+#
+# THE DECISION ITEMS USED TO BE DELIBERATELY UNPINNED, and the reason was
+# recorded here: "they are proposals awaiting a signature, and a test
+# asserting a proposal would make the signature meaningless". The document
+# was signed on 2026-11-11, so that reasoning inverts -- a signed decision
+# the code ignores is exactly the defect test_prereg_is_obeyed.py exists
+# for. All four registered values are pinned there, and the signature's own
+# ordering claim is pinned below.
 PREREG = _ROOT / "docs" / "prereg_pathway_overlap.md"
 
 
@@ -1201,13 +1207,47 @@ def prereg() -> str:
     return " ".join(PREREG.read_text().split())
 
 
-def test_it_says_plainly_that_it_is_not_a_registration_yet(prereg):
+def test_it_says_plainly_that_the_signature_came_after_the_run(prereg):
     """The other four open by saying they were written BEFORE the code.
     This one cannot, and the honest version of that is a sentence rather
-    than a silence."""
-    assert "UNSIGNED DRAFT" in prereg
-    assert "must not be executed before then" in prereg
-    assert "unregistered and its figures are exploratory" in prereg
+    than a silence.
+
+    It was an UNSIGNED DRAFT until 2026-11-11 and this test asserted that
+    phrase. Signing it retrospectively does not make the ordering go away,
+    so what is asserted now is that the document still CARRIES the
+    ordering: the sentence it broke, quoted; the narrower claim it can
+    support; and the 2026-10-28 figures still called exploratory. A
+    signature that quietly dropped any of the three would read as a
+    registration honoured.
+    """
+    assert "SIGNED 2026-11-11" in prereg
+    assert "must not be executed before then" in prereg, (
+        "the signature no longer quotes the sentence it broke")
+    assert "Every registered value predates the run. The signature does not" \
+        in prereg, "the signature must state the narrower claim it can support"
+    assert "unregistered and its figures are exploratory" in prereg, (
+        "signing the re-run must not upgrade the 2026-10-28 run")
+
+
+def test_the_run_the_signature_names_is_the_run_on_disk(prereg):
+    """THE ORDERING CLAIM, CHECKED AGAINST THE ARTIFACT RATHER THAN READ.
+
+    The signature names a run time -- "2026-11-11 at 04:22:49 UTC" -- and
+    builds its whole argument on what predates it. If that timestamp is not
+    the one the result file carries, the table above it compares registered
+    values against the wrong instant and every "before" in it is unproven.
+    So the instant is taken from the artifact and looked for in the
+    document, never typed on both sides.
+    """
+    if not RESULTS.exists():
+        pytest.skip("no landscape result on disk")
+    stamp = json.loads(RESULTS.read_text())["provenance"]["generated_utc"]
+    # 2026-11-11T04:22:49+00:00 -> the date and the clock time, as prose
+    day, _, rest = stamp.partition("T")
+    clock = rest.split("+")[0]
+    assert day in prereg and clock in prereg, (
+        f"the result was generated at {stamp} and the signature does not "
+        f"name that instant; its ordering table is then unanchored")
 
 
 def test_the_quoted_release_matches_the_census(prereg):
@@ -1322,6 +1362,19 @@ def test_the_smallest_p_and_its_multiple_of_alpha_are_right(prereg):
     assert f"{lo / land.alpha:.1f}x the Bonferroni threshold" in prereg
 
 
+_DECISION_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
+
+
+def _claimed_decision_count(prereg: str) -> int:
+    """The number of decisions the header CLAIMS, from its own sentence."""
+    import re
+    m = re.search(r"\b(one|two|three|four|five) decisions?\s+(?:are\s+)?"
+                  r"flagged \*\*DECISION\*\*", prereg, re.I)
+    assert m, ("the header no longer states how many decisions it flags; "
+               "that count is what this test compares against the markers")
+    return _DECISION_WORDS[m.group(1).lower()]
+
+
 def test_the_three_decisions_are_marked_as_such(prereg):
     """Three decisions and no more. A fourth appearing silently would mean
     the document started deciding things on its own."""
@@ -1339,6 +1392,17 @@ def test_the_three_decisions_are_marked_as_such(prereg):
     # It stayed after fix-list B1 was declined, which is the point: the
     # registered value is `floor` BECAUSE the alternative was measured, not
     # because nobody tried it.
-    assert "Three decisions are flagged **DECISION**" in prereg
-    assert prereg.count("**DECISION**") == 4, (
-        "one in the header plus one per decision; the count moved")
+    # AND THE COUNT IS READ, NOT TYPED. This asserted the literal sentence
+    # "Three decisions are flagged **DECISION**", which is the defect it
+    # exists to catch in the other direction: rewording the header for the
+    # 2026-11-11 signature broke the assertion while the agreement it
+    # checks was intact. The number word is now parsed out of whatever
+    # sentence carries it and compared with the markers, so the test
+    # survives a rewrite and still fails on a miscount. Proven against
+    # both: "three ... flagged" with two body markers fails, and the
+    # original draft sentence still passes.
+    claimed = _claimed_decision_count(prereg)
+    marked = prereg.count("**DECISION**") - 1      # the header's own marker
+    assert claimed == marked, (
+        f"the header promises {claimed} decision(s) and the body marks "
+        f"{marked}; the first draft promised three and marked two")

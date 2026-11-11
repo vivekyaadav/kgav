@@ -1,23 +1,101 @@
 # Pre-registration: the pathway and interactome overlap, re-run
 
-**UNSIGNED DRAFT.** The values under *Fixed in advance* are proposals with
-their arithmetic attached. This is not a registration until it is signed and
-committed, and the re-run must not be executed before then. Three decisions
-are flagged **DECISION** and belong to the author, not to this draft: the
-permutation count, whether the six empty-rejection-region tests stay in
-the correction family, and -- added 2026-11-10, after a graph change proved
-the verdict depends on it -- which compounds the drug-target query admits. A third candidate -- whether `auc_ceiling` replaces
-`MIN_REACHED_POSITIVES` as the readability gate -- belongs to the
-hard-negatives analysis and not to this one, and is left out rather than
-listed here for completeness.
+**SIGNED 2026-11-11, RETROSPECTIVELY, AND THE ORDERING IS RECORDED BELOW
+RATHER THAN SMOOTHED OVER.** The values under *Fixed in advance* are now
+fixed, and the three decisions flagged **DECISION** -- the permutation
+count, which compounds the drug-target query admits, and whether the six
+empty-rejection-region tests stay in the correction family -- are decided as
+this document proposes them, unchanged. A fourth candidate -- whether
+`auc_ceiling` replaces `MIN_REACHED_POSITIVES` as the readability gate --
+belongs to the hard-negatives analysis and not to this one, and is left out
+rather than listed here for completeness.
+
+**THE SIGNATURE POSTDATES THE RUN, WHICH THIS DOCUMENT'S OWN DRAFT
+FORBADE.** The draft read *"this is not a registration until it is signed
+and committed, and the re-run must not be executed before then"*. The re-run
+was executed on **2026-11-11 at 04:22:49 UTC** and signed hours later, so
+that sentence was broken rather than satisfied, and no wording here repairs
+it. A weaker claim is true and is checkable, and it is the whole of what this
+signature asserts:
+
+> **Every registered value predates the run. The signature does not.**
+
+That is a narrower guarantee than the draft asked for and it is worth
+stating what it still rules out: no parameter was chosen, and no test
+dropped from the correction family, after a p-value was in hand. What it
+does NOT rule out is the one thing only an ante-dated signature could --
+that signing was itself conditional on having seen the result. Nothing in
+this repository can settle that, so it is named here and left standing.
+
+| registered value | fixed by | relative to the run |
+|---|---|---|
+| Permutations: 100,000 | `b443f4b`, 2026-11-02 | 9 days before |
+| The six empty-rejection-region tests stay in the family | `b443f4b`, 2026-11-02 | 9 days before |
+| Correction family: every test, both channels, both directions | `b443f4b`, 2026-11-02 | 9 days before |
+| Drug-target admission: `floor` | `0c2d3e4`, 2026-11-10 | 1 day before |
+| **This signature** | 2026-11-11, after the run | **after** |
+
+**ONE EDIT LANDED AFTER THE RUN AND IT IS NOT A REGISTERED VALUE.** Commit
+`d43c316` (2026-11-11 10:01:55 +05:30, nine minutes after the run) changed
+this file by exactly one line, `edges_sha e26239a4e87865b3` ->
+`ad7121bc2195a93a` in the release identification below. So at the moment the
+run executed, this document named a release the run did not read -- the
+release had already moved and the identification had not caught up. It is a release
+identification rather than a parameter, and the whole of it is visible in
+`git show d43c316 -- docs/prereg_pathway_overlap.md`: one insertion, one
+deletion.
+
+**THE RUN'S CODE STAMP SAYS `dirty: true`, AND IT DID NOT REACH THIS
+ANALYSIS.** `pathway_landscape.json` records code commit `21c0f92` with a
+dirty working tree, because the run happened mid-session with the
+`potency_rows` rename uncommitted. Both files this analysis consists of are
+byte-identical between that commit and the signed tree --
+`scripts/pathway_landscape.py` at sha256 `39d20e56b370`,
+`src/kgav/landscape.py` at `887f0405372f` -- and no commit from `21c0f92` to
+the signature touches either. The uncommitted content was elsewhere.
+
+**ONE REGISTERED PARAMETER IS NOT RECOVERABLE FROM THE ARTIFACT.** The
+operand this document fixes -- the drugged proteome under `floor`, 1,946
+human proteins -- is recorded in **neither** `pathway_landscape.json` nor its
+provenance block, and it is the one parameter this document says the verdict
+depends on (0 of 22 rows clearing Bonferroni under `floor`, 3 under
+`relaxed`). A reader cannot confirm from the result file which operand
+produced it. It is re-derivable from the release, and re-deriving it on the
+signed release gives **1,946 drugged of a 20,416-protein human universe**,
+which matches what is registered below; `tests/test_prereg_is_obeyed.py`
+pins that so the agreement is checked rather than claimed. **The artifact
+should state it, and that is the open item this signature leaves behind:**
+recording it requires regenerating the file, which is another 100,000
+permutations, and doing so AFTER this signature is the correct order for the
+first time in this document's history.
 
 Date drafted: 2026-11-02. Release: v0.1 (78,789 nodes / 392,375 edges,
 `nodes_sha` c800b9005c8b074c, `edges_sha` ad7121bc2195a93a). Scripts:
 `scripts/pathway_landscape.py`, read by `src/kgav/landscape.py`.
 
-**The release identification has now been updated eight times -- 2026-11-08
-and seven times on 2026-11-09 -- and the analysis was not re-registered any
-of them**, because no rebuild has changed a measured figure. The fifth and
+**The release identification has now been updated eleven times -- once on
+2026-11-07, three times on 2026-11-08, five times on 2026-11-09 and twice on
+2026-11-11 -- and the analysis was not re-registered any of them**, because
+no rebuild has changed a measured figure. **That count was wrong until
+2026-11-11 and so was its breakdown.** It read "eight times -- 2026-11-08
+and seven times on 2026-11-09", which was maintained by hand and matched
+neither the total nor any date: git puts three of them on 2026-11-08, not
+one, and five on 2026-11-09, not seven. It is now taken from the history,
+derived by `tests/test_prereg_is_obeyed.py` rather than maintained, and
+anyone can re-take it --
+
+    git log -G'nodes_sha.*edges_sha' -- docs/prereg_pathway_overlap.md
+
+-- where the twelfth and oldest commit it lists is the drafting rather than
+an update. **The obvious command for this is the wrong one.** `git log -L
+/^Date drafted/,+1:` tracks the line by content and silently omits
+`d43c316`, the one commit this header is about, because it re-resolves the
+regex as it walks; the line-number form `-L 14,15:` agrees with the pickaxe
+above on all twelve but needs the line number the file had at the revision
+being read, which this signature's own insertion has already changed. The narrative below numbers only the first eight and stops; the
+ninth and tenth are the 2026-11-11 rebuilds (the identity-policy fix and the
+`potency_rows` rename) and the eleventh is the `edges_sha` correction
+described in the header, which followed the run by nine minutes. The fifth and
 sixth are P13, which added four qualifiers to `TARGETS` edges and removed
 them again from 551 merged ones, and P14, which gave the gtop layer a range
 of its own so that 16,436 of 17,982 edges keep one; this analysis reads
@@ -57,10 +135,12 @@ its figures are quoted in `docs/scope_and_limits.md` and in the paper.
 **So the 2026-10-28 run was unregistered and its figures are exploratory.**
 Writing registered predictions for a measurement already in hand would be
 the exact failure this directory's format exists to prevent, and no
-paragraph here retroactively fixes that. What is genuinely still ahead is a
-**re-run**, forced by two defects found on 2026-11-02 that change every
-p-value in the file, and whose parameters are genuinely undecided. This
-document registers that re-run.
+paragraph here retroactively fixes that. What was genuinely still ahead, when this
+was drafted on 2026-11-02, was a **re-run** -- forced by two defects found
+that day that change every p-value in the file, and whose parameters were
+then undecided. This document registers that re-run. **It has since been
+executed, on 2026-11-11, before this signature**; the header says what that
+costs and what it does not.
 
 The published null does not change status because of this. It was
 exploratory before and it is exploratory now; what changes is that the
@@ -90,9 +170,12 @@ permutations an empirical p takes values k/2001, so below the corrected
 distinguish "significant" from "not" and nothing finer. **The run now on
 disk uses 100,000 and has 113 attainable values below alpha.**
 
-Both are fixed in code. The figures in the file still come from the old
-behaviour, and `landscape.load` reports that: a file with no `seed_scheme`
-key now describes itself as shared-generator in the protocol string.
+Both are fixed in code, and the file on disk now comes from the fixed
+behaviour: it records `seed_scheme` as `per-row: Random(f'{seed}|{channel}|
+{virus}')` and `permutations: 100000`. The reporting path is kept for the
+older artifacts -- `landscape.load` describes a file with NO `seed_scheme`
+key as shared-generator in its protocol string, so a stale result cannot
+present itself as this one.
 
 ## The measurement
 

@@ -1328,7 +1328,11 @@ below uses `degree_basis = study`, binning within the studied set.
 **The correction.** Each row is tested in both directions, enrichment and
 depletion, so `n_tests = 44` over 22 rows and the Bonferroni threshold is
 `alpha = 0.00114`. 100,000 permutations, seed 0 -- the count docs/prereg_pathway_overlap.md
-fixes in advance, and which the runs before 2026-11-11 did not use.
+fixes in advance, and which the runs before 2026-11-11 did not use. That
+registration was SIGNED AFTER THIS RUN, on 2026-11-11: every value it fixes
+predates the run and the signature does not, which its header records in
+full. Both `n_tests = 44` and the permutation count are checked against this
+file by tests/test_prereg_is_obeyed.py rather than taken on trust.
 
 <!-- TABLE: pathway_landscape — asserted cell-by-cell by
      tests/test_landscape_table.py against data/results/pathway_landscape.json.

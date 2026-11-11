@@ -321,6 +321,15 @@ values below alpha. No verdict changed and no p-value moved by more than
 0.015, so what the extra resolution bought is not a different answer but
 the right to state this one: the test was powered to reject and did not.
 
+**The registration is signed retrospectively and the weight it carries is
+correspondingly lower.** The permutation count, the correction family and
+the drugged-proteome operand were all fixed before the run -- 9, 9 and 1
+day(s) before it -- but the signature was added after it, against the
+draft's own instruction not to run first. `docs/prereg_pathway_overlap.md`
+opens with the ordering, commit by commit. It is not what a prospective
+registration would be worth, and the null above is reported as a null
+either way.
+
 ## What the graph cannot be asked
 
 `make data-audit` reports the declared schema against the built graph.
