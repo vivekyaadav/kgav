@@ -200,17 +200,55 @@ targets sit in, and does the virus depend on any member of them. That is
 ## D. Out of scope for v1
 
 - **The temporal split and everything downstream.** Decided 2026-10-24: the
-  pathway analysis uses the whole graph. Note for whenever it is picked up
-  again — all 150,432 `PHYSICALLY_INTERACTS_WITH` edges are dropped from
-  any pre-2021 training cut, because `ingest_host` stamps every STRING edge
-  with `string_release_date` (2023-08-28) and `ingest_vhppi` stamps every
-  edge with its `--date` default (2024-01-01). M3 and M5 therefore have
-  zero edges in the temporal protocol, and `edge_dropped_future` is a
-  single scalar that cannot show it. `vhppi.parse_row` already extracts a
-  per-edge PMID and `ingest_mitab` discards it. STRING has no per-edge date
-  and should carry `PLACEHOLDER_DATE`, which routes it through
-  `undated_policy` rather than silently outside the cutoff. None of this
-  removes an edge from v0.1.
+  pathway analysis uses the whole graph.
+
+  **THIS NOTE WAS WRONG IN FOUR WAYS UNTIL 2026-11-11, AND C1/C2/V4 HAD
+  ALREADY FIXED OR MEASURED EVERY ONE OF THEM.** It read: *"all 150,432
+  `PHYSICALLY_INTERACTS_WITH` edges are dropped from any pre-2021 training
+  cut, because `ingest_host` stamps every STRING edge with
+  `string_release_date` (2023-08-28) and `ingest_vhppi` stamps every edge
+  with its `--date` default (2024-01-01). M3 and M5 therefore have zero
+  edges in the temporal protocol."* Against the release and the temporal
+  results:
+
+      153,533   PHYSICALLY_INTERACTS_WITH edges in v0.1
+      141,019   STRING, host-host, dropped from the 2021 cut
+       11,744   SURVIVE the cut, and every one is virus-host
+            0   of the survivors are STRING's
+
+  The quotation above is what was claimed; the block is what is true. No
+  figure from the superseded sentence is restated outside that quotation,
+  which is the convention `tests/test_release_plan_temporal_note.py`
+  enforces -- it reads the plan with quoted material removed, so a wrong
+  number recorded as history passes and the same number asserted does not.
+
+  **"All" and "zero" were the load-bearing words and both were false.** The
+  11,744 come from VirHostNet (5,222), IntAct and its overlaps (6,362),
+  MINT (147), DIP (12) and HPIDB (1), and they sum exactly. So **M3, the
+  virus-host middle hop, RUNS in the temporal protocol and only M5,
+  host-host, cannot** -- which is the reason M5 was absent from every
+  SARS-CoV-2 temporal table ever published here, a fact this note's "M3 and
+  M5 therefore have zero edges" actively concealed.
+
+  The two mechanisms it blamed are also no longer there. `ingest_vhppi`
+  dates each edge from its own PMID year (`vhppi.PUB_YEAR_RE`, fix-list
+  C1), so the `--date` default is a fallback and not the stamp; and
+  `string_release_date` was renamed `string_file_mtime` (V4) precisely
+  because it is a download mtime and not a release date.
+
+  **What survives of the note is the recommendation, and it is unchanged:**
+  STRING has no per-edge date and should carry `PLACEHOLDER_DATE`, which
+  routes it through `undated_policy` rather than silently outside the
+  cutoff. That is a decision, not a correction -- it would move all 141,019
+  edges from one side of the cut to "undated" -- and it is fix-list C2,
+  which also records that STRING v11.0 (2019) is a 139 MB download and
+  `data/raw` is hand-populated. None of this removes an edge from v0.1.
+
+  The figures above are re-derived by
+  `tests/test_release_plan_temporal_note.py` from the release and from
+  `data/results/temporal_2021_include.json`'s
+  `training_graph_predicate_sources`, which `temporal_split.py` writes for
+  this purpose. They are not retyped here again.
 - **The structure-derived scorer — REGISTERED 2026-11-11, not run.**
   `docs/prereg_structure_scorer.md`, signed before the code and before the
   measurement. It is out of scope for v1 because v1 is the pathway analysis
