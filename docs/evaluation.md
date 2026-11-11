@@ -1690,6 +1690,15 @@ make pathway-landscape
 #    documents to it.
 make label-overlap
 
+#    the structure-derived scorer, registered in advance by
+#    docs/prereg_structure_scorer.md and run for the first time
+#    2026-11-11. It reads the release directly and depends on nothing
+#    above. It belongs here for the reason the pathway landscape does:
+#    check-results globs data/results and would report it stale while no
+#    step regenerated it, and tests/test_reproduce_block.py fails on a
+#    results file no step here refreshes.
+make structure-scorer
+
 # 5. every results file, AND the derived release they depend on, must
 #    describe the graph on disk
 make check-results

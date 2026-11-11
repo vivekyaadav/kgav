@@ -134,6 +134,10 @@ diagnose-label-reachability:
 # default silently ran the pooled task -- the one population the
 # registration excludes by name, because a structure scorer can separate
 # ChEMBL antivirals from NCATS library compounds on collection alone.
+# The registered run. Writes data/results/structure_scorer.json.
+structure-scorer:
+	python scripts/structure_scorer.py $(ARGS)
+
 STRUCTURE_SOURCES = $(or $(SOURCES),infores:chembl)
 diagnose-structure-design:
 	python scripts/diagnose_structure_scorer_design.py \

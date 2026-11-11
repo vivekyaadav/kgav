@@ -23,6 +23,23 @@ c800b9005c8b074c, `edges_sha` ad7121bc2195a93a). Scripts to be written:
 `scripts/structure_scorer.py`. Design facts below: `make
 diagnose-structure-design`.
 
+## When the code and the run happened
+
+Recorded here so the ordering above can be checked rather than taken, and
+appended rather than replacing anything: a registration edited to match what
+happened later is worth nothing.
+
+| | when |
+|---|---|
+| this document signed | 2026-11-11, commit `9a7b4ee` |
+| `scripts/structure_scorer.py` was written on | 2026-11-11, after the signature |
+| first run | recorded below, under *Outcome* |
+
+The design facts in this document predate the scorer by construction:
+`scripts/diagnose_structure_scorer_design.py` went in with the signature and
+a test fails if it ever computes a similarity, so nothing resembling the
+outcome was available when the parameters were fixed.
+
 ## Why this measurement exists
 
 Every evaluated channel in this project has almost no room to rank. Across
@@ -312,3 +329,151 @@ given: max rather than mean-of-top-3 as primary; ChEMBL-only rather than
 NCATS-only as primary; and keeping no-PMID candidates rather than dropping
 them. A change to any of these before the run is a re-registration and
 should be recorded as one.
+
+---
+
+# Verdict — the scorer has a span, and the control that gives it one also decides its sign
+
+Run 2026-11-11, `make structure-scorer`, written to
+`data/results/structure_scorer.json`. Release v0.1, `edges_sha`
+ad7121bc2195a93a. The registration above is unchanged; this section is
+appended beneath it.
+
+| | prediction | outcome |
+|---|---|---|
+| **P1** | publication-disjoint reads lower in >= 8 of 14 cells | **HELD, 13 of 14** |
+| **P2** | at least one cell clears the corrected alpha | **HELD, 5 cells above chance** |
+| **P3** | floor exactly 0.5000, ceiling exactly 1.0000, every cell | **HELD exactly, all 14** |
+| **P4** | SARS-CoV-2 and DENV-2 clear if any does; JEV clears under no variant | **HALF-FAILED** — both clear, and JEV clears too |
+| **P5** | the matched NCATS cell reads lower than the ChEMBL cell | **CANNOT BE EVALUATED** |
+| **P6** | degree does not clear where the structure scorer does not | **FAILED, 4 cells** |
+
+## The numbers
+
+    virus                 pos     neg      AUC   corrected 95%      skill    leak   degree
+    SARS-CoV-2          1,786   5,362   0.7693^  [0.7488, 0.7897]   0.5385  +0.1003  0.5131
+    MERS-CoV              133      41   0.6677^  [0.5364, 0.7990]   0.3354  -0.0001  0.7085
+    Zika                  748   2,577   0.6316^  [0.5965, 0.6666]   0.2631  +0.1722  0.5534
+    West Nile             261     311   0.6308^  [0.5626, 0.6990]   0.2616  +0.1123  0.5657
+    HCoV-229E             120      88   0.5951   [0.4806, 0.7097]   0.1902  +0.0386  0.5908
+    TBEV                   72      65   0.5764   [0.4344, 0.7184]   0.1528  +0.1840  0.4203
+    DENV-2                996   3,043   0.5735^  [0.5425, 0.6046]   0.1471  +0.2899  0.4016
+    Yellow fever          135     882   0.5545   [0.4752, 0.6337]   0.1089  +0.2598  0.7264
+    HCoV-OC43             164      70   0.5396   [0.4210, 0.6582]   0.0792  +0.0992  0.5345
+    SARS-CoV              143      96   0.5186   [0.4077, 0.6294]   0.0372  +0.0998  0.6812
+    DENV-4                153     109   0.4644   [0.3587, 0.5701]  -0.0712  +0.3036  0.2302
+    DENV-1                195     123   0.4489   [0.3518, 0.5461]  -0.1021  +0.2619  0.3144
+    DENV-3                213      95   0.3861v  [0.2825, 0.4896]  -0.2279  +0.3848  0.1715
+    JEV                    19      27   0.1452v  [0.0000, 0.3061]  -0.7096  +0.6832  0.6374
+
+    ^ clears the corrected alpha above chance   v clears it below
+
+**THE SPAN IS REAL AND P3 IS THE REASON TO BELIEVE ANY OF THIS.** 19,085 of
+19,085 labelled compounds fingerprinted, zero unparseable, zero without
+SMILES; `coverage_pos` and `coverage_neg` are 1.0000 in all 14 cells, so
+`auc_floor` is exactly 0.5000 and `auc_ceiling` exactly 1.0000 everywhere.
+Every thousandth of SARS-CoV-2's 0.7693 is ranking. For comparison, the
+best metapath channel in this project has a span of 0.0377 and a margin
+above its floor of +0.0050.
+
+## P5 could not be evaluated, and the reason is a defect in the registration
+
+The matched NCATS cell **refuses rather than reporting**. All 7,432
+candidates lost their entire reference set: the panel's 89 actives and
+7,343 inactives all cite publications from one screen, so exclusion (3)
+removed every admissible reference for every candidate.
+`excluded_publication` fired 661,358 times, `empty_reference` is 7,432, and
+`coverage_pos` is 0.0.
+
+**The first run of this script reported that cell as `0.5000 [0.4103,
+0.5897]`** -- an AUC with an interval, reading exactly like a scorer that
+found nothing, when in fact nothing had been ranked and a rank-sum AUC over
+a single tie block is 0.5 by arithmetic. `auc_skill` was None and the
+printed line showed `0.0000`, because the formatter wrote `or 0.0`. Both are
+fixed: a cell with zero coverage now carries `measurable: false` and a
+refusal string, and the formatter prints `--` for a quantity that does not
+exist.
+
+**The registration's two strongest controls are incompatible by
+construction, and nothing in the design facts would have shown it.** A
+single-screen population is matched because one paper reports it; a
+publication-disjoint reference set requires the actives to come from
+different papers. `make diagnose-structure-design` reported PMID coverage of
+89/89 and 7,343/7,343 across 232 papers for that cell, which looked like
+ample material -- the question it does not answer is whether the ACTIVES'
+papers are disjoint from each other, and they are not. That question is now
+the one worth asking before any future registration pairs the two.
+
+## P6 failed, and P4 failed for a reason I registered and then did not think through
+
+**Degree clears the corrected alpha in 4 cells where the structure scorer
+does not** -- DENV-1, DENV-4, Yellow fever and SARS-CoV -- so P6 is false.
+Two of those four clear by ranking actives BELOW inactives (DENV-1 0.3144,
+DENV-4 0.2302), which is the same two-sided reading that broke P4.
+
+**P4 said JEV "does not clear it under any variant", reasoning that it needs
+0.6632 uncorrected.** It clears at **0.1452**, by anti-ranking, with the
+interval [0.0000, 0.3061] excluding 0.5 from below. The registration fixed a
+two-sided test on purpose -- *"a below-chance AUC is a finding here, not a
+null"* -- and then the prediction was written as though only the upper tail
+existed. The test was right and my reasoning about it was not.
+
+## What the leak measurement says, which is the most useful thing here
+
+**P1 held in 13 of 14 cells and the magnitudes are large:** removing
+same-paper actives costs +0.6832 AUC on JEV, +0.3848 on DENV-3, +0.3036 on
+DENV-4, +0.2899 on DENV-2. Only MERS-CoV is unaffected (-0.0001).
+
+**And the leak predicts the result.** Across the 14 cells, Spearman
+correlation between the final AUC and the leak magnitude is **-0.684**,
+which clears the ~0.544 critical value at n=14: the cells that lose the most
+to the control are the cells that end up lowest. Read plainly, most of what
+a naive run of this scorer would have reported is same-paper retrieval.
+
+**A SECOND MECHANISM IS SUGGESTIVE AND DOES NOT CLEAR THE BAR, AND IT IS A
+FLAW IN THE CONTROL ITSELF.** Exclusion (3) is not symmetric between the
+classes: a positive's nearest known actives are its own paper-mates, which
+are removed, while a negative sitting in a paper containing no active loses
+nothing. References excluded per candidate, positives against negatives:
+
+    JEV            11.16 / 2.00   = 5.6x      AUC 0.1452
+    DENV-3         23.66 / 1.94   = 12.2x     AUC 0.3861
+    DENV-1         13.68 / 2.75   = 5.0x      AUC 0.4489
+    DENV-4         11.93 / 1.98   = 6.0x      AUC 0.4644
+    ...
+    MERS-CoV       10.36 / 12.61  = 0.8x      AUC 0.6677
+    SARS-CoV-2     20.63 / 32.23  = 0.6x      AUC 0.7693
+
+The two cells where the control handicaps NEGATIVES more are the two
+highest AUCs, and the four where it handicaps positives by 5x or more are
+the four lowest. Spearman against log ratio is **-0.490**, which does NOT
+clear 0.544 at n=14, so this is a hypothesis and is reported as one. It is
+also the obvious thing to fix: a control that removes a candidate's closest
+analogs should remove them for both classes on the same terms, and this one
+removes them in proportion to how much company each compound keeps.
+
+## What this does and does not license
+
+- **It licenses the span claim and nothing about mechanism.** A scorer that
+  reaches every labelled compound and separates the classes at 0.7693 on
+  SARS-CoV-2 is the first thing in this project with room to rank and a
+  margin to show. It still only names a neighbour.
+- **It does not license the SARS-CoV-2 figure as an estimate of
+  prospective performance.** 3,447 of its 7,148 candidates -- 48% -- carry
+  no PMID, so the leak control did not apply to half of them; the registered
+  rule kept them and counted them, and the count is the caveat.
+- **It does not establish that the collection confound was controlled.** The
+  one cell that could have tested it is the one that refuses. ChEMBL-only
+  matches the source, not the assay.
+- **The four below-chance cells are not a finding about chemistry** until
+  the asymmetry above is ruled out. They may be the control's artifact.
+
+## What would change the conclusion, restated for the next registration
+
+A control that handicaps both classes equally -- for example, excluding each
+candidate's k nearest references regardless of publication, with k fixed in
+advance -- run on the same 14 cells. If SARS-CoV-2 survives that at a
+comparable margin, the result is about structure. If it collapses towards
+the dengue serotypes, it was about who publishes with whom. **That must be
+registered before it runs, and this verdict is exactly the kind of result
+that makes the next registration hard to write honestly.**

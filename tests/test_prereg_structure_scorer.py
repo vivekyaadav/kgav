@@ -62,14 +62,27 @@ def design():
 
 def test_it_says_it_was_signed_before_the_code_and_the_run(prereg):
     """The claim that distinguishes this registration from the pathway one.
-    If the scorer script appears while this sentence stands, the sentence is
-    false and this test is how that is noticed."""
+
+    THE FIRST VERSION OF THIS TEST DEMANDED THE WRONG THING. It required the
+    phrase to DISAPPEAR once scripts/structure_scorer.py existed -- as
+    though the claim expired. It does not: "signed before the code" is a
+    permanent fact about 2026-11-11, and editing a registration to match
+    what happened later destroys the only thing it is for, which is what
+    prereg_pathway_overlap.md says at length about its own release
+    identification.
+
+    What a reader is owed once the code exists is the ORDERING, dated, so
+    the claim can be checked rather than taken. So the phrase stays and the
+    document must additionally record when the code was written.
+    """
     assert "SIGNED 2026-11-11, BEFORE THE CODE AND BEFORE THE RUN" in prereg
     if (ROOT / "scripts/structure_scorer.py").exists():
-        assert "SIGNED 2026-11-11, BEFORE THE CODE" not in prereg, (
-            "scripts/structure_scorer.py now exists, so the registration can "
-            "no longer claim it was signed before the code; record the run "
-            "instead")
+        assert "## When the code and the run happened" in prereg, (
+            "scripts/structure_scorer.py exists and the registration does "
+            "not record when it was written; the ordering claim is then "
+            "unverifiable")
+        assert "`scripts/structure_scorer.py` was written on" in prereg, (
+            "the registration must date the code it was signed before")
 
 
 def test_the_quoted_release_is_the_one_on_disk(prereg):
