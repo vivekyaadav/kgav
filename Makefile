@@ -1,4 +1,4 @@
-.PHONY: kg-report kg-report-check install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
+.PHONY: auc-delta kg-report kg-report-check install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
 
 install:
 	pip install -e ".[dev]"
@@ -102,6 +102,16 @@ release-validate:
 # filenames, one audited and one used, is the hazard itself.
 check-results:
 	python scripts/check_results.py $(or $(RESULTS),data/results)
+
+# DID THE SCORES GO DOWN. check-results says whether a results file is
+# current; this says whether the rebuild that made it current cost anything.
+# Defaults to the previous commit and to a floor of one AUC point on cells
+# both releases REPORT -- the scorer's own trustworthy / hits_determined /
+# readable flags decide that, because the material falls a rebuild produces
+# are in cells with six negatives, which the project already refuses.
+#   make auc-delta ARGS="--against 5151de8"
+auc-delta:
+	python scripts/compare_results_aucs.py --fail-below -0.01 $(ARGS)
 
 # WHAT THE max_phase GATE COSTS (fix-list B1). Needs the 30 GB chembl_37
 # sqlite, so it is a diagnostic and not a test; ~20s.

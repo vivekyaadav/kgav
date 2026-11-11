@@ -129,6 +129,27 @@ def main() -> int:
           "measured\n  NOT to inhibit becomes MEASURED_INACTIVE_AGAINST "
           "rather than INHIBITS")
     print(f"  {s['censored']:,} censored values kept with their relation")
+    # WHICH KEY DECIDED EACH NODE ID (fix-list L27). These four counters were
+    # populated by `policy_key` from the day the repair landed and printed by
+    # NEITHER ingest, which is the defect this repository keeps finding in its
+    # own code: a counter that cannot be read is the same shape as a check
+    # that cannot fail. They are the only record of how many compounds the
+    # identity policy MOVED off their source key, and therefore the only
+    # record of how many duplicate pairs it collapsed -- the question
+    # "which compound did this virus lose to a merge" has no other answer
+    # in the artifact.
+    identity = {k: s[k] for k in sorted(s) if k.startswith("identity_")}
+    if identity:
+        print("\n  which key decided the node id:")
+        for k, n in identity.items():
+            print(f"    {k.removeprefix('identity_'):<12} {n:>8,}")
+        print(f"    {'(total)':<12} {sum(identity.values()):>8,}")
+        moved = identity.get("identity_normalized", 0)
+        if moved:
+            print(f"  {moved:,} row(s) took a key the identity policy derived "
+                  f"rather than ChEMBL's own `standard_inchi_key`;\n"
+                  f"  each one is a structure whose salt or charge form the "
+                  f"policy collapsed.")
     print("\n  target resolution from assay description:")
     for k in sorted(k for k in s if k.startswith("resolved_")):
         print(f"    {k.replace('resolved_',''):<10} {s[k]:>7,}")

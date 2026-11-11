@@ -131,6 +131,15 @@ def main() -> int:
     s = ingest_host_targets(em, rows, mechanisms, proteins, "infores:chembl")
 
     print(f"\n{s['edges']:,} TARGETS edges over {len(em.nodes):,} compounds")
+    # WHICH KEY DECIDED EACH NODE ID (fix-list L27), same four counters and
+    # the same reason as ingest_chembl.py: they were populated from the day
+    # the identity repair landed and printed by neither driver.
+    identity = {k: s[k] for k in sorted(s) if k.startswith("identity_")}
+    if identity:
+        print("  which key decided the node id:")
+        for k, n in identity.items():
+            print(f"    {k.removeprefix('identity_'):<12} {n:>8,}")
+        print(f"    {'(total)':<12} {sum(identity.values()):>8,}")
     print("  direction (from drug_mechanism where stated):")
     for k in ("direction_inhibitor", "direction_agonist", "direction_modulator",
               "direction_unknown"):
