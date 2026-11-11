@@ -137,8 +137,10 @@ def main(argv=None) -> int:
     # Taken before any step runs, so the comparison at the end is a
     # measurement and not a recollection.
     before = release_fingerprint(release_dir(args.root))
-    # And the one set that decides whether phase 3 has settled (L20).
+    # And the one set that decides whether phase 3 has settled (L20),
+    # sampled after each assemble rather than around the whole run.
     annotating_before = annotating_subjects_sha(release_dir(args.root))
+    assembly_digests: list[tuple[int, str | None]] = []
 
     steps = plan(args.root)
     layers = [s for s in steps if s["kind"] == "layer"]
@@ -284,6 +286,20 @@ def main(argv=None) -> int:
                   "written is reused.")
             return 1
         print(f"  ok  ({took:.0f}s)")
+        # THE DIGEST AFTER EACH ASSEMBLE, which is the pair that decides
+        # whether phase 3 is stale (fix-list L20). Taking it around the
+        # WHOLE RUN -- the first version of this -- compares the release
+        # before against the release after, and both of those can contain
+        # the same layers while the phase-2 assembly that phase 3 actually
+        # READ differs from the phase-4 assembly that shipped. That is not
+        # hypothetical: it stayed silent through the L11 rename, where
+        # phase 2 assembled 14,381 TARGETS without a deleted gtop layer,
+        # similarity partitioned on that, and phase 4 shipped 17,982 with
+        # a similarity layer computed against the smaller set. Three passes
+        # to converge and no warning.
+        if s["kind"] == "assemble":
+            assembly_digests.append(
+                (s["phase"], annotating_subjects_sha(release_dir(args.root))))
         # STAMP IT HERE, not inside the ingest. Twelve scripts write their
         # own output and a thirteenth would forget; this is the one place
         # that knows a layer ingest just succeeded.
@@ -299,9 +315,15 @@ def main(argv=None) -> int:
         print(f"REUSED (not rebuilt this run): "
               f"{', '.join(s['name'] for s in reused)}")
     after = release_fingerprint(release_dir(args.root))
-    print(staleness_verdict(
-        before, after,
-        annotating_before, annotating_subjects_sha(release_dir(args.root))))
+    # WHAT PHASE 3 READ against WHAT THE RUN SHIPPED. Falls back to the
+    # before/after pair when fewer than two assembles ran, which is the
+    # --plan path and any run that stopped early.
+    if len(assembly_digests) >= 2:
+        read_by_phase3, shipped = assembly_digests[0][1], assembly_digests[-1][1]
+    else:
+        read_by_phase3, shipped = annotating_before, \
+            annotating_subjects_sha(release_dir(args.root))
+    print(staleness_verdict(before, after, read_by_phase3, shipped))
     return 0
 
 

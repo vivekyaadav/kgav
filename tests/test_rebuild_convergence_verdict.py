@@ -95,6 +95,37 @@ def test_a_moved_annotating_set_demands_another_run():
     assert "L20" in out
 
 
+def test_the_digests_compared_are_what_phase_3_READ_and_what_SHIPPED():
+    """THE PAIR, and the first version of this compared the wrong one.
+
+    `staleness_verdict`'s last two arguments were the release digest BEFORE
+    the run and AFTER it. Both endpoints can hold the same layers while the
+    phase-2 assembly that phase 3 actually read differs from the phase-4
+    assembly that shipped -- and then phase 3's output describes a graph
+    that is not the one on disk.
+
+    MEASURED, on the fix-list L11 qualifier rename. The stale `gtop` layer
+    had to be deleted (L25), so phase 2 assembled 14,381 TARGETS without
+    it, `ingest_similarity` partitioned on that and emitted 3,166 edges,
+    and phase 4 shipped 17,982 TARGETS beside a similarity layer computed
+    against the smaller set. It took THREE passes to converge and this
+    branch said nothing, because `gtop` was present in the release at both
+    ends of every run.
+
+    The driver now samples the digest after each assemble and passes the
+    first and the last. This test pins the contract the driver relies on:
+    the verdict fires on a DIFFERENCE between its last two arguments,
+    whatever they are measured over, so the driver choosing the right pair
+    is what makes it correct.
+    """
+    src = (ROOT / "scripts/rebuild_release.py").read_text()
+    assert 'if s["kind"] == "assemble":' in src and "assembly_digests.append" in src, (
+        "the driver must sample the annotating digest after each assemble")
+    assert "assembly_digests[0][1], assembly_digests[-1][1]" in src, (
+        "the verdict must be given the FIRST and LAST assembly digests -- "
+        "what phase 3 read, and what the run shipped")
+
+
 def test_the_branch_is_silent_when_the_digests_are_unknown():
     """A caller that cannot measure the set -- no release on disk either
     side -- must get the old four-branch behaviour, not a warning derived
