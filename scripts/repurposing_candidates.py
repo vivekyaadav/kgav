@@ -122,6 +122,23 @@ def molecules(release: Path) -> dict[str, dict]:
     return out
 
 
+def _heavy_delta(a: str | None, b: str | None) -> int | None:
+    """Heavy atoms in `a` minus heavy atoms in `b`, or None if either is
+    unparseable. A ring homolog reads 1; a residue permutation reads 0, and
+    that zero is informative rather than missing -- it says the two differ
+    in a way neither the fingerprint NOR the atom count can see."""
+    from rdkit import Chem
+
+    try:
+        ma = Chem.MolFromSmiles(a) if a else None
+        mb = Chem.MolFromSmiles(b) if b else None
+    except Exception:
+        return None
+    if ma is None or mb is None:
+        return None
+    return ma.GetNumHeavyAtoms() - mb.GetNumHeavyAtoms()
+
+
 def suggest(candidates: list[str], actives: list[str], fps: dict,
             props: dict, top: int, degree: dict | None = None) -> list[dict]:
     """Top `top` candidates by nearest known active.
@@ -132,6 +149,32 @@ def suggest(candidates: list[str], actives: list[str], fps: dict,
     is dropped -- a stereoisomer or tautomer of a known active is the same
     compound in this graph's identity policy, so scoring against it would
     report a Tanimoto of 1.0 and suggest a compound already known.
+
+    AND THE SKELETON EXCLUSION DOES NOT CATCH EVERY TANIMOTO OF 1.0, which
+    reading the output showed on 2026-11-12: 14 of 210 suggestions sat at
+    **1.0** with a DIFFERENT skeleton from the active they resemble -- so not
+    salts, which L27 collapsed, and not stereoisomers, which the line above
+    removes. They are distinct molecules with an identical ECFP4 bit vector,
+    because radius 2 folded into 2048 bits cannot see:
+
+        a saturated RING SIZE   cycloheptyl vs cyclohexyl (CHEMBL4639263 /
+                                CHEMBL4526128) -- every atom's radius-2
+                                environment is CH2 flanked by CH2 either way
+        a peptide's LENGTH      one extra leucine (CHEMBL4857345 /
+                                CHEMBL1821856)
+        a residue ORDER         Arg-Arg-Lys vs Arg-Lys-Lys (CHEMBL468049 /
+                                CHEMBL522355)
+
+    A suggestion at 1.0 therefore reads "this is the same molecule as a known
+    active" when it may be one methylene away, which is a different and much
+    weaker statement. `fingerprint_identical` and `heavy_atom_delta` now say
+    which it is, so the top of the list cannot be read as an identity it is
+    not. **The registered AUC is not exposed to this:** both symmetric
+    controls drop each candidate's k NEAREST references, and a near-identity
+    is by definition among them -- measured at zero candidates above 0.90
+    under either, against 0.0033 of AUC under the publication control, by
+    `scripts/diagnose_fingerprint_blindspots.py`. This read-out applies no
+    k-nearest exclusion, which is why it is the thing that shows the defect.
     """
     from rdkit import DataStructs
 
@@ -166,6 +209,15 @@ def suggest(candidates: list[str], actives: list[str], fps: dict,
                      # answer sheet -- fix-list L7.
                      "graph_degree": int((degree or {}).get(c, 0)),
                      "tanimoto": round(best, 4),
+                     # WHAT A 1.0 ACTUALLY MEANS HERE. Identical bits with a
+                     # different skeleton is a fingerprint limit, not an
+                     # identity, and the heavy-atom difference is the
+                     # cheapest honest measure of how far apart they are:
+                     # 1 for a ring homolog, 0 for a residue permutation.
+                     "fingerprint_identical": best >= 0.9999,
+                     "heavy_atom_delta": _heavy_delta(
+                         props.get(c, {}).get("smiles"),
+                         props.get(ref_ids[best_i], {}).get("smiles")),
                      "nearest_active": ref_ids[best_i],
                      "nearest_active_chembl":
                          props.get(ref_ids[best_i], {}).get("chembl_id")})
@@ -198,8 +250,8 @@ def main(argv=None) -> int:
     print("  of 14 viruses, none below -- see")
     print("  docs/prereg_structure_scorer_strength_matched.md. But the one")
     print("  population matched by assay rather than by source is MARGINAL")
-    print("  (0.5898, interval containing chance) and the gap between the")
-    print("  two is 0.19-0.22 AUC. So every row below is a chemical-analogy")
+    print("  (0.5870, interval containing chance) and the gap between the")
+    print("  two is 0.20-0.22 AUC. So every row below is a chemical-analogy")
     print("  suggestion with a measured hit rate. It is NOT a prediction of")
     print("  activity and NOT a mechanism: the evidence is 'resembles a")
     print("  known active', and the known active is named so you can judge.\n")
@@ -303,25 +355,50 @@ def main(argv=None) -> int:
             shown = r["name"] or cid
             near = (r["nearest_active_name"] or r["nearest_active_chembl"]
                     or r["nearest_active"].split(":", 1)[1][:14])
+            # A 1.0 IS MARKED, WITH WHAT ACTUALLY DIFFERS. Unmarked it
+            # reads as an identity, and 14 of these are a ring homolog or a
+            # peptide variant that ECFP4 at radius 2 cannot resolve.
+            flag = ""
+            if r.get("fingerprint_identical"):
+                d = r.get("heavy_atom_delta")
+                flag = ("  <- SAME BITS, "
+                        + (f"{abs(d)} heavy atom(s) apart"
+                           if d else "same atom count: a permutation")
+                        + "; NOT the same compound")
             print(f"  {n:>2}  {shown[:30]:<30} "
                   f"{'YES' if r['is_approved'] else '-':<5}"
                   f" {r['tanimoto']:>6.3f} {r['graph_degree']:>5,}  "
-                  f"{near[:28]}")
+                  f"{near[:28]}{flag}")
         if rows:
             n_appr = sum(1 for r in rows if r["is_approved"])
             n_reach = sum(1 for r in rows if r["graph_degree"])
             print(f"\n  {n_appr} of the top {len(rows)} are approved drugs; "
                   f"{n_reach} carry any non-label graph edge at all.")
+            n_same = sum(1 for r in rows if r.get("fingerprint_identical"))
             print(f"  Highest Tc {rows[0]['tanimoto']:.3f}, lowest shown "
                   f"{rows[-1]['tanimoto']:.3f}.")
+            if n_same:
+                print(f"  {n_same} of them share the active's ECFP4 bits "
+                      f"EXACTLY while being a different structure -- read "
+                      f"those as analogs, not identities.")
 
     write_results(args.out, payload, args.release, schema.version)
     print(f"\n{'=' * 72}")
-    print("A Tanimoto of 1.0 would mean the same ECFP4 bits, not the same")
-    print("compound: the identity policy already collapses salts, charges")
-    print("and tautomers, and `inchikey_skel` matches are excluded above, so")
-    print("a near-1.0 row is a close analog rather than a duplicate -- which")
-    print("is also the row least likely to be novel.")
+    print("A Tanimoto of 1.0 means the same ECFP4 bits, NOT the same")
+    print("compound, and on 2026-11-12 that stopped being a caveat and")
+    print("became a measurement: the identity policy collapses salts,")
+    print("charges and tautomers, `inchikey_skel` matches are excluded")
+    print("above, and 14 rows STILL read 1.0 against a different skeleton.")
+    print("Radius 2 folded into 2048 bits cannot see a saturated ring's")
+    print("size (cycloheptyl vs cyclohexyl), a peptide's length (one extra")
+    print("leucine) or a residue's position (Arg-Arg-Lys vs Arg-Lys-Lys).")
+    print("Those rows are marked SAME BITS with the heavy-atom difference,")
+    print("so a 1.0 cannot be read as an identity it is not.")
+    print("The registered AUC is NOT exposed to this: both symmetric")
+    print("controls drop each candidate's k nearest references and a")
+    print("near-identity is among them -- zero candidates above 0.90 under")
+    print("either, against 0.0033 of AUC under the publication control.")
+    print("Measured by scripts/diagnose_fingerprint_blindspots.py.")
     print(f"\nwrote {args.out}")
     return 0
 
