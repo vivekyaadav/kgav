@@ -101,9 +101,14 @@ def test_every_emitter_declares_the_measured_policy(path, measured):
 @pytest.mark.skipif(not (RELEASE / "nodes.jsonl").exists(),
                     reason="no release on disk")
 def test_the_release_agrees_with_the_normaliser(measured):
-    """The release itself. Fails until the rebuild that carries L24, which
-    is the point: the 25,383 nodes on disk state a policy the id does not
-    follow."""
+    """The release itself.
+
+    Written to FAIL until the rebuild carrying L24, which was the point:
+    the 25,383 nodes then on disk declared a policy the id did not follow.
+    It passes since the L27 rebuild of 2026-11-11 -- all 25,094
+    SmallMolecule nodes carry one flag triple and it is the normaliser's.
+    Kept because the flags are a constant per emit site, so a fourth site
+    added with the wrong constant is exactly what this would catch."""
     seen: dict[tuple, int] = {}
     for line in (RELEASE / "nodes.jsonl").read_text().splitlines():
         if not line.strip():
@@ -157,8 +162,12 @@ def test_no_stored_smiles_resolves_to_a_different_node():
     """THE DEFECT ITSELF, on the release. A node whose `smiles` normalises to
     a key other than its own id is stating a structure it does not hold.
     Checked on the compounds that carry `smiles_as_supplied`, which are
-    exactly the ones where the source and the parent disagreed -- the whole
-    25,383 would need an RDKit pass and is the `slow` test's job.
+    exactly the ones where the source and the parent disagreed -- 213 nodes
+    on this release. The whole 25,094 needs an RDKit pass, which is
+    `make identity-fixed-points` (scripts/diagnose_identity_fixed_points.py),
+    with a sampled version below. This docstring promised a `slow` test for
+    a day before one existed -- pointing at a guard that is not there, which
+    is its own small instance of what this file is about.
     """
     from kgav.normalize_chem import normalize_chemical as N
     checked = bad = 0
@@ -179,3 +188,63 @@ def test_no_stored_smiles_resolves_to_a_different_node():
     assert bad == 0, (
         f"{bad} of {checked} node(s) carrying smiles_as_supplied have a "
         f"`smiles` that resolves to a different InChIKey")
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not (RELEASE / "nodes.jsonl").exists(),
+                    reason="no release on disk")
+def test_every_node_id_sampled_is_a_fixed_point_of_the_normaliser():
+    """FIX-LIST L27, KEPT CLOSED -- on a sample, and the reason is honest.
+
+    The defect was that node ids came from ChEMBL's `standard_inchi_key`
+    verbatim while every emit site declared `salt_collapsed: True`. Measured
+    then: 549 of 25,383 SmallMolecule nodes carried a multi-fragment
+    `smiles`, ALL 549 declared the flag, and NOT ONE was a fixed point of
+    `normalize_chemical` -- 287 normalised onto a node already in the
+    release, so 287 compounds were filed twice, 980 edges sat on the
+    duplicates, and 31 compounds were a positive AND a negative for the
+    same virus under two ids, invisible to `build_labels` because the two
+    sides were different subjects.
+
+    WHY A SAMPLE, AND WHY SERIAL. The full pass is an RDKit cleanup,
+    largest-fragment, uncharge and canonical-tautomer run per molecule over
+    25,094 compounds: **21m58s measured on one core**. The script spreads it
+    over 32 and takes 1m17s, but a 32-process pool opened INSIDE `pytest -n
+    auto`'s 32 workers is 1,024 processes against 32 cores, which is the
+    oversubscription that made a 21-second `--help` tip a suite over once
+    already. So this calls the census with `jobs=1` and a sample, and `make
+    identity-fixed-points` does the whole release where it has the box to
+    itself -- that run is what closed the row.
+
+    THE SAMPLE IS NOT THE FIRST N. It is every compound whose source and
+    parent disagreed -- the ones that exercise the salt and charge paths at
+    all, and the only place a regression can hide cheaply -- plus a seeded
+    draw from the rest. Taking the first N would scan whichever ids sort
+    lowest, which is a fact about the InChIKey alphabet and not about the
+    chemistry.
+
+    AND IT CANNOT CHECK COLLISIONS. Two ids sharing one normalised key
+    cannot be seen when the sample holds one of the pair, so that half is
+    the script's alone and this asserts only the fixed-point property.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "diagnose_identity_fixed_points",
+        ROOT / "scripts" / "diagnose_identity_fixed_points.py")
+    D = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(D)
+
+    c = D.fixed_point_census(RELEASE, limit=600, seed=0, jobs=1)
+    assert not c["complete"], (
+        "the sample covered the whole release, so this test is now the slow "
+        "pass it was split to avoid; raise the release size or lower --limit")
+    assert c["checked"] >= 400, f"only {c['checked']} compounds sampled"
+    assert c["unparseable"] < c["checked"] // 100, (
+        f"{c['unparseable']} of {c['checked']} sampled structures could not "
+        f"be normalised, so this pass is not evidence about the ids")
+    assert not c["not_fixed"], (
+        f"{len(c['not_fixed'])} of {c['checked']:,} sampled node id(s) are "
+        f"not what the normaliser derives from their own stored structure, "
+        f"e.g. {c['not_fixed'][:3]}. That is L27 returning: the id and the "
+        f"SMILES on one node disagree about which compound it is")

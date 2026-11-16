@@ -1,4 +1,4 @@
-.PHONY: auc-delta kg-report kg-report-check install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
+.PHONY: identity-fixed-points auc-delta kg-report kg-report-check install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
 
 install:
 	pip install -e ".[dev]"
@@ -112,6 +112,13 @@ check-results:
 #   make auc-delta ARGS="--against 5151de8"
 auc-delta:
 	python scripts/compare_results_aucs.py --fail-below -0.01 $(ARGS)
+
+# FIX-LIST L27's closing evidence: is every node id what the normaliser
+# derives from that node's own stored SMILES? The whole release is an RDKit
+# pass per molecule -- minutes, not seconds -- so it lives here rather than
+# in the suite, which samples it. See the script's header for the trade.
+identity-fixed-points:
+	python scripts/diagnose_identity_fixed_points.py $(ARGS)
 
 # WHAT THE max_phase GATE COSTS (fix-list B1). Needs the 30 GB chembl_37
 # sqlite, so it is a diagnostic and not a test; ~20s.
