@@ -44,8 +44,15 @@ MODULES = ("test_evaluation_table", "test_temporal_table",
 
 
 def rewrite(doc: Path, marker: str, rows: dict[str, list[str]],
-            keep: int | None = None) -> int:
-    """Replace the marked table's body with `rows`. Returns cells changed.
+            keep: int | None = None) -> tuple[int, str]:
+    """The document with the marked table's body replaced by `rows`.
+
+    Returns (cells changed, new text) and WRITES NOTHING. The caller
+    decides, because the one caller that must not write is --check, and the
+    first version implemented it by writing and then restoring -- a race
+    against every other test that reads the same document, and a hole
+    through which an interrupted read-only check could leave the repository
+    modified.
 
     THE KEY MAY SPAN SEVERAL COLUMNS, and the first version of this assumed
     one. `test_landscape_table.derive()` keys rows as "taxa | DENV-2" --
@@ -148,9 +155,8 @@ def rewrite(doc: Path, marker: str, rows: dict[str, list[str]],
             f"wrong ({nkey} leading column(s) assumed) or the document "
             f"carries rows the results file no longer has -- both are "
             f"failures, not things to skip.")
-    doc.write_text(head + marker + "".join(lines[:first]) + "".join(out)
-                   + "".join(lines[last:]))
-    return changed
+    return changed, (head + marker + "".join(lines[:first]) + "".join(out)
+                     + "".join(lines[last:]))
 
 
 def main(argv=None) -> int:
@@ -166,12 +172,20 @@ def main(argv=None) -> int:
         marker, doc = mod.MARKER, mod.DOC
         rows = mod.derive()
         keep = getattr(mod, "KEEP_COLUMNS", None)
-        if args.check:
-            before = doc.read_text()
-            n = rewrite(doc, marker, rows, keep)
-            doc.write_text(before)
-        else:
-            n = rewrite(doc, marker, rows, keep)
+        # --check MUST NOT WRITE, and until 2026-11-12 it did: it saved the
+        # file, called rewrite() to get the count, then wrote the original
+        # back. Under `pytest -n auto` another worker reads the same
+        # evaluation.md, and test_the_claim_block_enumerates_every_cell_
+        # that_clears_chance failed with IndexError on a split marker that
+        # is unmistakably in the committed file -- it had read the document
+        # mid-write. The race had been latent since 5ab4af1 and surfaced
+        # when a thirteenth test file shifted the scheduling. Worse than
+        # the flake: an interrupted --check left a REWRITTEN tracked file
+        # behind, so the read-only half of the gate could modify the repo.
+        # rewrite() now returns the text and the caller decides.
+        n, text = rewrite(doc, marker, rows, keep)
+        if not args.check:
+            doc.write_text(text)
         total += n
         print(f"  {name:<28} {doc.name:<20} {n:>3} cell(s) "
               f"{'would change' if args.check else 'rewritten'}")

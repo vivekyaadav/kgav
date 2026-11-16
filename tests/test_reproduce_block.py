@@ -417,11 +417,32 @@ def test_every_marked_table_agrees_with_its_own_derivation():
     18,900, a delta subtracted from displayed four-decimal values, and an
     AUC literal from memory). Every derived figure was right.
     """
+    import hashlib
     import subprocess
     import sys
+
+    # --check MUST NOT TOUCH THE DOCUMENTS, and until 2026-11-12 it did:
+    # it saved each file, called rewrite() for the count, then wrote the
+    # original back. Under `pytest -n auto` another worker reads the same
+    # evaluation.md, and test_the_claim_block_enumerates_every_cell_that_
+    # clears_chance failed with IndexError on a split marker that is
+    # plainly in the committed file -- it had read the document mid-write.
+    # Hashed before and after, because the race is invisible to a test
+    # that only checks the exit code, and an interrupted read-only gate
+    # could leave a tracked file rewritten.
+    docs = sorted({mod_doc for mod_doc in (
+        ROOT / "docs" / "evaluation.md",
+        ROOT / "docs" / "scope_and_limits.md",
+        ROOT / "docs" / "v1_release_plan.md") if mod_doc.exists()})
+    before = {d: hashlib.sha256(d.read_bytes()).hexdigest() for d in docs}
     out = subprocess.run(
         [sys.executable, "scripts/rewrite_derived_tables.py", "--check"],
         cwd=ROOT, capture_output=True, text=True, timeout=600)
+    after = {d: hashlib.sha256(d.read_bytes()).hexdigest() for d in docs}
+    moved = sorted(d.name for d in docs if before[d] != after[d])
+    assert not moved, (
+        f"--check rewrote {moved}; it is the read-only half of the gate and "
+        f"every other test in this suite reads those files concurrently")
     assert out.returncode == 0, (
         "a marked table disagrees with its own derivation; run "
         "`make rewrite-tables`.\n" + out.stdout[-1500:])
