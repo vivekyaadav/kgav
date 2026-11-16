@@ -1,6 +1,11 @@
 # v1: the pathway-analysis release
 
-Written 2026-10-24, from the state of release v0.1 on that date. Everything
+Written 2026-10-24, from the state of release v0.1 on that date.
+**RE-DERIVED AGAINST THE REPOSITORY 2026-11-17**, because this document had
+drifted in the way its own fix list had: it listed three remaining items of
+which two were built, A1's premise had evaporated, and two p-values beside
+a machine-checked table were the previous run's. What each item's status
+now rests on is named with it. Everything
 below is either measured by a script in this repository or a decision
 recorded with its reason. Where a figure appears, the command that produces
 it is named, so this document can be checked rather than believed.
@@ -51,13 +56,13 @@ taxon clears the corrected threshold in either direction.**
 eight taxa ... with matched p from 0.73 to 1.00", and on this release the
 ratios run **0.00 to 1.35** with **two taxa above 1.0** — HCoV-NL63 at 1.35
 and SARS-CoV-2 at 1.07 are ENRICHED, not depleted — and matched p runs from
-**0.05964**, not 0.73. The naive p for SARS-CoV-2 is 3.96e-04, not 1.28e-04.
+**0.05909**, not 0.73. The naive p for SARS-CoV-2 is 0.0003728, not 1.28e-04.
 Every figure came from the 2026-10-28 run and nothing re-derived them
 across four rebuilds; this table is now machine-checked.
 
 The conclusion survives the correction and gets weaker, which is the
-honest direction. **SARS-CoV-2's naive p of 3.96e-04 does disappear under
-degree matching** — 0.05964, against a Bonferroni-corrected alpha the
+honest direction. **SARS-CoV-2's naive p of 0.0003728 does disappear under
+degree matching** — 0.05909, against a Bonferroni-corrected alpha the
 landscape computes from its own family size — so the headline control still
 works. What cannot be said any more is that the overlap is *depleted*: it
 is indistinguishable from the degree-matched background, in both
@@ -82,6 +87,16 @@ in one narrow band.
 split, the hard negatives and the metapath comparison were computed on the
 eight-virus graph. `docs/evaluation.md` publishes figures derived from
 them.
+
+**THE PREMISE IS GONE AS OF 2026-11-17, AND THE DECISION IS NOT.**
+`make check-results` now reports **31 current, 0 stale, 0 unstamped, 1
+refused** -- the regeneration happened, by way of the L27 rebuild rather
+than by way of this item. So "a document stating numbers that no longer
+describe the graph" is no longer the problem. What remains is exactly the
+decision this item says it is: whether `docs/evaluation.md` claims the
+scoring work or is scoped to the pathway analysis, now that the scorer
+below has been registered AND run. That is the owner's, and it is the one
+item in section A that is not code.
 
 This is a decision, not a job. Either regenerate — the Reproducing block
 now loops over all sixteen taxa, and six of the new files will record empty
@@ -125,7 +140,15 @@ clone download these with a real URL and a real retrieval date, the way
 `fetch_raw.py` does for proteomes. The sidecars make what is here
 auditable; they do not make it reproducible elsewhere.
 
-### A3. The scope statement, written down
+### A3. The scope statement, written down — **LANDED in `docs/scope_and_limits.md`, verified 2026-11-17**
+
+The statement is written and machine-checked rather than asserted: the
+per-virus table is derived, and the share this item is about reads **15.8%
+of molecules** at `docs/scope_and_limits.md:115`, guarded from the release
+by `tests/test_pathway_landscape.py` and `tests/test_host_targets.py`. The
+bullets below are kept because the reasoning is the contribution; the
+figures in them are the ones that moved, and the document derives them.
+
 
 All of it is measured, and the honesty is the contribution:
 
@@ -152,7 +175,17 @@ All of it is measured, and the honesty is the contribution:
 
 ## B. Blocking for the agent
 
-### A4. The agent must not imply a ranking is predictive
+### A4. The agent must not imply a ranking is predictive — **DONE, verified 2026-11-17**
+
+**THE TEST THIS ITEM ASKED FOR EXISTS, which is the form it demanded:**
+*"It needs a test, not a sentence in prose."* `tests/test_agent_guards.py`
+carries 17 tests about the ranking and its caveats, three of them the
+load-bearing ones -- `test_without_a_calibration_the_ranking_claims_
+nothing`, `test_the_ranking_caveat_quotes_the_measured_direct_acting_
+figure` and `test_the_pathway_caveat_quotes_the_rows_own_threshold`, the
+last tying the caveat to the landscape row's own corrected alpha rather
+than to a sentence. The original statement follows, unchanged.
+
 
 `GraphTools.triage` ranks compounds and `explain` finds paths. The measured
 result is that the pathway route carries no enrichment in any taxon. An
@@ -165,7 +198,14 @@ its own source contradicts") — so the guard pattern exists in
 `src/kgav/agent/guards.py`. It needs a test, not a sentence in prose: a
 caveat printed under a fluent answer is read second, if at all.
 
-### A5. A pathway capability
+### A5. A pathway capability — **DONE, verified 2026-11-17**
+
+**`GraphTools.pathways(compound, virus)` is implemented**
+(`src/kgav/agent/tools.py:1371`), routed from the orchestrator on
+`guards.QueryKind.PATHWAY` (`orchestrator.py:429`), and covered by 66
+tests in `tests/test_agent_pathways.py`. That is the question this item
+poses, for an arbitrary compound. The original statement follows.
+
 
 `explain` finds paths between a compound and a virus. Nothing answers the
 v1 question for an arbitrary compound: which pathways do this drug's
@@ -177,8 +217,10 @@ targets sit in, and does the virus depend on any member of them. That is
 
 - **C1. Ingest IntAct.** `data/raw/vhppi/intact_viral.tab27` is written
   (139 MB, 12,496 rows) and read by `ingest_vhppi` as `infores:intact`. It
-  lands at the next `make rebuild`. Gives M3 six flaviviruses instead of
-  zero. Thin — 121 flavivirus rows, and Zika has three against Shah et
+  **LANDED.** `infores:intact` carries 6,617 edges on the assembled
+  release (`docs/kg_release_census.txt`), so this no longer waits on a
+  rebuild -- the Order section already said so and this bullet did not.
+  Gives M3 six flaviviruses instead of zero. Thin — 121 flavivirus rows, and Zika has three against Shah et
   al.'s 368, so IMEx has not curated that paper.
 - **C2. Guide to PHARMACOLOGY. DONE.** `src/kgav/gtop.py` and
   `scripts/ingest_gtop.py` are built, tested AND BUILT INTO v0.1:
@@ -189,9 +231,10 @@ targets sit in, and does the virus depend on any member of them. That is
   moved -- see scope_and_limits.md for the current figure. OPEN: the
   GtoPdb licence question is use-versus-access, and the edges are
   already in the release, so it needs settling rather than planning.
-- **C3. MONDO terms for 13 of 16 viruses.** Three Disease nodes today, so
-  `TREATS` and `IN_TRIAL_FOR` — both marked `evaluation_label` in the
-  schema — are empty, and every evaluation rests on
+- **C3. MONDO terms for 13 of 16 viruses.** Ten Disease nodes on the
+  assembled release as of 2026-11-17 (the entry said three), and still
+  **`TREATS` and `IN_TRIAL_FOR` are both 0 edges**, so the substance of
+  this item is unchanged: every evaluation rests on
   `HAS_ANTIVIRAL_ACTIVITY_AGAINST` alone. ChEMBL's `drug_indication` table
   fills both and is already on disk in `chembl_37.db`; the layer queries
   `activities` and `assays` and never touches it. Blocked behind the
@@ -249,7 +292,17 @@ targets sit in, and does the virus depend on any member of them. That is
   `data/results/temporal_2021_include.json`'s
   `training_graph_predicate_sources`, which `temporal_split.py` writes for
   this purpose. They are not retyped here again.
-- **The structure-derived scorer — REGISTERED 2026-11-11, not run.**
+- **The structure-derived scorer — REGISTERED 2026-11-11, AND RUN. This
+  entry said "not run" until 2026-11-17 and three protocols had completed.**
+  Measured across 15 cells: **7 clear their corrected threshold under the
+  publication control, 10 under the symmetric k=10 control and 10 under the
+  strength-matched one** (`data/results/structure_scorer*.json`), and
+  `scripts/repurposing_candidates.py` emits per-virus lists carrying each
+  cell's own verdict, refusing the two viruses that score below chance. It
+  remains OUT OF SCOPE for v1 -- v1 is the pathway analysis -- but the
+  reason given below ("nothing is computed yet, and the registration can
+  still be amended") has expired: the registrations are closed by their own
+  measurements. The original entry follows.
   `docs/prereg_structure_scorer.md`, signed before the code and before the
   measurement. It is out of scope for v1 because v1 is the pathway analysis
   and this is a scorer, but it is the one candidate measured to have room to
@@ -279,3 +332,33 @@ rebuild. The three remaining items are the agent and scope ones, and A3's
 figures have moved since it was written — the drugged-proteome share it
 quotes as 11.8% is 15.8% on this release, which
 `docs/scope_and_limits.md` now derives by test rather than restating.
+
+**RE-DERIVED 2026-11-17, AND "THE THREE REMAINING ITEMS" WAS WRONG WHEN
+READ.** Checked one at a time against the repository rather than against
+this document:
+
+| item | this document said | what the repository shows |
+|---|---|---|
+| A1 | 14 stale results files | **0 stale**, 31 current — the premise is gone; the decision is not |
+| A3 | figures have moved | landed in `docs/scope_and_limits.md`, 15.8% derived and guarded |
+| A4 | needs a test, not prose | **built** — 17 guard tests, 3 of them load-bearing |
+| A5 | nothing answers it | **built** — `GraphTools.pathways`, 66 tests |
+| C1 | lands at the next rebuild | **landed**, 6,617 edges |
+| C3 | three Disease nodes | **ten**, and `TREATS`/`IN_TRIAL_FOR` still 0 |
+| D | the scorer is "not run" | **run**, three protocols, 10 of 15 cells clearing |
+
+**SO THE ONLY THING BETWEEN THIS REPOSITORY AND THE RELEASE IS A1, AND A1
+IS A DECISION RATHER THAN WORK** — what `docs/evaluation.md` claims, now
+that the scorer is registered, run and verdict-carrying. C2's licence
+question and C3 are the remaining non-blocking items, and both are
+settling rather than building.
+
+**TWO FIGURES IN THIS DOCUMENT WERE THE PREVIOUS RUN'S**, found the same
+way. `0.05964` and `3.96e-04` were asserted in the prose beneath a table
+that is checked cell by cell, after the L27 rebuild moved them to
+`0.05909` and `0.0003728`. The guard above them asserted the CURRENT
+figures were present — and they were, in the table — so it could not fail
+on a stale claim sitting beside a live one.
+`test_no_superseded_landscape_p_is_still_asserted_in_prose` now scans the
+landscape section with quoted material and `not X` corrections removed,
+and fails against the version committed in `57602d9`.

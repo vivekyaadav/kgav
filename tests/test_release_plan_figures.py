@@ -187,6 +187,56 @@ def test_the_control_still_works_and_the_document_says_which_way(tables):
     assert f"{sc2['p_matched']:.4g}" in flat
 
 
+def test_no_superseded_landscape_p_is_still_asserted_in_prose(tables):
+    """THE HALF THE TEST ABOVE COULD NOT FAIL ON, found 2026-11-17.
+
+    It asserts the CURRENT figures are present, and they were -- in the
+    machine-checked table. Two sentences underneath went on asserting the
+    PREVIOUS run's: "matched p runs from **0.05964**" and "SARS-CoV-2's
+    naive p of 3.96e-04", each twice, after the L27 rebuild moved them to
+    0.05909 and 0.0003728. A presence check passes while a stale claim
+    sits beside the live one, which is this repository's own shape: a
+    check that cannot fail in the way that matters.
+
+    SCOPED TO THE SECTION THAT DISCUSSES THE TABLE, because a bare decimal
+    elsewhere in the document is not a p-value -- the first draft of this
+    test flagged "+0.0050", which is an AUC delta in the scorer note.
+
+    A superseded figure belongs inside quotation marks -- or after the
+    word "not", which is the same statement in another form -- recorded as
+    what was claimed; that is the convention tests/test_release_plan_temporal_
+    note.py enforces, and quoted material is stripped here for the same
+    reason. The cost is the same and is stated there: a live claim written
+    inside quotes would be invisible to this test.
+    """
+    import re
+
+    text = DOC.read_text()
+    start = text.index("### The finding the paper is about")
+    section = text[start:text.index("## A. Blocking", start)]
+    # Quoted material is what was CLAIMED, and so is the "is X, not Y"
+    # correction form -- "the naive p is 0.0003728, not 1.28e-04" marks
+    # 1.28e-04 as superseded exactly as a quotation would. Both are
+    # removed before the scan. The cost is stated in the sibling test and
+    # is the same here: a live claim written inside quotes, or immediately
+    # after the word "not", would be invisible to this check.
+    scrubbed = re.sub(r'"[^"]*"', " ", section)
+    scrubbed = re.sub(r"\bnot\s+\*{0,2}[\d.]+(?:e-\d+)?\*{0,2}", " ", scrubbed)
+    unquoted = " ".join(scrubbed.split())
+
+    taxa = json.loads(RESULTS.read_text())["taxa"]
+    live = {fmt_p(r["p_naive"]) for r in taxa.values()}
+    live |= {f"{r['p_matched']:.4g}" for r in taxa.values()}
+    live |= {"1", "0.73", "1.00"}          # the quoted band, and p = 1 exactly
+
+    found = re.findall(r"\b\d\.\d{2,3}e-0\d\b|\b0\.0\d{3,5}\b", unquoted)
+    stale = sorted({f for f in found if f not in live})
+    assert not stale, (
+        f"these p-values are asserted in the landscape section and match "
+        f"no taxon in {RESULTS.name}: {stale}. A superseded figure goes "
+        f"inside quotes, recorded as what was claimed")
+
+
 def test_the_node_and_edge_counts_match_the_release():
     """Four rebuilds stale, in the first line of the document."""
     manifest = RELEASE / "MANIFEST.json"
