@@ -35,6 +35,7 @@ this repository can settle that, so it is named here and left standing.
 | Drug-target admission: `floor` | `0c2d3e4`, 2026-11-10 | 1 day before |
 | **This signature** | 2026-11-11, after the run | **after** |
 | The re-run on the L27-repaired release | 2026-11-11 11:28:33 UTC | **after the signature** |
+| The L26 re-run, recording the operand | 2026-11-16 23:04:38 UTC | **after the signature** |
 
 **AND THE RESULT NOW ON DISK IS THE ONE RUN IN THE RIGHT ORDER.** The run
 this signature argues about was executed at **04:22:49 UTC** and signed
@@ -44,7 +45,11 @@ afterwards. The L27 identity repair then rebuilt the release, and
 time this document has had it. Every registered value predates that run by
 construction, since they were all fixed before the signature, so the
 re-run's figures are the ones the registration can claim without
-qualification. The 04:22:49 run's ordering problem is kept recorded above
+qualification. **The file on disk is now a third run, at 2026-11-16 23:04:38
+UTC**, made to close fix-list L26 by recording the operand; it is later
+still, so the same ordering argument covers it, and `compare_results.py`
+shows it moved no figure -- only `measured_on` and the new `operands`
+key. The 04:22:49 run's ordering problem is kept recorded above
 because it happened, not because it still governs the figures below. The
 operand it moved is recorded under *A registered operand moved*.
 
@@ -82,7 +87,10 @@ byte-identical between that commit and the signed tree --
 `src/kgav/landscape.py` at `887f0405372f` -- and no commit from `21c0f92` to
 the signature touches either. The uncommitted content was elsewhere.
 
-**ONE REGISTERED PARAMETER IS NOT RECOVERABLE FROM THE ARTIFACT.** The
+**ONE REGISTERED PARAMETER WAS NOT RECOVERABLE FROM THE ARTIFACT, AND IS
+NOW -- CLOSED 2026-11-17.** The paragraph below is kept as it was written,
+because it is what this signature recorded about itself; what follows it is
+the closure. The
 operand this document fixes -- the drugged proteome under `floor`, 1,939
 human proteins -- is recorded in **neither** `pathway_landscape.json` nor its
 provenance block, and it is the one parameter this document says the verdict
@@ -98,6 +106,43 @@ should state it, and that is the open item this signature leaves behind:**
 recording it requires regenerating the file, which is another 100,000
 permutations, and doing so AFTER this signature is the correct order for the
 first time in this document's history.
+
+**CLOSED 2026-11-17, AND THE ORDER WAS KEPT.** `pathway_landscape.json` now
+carries an `operands` block among its study parameters -- not in its
+provenance block, because these are parameters of the analysis and not of
+the build. It records the drugged proteome as **n = 1,939, a sha256 over
+its sorted ids, and the 1,939 ids themselves**, and the human universe as
+**n = 20,416 with its own sha256**. Three values are checked against each
+other rather than asserted: `tests/test_prereg_is_obeyed.py` reads the
+figure out of the DECISION paragraph below and out of the JSON and compares
+them, and its slow companion re-derives both sets from the release, so
+document, artifact and graph have to agree and no two of them can agree
+while being stale together.
+
+**THE MEMBERS ARE STORED BECAUSE A COUNT WAS MEASURABLY NOT ENOUGH.** *A
+registered operand moved*, below, records that the L27 rebuild took this
+operand from 1,946 to 1,939 and that **which seven proteins left could not
+be answered**, the superseded release having been rebuilt in place. With
+the ids on disk that question is a set difference. The universe's 20,416
+ids are deliberately NOT stored -- 400 KB against the drugged set's 38 KB,
+in a file that was 9 KB -- and the omission is named in the file itself
+rather than left to be discovered, with the fingerprint retained so a move
+in it is still loud.
+
+**THE ADMISSION POLICY IS STILL NOT NAMED, and that is deliberate rather
+than overlooked.** Neither this script nor the release manifest records
+whether `floor` or `relaxed` built the graph, so a file asserting `"floor"`
+would be stating something it cannot check -- the defect this document
+exists to avoid. The operand identifies it instead: 1,939 under `floor`
+against 2,489 under `relaxed`, which is exactly the discrimination the
+reader was missing.
+
+**AND NOTHING ELSE IN THE FILE MOVED.** The re-run was compared leaf by
+leaf against the superseded artifact with `scripts/compare_results.py`,
+which drops the provenance stamp and reports every changed value: the only
+differences are `measured_on` and the new `operands` key. Every p-value,
+every taxon row and every interactome figure is identical, so this closure
+adds a parameter and does not restate a result.
 
 Date drafted: 2026-11-02. Release: v0.1 (78,500 nodes / 391,727 edges,
 `nodes_sha` b0d6fc69d63942c2, `edges_sha` 545fb7d87b0aec08). Scripts:

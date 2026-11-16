@@ -135,16 +135,20 @@ def test_the_result_used_the_registered_correction_family():
 
 @pytest.mark.slow
 def test_the_registered_operand_is_the_one_the_release_gives():
-    """THE PARAMETER THE ARTIFACT DOES NOT RECORD.
+    """THE REGISTERED OPERAND AGAINST THE GRAPH ITSELF.
 
-    The signature names this as its own open item: `pathway_landscape.json`
-    stores the permutation count, the seed scheme, the degree basis and the
-    family size, and NOT the size of the drugged proteome -- the one operand
-    the document says the verdict depends on (0 of 22 rows clearing
-    Bonferroni under `floor`, 3 under `relaxed`). So which admission policy
-    produced the figures on disk cannot be read off them.
+    Until 2026-11-17 this test carried the whole weight, because
+    `pathway_landscape.json` recorded the permutation count, the seed
+    scheme, the degree basis and the family size and NOT the drugged
+    proteome -- the one operand the document says the verdict depends on
+    (0 of 22 rows clearing Bonferroni under `floor`, 3 under `relaxed`).
+    Fix-list L26 closed that, so the artifact now states it and
+    test_the_artifact_records_the_operand_the_registration_fixes checks
+    the two against each other without loading anything. This test remains
+    the third side of the triangle, and the only one that can fail when
+    DOCUMENT AND ARTIFACT AGREE WITH EACH OTHER AND BOTH ARE STALE.
 
-    It can be re-derived, and that is what this does: the drugged proteome
+    The drugged proteome is a function of the release, so: the drugged proteome
     is a function of the release, so the registered 1,946 is checked against
     the release the registration names. A disagreement means either the
     release moved under the registration or the run was made under a policy
@@ -169,6 +173,57 @@ def test_the_registered_operand_is_the_one_the_release_gives():
         f"the registration fixes the drugged proteome at {declared:,} "
         f"proteins under `floor` and the release gives {drugged:,}. The "
         f"registered operand is not the one this release produces")
+
+
+@pytest.mark.skipif(not RESULTS.exists(), reason="no landscape result on disk")
+def test_the_artifact_records_the_operand_the_registration_fixes():
+    """FIX-LIST L26, THE CLOSING CHECK. A reader holding only the result
+    file must be able to tell which admission policy produced it. The
+    registration fixes the drugged proteome at 1,939 under `floor` against
+    2,489 under `relaxed`, so the operand distinguishes them -- but only if
+    the file states it. For a year of this file's life it did not.
+
+    Both sides are read rather than typed: the figure comes out of the
+    prereg's DECISION paragraph and out of the JSON, so a test that passes
+    cannot be one that agrees with itself."""
+    doc = json.loads(RESULTS.read_text())
+    operands = doc.get("operands")
+    assert operands, (
+        "the result file records no operands; a reader cannot tell "
+        "`floor` from `relaxed` from this file (fix-list L26)")
+    got = operands.get("drugged_proteome", {}).get("n")
+    declared = declared_drugged_operand()
+    assert got == declared, (
+        f"the artifact records a drugged proteome of {got} and the "
+        f"registration fixes it at {declared:,}")
+    assert operands["human_universe"]["n"] > got, (
+        "the universe the null draws from must contain the observed set")
+
+
+@pytest.mark.skipif(not RESULTS.exists(), reason="no landscape result on disk")
+def test_the_recorded_operand_carries_the_members_not_only_a_count():
+    """WHAT THE COUNT ALONE COST, in this document's own history. The L27
+    rebuild moved this operand 1,946 -> 1,939; the superseded release had
+    been rebuilt IN PLACE, so which seven proteins left was not answerable
+    from this repository at all. With the members on disk it is a set
+    difference. The `sha256` is the other half: a count can land on the
+    same number while the membership moves."""
+    import hashlib
+
+    op = json.loads(RESULTS.read_text())["operands"]["drugged_proteome"]
+    members = op.get("members")
+    assert members, (
+        "the registered operand records a count and no members, which is "
+        "the form that could not answer `which proteins moved`")
+    assert len(members) == op["n"], (
+        f"{len(members)} members recorded against a count of {op['n']}")
+    assert members == sorted(set(members)), (
+        "the members are not a sorted set, so two runs of the same release "
+        "could produce different bytes for the same operand")
+    assert op["sha256"] == hashlib.sha256(
+        "\n".join(members).encode()).hexdigest(), (
+        "the fingerprint is not of the members beside it, so it cannot "
+        "detect a move in them")
 
 
 # ---------------------------------------------------------------------------

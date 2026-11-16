@@ -52,6 +52,7 @@ a file that looks complete because it was filtered.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import random
 import sys
 from collections import Counter, defaultdict
@@ -579,8 +580,48 @@ def empirical_p(observed: int, null: list[int], greater: bool = True) -> float:
 
 
 # ----------------------------------------------------------------- report
+def _operand(members: set[str], role: str, derivation: str,
+             store_members: bool) -> dict:
+    """One registered operand, as a count, a fingerprint and (sometimes)
+    its members.
+
+    FIX-LIST L26. `pathway_landscape.json` recorded the permutation count,
+    the seed, the seed scheme, the degree basis and the family size -- and
+    NOT the drugged proteome, although `docs/prereg_pathway_overlap.md`
+    states in its own words that the verdict depends on it: 0 of 22 rows
+    clear Bonferroni under `floor`, 3 under `relaxed`. A reader holding the
+    result file could not tell which policy produced it.
+
+    THE COUNT ALONE WOULD NOT HAVE BEEN ENOUGH, and that is not a guess --
+    it is what the gap cost. The L27 rebuild moved this operand from 1,946
+    to 1,939, the superseded release had been rebuilt IN PLACE, and so
+    *which seven proteins left* became unanswerable from this repository:
+    had the artifact carried the members, it would have been a set
+    difference. So the registered operand stores its members, and the
+    `sha256` is over the sorted ids joined by newlines, which makes a move
+    loud even when the count happens to land on the same number.
+    """
+    digest = hashlib.sha256("\n".join(sorted(members)).encode()).hexdigest()
+    out = {"n": len(members), "sha256": digest,
+           "role": role, "derivation": derivation}
+    if store_members:
+        out["members"] = sorted(members)
+    else:
+        # NAMED, NOT SILENT. Omitting them is a size decision (the human
+        # proteome is 400 KB of ids against the drugged set's 38 KB, in a
+        # 9 KB file), and an unrecorded omission is the defect this row is
+        # about. The fingerprint still detects a move; explaining one would
+        # need a release that has not been rebuilt in place.
+        out["members_omitted"] = (
+            "size: 20k ids. The sha256 detects a change; naming WHICH "
+            "proteins moved would need the superseded release, which a "
+            "rebuild in place does not leave on disk")
+    return out
+
+
 def _write(out: Path, args, rows: dict[str, dict],
-           uncovered: list[str], **channels) -> None:
+           uncovered: list[str], targets: set[str], universe: set[str],
+           **channels) -> None:
     """Record the overlap table with the run that produced it.
 
     `partial` is the field that matters. A --virus run measures one taxon, and
@@ -622,6 +663,26 @@ def _write(out: Path, args, rows: dict[str, dict],
         # subset a consumer happens to read, and only this script knows
         # how many channels it ran. landscape.load takes it as a floor.
         "n_tests": 2 * (len(rows) + len(channels.get("interactome") or {})),
+        # THE OPERANDS THEMSELVES (fix-list L26). These are parameters of
+        # the STUDY and not of the build, so they sit here rather than in
+        # the provenance block: the provenance stamp says which graph was
+        # read, and these say which two sets were taken out of it. The
+        # admission policy is NOT named, because this script cannot derive
+        # it -- the release does not record it either. It is identifiable
+        # from the count, which is the point: the registration fixes the
+        # drugged proteome at 1,939 under `floor` against 2,489 under
+        # `relaxed`, so the operand distinguishes them without this file
+        # asserting a policy it cannot check.
+        "operands": {
+            "drugged_proteome": _operand(
+                targets, "the observed set whose overlap is measured",
+                "human Protein nodes reached by at least one TARGETS edge",
+                store_members=True),
+            "human_universe": _operand(
+                universe, "the set the degree-matched null draws from",
+                "Protein nodes that are not viral",
+                store_members=False),
+        },
         "partial": bool(args.virus),
         "partial_reason": (f"run with --virus {args.virus}, so it covers that "
                            f"taxon only" if args.virus else ""),
@@ -890,7 +951,7 @@ def main(argv=None) -> int:
             print(f"      {v}")
 
     if args.out:
-        _write(args.out, args, rows, uncovered,
+        _write(args.out, args, rows, uncovered, targets, universe,
                interactome=irows, interactome_uncovered=iuncovered,
                interactome_coverage=icov)
     if not any_virus:
