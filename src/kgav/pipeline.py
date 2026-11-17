@@ -70,6 +70,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from kgav.ncats import ASSAYS as NCATS_ASSAYS
 from kgav.provenance import check_layer
 
 CHEMBL_DB = Path("data/raw/chembl/chembl_37/chembl_37_sqlite/chembl_37.db")
@@ -164,8 +165,14 @@ LAYERS: tuple[Layer, ...] = (
     # neither hosttargets nor the assembled release.
     Layer("hosttargets", "ingest_host_targets.py", 1,
           files=(str(CHEMBL_DB),)),
+    # FILES FROM THE ASSAY REGISTRY, not a second list. kgav.ncats.ASSAYS
+    # declares each assay's export and counterscreen, and a layer whose
+    # declared inputs drift from what its script reads is a stale-input
+    # check that cannot fire.
     Layer("ncats", "ingest_ncats.py", 1,
-          files=("data/raw/ncats/cpe_assay.csv", "data/raw/ncats/cpe_tox.csv")),
+          files=tuple(f"data/raw/ncats/{name}"
+                      for spec in NCATS_ASSAYS.values()
+                      for name in (spec.file, spec.counterscreen_file))),
     Layer("folds", "ingest_folds.py", 1,
           args=("--offline",),
           files=("data/raw/folds/phase2_chains.json",)),

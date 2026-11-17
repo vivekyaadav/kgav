@@ -108,6 +108,12 @@ COUNTERSCREEN_ASSAY = "sars-cov-2 cytopathic effect (host tox counterscreen)"
 #: So polarity is DECLARED per assay and CHECKED against the file
 #: (`observed_polarity`), never inferred at runtime: a truncated or empty
 #: download would otherwise redefine what activity means.
+#: Distinguishes "caller said nothing" from "caller said None",
+#: which means ALL assays. A plain None default would have made
+#: the two indistinguishable the moment assay_filter started
+#: defaulting from the spec.
+_UNSET = "\x00unset"
+
 GAIN_OF_SIGNAL = 1
 LOSS_OF_SIGNAL = -1
 
@@ -118,6 +124,30 @@ LOSS_OF_SIGNAL = -1
 #: separate the two. Registered in docs/prereg_ncats_entry_assays.md.
 CELL_BASED_ANTIVIRAL = "cell_based_antiviral"
 CELL_BASED_PSEUDOTYPE_ENTRY = "cell_based_pseudotype_entry"
+
+#: THE ENTRY ASSAYS ARE NOT THE CPE PAPER, and the first wiring of them
+#: cited PMID:33708112 for all three -- including a MERS screen. Verified
+#: against PubMed rather than inferred:
+#:
+#:   PMID:35086793  Xu M et al., SLAS Discov 2022 Mar. "A high throughput
+#:                  screening assay for inhibitors of SARS-CoV-2
+#:                  pseudotyped particle entry."
+#:   PMID:33330839  Chen CZ et al., ACS Pharmacol Transl Sci 2020-12-11.
+#:                  "Identifying SARS-CoV-2 Entry Inhibitors through Drug
+#:                  Repurposing Screens of SARS-S and MERS-S Pseudotyped
+#:                  Particles." ONE paper covers both of those assays.
+PP_SARS_COV_2_PUBLICATION = "PMID:35086793"
+PP_SARS_S_MERS_S_PUBLICATION = "PMID:33330839"
+
+#: `first_asserted_date` is the cited paper's publication date, which is
+#: VERIFIABLE. The CPE layer uses a bioRxiv preprint date because one is
+#: known for it; no preprint date is known for these, and the portal's file
+#: mtime is a re-export date -- the thing DEFAULT_DATE's comment refuses.
+#: So the journal date is used and the choice is stated rather than the
+#: earlier-but-unknown date being guessed. It feeds the temporal split, so
+#: it is deliberately the conservative (later) end.
+PP_SARS_COV_2_DATE = "2022-03-01"
+PP_SARS_S_MERS_S_DATE = "2020-12-11"
 
 SARS_COV = "NCBITaxon:694009"
 MERS_COV = "NCBITaxon:1335626"
@@ -144,6 +174,18 @@ class AssaySpec:
     assay_type: str
     cell_line: str
     counterscreen_assay: str
+    #: Local basenames under data/raw/ncats, and the portal filenames they
+    #: came from. THE REMOTE NAME LIVES HERE because cpe_assay.csv's
+    #: provenance record says `"url": null` with a note that it "is not
+    #: recoverable" -- while this repository's own ingest script documents
+    #: the URL in its header. A download route that is known but not
+    #: machine-readable is the same shape as one that is lost, so every
+    #: assay added from 2026-11-17 carries its own.
+    file: str = "cpe_assay.csv"
+    counterscreen_file: str = "cpe_tox.csv"
+    remote: str = "SARS-CoV-2_Cytopathic_Effect_(CPE).csv"
+    remote_counterscreen: str = (
+        "SARS-CoV-2_Cytopathic_Effect_(Host_Tox_Counterscreen).csv")
     publication: str = CPE_PUBLICATION
     date: str = DEFAULT_DATE
     virus_strain: str | None = None
@@ -167,6 +209,12 @@ CPE = AssaySpec(
 #: a virus. They are absent from this table on purpose.
 PP_SARS_COV_2 = AssaySpec(
     key="pp_sars_cov_2",
+    publication=PP_SARS_COV_2_PUBLICATION,
+    date=PP_SARS_COV_2_DATE,
+    file="pp_sars_cov_2.csv",
+    counterscreen_file="pp_sars_cov_2_tox.csv",
+    remote="SARS-CoV-2_Pseudotyped_Particle_Entry.csv",
+    remote_counterscreen="SARS-CoV-2_Pseudotyped_Particle_Entry_(Tox_Counterscreen).csv",
     assay_name="sars-cov-2 pseudotyped particle entry",
     taxon=SARS_COV_2,
     polarity=LOSS_OF_SIGNAL,
@@ -176,6 +224,12 @@ PP_SARS_COV_2 = AssaySpec(
 )
 PP_SARS_COV = AssaySpec(
     key="pp_sars_cov",
+    publication=PP_SARS_S_MERS_S_PUBLICATION,
+    date=PP_SARS_S_MERS_S_DATE,
+    file="pp_sars_cov.csv",
+    counterscreen_file="pp_sars_cov_tox.csv",
+    remote="SARS-CoV_Pseudotyped_Particle_Entry.csv",
+    remote_counterscreen="SARS-CoV_Pseudotyped_Particle_Entry_(Vero_E6_Tox_Counterscreen).csv",
     assay_name="sars-cov pseudotyped particle entry",
     taxon=SARS_COV,
     polarity=LOSS_OF_SIGNAL,
@@ -185,6 +239,12 @@ PP_SARS_COV = AssaySpec(
 )
 PP_MERS = AssaySpec(
     key="pp_mers",
+    publication=PP_SARS_S_MERS_S_PUBLICATION,
+    date=PP_SARS_S_MERS_S_DATE,
+    file="pp_mers.csv",
+    counterscreen_file="pp_mers_tox.csv",
+    remote="MERS_Pseudotyped_Particle_Entry.csv",
+    remote_counterscreen="MERS_Pseudotyped_Particle_Entry_(Huh7_Tox_Counterscreen).csv",
     assay_name="mers pseudotyped particle entry",
     taxon=MERS_COV,
     polarity=LOSS_OF_SIGNAL,
@@ -688,13 +748,15 @@ def ingest_cpe(em, rows: list[dict], cols: dict, normalizer, *,
                tox_by_sample: dict[str, dict] | None = None,
                tox_cols: dict | None = None,
                existing_compounds: frozenset[str] | set[str] = frozenset(),
-               taxon: str = SARS_COV_2, source: str = SOURCE,
-               date: str = DEFAULT_DATE, ac50_units: str = "uM",
+               taxon: str | None = None, source: str = SOURCE,
+               date: str | None = None, ac50_units: str = "uM",
                tox_ac50_units: str = "uM",
                conc_units: str | None = None,
-               assay_filter: str | None = CANONICAL_ASSAY,
+               assay_filter: str | None = _UNSET,
                min_efficacy_pct: float = MIN_EFFICACY_PCT,
-               inactive_at_nm: float = DEFAULT_INACTIVE_AT_NM) -> Counter:
+               inactive_at_nm: float = DEFAULT_INACTIVE_AT_NM,
+               active_below_nm: float = DEFAULT_ACTIVE_BELOW_NM,
+               spec: AssaySpec = CPE) -> Counter:
     """Emit one antiviral-activity edge per usable row.
 
     `normalizer` is injected so tests need no rdkit and so the function cannot
@@ -710,6 +772,17 @@ def ingest_cpe(em, rows: list[dict], cols: dict, normalizer, *,
     from here, only its label edge. New compounds get is_approved False, a
     floor rather than a claim: no metapath or filter reads the field.
     """
+    # EVERY ASSAY-DEPENDENT VALUE COMES FROM ONE PLACE. taxon, the assay
+    # name to keep and the citation used to be three arguments a caller had
+    # to keep consistent with each other; three assays later that is three
+    # chances to file a MERS screen against SARS-CoV-2. They now default
+    # from `spec`, and an explicit argument still wins so existing callers
+    # and tests are unaffected.
+    taxon = spec.taxon if taxon is None else taxon
+    date = spec.date if date is None else date
+    if assay_filter is _UNSET:
+        assay_filter = spec.assay_name
+    publication = spec.publication
     stats: Counter = Counter()
     seen: dict[str, str] = {}
     tox_by_sample = tox_by_sample or {}
@@ -751,7 +824,8 @@ def ingest_cpe(em, rows: list[dict], cols: dict, normalizer, *,
             row, cols, ac50_units=ac50_units, conc_units=conc_units,
             tox_row=tox_row,
             tox_cols=tox_cols, tox_ac50_units=tox_ac50_units,
-            min_efficacy_pct=min_efficacy_pct, inactive_at_nm=inactive_at_nm)
+            min_efficacy_pct=min_efficacy_pct, inactive_at_nm=inactive_at_nm,
+            active_below_nm=active_below_nm, spec=spec)
         stats[f"reason_{reason}"] += 1
         if verdict is None:
             continue
@@ -852,7 +926,7 @@ def ingest_cpe(em, rows: list[dict], cols: dict, normalizer, *,
             stats["new_compound_node"] += 1
         em.edge(drug, ANTIVIRAL_PREDICATE, taxon,
                 source=source, date=date, tier=1, quals=quals,
-                pmids=[CPE_PUBLICATION])
+                pmids=[publication])
         stats[verdict] += 1
         if quals.get("selectivity_verified"):
             stats["with_same_plate_si"] += 1

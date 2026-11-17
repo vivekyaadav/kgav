@@ -32,15 +32,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from kgav.assemble import LAYER_PRECEDENCE
 from kgav.emit import Emit
 from kgav.ncats import (
+    ASSAYS,
     NCATS_UNITS,
-    CANONICAL_ASSAY,
     COLUMN_CANDIDATES,
-    COUNTERSCREEN_ASSAY,
-    CPE_PUBLICATION,
-    DEFAULT_DATE,
     MIN_EFFICACY_PCT,
-    SARS_COV_2,
     SOURCE,
+    PolarityError,
+    check_polarity,
     ColumnError,
     _key,
     classify_row,
@@ -101,7 +99,16 @@ def main() -> int:
                          "the decision depend on whether this script has "
                          "already run.")
     ap.add_argument("--out", type=Path, default=layer_dir(root, "ncats"))
-    ap.add_argument("--date", default=DEFAULT_DATE)
+    # DEFAULT None, NOT DEFAULT_DATE. Each assay declares its own
+    # first_asserted_date from its own cited paper, and a flag defaulting to
+    # the CPE date would have silently stamped a 2020-08-18 preprint date on
+    # a 2022 SLAS assay and on two MERS/SARS-CoV screens -- overriding the
+    # per-assay value the registry exists to hold. An explicit --date still
+    # wins, for all assays, which is what an override is for.
+    ap.add_argument("--date", default=None,
+                    help="override first_asserted_date for EVERY selected "
+                         "assay; by default each uses its own cited paper's "
+                         "date")
     ap.add_argument("--ac50-units", default=None, choices=["M", "uM", "nM", "logM"])
     ap.add_argument("--min-efficacy-pct", type=float, default=MIN_EFFICACY_PCT,
                     help=f"minimum POSITIVE efficacy for an active (default "
@@ -119,82 +126,134 @@ def main() -> int:
                          "and cpe_tox.csv do not, and their value "
                          "distributions match cpe.tsv's, which is the "
                          "evidence for the default.")
-    ap.add_argument("--assay", default=CANONICAL_ASSAY,
-                    help="assay_name to keep; 'all' disables the filter")
+    ap.add_argument("--assay", default=None,
+                    help="assay_name to keep WITHIN the selected assays; "
+                         "'all' disables the filter. Normally unnecessary -- "
+                         "each assay in --assays declares its own name.")
+    # WHICH ASSAYS, FROM THE REGISTRY RATHER THAN FROM PATHS. Before
+    # 2026-11-17 this script took one file pair and one hardcoded taxon, so
+    # adding an assay meant another run with another --cpe and remembering
+    # to change the taxon with it -- three chances to file a MERS screen
+    # against SARS-CoV-2. Now the assay is named and everything about it
+    # (virus, polarity, cell line, counterscreen, citation, filenames)
+    # comes from kgav.ncats.ASSAYS.
+    ap.add_argument("--assays", default="all",
+                    help=f"comma-separated assay keys, or 'all' (default). "
+                         f"Available: {', '.join(ASSAYS)}")
+    ap.add_argument("--raw", type=Path, default=root / "data/raw/ncats",
+                    help="directory holding the assay exports")
     ap.add_argument("--inspect", action="store_true")
     args = ap.parse_args()
 
-    if not args.cpe.exists():
-        print(f"not found: {args.cpe}\n\nDownload both files with:\n"
-              f"  mkdir -p {args.cpe.parent}\n"
-              f'  base={BASE}\n'
-              f'  curl -L -o {args.cpe} \\\n'
-              f'    "$base/SARS-CoV-2_Cytopathic_Effect_(CPE).csv"\n'
-              f'  curl -L -o {args.tox} \\\n'
-              f'    "$base/SARS-CoV-2_Cytopathic_Effect_(Host_Tox_Counterscreen).csv"')
+    keys = list(ASSAYS) if args.assays == "all" else \
+        [k.strip() for k in args.assays.split(",") if k.strip()]
+    unknown = [k for k in keys if k not in ASSAYS]
+    if unknown:
+        print(f"unknown assay(s): {', '.join(unknown)}\n"
+              f"available: {', '.join(ASSAYS)}")
+        return 2
+    specs = [ASSAYS[k] for k in keys]
+
+    # --cpe/--tox stay as explicit overrides for the CPE pair, so every
+    # existing invocation keeps working; the other assays resolve from the
+    # registry under --raw.
+    paths = {}
+    for s in specs:
+        if s.key == "cpe":
+            paths[s.key] = (args.cpe, args.tox)
+        else:
+            paths[s.key] = (args.raw / s.file, args.raw / s.counterscreen_file)
+
+    missing = [(s, a) for s in specs for a in (paths[s.key][0],)
+               if not a.exists()]
+    if missing:
+        print("not found:\n" + "\n".join(f"  {a}" for _s, a in missing))
+        print(f"\nDownload them with:\n  mkdir -p {args.raw}\n  base={BASE}")
+        for s in specs:
+            print(f'  curl -L -o {paths[s.key][0]} \\\n'
+                  f'    "$base/{s.remote}"')
+            print(f'  curl -L -o {paths[s.key][1]} \\\n'
+                  f'    "$base/{s.remote_counterscreen}"')
         return 1
 
-    try:
-        rows, cols = read_table(args.cpe)
-        tox_rows, tox_cols = ([], None)
-        if args.tox.exists():
-            tox_rows, tox_cols = read_table(args.tox)
-    except ColumnError as e:
-        print(f"HEADER NOT UNDERSTOOD\n\n{e}")
-        return 1
+    # ---------------------------------------------------- read every assay
+    # ONE PASS PER ASSAY, and the polarity of each is CHECKED against its
+    # own rows before anything is counted. A file that contradicts its
+    # declaration stops the run: applying the CPE sign rule to a
+    # loss-of-signal export yields zero actives, which looks exactly like a
+    # screen that found nothing.
+    loaded = []
+    for s in specs:
+        apath, tpath = paths[s.key]
+        try:
+            rows, cols = read_table(apath)
+            tox_rows, tox_cols = ([], None)
+            if tpath.exists():
+                tox_rows, tox_cols = read_table(tpath)
+        except ColumnError as e:
+            print(f"HEADER NOT UNDERSTOOD in {apath.name}\n\n{e}")
+            return 1
 
-    ac50_units = args.ac50_units or (unit_for(cols["ac50"]) if "ac50" in cols else "uM")
-    tox_units = unit_for(tox_cols["ac50"]) if tox_cols and "ac50" in tox_cols else "uM"
-    assay_filter = None if args.assay == "all" else args.assay
+        in_assay = [r for r in rows
+                    if "assay" not in cols
+                    or _key(r.get(cols["assay"], "")) == _key(s.assay_name)]
+        try:
+            neg, pos = check_polarity(in_assay, cols, s, args.min_efficacy_pct)
+        except PolarityError as e:
+            print(f"POLARITY REFUSED in {apath.name}\n\n{e}")
+            return 1
 
-    _mapping_report("CPE", args.cpe, cols, rows)
-    if tox_cols:
-        _mapping_report("counterscreen", args.tox, tox_cols, tox_rows)
-    else:
-        print(f"\n  ! {args.tox} not found -- no selectivity index will be "
-              f"computed.\n    Actives will carry EC50 with no CC50 beside it.")
+        ac50_units = args.ac50_units or (
+            unit_for(cols["ac50"]) if "ac50" in cols else "uM")
+        tox_units = unit_for(tox_cols["ac50"]) \
+            if tox_cols and "ac50" in tox_cols else "uM"
+        tox_index = index_counterscreen(tox_rows, tox_cols,
+                                        s.counterscreen_assay) if tox_cols else {}
 
-    tox_index = index_counterscreen(tox_rows, tox_cols, COUNTERSCREEN_ASSAY) \
-        if tox_cols else {}
-    print(f"\nAC50 read as {ac50_units}, counterscreen AC50 as {tox_units}")
-    print(f"assay filter: {assay_filter or '(none -- all assays)'}")
-    print(f"active requires POSITIVE efficacy >= {args.min_efficacy_pct}%")
-    print(f"counterscreen rows indexed by sample: {len(tox_index):,}")
-    print(f"every edge cites {CPE_PUBLICATION}, dated {args.date}")
+        _mapping_report(s.key, apath, cols, rows)
+        if tox_cols:
+            _mapping_report(f"{s.key} counterscreen", tpath, tox_cols, tox_rows)
+        else:
+            print(f"\n  ! {tpath} not found -- no selectivity index, and for "
+                  f"a loss-of-signal\n    assay no cytotoxicity refusal "
+                  f"either, which is the confound itself.")
 
-    # top concentration actually present, so the censoring point is reported
-    # rather than assumed
-    tops = [t for r in rows
-            if (t := top_concentration_nm(r, cols, args.conc_units))
-            is not None]
-    if tops:
-        print(f"top concentration across rows: min {min(tops):,.0f} nM, "
-              f"max {max(tops):,.0f} nM")
-    else:
-        print("  ! NO CONCENTRATION COLUMNS PARSED — every inactive will be "
-              "refused,\n    because its censoring point is unknown.")
+        print(f"\n  {s.key}: {s.taxon}, "
+              f"{'LOSS' if s.polarity < 0 else 'GAIN'}-of-signal, "
+              f"{s.assay_type}")
+        print(f"    polarity verified: {neg:,} responders at or beyond "
+              f"-{args.min_efficacy_pct:g}% vs {pos:,} at or beyond "
+              f"+{args.min_efficacy_pct:g}%")
+        print(f"    {len(in_assay):,} of {len(rows):,} rows in this assay; "
+              f"AC50 as {ac50_units}, counterscreen as {tox_units}; "
+              f"{len(tox_index):,} counterscreen rows indexed")
+        print(f"    cites {s.publication}, dated {args.date or s.date}")
 
-    # ---------------------------------------------------- dry-run the calls
-    counts: Counter = Counter()
-    for r in rows:
-        if assay_filter and "assay" in cols and \
-                _key(r.get(cols["assay"], "")) != _key(assay_filter):
-            counts["other_assay"] += 1
-            continue
-        sid = (r.get(cols["sample"]) or "").strip() if "sample" in cols else ""
-        # conc_units HERE TOO. This call-breakdown loop is the THIRD site
-        # that needs it and the one I missed: the refusal fired on it after
-        # the other two were wired, which is the counter catching its own
-        # author for the third time today.
-        v, _, why = classify_row(r, cols, ac50_units=ac50_units,
-                                 conc_units=args.conc_units,
-                                 tox_row=tox_index.get(sid), tox_cols=tox_cols,
-                                 tox_ac50_units=tox_units,
-                                 min_efficacy_pct=args.min_efficacy_pct)
-        counts[f"{v or 'none'}: {why}"] += 1
-    print("\ncall breakdown (before structure normalization)")
-    for k, n in counts.most_common():
-        print(f"  {k:<46} {n:>7,}")
+        tops = [x for r in in_assay
+                if (x := top_concentration_nm(r, cols, args.conc_units))
+                is not None]
+        if tops:
+            print(f"    top concentration: {min(tops):,.0f} .. "
+                  f"{max(tops):,.0f} nM")
+        else:
+            print("    ! NO CONCENTRATION COLUMNS PARSED -- every inactive "
+                  "will be refused")
+
+        counts: Counter = Counter()
+        for r in in_assay:
+            sid = (r.get(cols["sample"]) or "").strip() if "sample" in cols else ""
+            v, _q, why = classify_row(
+                r, cols, ac50_units=ac50_units, conc_units=args.conc_units,
+                tox_row=tox_index.get(sid), tox_cols=tox_cols,
+                tox_ac50_units=tox_units,
+                min_efficacy_pct=args.min_efficacy_pct, spec=s)
+            counts[f"{v or 'none'}: {why}"] += 1
+        print("    call breakdown (before structure normalization)")
+        for k, n in counts.most_common():
+            print(f"      {k:<44} {n:>7,}")
+
+        loaded.append((s, rows, cols, tox_index, tox_cols,
+                       ac50_units, tox_units))
 
     if args.inspect:
         print("\n--inspect: nothing written. Re-run without it to build.")
@@ -250,15 +309,30 @@ def main() -> int:
               f"layers first.")
 
     em = Emit()
-    print("normalizing and ingesting (rdkit, this takes a minute)")
-    stats = ingest_cpe(em, rows, cols, normalize_chemical,
-                       tox_by_sample=tox_index, tox_cols=tox_cols,
-                       existing_compounds=existing,
-                       taxon=SARS_COV_2, source=SOURCE, date=args.date,
-                       ac50_units=ac50_units, tox_ac50_units=tox_units,
-                       conc_units=args.conc_units,
-                       assay_filter=assay_filter,
-                       min_efficacy_pct=args.min_efficacy_pct)
+    stats: Counter = Counter()
+    # ONE Emit FOR ALL ASSAYS, because a compound measured in two of them is
+    # ONE node carrying two label edges -- the assays answer different
+    # questions about it and `assay_type` keeps them apart. Per-assay totals
+    # are printed too, since a single sum would hide an assay that
+    # contributed nothing.
+    for s, rows, cols, tox_index, tox_cols, ac50_units, tox_units in loaded:
+        print(f"\nnormalizing and ingesting {s.key} (rdkit)")
+        got = ingest_cpe(em, rows, cols, normalize_chemical,
+                         tox_by_sample=tox_index, tox_cols=tox_cols,
+                         existing_compounds=existing,
+                         source=SOURCE, date=args.date,
+                         ac50_units=ac50_units, tox_ac50_units=tox_units,
+                         conc_units=args.conc_units,
+                         assay_filter=(None if args.assay == "all"
+                                       else args.assay or s.assay_name),
+                         min_efficacy_pct=args.min_efficacy_pct,
+                         spec=s)
+        print(f"  {s.key:<14} {got['active']:>6,} active | "
+              f"{got['inactive']:>7,} inactive | "
+              f"{got['reason_weak_hit_above_active_threshold']:>5,} weak hits "
+              f"refused")
+        for k, v in got.items():
+            stats[k] += v
 
     print(f"\n{stats['active']:,} active | {stats['inactive']:,} measured INACTIVE")
     print(f"  {stats['with_same_plate_si']:,} actives carry a same-plate "

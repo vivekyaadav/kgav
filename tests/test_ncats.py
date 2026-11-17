@@ -805,3 +805,85 @@ def test_a_fitted_hit_past_the_threshold_is_refused_and_not_called_inactive():
     v2, _, _ = classify_row(_row(ac50=str(under), curve="1.1", eff="80"),
                             COLS, ac50_units="uM")
     assert v2 == "active", "the threshold moved the wrong way"
+
+
+# --------------------------------------------------------------------------
+# THE REGISTRY. Everything about an assay that is NOT in its rows -- virus,
+# polarity, cell line, counterscreen, citation, date -- and the first
+# wiring of the three entry assays got the citation wrong for all three,
+# stamping the CPE paper (PMID:33708112) on a MERS screen. Verified against
+# PubMed and pinned here.
+# --------------------------------------------------------------------------
+def test_each_assay_cites_its_own_paper_and_not_the_cpe_one():
+    """PMID:33708112 is Chen CZ et al., Front Pharmacol, the CPE screen.
+    The pseudotype assays are Xu M et al., SLAS Discov 2022 (SARS-CoV-2)
+    and Chen CZ et al., ACS Pharmacol Transl Sci 2020 (SARS-S and MERS-S,
+    one paper for both)."""
+    from kgav.ncats import ASSAYS
+
+    assert ASSAYS["cpe"].publication == "PMID:33708112"
+    assert ASSAYS["pp_sars_cov_2"].publication == "PMID:35086793"
+    assert ASSAYS["pp_sars_cov"].publication == "PMID:33330839"
+    assert ASSAYS["pp_mers"].publication == "PMID:33330839"
+    for key, spec in ASSAYS.items():
+        if key == "cpe":
+            continue
+        assert spec.publication != "PMID:33708112", (
+            f"{key} cites the CPE paper; it is a different assay in a "
+            f"different publication")
+
+
+def test_every_assay_declares_a_distinct_virus_file_and_counterscreen():
+    """A registry whose entries collide is worse than three arguments,
+    because the collision is invisible. Two assays MAY share a taxon --
+    CPE and pseudotype entry are both SARS-CoV-2 -- but never a file."""
+    from kgav.ncats import ASSAYS
+
+    files = [f for s in ASSAYS.values()
+             for f in (s.file, s.counterscreen_file)]
+    assert len(files) == len(set(files)), f"a file is reused: {files}"
+    for key, spec in ASSAYS.items():
+        assert spec.taxon.startswith("NCBITaxon:"), key
+        assert spec.polarity in (1, -1), key
+        assert spec.assay_name == spec.assay_name.lower(), (
+            f"{key}: assay_name is matched case-folded, so store it folded")
+        assert spec.remote and spec.remote_counterscreen, (
+            f"{key} has no download URL; the cpe sidecar's "
+            f'"not recoverable" note is how that becomes permanent')
+
+
+def test_the_pipeline_declares_every_file_the_ncats_layer_reads():
+    """A layer whose declared inputs drift from what its script reads is a
+    stale-input check that cannot fire. Derived on both sides."""
+    from kgav.ncats import ASSAYS
+    from kgav.pipeline import LAYERS
+
+    layer = next(x for x in LAYERS if x.name == "ncats")
+    want = {f"data/raw/ncats/{n}" for s in ASSAYS.values()
+            for n in (s.file, s.counterscreen_file)}
+    assert set(layer.files) == want, (
+        f"declared {set(layer.files)}, registry says {want}")
+
+
+def test_the_polarity_of_every_declared_assay_is_the_files_own():
+    """THE GUARD THAT MATTERS, over the real exports. Applying the CPE sign
+    rule to a loss-of-signal file yields zero actives, which is
+    indistinguishable from a screen that found nothing."""
+    from kgav.ncats import ASSAYS, check_polarity
+
+    raw = Path(__file__).resolve().parents[1] / "data" / "raw" / "ncats"
+    checked = 0
+    for key, spec in ASSAYS.items():
+        path = raw / spec.file
+        if not path.exists():
+            continue
+        rows, cols = read_table(path)
+        in_assay = [r for r in rows
+                    if "assay" not in cols
+                    or (r.get(cols["assay"]) or "").strip().lower()
+                    == spec.assay_name]
+        neg, pos = check_polarity(in_assay, cols, spec)   # raises on mismatch
+        assert neg + pos > 0, f"{key}: no strong responders to read a sign from"
+        checked += 1
+    if not checked:
+        pytest.skip("no NCATS exports on disk")

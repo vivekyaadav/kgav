@@ -1,4 +1,4 @@
-schema_version: "0.15.0"
+schema_version: "0.16.0"
 scope: "Coronaviridae v1 — SARS-CoV-2, SARS-CoV, MERS-CoV, HCoV-229E, HCoV-OC43, HCoV-NL63, HCoV-HKU1"
 
 # ---------------------------------------------------------------------------
@@ -90,8 +90,17 @@ enums:
   screen_type:      [CRISPRko, CRISPRa, CRISPRi, RNAi, haploid, other]
   baltimore_class:  [I, II, III, IV, V, VI, VII]
   assay_type:
-    [cell_based_antiviral, cytotoxicity, biochemical, binding,
-     reporter, plaque_reduction, other]
+    # cell_based_pseudotype_entry is DISTINCT from cell_based_antiviral on
+    # purpose (schema 0.16.0, 2026-11-17). A pseudotyped particle carries
+    # the named virus's spike on another viral core, so inhibiting its
+    # entry is evidence about ENTRY and not about replication of the
+    # authentic virus -- weaker evidence than a cytopathic-effect assay on
+    # live virus. Collapsing the two would make a plate-matched cell
+    # unpoolable without anyone being able to tell, because the entire
+    # value of such a cell is that one protocol produced both classes.
+    # Registered in docs/prereg_ncats_entry_assays.md.
+    [cell_based_antiviral, cell_based_pseudotype_entry, cytotoxicity,
+     biochemical, binding, reporter, plaque_reduction, other]
   approval_status:  [approved, withdrawn, investigational, off_label]
   trial_status:
     [not_yet_recruiting, recruiting, active, completed, terminated,
