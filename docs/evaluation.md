@@ -43,9 +43,89 @@ the one this document carried on 2026-10-31, not a weaker one.
                                                 decomposition below before
                                                 reading that as a tie
 
-So a calibrated ranking returns nothing, and that is the correct output. The
-graph can report evidence for a compound it is asked about; it has no measured
-basis for a shortlist.
+So a calibrated METAPATH ranking returns nothing, and that is the correct
+output for those channels.
+
+**A STRUCTURE-DERIVED SCORER, REGISTERED SEPARATELY, IS NOT
+INDISTINGUISHABLE FROM CHANCE.** In **8 of the 17**
+registered cells it clears its own corrected alpha — 0.05/14 for the ChEMBL
+cells, 0.05/3 for the plate cells — **above a degree baseline that does not
+clear**, and the membership of those 8 is **identical under both
+registered controls**, the symmetric k = 10 exclusion of
+`docs/prereg_structure_scorer_symmetric.md` and the strength-matched
+exclusion of `docs/prereg_structure_scorer_strength_matched.md`. That is a
+different kind of result from the block above and it is reported as one.
+
+<!-- BLOCK: claim_scorer — asserted cell by cell by
+     tests/test_claim_block.py against
+     data/results/structure_scorer_symmetric.json,
+     structure_scorer_strength_matched.json and clinical_labels.json.
+     Do not hand-edit; re-derive by running the Reproducing block.
+
+     THE FOUR GROUPS ARE THE WHOLE FAMILY, not a selection, and the
+     first draft of this block printed three -- 13 of the 17 cells --
+     because the group that does not clear at all was left out while
+     the comment claimed the table was complete. A table of the first
+     group alone would be the failure this project is built against,
+     and so is a table that is almost complete. 8 clear above a
+     non-clearing baseline, 4 clear while their baseline clears
+     too, 1 does not beat its baseline, 4 do not clear.
+     Columns are the
+     symmetric AUC, the strength-matched AUC, and the degree baseline,
+     which is one baseline computed from the graph rather than from
+     either protocol. -->
+
+    clears, and   Yellow fever  ChEMBL      0.8388  0.8117  0.5079
+    clears, and   JEV           ChEMBL      0.8002  0.7885  0.5263
+    clears, and   TBEV          ChEMBL      0.7464  0.7389  0.4753
+    clears, and   Zika          ChEMBL      0.6812  0.7032  0.5342
+    clears, and   West Nile     ChEMBL      0.6600  0.7079  0.5319
+    clears, and   DENV-3        ChEMBL      0.6496  0.6653  0.4970
+    clears, and   DENV-1        ChEMBL      0.6066  0.5967  0.5251
+    clears, and   SARS-CoV-2    plate CPE   0.6062  0.5834  0.5700
+
+    degree also   SARS-CoV-2    ChEMBL      0.8304  0.7803  0.5535
+    degree also   DENV-2        ChEMBL      0.7888  0.6921  0.5638
+    degree also   HCoV-229E     ChEMBL      0.7100  0.6758  0.6434
+    degree also   SARS-CoV      plate entry 0.6224  0.6224  0.6070
+
+    degree wins   MERS-CoV      plate entry 0.5873  0.5655  0.6326
+
+    no clear      DENV-4        ChEMBL      0.5868  0.4792  0.5245
+    no clear      SARS-CoV      ChEMBL      0.5763  0.5763  0.6908
+    no clear      HCoV-OC43     ChEMBL      0.5735  0.5903  0.6222
+    no clear      MERS-CoV      ChEMBL      0.4845  0.5045  0.6533
+
+**1 cell carries the opposite finding and is printed above with
+the rest:** on the MERS-CoV pseudotyped-entry plate the degree baseline
+is ABOVE the structure statistic and clears where the structure statistic
+clears too, so that cell is not evidence about chemistry. It read as a
+clean structure result until 2026-11-17, when the degree comparator was
+found to be counting the held-out label edges it was being scored
+against — recorded in the amendment to `docs/prereg_structure_scorer.md`.
+
+**AND IT IS NOT CORROBORATED BY THE ONE INDEPENDENT LABEL AXIS.** Every
+figure above and below rests on `HAS_ANTIVIRAL_ACTIVITY_AGAINST`, one
+predicate from in-vitro concentration-response at one threshold. On the
+registered clinical cell — COVID-19 against SARS-CoV-2,
+221 compounds in a trial or approved against
+12,595 screened and not, `docs/prereg_clinical_labels.md`
+— the same statistic reads **0.4087
+[0.3734, 0.4440]**,
+wholly BELOW chance, while degree reads **0.7751
+[0.7385, 0.8116]**.
+Reaching a trial is predicted by how much a compound has been studied, not
+by its resemblance to the compounds active in vitro, and
+200 of the
+221 positives were measured inactive. So the
+independent axis measures something else rather than confirming this one,
+it cannot be used to validate a structure scorer, and no claim here is
+predictive: `drug_indication` carries no usable per-row date, so no
+temporal split exists.
+
+The graph can report evidence for a compound it is asked about. For a
+SHORTLIST, the measured basis is the structure scorer's 8
+cells and not the metapath channels.
 
 ### Those AUCs are not comparable to each other, and the decomposition says why
 

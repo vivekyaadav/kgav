@@ -316,3 +316,171 @@ def test_the_gap_between_them_is_the_one_the_results_give(chans):
     assert f"{gap:.3f} below" in flat or f"{gap:.3f} apart" in flat, (
         f"degree leads COMBINED by {gap:.3f}; the document states a "
         f"different gap")
+
+
+# --------------------------------------------------------------------------
+# THE SECOND CLAIM: a structure-derived scorer, added to this section on
+# 2026-11-17 by the owner's decision on fix-list A1. Everything in it is
+# derived here from the three results files, for the reason the channel
+# block above is: a claim block is the one part of this document a reader
+# quotes without opening anything else.
+# --------------------------------------------------------------------------
+
+RESULTS_DIR = RESULTS.parent
+SCORER_SYM = RESULTS_DIR / "structure_scorer_symmetric.json"
+SCORER_STR = RESULTS_DIR / "structure_scorer_strength_matched.json"
+CLINICAL = RESULTS_DIR / "clinical_labels.json"
+
+_SCORER_POPS = (("primary_chembl", "ChEMBL"),
+                ("secondary_ncats", "plate CPE"),
+                ("secondary_ncats_entry", "plate entry"))
+
+
+def _scorer_cells(path, channel: str) -> dict:
+    """{(population label, virus name): (structure, degree)} for one run."""
+    import json as _j
+    from kgav import virus_register as _vr
+
+    names = {"NCBITaxon:" + v["taxon"]: v["name"]
+             for v in _vr.load()["viruses"]}
+    doc = _j.loads(path.read_text())
+    out = {}
+    for pop, label in _SCORER_POPS:
+        for virus, cell in (doc.get(pop) or {}).items():
+            if not isinstance(cell, dict):
+                continue
+            s, g = cell.get(channel), cell.get("degree")
+            if not (isinstance(s, dict) and "auc" in s
+                    and isinstance(g, dict) and "auc" in g):
+                continue
+            out[(label, names.get(virus, virus))] = (s, g)
+    return out
+
+
+def _group(sym: dict, key) -> int:
+    s, g = sym[key]
+    if not s.get("clears_corrected_alpha"):
+        return 3
+    if g["auc"] >= s["auc"]:
+        return 2
+    return 0 if not g.get("clears_corrected_alpha") else 1
+
+
+@pytest.fixture(scope="module")
+def scorer():
+    for p in (SCORER_SYM, SCORER_STR, CLINICAL):
+        if not p.exists():
+            pytest.skip(f"{p.name} absent")
+    return (_scorer_cells(SCORER_SYM, "structure_max_k10"),
+            _scorer_cells(SCORER_STR, "structure_max"))
+
+
+@pytest.fixture(scope="module")
+def scorer_block() -> list[str]:
+    text = DOC.read_text()
+    assert "BLOCK: claim_scorer" in text, "the scorer claim block is gone"
+    body = text.split("either protocol. -->")[1]
+    body = body.split("**1 cell")[0] if "**1 cell" in body else body
+    return [ln for ln in body.splitlines() if ln.startswith("    ")]
+
+
+def test_the_scorer_block_holds_every_cell_of_the_family(scorer, scorer_block):
+    """NOT ALMOST EVERY CELL. The first draft printed three of the four
+    groups -- 13 of 17 -- while its own comment claimed the table was
+    complete, which is the selection failure this project is built
+    against wearing a completeness notice."""
+    sym, _ = scorer
+    assert len(scorer_block) == len(sym), (
+        f"the block prints {len(scorer_block)} cells and the runs hold "
+        f"{len(sym)}")
+    for _label, virus in sym:
+        assert any(virus in ln for ln in scorer_block), (
+            f"{virus} is absent from the claim block")
+
+
+def _parse_scorer_rows(lines: list[str]) -> dict:
+    """{(population, virus): (mark, three figures)} by fixed columns.
+
+    MATCHING ON THE VIRUS NAME ALONE IS WRONG and the first version of
+    this did it: SARS-CoV-2, SARS-CoV and MERS-CoV each appear in two
+    populations, so three cells were compared against another cell's
+    row and two tests passed or failed for the wrong reason. The writer
+    emits fixed-width fields, so the reader uses them.
+    """
+    out = {}
+    for ln in lines:
+        mark, virus, pop = ln[4:18].strip(), ln[18:32].strip(), ln[32:44].strip()
+        out[(pop, virus)] = (mark, tuple(ln[44:].split()))
+    return out
+
+
+def test_every_number_in_the_scorer_block_is_the_runs(scorer, scorer_block):
+    sym, strength = scorer
+    rows = _parse_scorer_rows(scorer_block)
+    assert set(rows) == set(sym), (
+        f"block keys {sorted(set(rows) - set(sym))} / "
+        f"run keys {sorted(set(sym) - set(rows))}")
+    for key, (s, g) in sym.items():
+        want = (f"{s['auc']:.4f}", f"{strength[key][0]['auc']:.4f}",
+                f"{g['auc']:.4f}")
+        assert rows[key][1] == want, (key, rows[key][1], want)
+
+
+def test_each_row_carries_the_verdict_its_numbers_imply(scorer, scorer_block):
+    """The leading words are a verdict, so they are derived from the
+    intervals rather than typed beside them."""
+    sym, _ = scorer
+    marks = {0: "clears, and", 1: "degree also", 2: "degree wins",
+             3: "no clear"}
+    rows = _parse_scorer_rows(scorer_block)
+    for key in sym:
+        assert rows[key][0] == marks[_group(sym, key)], (
+            key, marks[_group(sym, key)], rows[key][0])
+
+
+def test_the_counts_in_the_scorer_sentences_are_the_groups(scorer):
+    sym, strength = scorer
+    text = " ".join(DOC.read_text().split())
+    counts = {g: sum(1 for k in sym if _group(sym, k) == g)
+              for g in (0, 1, 2, 3)}
+    assert sum(counts.values()) == len(sym)
+    assert f"In **{counts[0]} of the {len(sym)}**" in text, (
+        f"{counts[0]} of {len(sym)} cells clear above a non-clearing "
+        f"baseline and the claim states something else")
+    assert f"**{counts[2]} cell carries the opposite finding" in text
+
+
+def test_the_two_controls_agree_on_the_membership_the_claim_rests_on(scorer):
+    """The claim says "identical under both registered controls". That is
+    a fact about the data, not a property of the protocols."""
+    sym, strength = scorer
+    a = {k for k in sym if _group(sym, k) == 0}
+    b = {k for k in strength
+         if strength[k][0].get("clears_corrected_alpha")
+         and strength[k][0]["auc"] > strength[k][1]["auc"]
+         and not strength[k][1].get("clears_corrected_alpha")}
+    assert a == b, (
+        f"the two controls no longer agree: symmetric-only {sorted(a - b)}, "
+        f"strength-only {sorted(b - a)}; the claim's 'identical under both' "
+        f"is false")
+    text = " ".join(DOC.read_text().split())
+    assert "identical under both registered controls" in text
+
+
+def test_the_clinical_null_in_the_claim_block_is_the_runs(scorer):
+    import json as _j
+    cl = _j.loads(CLINICAL.read_text())
+    text = DOC.read_text()
+    for m in (cl["structure_max_k10"], cl["degree"]):
+        assert f"{m['auc']:.4f}" in text
+        assert (f"[{m['auc_ci_lo_corrected']:.4f}, "
+                f"{m['auc_ci_hi_corrected']:.4f}]") in text
+    pop = cl["population"]
+    flat = " ".join(text.split())
+    assert f"{pop['positives']} compounds in a trial" in flat
+    assert f"{pop['negatives']:,} screened and not" in flat
+    assert (f"{pop['positives_invitro_inactive']} of the "
+            f"{pop['positives']} positives were measured inactive") in flat
+    assert cl["structure_max_k10"]["auc_ci_hi_corrected"] < 0.5, (
+        "the clinical cell is no longer wholly below chance and the claim "
+        "block says it is")
