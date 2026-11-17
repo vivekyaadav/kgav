@@ -577,7 +577,42 @@ CORRECTION.** The readable family is thirteen, so the corrected alpha is
 three sit between 0.011 and 0.045, which is to say between 2.8x and 11.7x
 the threshold they would have to beat. The family was twelve until the
 2026-11-17 release: MERS-CoV's M6 became readable, at p = 1.0000, which
-makes the correction sterner and changes no verdict. The pseudotyped-entry assays gave
+makes the correction sterner and changes no verdict.
+
+**AND THE ONE CELL THAT CLEARS IS WEIGHTING-SENSITIVE, MEASURED.** M7's
+path is `SmallMolecule -> CHEMICALLY_SIMILAR_TO -> SmallMolecule ->
+INHIBITS -> Protein -> ...`, so the walk ENTERS a borrowed compound, and
+`walk_metapath_detail` weights every entered node by `g.degree ** -w`
+where `Graph.degree` counts the held-out label edges this channel is
+scored against. Taking them out of the step weight alone -- hub set held
+fixed -- moves **p = 0.000841 -> 0.001788**, lift 1.30 -> 1.28. **The
+claim survives: it still clears 0.00385, by a factor of 2 rather than
+5.** `data/results/degree_weighting_sensitivity.json` carries all three
+arms and `make degree-sensitivity` regenerates it.
+
+**WHAT MAKES THAT A SENSITIVITY AND NOT A DEFECT.** Nothing promised the
+step weight excludes held-out edges, and `baselines.py` argues the
+opposite deliberately, for hub exclusion and degree-matched binning.
+That is the opposite of the degree COMPARATOR in the scorer studies,
+which promised the traversable graph and did not deliver it -- a bug,
+recorded in the amendment to `docs/prereg_structure_scorer.md` and worth
+0.32 AUC on one cell. Switching this weighting would restate every
+figure in `data/results`, so it is a decision that needs its own
+registration; the artifact says what such a registration would be
+deciding about and claims nothing.
+
+**IT IS ALSO SMALL, AND THE CONTROL IS WHAT SAYS SO.** 4 of the 61
+evaluable cells move at all, and **no cell crosses p = 0.05**. The four
+are M1, M6 and M7 cells -- exactly the channels that enter a varying
+intermediate carrying held-out degree, a borrowed compound or a viral
+protein with inactive measurements. M2, M3, M4, M5 and M8 do not move by
+a single bit, including the other three nominally significant cells
+above. The largest move in the family is not the claim: **DENV-2 M1 goes
+p = 0.238741 -> 0.893363**, driven by the 22 viral proteins that carry
+`MEASURED_INACTIVE_AGAINST` edges, and both arms are far from
+significance. The hub set is **62** nodes under every arm, because every
+held-degree protein is viral while the hub cut is class-scoped to host
+proteins -- which is what lets arm B isolate the weighting. The pseudotyped-entry assays gave
 SARS-CoV and MERS-CoV labels they did not have, which is why two of their
 cells became readable at all; a cell becoming readable is not a cell
 becoming a result.
@@ -1800,6 +1835,13 @@ make structure-scorer-strength
 #    were dropped as the same compound as something already known, which
 #    is fix-list L27.
 make repurposing-candidates
+
+#    the DWPC weighting sensitivity: three arms over every channel,
+#    answering whether the step weight reads the held-out labels the
+#    channels are scored against. The claim section above quotes its
+#    middle arm beside M7's published p, so it is an audited artifact
+#    rather than a terminal printout. It registers nothing.
+make degree-sensitivity
 
 #    the clinical-label cell, registered by
 #    docs/prereg_clinical_labels.md and run for the first time

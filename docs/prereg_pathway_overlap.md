@@ -163,9 +163,10 @@ Date drafted: 2026-11-02. Release: v0.1 (78,649 nodes / 395,646 edges,
 `nodes_sha` dc6d76a2b3cfb2a1, `edges_sha` c0c4daccd48e9979). Scripts:
 `scripts/pathway_landscape.py`, read by `src/kgav/landscape.py`.
 
-**The release identification has now been updated twelve times -- once on
-2026-11-07, three times on 2026-11-08, five times on 2026-11-09 and three
-times on 2026-11-11 -- and the analysis was not re-registered any of them**,
+**The release identification has now been updated thirteen times -- once on
+2026-11-07, three times on 2026-11-08, five times on 2026-11-09, three
+times on 2026-11-11 and once on 2026-11-17 -- and the analysis was not
+re-registered any of them**,
 because no rebuild has changed a measured p-value. One rebuild has now
 changed a registered OPERAND, which is recorded below under *A registered
 operand moved* and is a different thing from a measured figure. **That count was wrong until
@@ -593,7 +594,26 @@ day. `study_degree` was written precisely to keep that out of the
 degree-MATCHING ("WHY THE DEFAULT DEGREE IS NOT SAFE HERE"), and the hub
 cut still reads it.
 
-Whether the 577 clinical-label edges can reach a protein's hub status
-through that path is **not measured here**, and a controlled re-run on a
-release without them is what would settle it. Stated as an open question
-rather than left as a figure nobody explained.
+**SETTLED 2026-11-17, AND THE ANSWER IS NO.** All 577 clinical edges
+run `SmallMolecule -> Disease`; not one has a `Protein` endpoint, so no
+protein's degree moves and the hub cut above cannot see them. The
+observed set is the drugged proteome, derived from compound-to-protein
+edges, which they also do not touch. **The clinical ingest cannot move
+this analysis at all**, which makes the controlled re-run unnecessary
+rather than merely unaffordable.
+
+`scripts/diagnose_label_degree_weighting.py` reports the same thing from
+the other side: the hub set is **62 nodes with the held-out degree in
+and 62 with it out**, identical membership. Held-out degree reaches 22
+Protein nodes and every one of them is VIRAL, while the hub cut is
+class-scoped to host proteins acting as path connectors.
+
+**SO THE TWO MOVED CELLS BELONG TO THE ENTRY-ASSAY INGEST, and one of
+them is now named.** `NCBITaxon:11084`'s interactome set went 3 -> 4
+because **`UniProtKB:Q92993`** -- one of the five proteins that joined
+the drugged proteome in that ingest, named in the amendment above --
+physically interacts with a TBEV protein. `NCBITaxon:31631`'s 62 -> 63
+is **not** explained by any of the five: none of them partners a
+SARS-CoV protein over `PHYSICALLY_INTERACTS_WITH`. That one remains
+open, and it is open against the entry-assay ingest rather than against
+the clinical one.

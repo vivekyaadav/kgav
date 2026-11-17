@@ -1,4 +1,4 @@
-.PHONY: identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
+.PHONY: identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
 
 install:
 	pip install -e ".[dev]"
@@ -274,6 +274,24 @@ kg-report-check:
 # stamped, like the census: a table built from a mixture of releases is
 # detectable rather than merely wrong. Runs as the last step of
 # `make reproduce`, so the numbers are printed every time they move.
+# DOES THE DWPC WEIGHTING READ THE ANSWER SHEET. Three arms over every
+# channel: as published, with the held-out labels out of the step weight
+# only, and out of the hub cut as well. docs/evaluation.md's claim
+# section quotes the middle arm beside its own M7 figure, so this ships
+# as a stamped artifact rather than a terminal printout -- a figure in
+# that document has to be derivable by a test. It REGISTERS NOTHING:
+# switching the weighting is a decision that needs its own registration.
+#
+# MEASURED 5m18s, and nearly all of it is M4 walking ~3,950 drugs three
+# times -- M1+M6+M7 together are 8.6s. Running only the channels that
+# CAN move was considered and rejected: the five that never move are the
+# control, and they are what licenses the claim "4 of the 61 cells move
+# and none crosses alpha". Dropping them would save five minutes and the
+# ability to say the finding is small.
+degree-sensitivity:
+	python scripts/diagnose_label_degree_weighting.py \
+	  --out data/results/degree_weighting_sensitivity.json $(ARGS)
+
 # THE ONE INDEPENDENT LABEL AXIS, registered in advance by
 # docs/prereg_clinical_labels.md. One cell, family of one, alpha 0.05.
 # It reads the release and the three scorer files read nothing from it;
