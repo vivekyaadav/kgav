@@ -105,6 +105,39 @@ host-mediated channels by construction — or scope the document explicitly
 to the scoring work and state that v1 is the pathway release. What cannot
 stand is a document stating numbers that no longer describe the graph.
 
+**DECIDED AND CLOSED 2026-11-17. The owner took the third option: both
+findings, side by side.** `docs/evaluation.md`'s claim section now holds
+
+1. the metapath result **unchanged** — four of eight channels evaluated,
+   all four indistinguishable from chance;
+2. the structure scorer, in **8 of its 17 registered cells clearing its
+   own corrected alpha above a degree baseline that does not clear**,
+   with that membership identical under both registered controls; and
+3. the independent-label null beside it — **0.4087 [0.3734, 0.4440]**,
+   wholly below chance, against degree **0.7751 [0.7385, 0.8116]** on
+   the registered clinical cell.
+
+Neither claim was softened to accommodate the other. The only sentence
+rewritten in the metapath half is its closing one: it read *"it has no
+measured basis for a shortlist"*, which stopped being true when the
+scorer became verdict-carrying.
+
+**THE BLOCK PRINTS ALL FOUR GROUPS OF CELLS, AND ITS FIRST DRAFT PRINTED
+THREE** — 13 of 17, with the group that clears nothing at all left out
+beneath a comment claiming the table was the whole family. Every row's
+verdict word is derived from its own interval rather than typed beside
+it, and `tests/test_claim_block.py` fails on a perturbed AUC, a
+perturbed verdict, a wrong count or a wrong clinical figure.
+
+**ONE CONSEQUENCE FOR THIS DOCUMENT IS NOT MINE TO SETTLE.** *What v1 is*
+says above that "a scoring method for drug repurposing comes after, not
+in this release", and the claim block now claims the scorer. The
+reading that needs no change is that v1 remains the pathway analysis
+plus the agent plus the paper, and `docs/evaluation.md` is a repository
+document rather than the paper — so the scorer ships alongside v1
+without being its subject. If the owner wants the scoring work IN v1
+instead, *What v1 is* is the line to change, not the claim block.
+
 ### A2. `host` layer provenance — **DONE 2026-11-11, and the report was the last part to be fixed**
 
 The item as written: `make data-timeline` reports the `host` layer as five
@@ -356,13 +389,24 @@ this document:
 | A5 | nothing answers it | **built** — `GraphTools.pathways`, 66 tests |
 | C1 | lands at the next rebuild | **landed**, 6,617 edges |
 | C3 | three Disease nodes | **ten**, and `TREATS`/`IN_TRIAL_FOR` **577 edges** as of 2026-11-17 |
-| D | the scorer is "not run" | **run**, three protocols, 10 of 15 cells clearing |
+| D | the scorer is "not run" | **run**, three protocols, **13 of 17** cells clearing their alpha, 8 of them above a non-clearing degree baseline |
 
-**SO THE ONLY THING BETWEEN THIS REPOSITORY AND THE RELEASE IS A1, AND A1
-IS A DECISION RATHER THAN WORK** — what `docs/evaluation.md` claims, now
-that the scorer is registered, run and verdict-carrying. C2's licence
-question and C3 are the remaining non-blocking items, and both are
-settling rather than building.
+**A1 WAS THE ONLY THING BETWEEN THIS REPOSITORY AND THE RELEASE, AND IT
+CLOSED 2026-11-17** — recorded in full under A1 above. Section A is
+therefore empty of open items, and nothing in section B or C blocks:
+C2's licence question is settling rather than building, and C3 closed as
+an ingest the same day (577 edges) while remaining open as a measurement
+beyond its one registered cell.
+
+**WHAT IS LEFT IS NOT A BLOCKING ITEM BUT IT IS NOT NOTHING.** Named here
+so the release is not taken for finished:
+
+| left | what it is |
+|---|---|
+| the paper | *What v1 is* names it as part of the release; nothing in this repository drafts it |
+| `SARS-CoV` interactome 62 → 63 | one unexplained count, attributed to the entry-assay ingest, needs a controlled `ncats` re-run since v0.1 was overwritten |
+| a clean rebuild | the layer stamps are older than the code because registering the `indications` layer edited `pipeline.py`; `make auc-delta` is only interpretable again after a rebuild that does not re-fetch ORCS over the network |
+| HCoV-NL63 / HCoV-HKU1 | no positives, so no cell; the only route is curation, and it is a large job |
 
 **TWO FIGURES IN THIS DOCUMENT WERE THE PREVIOUS RUN'S**, found the same
 way. `0.05964` and `3.96e-04` were asserted in the prose beneath a table

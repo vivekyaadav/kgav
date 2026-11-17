@@ -249,3 +249,48 @@ def test_the_node_and_edge_counts_match_the_release():
         f"the release holds {want} and the document's opening line states "
         f"something else: "
         f"{re.search(r'Release v0.1:.*', text).group(0) if re.search(r'Release v0.1:.*', text) else '(no such line)'}")
+
+
+def test_the_scorer_row_counts_the_cells_the_runs_hold():
+    """THE ROW SAID "10 of 15" AND THE RUNS HELD 13 OF 17.
+
+    This document's re-derived census table exists because its own prose
+    went stale; the row recording the scorer's state then went stale in
+    the same way, in the same table, because it was typed. The entry-assay
+    ingest added two plate cells and the degree-comparator fix moved which
+    cells clear, and nothing could fail on either.
+
+    So the count is derived. Both halves of it: how many cells clear their
+    own registered alpha, and how many of those do it above a degree
+    baseline that does not clear -- which is the claim
+    docs/evaluation.md's claim block makes, and the only one of the two
+    that is evidence about chemistry.
+    """
+    import json
+
+    sym = ROOT / "data" / "results" / "structure_scorer_symmetric.json"
+    if not sym.exists():
+        pytest.skip("the symmetric scorer run is absent")
+    doc = json.loads(sym.read_text())
+    total = clearing = strong = 0
+    for pop in ("primary_chembl", "secondary_ncats", "secondary_ncats_entry"):
+        for cell in (doc.get(pop) or {}).values():
+            if not isinstance(cell, dict):
+                continue
+            s, g = cell.get("structure_max_k10"), cell.get("degree")
+            if not (isinstance(s, dict) and "auc" in s
+                    and isinstance(g, dict) and "auc" in g):
+                continue
+            total += 1
+            if not s.get("clears_corrected_alpha"):
+                continue
+            clearing += 1
+            if s["auc"] > g["auc"] and not g.get("clears_corrected_alpha"):
+                strong += 1
+
+    text = " ".join(DOC.read_text().split())
+    assert f"**{clearing} of {total}** cells clearing their alpha" in text, (
+        f"{clearing} of {total} cells clear and the plan says otherwise")
+    assert f"{strong} of them above a non-clearing degree baseline" in text, (
+        f"{strong} cells clear above a non-clearing baseline and the plan "
+        f"says otherwise")
