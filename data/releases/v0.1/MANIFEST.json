@@ -77,12 +77,6 @@
       "edges_sha": "6e79c1bc9279a59f",
       "sources": null
     },
-    "folds": {
-      "path": "data/releases/v0.1-folds",
-      "nodes_sha": "227b2780503e9e91",
-      "edges_sha": "58a6dd8ef38d9690",
-      "sources": null
-    },
     "indications": {
       "path": "data/releases/v0.1-indications",
       "nodes_sha": "e3b0c44298fc1c14",
@@ -96,6 +90,12 @@
           "table": "drug_indication"
         }
       }
+    },
+    "folds": {
+      "path": "data/releases/v0.1-folds",
+      "nodes_sha": "227b2780503e9e91",
+      "edges_sha": "58a6dd8ef38d9690",
+      "sources": null
     }
   },
   "nodes": 78649,
@@ -122,10 +122,10 @@
     "INHIBITS": 3874,
     "TARGETS": 17635,
     "CHEMICALLY_SIMILAR_TO": 3035,
-    "MEMBER_OF_CLASS": 158,
-    "FOLD_SIMILAR_TO": 24,
     "IN_TRIAL_FOR": 568,
-    "TREATS": 9
+    "TREATS": 9,
+    "MEMBER_OF_CLASS": 158,
+    "FOLD_SIMILAR_TO": 24
   },
   "degree": {
     "median": 2,
@@ -210,7 +210,7 @@
   "release": "v0.1",
   "hub_cut_degree": 460,
   "code": {
-    "commit": "447afcc135848c5cad358b087393f59783b4c42d",
-    "dirty": true
+    "commit": "acd81951e39297f584d705cfc867f6c426b93ae3",
+    "dirty": false
   }
 }
