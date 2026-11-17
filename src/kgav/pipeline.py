@@ -70,7 +70,6 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from kgav.ncats import ASSAYS as NCATS_ASSAYS
 from kgav.provenance import check_layer
 
 CHEMBL_DB = Path("data/raw/chembl/chembl_37/chembl_37_sqlite/chembl_37.db")
@@ -165,14 +164,25 @@ LAYERS: tuple[Layer, ...] = (
     # neither hosttargets nor the assembled release.
     Layer("hosttargets", "ingest_host_targets.py", 1,
           files=(str(CHEMBL_DB),)),
-    # FILES FROM THE ASSAY REGISTRY, not a second list. kgav.ncats.ASSAYS
-    # declares each assay's export and counterscreen, and a layer whose
-    # declared inputs drift from what its script reads is a stale-input
-    # check that cannot fire.
+    # LISTED, NOT DERIVED, AND THE TEST IS WHY THAT IS SAFE. Deriving this
+    # from kgav.ncats.ASSAYS was the first version and it was wrong in a way
+    # only `rebuild --plan` showed: importing the registry here puts ncats.py
+    # -- and through it labels.py, normalize_chem.py and units.py -- into the
+    # SOURCE CLOSURE of pipeline.py, which is in the closure of every layer.
+    # So a one-line edit to labels.py would mark all eleven layers stale and
+    # force a full rebuild, for ever. A literal list plus
+    # tests/test_ncats.py::test_the_pipeline_declares_every_file_the_ncats_
+    # layer_reads gives the same protection against drift at no coupling:
+    # the check fails loudly instead of the dependency failing expensively.
     Layer("ncats", "ingest_ncats.py", 1,
-          files=tuple(f"data/raw/ncats/{name}"
-                      for spec in NCATS_ASSAYS.values()
-                      for name in (spec.file, spec.counterscreen_file))),
+          files=("data/raw/ncats/cpe_assay.csv",
+                 "data/raw/ncats/cpe_tox.csv",
+                 "data/raw/ncats/pp_sars_cov_2.csv",
+                 "data/raw/ncats/pp_sars_cov_2_tox.csv",
+                 "data/raw/ncats/pp_sars_cov.csv",
+                 "data/raw/ncats/pp_sars_cov_tox.csv",
+                 "data/raw/ncats/pp_mers.csv",
+                 "data/raw/ncats/pp_mers_tox.csv")),
     Layer("folds", "ingest_folds.py", 1,
           args=("--offline",),
           files=("data/raw/folds/phase2_chains.json",)),
