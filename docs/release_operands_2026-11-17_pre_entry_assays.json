@@ -1,0 +1,277 @@
+{
+  "assay_types": {
+    "binding": 14649,
+    "biochemical": 4818,
+    "cell_based_antiviral": 25657,
+    "cytotoxicity": 20,
+    "other": 844,
+    "plaque_reduction": 3,
+    "reporter": 289
+  },
+  "edges": 391727,
+  "edges_by_predicate": {
+    "BELONGS_TO": 79,
+    "CAUSES": 16,
+    "CHEMICALLY_SIMILAR_TO": 2996,
+    "ENCODED_BY": 19498,
+    "FOLD_SIMILAR_TO": 24,
+    "HAS_ANTIVIRAL_ACTIVITY_AGAINST": 25949,
+    "HOST_FACTOR_FOR": 8263,
+    "INHIBITS": 3874,
+    "MEASURED_INACTIVE_AGAINST": 2420,
+    "MEMBER_OF_CLASS": 158,
+    "PARTICIPATES_IN": 157211,
+    "PHYSICALLY_INTERACTS_WITH": 153533,
+    "SAME_AS": 119,
+    "TARGETS": 17587
+  },
+  "edges_by_predicate_and_source": {
+    "BELONGS_TO|infores:uniprot": 79,
+    "CAUSES|infores:mondo": 16,
+    "CHEMICALLY_SIMILAR_TO|infores:kgav-computed": 2996,
+    "ENCODED_BY|infores:uniprot": 19498,
+    "FOLD_SIMILAR_TO|infores:kgav-computed": 24,
+    "HAS_ANTIVIRAL_ACTIVITY_AGAINST|infores:chembl": 18517,
+    "HAS_ANTIVIRAL_ACTIVITY_AGAINST|infores:ncats-opendata": 7432,
+    "HOST_FACTOR_FOR|infores:biogrid-orcs": 8263,
+    "INHIBITS|infores:chembl": 3874,
+    "MEASURED_INACTIVE_AGAINST|infores:chembl": 2420,
+    "MEMBER_OF_CLASS|infores:interpro": 158,
+    "PARTICIPATES_IN|infores:uniprot": 157211,
+    "PHYSICALLY_INTERACTS_WITH|infores:dip": 9,
+    "PHYSICALLY_INTERACTS_WITH|infores:dip|infores:intact": 2,
+    "PHYSICALLY_INTERACTS_WITH|infores:dip|infores:intact|infores:virhostnet": 1,
+    "PHYSICALLY_INTERACTS_WITH|infores:hpidb|infores:virhostnet": 1,
+    "PHYSICALLY_INTERACTS_WITH|infores:intact": 1745,
+    "PHYSICALLY_INTERACTS_WITH|infores:intact|infores:mint": 36,
+    "PHYSICALLY_INTERACTS_WITH|infores:intact|infores:mint|infores:virhostnet": 177,
+    "PHYSICALLY_INTERACTS_WITH|infores:intact|infores:virhostnet": 4656,
+    "PHYSICALLY_INTERACTS_WITH|infores:mint": 559,
+    "PHYSICALLY_INTERACTS_WITH|infores:mint|infores:virhostnet": 106,
+    "PHYSICALLY_INTERACTS_WITH|infores:string": 141019,
+    "PHYSICALLY_INTERACTS_WITH|infores:virhostnet": 5222,
+    "SAME_AS|infores:uniprot": 119,
+    "TARGETS|infores:chembl": 10839,
+    "TARGETS|infores:chembl|infores:guidetopharmacology": 3198,
+    "TARGETS|infores:guidetopharmacology": 3550
+  },
+  "label_cells": {
+    "infores:chembl": {
+      "NCBITaxon:11053": {
+        "n_neg": 123,
+        "n_pos": 195,
+        "neg_sha256": "dd7d6a78b6e07b47b46c008d5198419b813f2f96c4e00be95e4fcf4d2388c96e",
+        "pos_sha256": "a21e1b83615c5ea69258bb64ff313f14b961051d5456d9824bcc855b6e97d587"
+      },
+      "NCBITaxon:11060": {
+        "n_neg": 3043,
+        "n_pos": 995,
+        "neg_sha256": "e607cd6b352e47babacf25ab534fa170d79289970487c3f542581b69606ca87d",
+        "pos_sha256": "68c0c69285e213a08e4437ec7b6b19fff2b4a973841a92b542420ebc296360c7"
+      },
+      "NCBITaxon:11069": {
+        "n_neg": 95,
+        "n_pos": 213,
+        "neg_sha256": "b0c2704ba9b38526ff60a825a7ed7334695f58a480a6b38d83e3e9ea14dbc888",
+        "pos_sha256": "68d8dcbbc72578b5fda5a674cd4bbdd7b556ad7c75a6efb590b8250adc7c4308"
+      },
+      "NCBITaxon:11070": {
+        "n_neg": 109,
+        "n_pos": 153,
+        "neg_sha256": "1ea8c85fd6c4b4c903edc40418c7396a2e63f36bc5c22d587ca40ebf715c865e",
+        "pos_sha256": "4b0d27c702d32d5424819c02b041b5b2cd24e6905174b274b059c66e256c8cd0"
+      },
+      "NCBITaxon:11072": {
+        "n_neg": 27,
+        "n_pos": 19,
+        "neg_sha256": "326c8c444385b6667cef0a0a95b55d7a6e81e4a193f160b0b724ed8f0e48ddcf",
+        "pos_sha256": "dcee72749d26c509b986108ed62c287cafe4a625a773e3bae1f40045603f1bac"
+      },
+      "NCBITaxon:11082": {
+        "n_neg": 311,
+        "n_pos": 261,
+        "neg_sha256": "11dfe9197caaaae928716c330ab377011961942dc2a893c8788a8fdfab241e34",
+        "pos_sha256": "721281224569ef1eb81c576d789a878f3d67f90dffd759dea9aa0d1cd6a38783"
+      },
+      "NCBITaxon:11084": {
+        "n_neg": 65,
+        "n_pos": 72,
+        "neg_sha256": "35addfeecb1f1672476eaac20a17134ffbc66b92ea2d1f8d27b7f7252b7b9bb6",
+        "pos_sha256": "e501b7f99883a29c3870a730280d4f254ee0d27a0e295afb4e3ce341065c2859"
+      },
+      "NCBITaxon:11089": {
+        "n_neg": 882,
+        "n_pos": 135,
+        "neg_sha256": "83e265d2bd2d01f609ef374e43438dde65ed1f642c856519806ffabfa2c6e939",
+        "pos_sha256": "625996aeee74e8a1cc00418d8290e2f365b22e8c05cc7af1f255763852776458"
+      },
+      "NCBITaxon:11137": {
+        "n_neg": 88,
+        "n_pos": 119,
+        "neg_sha256": "dff6e6db6931569452ba28a4006c1e70e0837eda824dc755e81ebf80b9c3104d",
+        "pos_sha256": "9cad8f135901eec16b4affbda2ac7c1dc6e24cec4c992e9d77f15e980ae5fc26"
+      },
+      "NCBITaxon:1335626": {
+        "n_neg": 41,
+        "n_pos": 131,
+        "neg_sha256": "f5e53597d171c0177c5dc947236116f6ea5a0b8a5c6e656d529203a9ff110886",
+        "pos_sha256": "67eefa2c375ad2915d55d014087e605044f0771226da8c88893cad369843b309"
+      },
+      "NCBITaxon:2697049": {
+        "n_neg": 5320,
+        "n_pos": 1761,
+        "neg_sha256": "994cd435b3f9525f48cc499a5ff7cd73050d6d48929b17f1936e659d658c6d70",
+        "pos_sha256": "ec80f7eef5b1b0e27f56331ad780d06e04bf8586ab8ebde626ff7f26d364a2eb"
+      },
+      "NCBITaxon:277944": {
+        "n_neg": 7,
+        "n_pos": 5,
+        "neg_sha256": "b13715dcde3982cdf329214fb6625f4c4c51bbf436df38329e942eaa673d6524",
+        "pos_sha256": "5c7cac23577c0af9b9c3e7fd9fa483afd5a252bb9bf554a8ef4bc806e6890d6f"
+      },
+      "NCBITaxon:31631": {
+        "n_neg": 70,
+        "n_pos": 162,
+        "neg_sha256": "dc41d0a0d84fa2835f9779122cd1037265871a23451f6ac8b9e49efb3a68d6b2",
+        "pos_sha256": "c733cd2696000d591676d5cdbb4779def84aa9b09cd8a73fa49fe6ab8e77ed73"
+      },
+      "NCBITaxon:64320": {
+        "n_neg": 2577,
+        "n_pos": 748,
+        "neg_sha256": "c93a169b5ccd08b42290c7ef43ac70dbc8b20ce23ac695c8a6b7ea3c6cfef1e7",
+        "pos_sha256": "421ef7d3d7c0a0712f092573582fca6ade5e754ede6a16dcc857e9e1e5eeee43"
+      },
+      "NCBITaxon:694009": {
+        "n_neg": 96,
+        "n_pos": 142,
+        "neg_sha256": "632628cba8420ddbe528c6fb935d99ec617e236837d1dc3dd2bf5a0bec8aeff7",
+        "pos_sha256": "77efc7f4f19ce4c582439dc72c0c82b00a9f2aefbe01fe1bb656e68adf2b119b"
+      }
+    },
+    "infores:ncats-opendata": {
+      "NCBITaxon:2697049": {
+        "n_neg": 7343,
+        "n_pos": 89,
+        "neg_sha256": "5237d96f658975687fa120f48bec7d947a97bfb46b7270d282ea7add391d71aa",
+        "pos_sha256": "f0dfc331cc232729a0100323dd09cf8269b44baf027cda67e440db0140d5da99"
+      }
+    },
+    "pooled": {
+      "NCBITaxon:11053": {
+        "n_neg": 123,
+        "n_pos": 195,
+        "neg_sha256": "dd7d6a78b6e07b47b46c008d5198419b813f2f96c4e00be95e4fcf4d2388c96e",
+        "pos_sha256": "a21e1b83615c5ea69258bb64ff313f14b961051d5456d9824bcc855b6e97d587"
+      },
+      "NCBITaxon:11060": {
+        "n_neg": 3043,
+        "n_pos": 995,
+        "neg_sha256": "e607cd6b352e47babacf25ab534fa170d79289970487c3f542581b69606ca87d",
+        "pos_sha256": "68c0c69285e213a08e4437ec7b6b19fff2b4a973841a92b542420ebc296360c7"
+      },
+      "NCBITaxon:11069": {
+        "n_neg": 95,
+        "n_pos": 213,
+        "neg_sha256": "b0c2704ba9b38526ff60a825a7ed7334695f58a480a6b38d83e3e9ea14dbc888",
+        "pos_sha256": "68d8dcbbc72578b5fda5a674cd4bbdd7b556ad7c75a6efb590b8250adc7c4308"
+      },
+      "NCBITaxon:11070": {
+        "n_neg": 109,
+        "n_pos": 153,
+        "neg_sha256": "1ea8c85fd6c4b4c903edc40418c7396a2e63f36bc5c22d587ca40ebf715c865e",
+        "pos_sha256": "4b0d27c702d32d5424819c02b041b5b2cd24e6905174b274b059c66e256c8cd0"
+      },
+      "NCBITaxon:11072": {
+        "n_neg": 27,
+        "n_pos": 19,
+        "neg_sha256": "326c8c444385b6667cef0a0a95b55d7a6e81e4a193f160b0b724ed8f0e48ddcf",
+        "pos_sha256": "dcee72749d26c509b986108ed62c287cafe4a625a773e3bae1f40045603f1bac"
+      },
+      "NCBITaxon:11082": {
+        "n_neg": 311,
+        "n_pos": 261,
+        "neg_sha256": "11dfe9197caaaae928716c330ab377011961942dc2a893c8788a8fdfab241e34",
+        "pos_sha256": "721281224569ef1eb81c576d789a878f3d67f90dffd759dea9aa0d1cd6a38783"
+      },
+      "NCBITaxon:11084": {
+        "n_neg": 65,
+        "n_pos": 72,
+        "neg_sha256": "35addfeecb1f1672476eaac20a17134ffbc66b92ea2d1f8d27b7f7252b7b9bb6",
+        "pos_sha256": "e501b7f99883a29c3870a730280d4f254ee0d27a0e295afb4e3ce341065c2859"
+      },
+      "NCBITaxon:11089": {
+        "n_neg": 882,
+        "n_pos": 135,
+        "neg_sha256": "83e265d2bd2d01f609ef374e43438dde65ed1f642c856519806ffabfa2c6e939",
+        "pos_sha256": "625996aeee74e8a1cc00418d8290e2f365b22e8c05cc7af1f255763852776458"
+      },
+      "NCBITaxon:11137": {
+        "n_neg": 88,
+        "n_pos": 119,
+        "neg_sha256": "dff6e6db6931569452ba28a4006c1e70e0837eda824dc755e81ebf80b9c3104d",
+        "pos_sha256": "9cad8f135901eec16b4affbda2ac7c1dc6e24cec4c992e9d77f15e980ae5fc26"
+      },
+      "NCBITaxon:1335626": {
+        "n_neg": 41,
+        "n_pos": 131,
+        "neg_sha256": "f5e53597d171c0177c5dc947236116f6ea5a0b8a5c6e656d529203a9ff110886",
+        "pos_sha256": "67eefa2c375ad2915d55d014087e605044f0771226da8c88893cad369843b309"
+      },
+      "NCBITaxon:2697049": {
+        "n_neg": 10949,
+        "n_pos": 1723,
+        "neg_sha256": "6039b35f30154936ed562b94fc8073b66e5073b542eb1e320be30b93af34487a",
+        "pos_sha256": "04bbaf4f2882791d177fbcafa4a751edf3f0298291a9e0223ffdd02f2c768962"
+      },
+      "NCBITaxon:277944": {
+        "n_neg": 7,
+        "n_pos": 5,
+        "neg_sha256": "b13715dcde3982cdf329214fb6625f4c4c51bbf436df38329e942eaa673d6524",
+        "pos_sha256": "5c7cac23577c0af9b9c3e7fd9fa483afd5a252bb9bf554a8ef4bc806e6890d6f"
+      },
+      "NCBITaxon:31631": {
+        "n_neg": 70,
+        "n_pos": 162,
+        "neg_sha256": "dc41d0a0d84fa2835f9779122cd1037265871a23451f6ac8b9e49efb3a68d6b2",
+        "pos_sha256": "c733cd2696000d591676d5cdbb4779def84aa9b09cd8a73fa49fe6ab8e77ed73"
+      },
+      "NCBITaxon:64320": {
+        "n_neg": 2577,
+        "n_pos": 748,
+        "neg_sha256": "c93a169b5ccd08b42290c7ef43ac70dbc8b20ce23ac695c8a6b7ea3c6cfef1e7",
+        "pos_sha256": "421ef7d3d7c0a0712f092573582fca6ade5e754ede6a16dcc857e9e1e5eeee43"
+      },
+      "NCBITaxon:694009": {
+        "n_neg": 96,
+        "n_pos": 142,
+        "neg_sha256": "632628cba8420ddbe528c6fb935d99ec617e236837d1dc3dd2bf5a0bec8aeff7",
+        "pos_sha256": "77efc7f4f19ce4c582439dc72c0c82b00a9f2aefbe01fe1bb656e68adf2b119b"
+      }
+    }
+  },
+  "layers": {
+    "chembl": "bfd0484a0d2e3445",
+    "folds": "58a6dd8ef38d9690",
+    "gtop": "9eac600e92142f91",
+    "host": "ee45a29f6306d406",
+    "hosttargets": "4a88b55a1f6368e6",
+    "ncats": "0f6ff50fd4b226a8",
+    "orcs": "68306c710ed7eff0",
+    "selectivity": "17c1dd49ccfad34d",
+    "similarity": "ee008bd8fe1f1e30",
+    "spine": "e8bb91bf55573de2",
+    "vhppi": "0716dcd85e9116c3"
+  },
+  "nodes": 78500,
+  "nodes_by_class": {
+    "Disease": 10,
+    "Gene": 19190,
+    "OrganismTaxon": 16,
+    "Pathway": 13236,
+    "Protein": 20888,
+    "SmallMolecule": 25094,
+    "TargetClass": 66
+  },
+  "release": "v0.1",
+  "schema_version": "0.15.0"
+}

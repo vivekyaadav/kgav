@@ -58,3 +58,8 @@ web/client/public/__manus__/
 .reproduce.lock
 .reproduce.sh
 /kgav-*.patch
+
+# Superseded release copies kept before a rebuild that overwrites v0.1 in
+# place. Fix-list L26 is why they exist: the L27 rebuild destroyed the only
+# artifact that could have said WHICH seven proteins left. Large and local.
+data/archive/*
