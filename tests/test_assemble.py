@@ -259,7 +259,7 @@ def test_precedence_covers_every_layer():
     assert set(LAYER_PRECEDENCE) == {"spine", "host", "vhppi", "orcs",
                                      "curated", "chembl", "selectivity",
                                      "gtop", "hosttargets", "similarity",
-                                     "ncats", "folds"}
+                                     "ncats", "indications", "folds"}
 
 
 def test_curated_ranks_below_orcs():

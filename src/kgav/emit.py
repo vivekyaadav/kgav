@@ -24,7 +24,7 @@ class Emit:
 
     def edge(self, subj: str, pred: str, obj: str, *, source: str, date: str,
              tier: int = 1, quals: dict | None = None, pmids: list | None = None,
-             score: float | None = None) -> None:
+             score: float | None = None, support: int | None = None) -> None:
         e = {
             "subject": subj, "predicate": pred, "object": obj,
             "qualifiers": quals or {},
@@ -34,6 +34,14 @@ class Emit:
         }
         if pmids:
             e["publications"] = pmids
+        if support is not None:
+            # HOW MANY WITNESSES BEHIND ONE FACT, for a source that cites
+            # several and an identity that merges them. The indications
+            # layer cites up to two ClinicalTrials registrations for one
+            # (compound, disease) pair and nct_id is not an identity
+            # qualifier, so without this the second registration would
+            # vanish without trace rather than being counted.
+            e["support_count"] = support
         if score is not None:
             # Raw score as the source reports it. Deliberately NOT called
             # confidence: a VirHostNet miscore and a STRING combined score are

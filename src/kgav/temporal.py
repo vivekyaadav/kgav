@@ -395,16 +395,27 @@ def build_split(release: Path, cutoff: int, held_out: set[str],
     # THE COUNT AND THE REASON HERE WERE BOTH WRONG, 2026-11-09 (fix-list
     # C8). This comment read "19 of those compounds ... All 19 agreed on
     # polarity across both sources, which is why dropping them costs no
-    # information". Re-derived on v0.1 at cutoff 2021: 32 (virus, compound)
-    # pairs overlap the cutoff, 18 agree on polarity and 14 DISAGREE --
-    # every one of the 14 inactive before and active after. So the
-    # no-information justification is false for 44% of the overlap, and the
-    # loop below never dropped those 14 anyway: it matches positives against
-    # train positives and negatives against train negatives, so a changed
-    # answer survives. The code was right and its stated reason was not,
-    # which is the harder of the two to notice.
+    # information". Re-derived on v0.1 at cutoff 2021: 76 (virus, compound)
+    # pairs overlap the cutoff, 51 agree on polarity and 25 DISAGREE. So the
+    # no-information justification is false for 33% of the overlap, and
+    # the loop below never dropped those 25 anyway: it matches positives
+    # against train positives and negatives against train negatives, so a
+    # changed answer survives. The code was right and its stated reason was
+    # not, which is the harder of the two to notice.
     #
-    # WHETHER THE 14 SHOULD SURVIVE IS A PROTOCOL QUESTION, NOT A BUG. They
+    # THE DIRECTION IS NO LONGER UNIFORM, 2026-11-17. This comment said
+    # "every one of the 14 inactive before and active after". 24 of the 25
+    # still run that way; ONE does not --
+    # INCHIKEY:ABBADGFSRBWENF-UHFFFAOYSA-N against SARS-CoV-2, active in
+    # ChEMBL 2020 at EC50 8,770 nM (cell-based antiviral) and inactive in
+    # the NCATS pseudotyped-entry screen of 2022 above 57,100 nM. That is
+    # two protocols rather than a withdrawn activity: blocking replication
+    # at 8.8 uM and not blocking spike-mediated entry at 57 uM are
+    # consistent readings. It is kept for the same mechanical reason as the
+    # other 24, and it is named because "the disagreements run one way"
+    # was load-bearing for the sentence below and has stopped being true.
+    #
+    # WHETHER THE 25 SHOULD SURVIVE IS A PROTOCOL QUESTION, NOT A BUG. They
     # are the hardest prospective cases the split contains -- a compound the
     # pre-cutoff screen called inactive and a later assay called active --
     # and they are also the cases where the pre-cutoff answer is in the

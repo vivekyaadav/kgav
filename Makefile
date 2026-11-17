@@ -1,4 +1,4 @@
-.PHONY: identity-fixed-points auc-delta kg-report kg-report-check install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
+.PHONY: identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
 
 install:
 	pip install -e ".[dev]"
@@ -265,6 +265,28 @@ kg-report:
 
 kg-report-check:
 	python scripts/write_kg_report.py --check
+
+# EVERY SCORER AUC, EVERY VIRUS, SIDE BY SIDE. The three studies write
+# three results files with three shapes, so the comparison that decides
+# whether any of this is about chemistry -- each protocol's AUC against
+# its own degree baseline, per virus -- was being reassembled by hand in
+# a terminal after every rebuild and written down nowhere. Generated and
+# stamped, like the census: a table built from a mixture of releases is
+# detectable rather than merely wrong. Runs as the last step of
+# `make reproduce`, so the numbers are printed every time they move.
+# THE ONE INDEPENDENT LABEL AXIS, registered in advance by
+# docs/prereg_clinical_labels.md. One cell, family of one, alpha 0.05.
+# It reads the release and the three scorer files read nothing from it;
+# it is in the reproduce block before scorer-table because
+# check-results audits data/results and nothing else regenerates this.
+clinical-labels:
+	python scripts/clinical_labels.py $(ARGS)
+
+scorer-table:
+	python scripts/write_scorer_table.py
+
+scorer-table-check:
+	python scripts/write_scorer_table.py --check
 
 # FIX-LIST P10: the marked tables, written from the derivations their own
 # tests already compute. --check reports drift and exits 1 without writing.

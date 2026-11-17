@@ -217,6 +217,17 @@ LAYERS: tuple[Layer, ...] = (
           any_globs=(("data/raw/gtop/ligands.csv",
                       "data/raw/gtop/ligand_id_mapping.csv"),)),
     Layer("similarity", "ingest_similarity.py", 2, reads_peers=True),
+    # TREATS / IN_TRIAL_FOR, the two declared evaluation labels that
+    # carried 0 edges on every release until now. It reads peers for one
+    # reason: docs/prereg_clinical_labels.md REFUSES it permission to add
+    # a SmallMolecule, so it has to know which compounds the graph
+    # already holds, and the Disease nodes it attaches to are built by
+    # spine from the register. Its position within phase 2 is free -- no
+    # peer-reading layer emits nodes, so the node set it sees is phase 1's
+    # either way -- and it is last because nothing reads it.
+    Layer("indications", "ingest_indications.py", 2, reads_peers=True,
+          files=(str(CHEMBL_DB),
+                 "data/raw/mondo/mondo.json")),
 )
 
 ASSEMBLE = "assemble_release.py"

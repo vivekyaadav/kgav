@@ -373,6 +373,7 @@ def build_labels(release: Path, year_from: int | None = None,
                  inactive_above_nm: float = DEFAULT_INACTIVE_ABOVE_NM,
                  active_below_nm: float = DEFAULT_ACTIVE_BELOW_NM,
                  sources: set[str] | None = None,
+                 assay_types: set[str] | None = None,
                  dose_series_policy: str = DEFAULT_DOSE_SERIES_POLICY) -> Labels:
     """Label sets from the activity edges, optionally restricted by year.
 
@@ -381,6 +382,21 @@ def build_labels(release: Path, year_from: int | None = None,
 
     `sources` restricts the labels to measurements from given knowledge
     sources, which is how a SINGLE-SCREEN evaluation is built.
+
+    `assay_types` restricts them further, to one PROTOCOL within a source,
+    and without it a single-screen evaluation is not single-screen. One
+    source can publish several assays against the same virus: from
+    2026-11-17 `infores:ncats-opendata` carries both a cytopathic-effect
+    screen and a pseudotyped-particle entry screen for SARS-CoV-2. Grouped
+    by virus alone those merge into one cell of 149 positives, which is
+    precisely the pooling `docs/prereg_ncats_entry_assays.md` registers
+    against: the value of a plate-matched cell is that ONE protocol over
+    ONE concentration range produced both classes, and two protocols
+    merged destroy it while the counts still look fine.
+
+    The two filters are independent on purpose. `sources` answers "whose
+    measurement", `assay_types` answers "measuring what", and a cell needs
+    both pinned before "matched by construction" is true of it.
 
     Why that matters more than it sounds. Pooling ChEMBL and panel labels
     reintroduces the confound the panel was ingested to remove: ChEMBL actives
@@ -419,6 +435,14 @@ def build_labels(release: Path, year_from: int | None = None,
         if sources is not None and not (edge_sources(e) & sources):
             out.stats["other_source"] += 1
             continue
+        if assay_types is not None:
+            at = (e.get("qualifiers") or {}).get("assay_type")
+            if at not in assay_types:
+                # COUNTED, and keyed by what was excluded rather than as one
+                # lump: a cell that turns out thin should say which protocol
+                # the rest of its rows went to.
+                out.stats[f"other_assay_type:{at or 'none'}"] += 1
+                continue
         date = e.get("first_asserted_date") or ""
         year = int(date[:4]) if date[:4].isdigit() and not date.startswith("1970") else None
         if year_from is not None and (year is None or year < year_from):

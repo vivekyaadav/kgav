@@ -746,11 +746,11 @@ edge_classes:
     # THE NAME IS WRONG FOR MOST OF ITS INSTANCES, AND THAT IS DELIBERATE
     # (fix-list L1). This edge means "this compound WAS MEASURED against
     # this virus", not "this compound works". On release v0.1,
-    # kgav.labels.classify over the 26,278 edges carrying it reads:
+    # kgav.labels.classify over the 29,781 edges carrying it reads:
     #
-    #     inactive    20,239   77.8%   censored or exact, above 10 uM
-    #     active       5,525   21.0%
-    #     undecidable    515    2.0%   a bound below the floor
+    #     inactive    23,803   79.9%   censored or exact, above 10 uM
+    #     active       5,426   18.2%
+    #     undecidable    552    1.9%   a bound below the floor
     #
     # So three quarters of this predicate is evidence of INACTIVITY, and
     # any consumer reading the predicate name as a claim of activity is
@@ -767,7 +767,7 @@ edge_classes:
     # The graph records what was measured; the threshold stays in the
     # evaluation.
     doc: >
-      a compound measured against a virus, ACTIVE OR INACTIVE. 77.8% of
+      a compound measured against a virus, ACTIVE OR INACTIVE. 79.9% of
       these edges on v0.1 are measurements of inactivity; read
       kgav.labels.classify, never the predicate name.
     symmetric: false

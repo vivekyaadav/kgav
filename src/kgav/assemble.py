@@ -66,13 +66,19 @@ EquivalenceFn = Callable[[Any, Any], bool]
 #: on essentially every interaction; ChEMBL's bulk activity table records
 #: potency and left direction unstated on 12,155 of 14,381 edges before
 #: this layer entered the order -- 84.5%. On the assembled v0.1, which
-#: contains it, 10,175 of 17,587 are unstated: 57.9%. The pre-gtop figure
+#: contains it, 10,177 of 17,635 are unstated: 57.7%. The pre-gtop figure
 #: was labelled "v0.1's" here, which is the error worth naming: the
 #: numbers were right and the release they were attributed to was not.
 #: Earlier wins a qualifier conflict, so the curated action wins.
 LAYER_PRECEDENCE = ["spine", "host", "vhppi", "orcs", "curated", "chembl",
                     "selectivity", "gtop",
-                    "hosttargets", "similarity", "ncats", "folds"]
+                    "hosttargets", "similarity", "ncats",
+                    # Its two predicates are emitted by no other layer,
+                    # so its rank settles no conflict. It sits here
+                    # rather than at the end because `folds` is last for
+                    # a stated reason -- it is the only computed layer --
+                    # and appending after it took that reason away.
+                    "indications", "folds"]
 
 
 def _read_jsonl(path: Path) -> list[dict]:

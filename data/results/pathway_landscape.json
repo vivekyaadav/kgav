@@ -9,8 +9,8 @@
   "n_tests": 44,
   "operands": {
     "drugged_proteome": {
-      "n": 1939,
-      "sha256": "a3a9b0aac81557373b5eb83b859c654361d2ec1bfa1aec61125a54709bc9cc14",
+      "n": 1944,
+      "sha256": "28d7721112315dbdf2819db34c77b0c63adbc79d24582596cfd968203403cdcc",
       "role": "the observed set whose overlap is measured",
       "derivation": "human Protein nodes reached by at least one TARGETS edge",
       "members": [
@@ -1294,6 +1294,7 @@
         "UniProtKB:Q15910",
         "UniProtKB:Q16099",
         "UniProtKB:Q16236",
+        "UniProtKB:Q16280",
         "UniProtKB:Q16281",
         "UniProtKB:Q16288",
         "UniProtKB:Q16322",
@@ -1337,6 +1338,7 @@
         "UniProtKB:Q401N2",
         "UniProtKB:Q495M3",
         "UniProtKB:Q49SQ1",
+        "UniProtKB:Q4FZB7",
         "UniProtKB:Q4G0J3",
         "UniProtKB:Q4U2R8",
         "UniProtKB:Q50KZ9",
@@ -1423,6 +1425,7 @@
         "UniProtKB:Q86XQ3",
         "UniProtKB:Q86Y07",
         "UniProtKB:Q86Y34",
+        "UniProtKB:Q86Y97",
         "UniProtKB:Q86YV6",
         "UniProtKB:Q86Z02",
         "UniProtKB:Q8IU85",
@@ -1533,6 +1536,7 @@
         "UniProtKB:Q92953",
         "UniProtKB:Q92959",
         "UniProtKB:Q92974",
+        "UniProtKB:Q92993",
         "UniProtKB:Q93074",
         "UniProtKB:Q93096",
         "UniProtKB:Q969F8",
@@ -1702,6 +1706,7 @@
         "UniProtKB:Q9H773",
         "UniProtKB:Q9H7D7",
         "UniProtKB:Q9H7L9",
+        "UniProtKB:Q9H7Z6",
         "UniProtKB:Q9H7Z7",
         "UniProtKB:Q9H8M2",
         "UniProtKB:Q9H981",
@@ -1969,66 +1974,66 @@
     "NCBITaxon:11060": {
       "n_dependency": 50,
       "n_observed": 2,
-      "expected": 6.25941,
-      "p_naive": 0.9576410080869423,
-      "p_matched": 0.989910100898991,
-      "p_matched_less": 0.04073959260407396
+      "expected": 6.27608,
+      "p_naive": 0.9581110049155214,
+      "p_matched": 0.990710092899071,
+      "p_matched_less": 0.03938960610393896
     },
     "NCBITaxon:11082": {
       "n_dependency": 18,
       "n_observed": 0,
-      "expected": 2.49342,
+      "expected": 2.51084,
       "p_naive": 1.0,
       "p_matched": 1.0,
-      "p_matched_less": 0.06671933280667193
+      "p_matched_less": 0.06633933660663394
     },
     "NCBITaxon:11137": {
       "n_dependency": 1367,
       "n_observed": 128,
-      "expected": 134.84345,
-      "p_naive": 0.5838988252915219,
-      "p_matched": 0.7538424615753843,
-      "p_matched_less": 0.2768272317276827
+      "expected": 135.12964,
+      "p_naive": 0.5962844587776557,
+      "p_matched": 0.7643123568764313,
+      "p_matched_less": 0.26648733512664874
     },
     "NCBITaxon:1335626": {
       "n_dependency": 678,
       "n_observed": 59,
-      "expected": 66.22831,
-      "p_naive": 0.781910056720479,
-      "p_matched": 0.8466915330846692,
-      "p_matched_less": 0.1876881231187688
+      "expected": 66.40804,
+      "p_naive": 0.7882764268890252,
+      "p_matched": 0.8530414695853041,
+      "p_matched_less": 0.18093819061809382
     },
     "NCBITaxon:2697049": {
       "n_dependency": 3460,
       "n_observed": 383,
-      "expected": 357.40911,
-      "p_naive": 0.00037279950359577017,
-      "p_matched": 0.059089409105908944,
-      "p_matched_less": 0.9478305216947831
+      "expected": 358.30502,
+      "p_naive": 0.00045571289034719223,
+      "p_matched": 0.06652933470665294,
+      "p_matched_less": 0.9412405875941241
     },
     "NCBITaxon:277944": {
       "n_dependency": 57,
       "n_observed": 10,
-      "expected": 7.38598,
-      "p_naive": 0.04062335305349269,
-      "p_matched": 0.1977680223197768,
-      "p_matched_less": 0.8886211137888621
+      "expected": 7.39321,
+      "p_naive": 0.041235747973879085,
+      "p_matched": 0.1963480365196348,
+      "p_matched_less": 0.8881111188888111
     },
     "NCBITaxon:31631": {
       "n_dependency": 657,
-      "n_observed": 62,
-      "expected": 65.00182,
-      "p_naive": 0.5416457220367714,
-      "p_matched": 0.6764832351676483,
-      "p_matched_less": 0.3735862641373586
+      "n_observed": 63,
+      "expected": 65.15533,
+      "p_naive": 0.4963694272087261,
+      "p_matched": 0.6336236637633623,
+      "p_matched_less": 0.4176058239417606
     },
     "NCBITaxon:64320": {
       "n_dependency": 815,
       "n_observed": 76,
-      "expected": 79.84406,
-      "p_naive": 0.5861934393360504,
-      "p_matched": 0.6975430245697543,
-      "p_matched_less": 0.34773652263477367
+      "expected": 80.00916,
+      "p_naive": 0.5956114705397408,
+      "p_matched": 0.7045929540704593,
+      "p_matched_less": 0.33963660363396364
     }
   },
   "uncovered": [
@@ -2045,10 +2050,10 @@
     "NCBITaxon:11053": {
       "n_dependency": 53,
       "n_observed": 11,
-      "expected": 7.09821,
-      "p_naive": 0.009966387440994887,
-      "p_matched": 0.0891991080089199,
-      "p_matched_less": 0.9560104398956011,
+      "expected": 7.12765,
+      "p_naive": 0.010152092060060841,
+      "p_matched": 0.09074909250907491,
+      "p_matched_less": 0.954660453395466,
       "n_hubs_excluded": 0,
       "binary_edges": 48,
       "total_edges": 53
@@ -2056,10 +2061,10 @@
     "NCBITaxon:11060": {
       "n_dependency": 271,
       "n_observed": 40,
-      "expected": 35.35206,
-      "p_naive": 0.003362020105666816,
-      "p_matched": 0.2200977990220098,
-      "p_matched_less": 0.8289417105828941,
+      "expected": 35.4464,
+      "p_naive": 0.0035157661944818326,
+      "p_matched": 0.22592774072259278,
+      "p_matched_less": 0.8240117598824012,
       "n_hubs_excluded": 3,
       "binary_edges": 0,
       "total_edges": 276
@@ -2067,10 +2072,10 @@
     "NCBITaxon:11069": {
       "n_dependency": 33,
       "n_observed": 6,
-      "expected": 4.41624,
-      "p_naive": 0.08750733475613033,
-      "p_matched": 0.2750972490275097,
-      "p_matched_less": 0.8583314166858331,
+      "expected": 4.43297,
+      "p_naive": 0.08835940626857763,
+      "p_matched": 0.2774972250277497,
+      "p_matched_less": 0.8556314436855631,
       "n_hubs_excluded": 0,
       "binary_edges": 34,
       "total_edges": 34
@@ -2078,10 +2083,10 @@
     "NCBITaxon:11072": {
       "n_dependency": 7,
       "n_observed": 1,
-      "expected": 0.82759,
-      "p_naive": 0.502745499132227,
-      "p_matched": 0.5891641083589164,
-      "p_matched_less": 0.8043419565804342,
+      "expected": 0.82723,
+      "p_naive": 0.5036868103247303,
+      "p_matched": 0.5879741202587974,
+      "p_matched_less": 0.8044719552804472,
       "n_hubs_excluded": 0,
       "binary_edges": 7,
       "total_edges": 7
@@ -2089,21 +2094,21 @@
     "NCBITaxon:11082": {
       "n_dependency": 6,
       "n_observed": 4,
-      "expected": 0.90646,
-      "p_naive": 0.00103972789929601,
-      "p_matched": 0.006209937900620994,
-      "p_matched_less": 0.999650003499965,
+      "expected": 0.9096,
+      "p_naive": 0.001050058377326784,
+      "p_matched": 0.005819941800581994,
+      "p_matched_less": 0.999640003599964,
       "n_hubs_excluded": 0,
       "binary_edges": 0,
       "total_edges": 6
     },
     "NCBITaxon:11084": {
       "n_dependency": 35,
-      "n_observed": 3,
-      "expected": 4.61409,
-      "p_naive": 0.6587642168431737,
-      "p_matched": 0.8600513994860052,
-      "p_matched_less": 0.3036869631303687,
+      "n_observed": 4,
+      "expected": 4.61875,
+      "p_naive": 0.43050535371841037,
+      "p_matched": 0.6989230107698923,
+      "p_matched_less": 0.4989050109498905,
       "n_hubs_excluded": 0,
       "binary_edges": 35,
       "total_edges": 35
@@ -2111,10 +2116,10 @@
     "NCBITaxon:11137": {
       "n_dependency": 397,
       "n_observed": 34,
-      "expected": 50.07015,
-      "p_naive": 0.7630983944301791,
-      "p_matched": 0.996580034199658,
-      "p_matched_less": 0.005759942400575994,
+      "expected": 50.24034,
+      "p_naive": 0.7681685535153693,
+      "p_matched": 0.99690003099969,
+      "p_matched_less": 0.005169948300516995,
       "n_hubs_excluded": 4,
       "binary_edges": 22,
       "total_edges": 412
@@ -2122,10 +2127,10 @@
     "NCBITaxon:1335626": {
       "n_dependency": 622,
       "n_observed": 64,
-      "expected": 79.69688,
-      "p_naive": 0.26577188049808226,
-      "p_matched": 0.9808701912980871,
-      "p_matched_less": 0.026369736302636972,
+      "expected": 79.86032,
+      "p_naive": 0.27284125759768335,
+      "p_matched": 0.981670183298167,
+      "p_matched_less": 0.025259747402525973,
       "n_hubs_excluded": 6,
       "binary_edges": 337,
       "total_edges": 696
@@ -2133,10 +2138,10 @@
     "NCBITaxon:2697049": {
       "n_dependency": 3494,
       "n_observed": 438,
-      "expected": 425.17479,
-      "p_naive": 4.520854170706256e-11,
-      "p_matched": 0.22368776312236877,
-      "p_matched_less": 0.7941220587794122,
+      "expected": 426.36234,
+      "p_naive": 6.619225332972617e-11,
+      "p_matched": 0.24505754942450575,
+      "p_matched_less": 0.7734422655773442,
       "n_hubs_excluded": 15,
       "binary_edges": 965,
       "total_edges": 8316
@@ -2144,10 +2149,10 @@
     "NCBITaxon:277944": {
       "n_dependency": 311,
       "n_observed": 32,
-      "expected": 40.58131,
-      "p_naive": 0.34302805047826707,
-      "p_matched": 0.944370556294437,
-      "p_matched_less": 0.07920920790792092,
+      "expected": 40.68778,
+      "p_naive": 0.3485640136839241,
+      "p_matched": 0.946620533794662,
+      "p_matched_less": 0.07694923050769492,
       "n_hubs_excluded": 4,
       "binary_edges": 22,
       "total_edges": 324
@@ -2155,10 +2160,10 @@
     "NCBITaxon:290028": {
       "n_dependency": 279,
       "n_observed": 25,
-      "expected": 36.62283,
-      "p_naive": 0.650959811706666,
-      "p_matched": 0.988960110398896,
-      "p_matched_less": 0.01827981720182798,
+      "expected": 36.72253,
+      "p_naive": 0.6560915309950164,
+      "p_matched": 0.989630103698963,
+      "p_matched_less": 0.017399826001739983,
       "n_hubs_excluded": 4,
       "binary_edges": 0,
       "total_edges": 284
@@ -2166,10 +2171,10 @@
     "NCBITaxon:31631": {
       "n_dependency": 289,
       "n_observed": 28,
-      "expected": 38.14951,
-      "p_naive": 0.48516231744582816,
-      "p_matched": 0.974680253197468,
-      "p_matched_less": 0.03971960280397196,
+      "expected": 38.25215,
+      "p_naive": 0.4908756129129768,
+      "p_matched": 0.975350246497535,
+      "p_matched_less": 0.03771962280377196,
       "n_hubs_excluded": 4,
       "binary_edges": 4,
       "total_edges": 295
@@ -2177,10 +2182,10 @@
     "NCBITaxon:64320": {
       "n_dependency": 353,
       "n_observed": 47,
-      "expected": 44.90848,
-      "p_naive": 0.011241124065115309,
-      "p_matched": 0.3919460805391946,
-      "p_matched_less": 0.6691133088669113,
+      "expected": 44.99875,
+      "p_naive": 0.011743732912280378,
+      "p_matched": 0.3968060319396806,
+      "p_matched_less": 0.6645533544664554,
       "n_hubs_excluded": 0,
       "binary_edges": 0,
       "total_edges": 354
@@ -2188,10 +2193,10 @@
     "NCBITaxon:694009": {
       "n_dependency": 1238,
       "n_observed": 167,
-      "expected": 149.0142,
-      "p_naive": 1.5633670221475942e-06,
-      "p_matched": 0.05440945590544095,
-      "p_matched_less": 0.9548704512954871,
+      "expected": 149.41955,
+      "p_naive": 1.828005722676619e-06,
+      "p_matched": 0.058789412105878944,
+      "p_matched_less": 0.950920490795092,
       "n_hubs_excluded": 6,
       "binary_edges": 450,
       "total_edges": 1422
@@ -2302,14 +2307,14 @@
   "provenance": {
     "release": {
       "id": "v0.1",
-      "nodes_sha": "b0d6fc69d63942c2",
-      "edges_sha": "545fb7d87b0aec08"
+      "nodes_sha": "dc6d76a2b3cfb2a1",
+      "edges_sha": "873623c9a9df2049"
     },
     "code": {
-      "commit": "18df85aac69a0c247e9e7e93eb37477426bdead6",
+      "commit": "447afcc135848c5cad358b087393f59783b4c42d",
       "dirty": true
     },
     "schema_version": null,
-    "generated_utc": "2026-11-16T23:04:38+00:00"
+    "generated_utc": "2026-11-17T15:00:19+00:00"
   }
 }

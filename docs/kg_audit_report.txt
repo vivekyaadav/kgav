@@ -33,13 +33,14 @@ One question, asked two ways.
 
 The FIRST question is "which existing drug works against this virus". It
 needs antiviral activity labels, and it is the question the evaluation in
-docs/evaluation.md failed to answer honestly: 88.8% of labelled compounds
+docs/evaluation.md failed to answer honestly: 88.5% of labelled compounds
 share a publication between the evidence edge and the label it was
 supposed to predict, so a scorer is partly reading its own answer sheet.
 The result on this release is that 12 of 15 scored viruses have no
-readable reasoning channel at all and 1 readable cell in the whole
-table is significant uncorrected -- which survives the loosest
-correction family and not the other three.
+readable reasoning channel at all and 4 readable cells in the whole
+table are significant uncorrected -- of which ONE survives the
+loosest correction family (0.05/12 = 0.00417) and none survives the
+other three.
 
 The SECOND question is "where does the drugged human proteome overlap
 what this virus depends on". It touches no label predicate, so the
@@ -178,7 +179,7 @@ DIRECTORY LAYOUT
                       for months and the schema has its own directory.
     schema/           kg_schema.yaml: node classes, predicates,
                       qualifiers, metapaths, held-out predicates
-    src/kgav/         28 modules plus __init__.py: one per source layer,
+    src/kgav/         29 modules plus __init__.py: one per source layer,
                       then assemble, emit, provenance, normalisation,
                       baselines, calibration, temporal, landscape,
                       labels, channels, pipeline, schema, mondo.
@@ -186,9 +187,10 @@ DIRECTORY LAYOUT
                       scripts/ingest_spine.py, so "one per source layer"
                       is true of the SCRIPTS and not of this directory.
     src/kgav/agent/   orchestrator, guards, tools, verify, llm
-    scripts/          73 entry points: 12 ingests, the assembler, the
+    scripts/          76 entry points: 13 ingests, the assembler, the
                       evaluation protocols, the diagnostics, the audits,
-                      and one shell script (tier_spotcheck.sh)
+                      the two generated-report writers, and one shell
+                      script (tier_spotcheck.sh)
     tests/            the gate; every figure in docs/ that a rebuild
                       could move is re-derived here
     data/raw/         sources as they arrived            (gitignored)
@@ -571,7 +573,7 @@ SOURCES SURVEYED AND DELIBERATELY NOT USED
 
 
 ================================================================================
-6. BUILD PIPELINE — 12 LAYERS
+6. BUILD PIPELINE — 13 LAYERS
 ================================================================================
 
 Each layer is an independent ingest writing its own release directory, and
@@ -600,6 +602,10 @@ run is reported as blocked rather than skipped silently.
     similarity    optional   CHEMICALLY_SIMILAR_TO cold-start edges
                                                          [kgav-computed]
     gtop          optional   second TARGETS source      [GuideToPharmacology]
+    indications   optional   drug -> Disease TREATS / IN_TRIAL_FOR, the
+                             two declared evaluation labels that carried
+                             zero edges until 2026-11-17             [ChEMBL
+                             drug_indication + indication_refs]
 
 WHY hosttargets IS A SEPARATE LAYER. After the chemistry layer first ran,
 the graph held thousands of HOST_FACTOR_FOR edges and ZERO TARGETS edges,
@@ -831,8 +837,8 @@ Three distinct capabilities, in increasing order of what they claim.
     permutations, seed 0: 22 rows tested, 44 tests with both directions,
     Bonferroni alpha 0.00114. ZERO rows clear it. The uncorrected version
     of the same test would have reported six. DENV-1's interactome
-    overlap is p=0.0100 naive and 0.0892 degree-matched; DENV-2's is
-    0.0034 and 0.2201. Neither gap opens because the data changed.
+    overlap is p=0.0102 naive and 0.0907 degree-matched; DENV-2's is
+    0.0035 and 0.2259. Neither gap opens because the data changed.
 
     THE PERMUTATION COUNT IS THE REGISTERED ONE AS OF 2026-11-11, and was
     not before. docs/prereg_pathway_overlap.md fixes 100,000 under "Fixed

@@ -67,6 +67,24 @@ from kgav.schema import load_schema                     # noqa: E402
 from kgav.pipeline import release_dir
 
 LABEL_PREDICATES = ("HAS_ANTIVIRAL_ACTIVITY_AGAINST", "MEASURED_INACTIVE_AGAINST")
+
+#: HELD OUT OF TRAVERSAL AND DELIBERATELY NOT COUNTED HERE, a decision
+#: taken 2026-11-17 when the indications layer filled them.
+#:
+#: This diagnostic asks whether the compounds the BASELINES score are
+#: reachable by a metapath, so its population is the in-vitro label
+#: above -- the one build_labels builds and every baseline cell is
+#: measured on. The clinical labels are a different population with its
+#: own registration (docs/prereg_clinical_labels.md), its own cell and
+#: its own control, and folding them in would silently restate section
+#: B's three figures over a population no baseline uses.
+#:
+#: WHAT THE OMISSION HIDES, measured rather than waved at: 293 compounds
+#: carry a clinical label, 260 of them also carry an in-vitro one, and
+#: **33 carry only a clinical label**. Those 33 are invisible to this
+#: script. That is the cost of the decision, and it is written here so
+#: the next reader weighs it instead of rediscovering it.
+CLINICAL_LABEL_PREDICATES = ("TREATS", "IN_TRIAL_FOR")
 #: The order they are reported in, loosest last.
 DEFINITIONS = ("mechanism", "targets", "mech_or_tgt", "any_edge")
 

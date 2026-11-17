@@ -103,6 +103,11 @@ class Graph:
         self.out: dict[tuple[str, str], list[tuple[str, dict]]] = defaultdict(list)
         self.inv: dict[tuple[str, str], list[tuple[str, dict]]] = defaultdict(list)
         self.degree: Counter = Counter()
+        #: WHICH PREDICATES THE CALLER ASKED TO SKIP, recorded so
+        #: degree_ranking can refuse a graph that was never told to skip
+        #: anything. Empty is the default and the default is wrong for
+        #: the null hypothesis; see degree_ranking.
+        self.skipped_predicates: frozenset[str] = frozenset()
         #: Degree over the TRAVERSABLE graph only -- every predicate except
         #: the held-out ones. Read by degree_ranking, the null hypothesis,
         #: which must not see the answer sheet. See the long note in
@@ -177,6 +182,7 @@ class Graph:
         skip = skip_predicates or set()
         shared = drop_pubs_shared_with or {}
         g = cls(symmetry)
+        g.skipped_predicates = frozenset(skip)
         for line in (Path(release) / "nodes.jsonl").read_text().splitlines():
             if line.strip():
                 n = json.loads(line)
@@ -1372,7 +1378,31 @@ def degree_ranking(g: Graph) -> dict[str, float]:
     SARS-CoV-2 is 0.598 over g.degree and 0.613 over this one, because
     positives and negatives both carry label edges and those added shared
     noise. Every channel is now measured against a stronger null.
+
+    AND IT ONLY DELIVERS THAT IF ITS CALLER ASKED. `Graph.load` takes
+    `skip_predicates` and defaults it to the empty set, so a caller that
+    omits the argument gets `degree_unlabelled == degree` and this
+    function returns the thing its own docstring says it does not --
+    silently, with no failure anywhere. `scripts/structure_scorer.py` was
+    that caller for the three registered scorer studies, found 2026-11-17
+    when 577 held-out clinical-label edges moved a comparator that was
+    documented as unable to see them. The cost was not small: eleven of
+    seventeen cells changed significance status once the labels came out,
+    and DENV-3's degree AUC moved 0.1736 -> 0.4970, because negatives in
+    a ChEMBL cell carry more label edges than positives do and the null
+    was ranking on that.
+
+    A CONTRACT A CALLER CAN FORGET IS NOT A CONTRACT, so this refuses
+    rather than documents. A graph loaded with nothing skipped cannot
+    answer the question this function asks.
     """
+    if not g.skipped_predicates:
+        raise ValueError(
+            "degree_ranking needs a graph loaded with skip_predicates: "
+            "without it degree_unlabelled counts the held-out label edges "
+            "and the null hypothesis reads the answer sheet. Pass "
+            "skip_predicates=load_schema().held_out_predicates() to "
+            "Graph.load.")
     return {d: float(g.degree_unlabelled.get(d, 0)) for d in g.drugs()}
 
 

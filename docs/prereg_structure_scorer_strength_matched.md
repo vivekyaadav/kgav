@@ -26,8 +26,8 @@ moved. Two of those figures are registered:
 
 | registered as | value at signature | value now | the rule, unchanged |
 |---|---|---|---|
-| SARS-CoV-2's `k_cell` | 33 | **36** | `ceil(max(pub_per_positive, pub_per_negative))` |
-| P1's threshold | 0.6346 | **0.6357** | half the margin its publication-disjoint AUC holds above chance |
+| SARS-CoV-2's `k_cell` | 33 | **38** | `ceil(max(pub_per_positive, pub_per_negative))` |
+| P1's threshold | 0.6346 | **0.6359** | half the margin its publication-disjoint AUC holds above chance |
 
 **WHAT WAS REGISTERED IS THE RULE AND NOT THE NUMBER, AND THAT IS CHECKED
 RATHER THAN CLAIMED.** `tests/test_prereg_strength_matched.py` re-derives
@@ -47,8 +47,10 @@ deriving everything around it, so the test that exists to catch a stale
 handicap carried one. It now reads `k_cell` from the run.
 
 **NO VERDICT CHANGED, AND ONE OF THEM GOT NARROWER.** P1 still holds
-(0.7822 against 0.6357), P4, P5 and P6 still hold, and the plate-matched
-retraction still stands -- 0.5870 [0.4941, 0.6799] does not clear. P3 still
+(0.7803 against 0.6359), P4, P5 and P6 still hold, and the plate-matched
+retraction has since been WITHDRAWN -- see the section below; it was
+computed at the ChEMBL family's alpha and the cell is registered at the
+plate family's, where 0.5834 [0.5070, 0.6597] clears. P3 still
 FAILS but by less: 9 of 14 cells fell rather than 8, one short of its
 registered 10, because SARS-CoV's `k_cell` moved from 9 to 10 and that cell
 stopped being one of the risers. **It is also no longer one of the three
@@ -72,7 +74,7 @@ weaker control admits more leak.
 The prior verdict bounded that confound and could not eliminate it: in three
 cells the old control removed fewer than 10 per positive, so (3') was
 strictly stronger there, and the AUC rose in all three — by +0.0292, +0.0496
-and +0.0665, which are small beside JEV's +0.6550. **So the confound cannot
+and +0.0666, which are small beside JEV's +0.6550. **So the confound cannot
 explain the direction and may explain much of the magnitude.** This study
 removes it.
 
@@ -99,19 +101,19 @@ control it is compared against.
   survives (3'), and `at k=10` the figure this study is testing:
 
     virus            refs  pub/pos  pub/neg  k_cell   left  at k=10
-    SARS-CoV-2      1,760    21.89    35.55      36  1,724   0.8304
-    DENV-2            994    26.97     2.13      27    967   0.7888
+    SARS-CoV-2      1,760    22.16    37.45      38  1,722   0.8304
+    DENV-2            994    26.99     2.13      27    967   0.7888
     HCoV-OC43         161    25.36    26.99      27    134   0.5735
     DENV-3            212    23.66     1.94      24    188   0.6496
     DENV-1            194    13.68     2.75      14    180   0.6066
+    MERS-CoV          130    10.95    13.02      14    116   0.4845
     Yellow fever      134    12.13     2.99      13    121   0.8388
-    MERS-CoV          130    10.90    12.93      13    117   0.4845
     DENV-4            152    11.93     1.98      12    140   0.5868
     JEV                18    11.16     2.00      12      6   0.8002
     TBEV               71    10.31     5.91      11     60   0.7464
     HCoV-229E         118    10.97     3.49      11    107   0.7100
-    SARS-CoV          141     9.14     6.60      10    131   0.5763
-    Zika              747     6.86     0.84       7    740   0.6812
+    SARS-CoV          141     9.23     6.71      10    131   0.5763
+    Zika              747     6.89     0.84       7    740   0.6812
     West Nile         260     3.16     2.18       4    256   0.6600
 
   Every cell is feasible; the tightest is JEV, which keeps 6 references.
@@ -134,8 +136,8 @@ control it is compared against.
   every candidate, which is why that cell was vacuous in the first study.
   `ceil(max(...))` is 89 and leaves -1. So no symmetric control can match
   that strength, because that strength was total. The cell is registered to
-  run at **k = 10 and k = 36**: 10 for continuity with the symmetric study,
-  36 because it equals the ChEMBL SARS-CoV-2 cell's `k_cell` and makes the
+  run at **k = 10 and k = 38**: 10 for continuity with the symmetric study,
+  38 because it equals the ChEMBL SARS-CoV-2 cell's `k_cell` and makes the
   source-matched and plate-matched populations comparable at an identical
   handicap. **Neither is strength-matched and the output must say so.**
 
@@ -144,7 +146,7 @@ control it is compared against.
 
 ## Registered predictions
 
-**P1. SARS-CoV-2 at k_cell = 36 reads at or above 0.6357.** The same
+**P1. SARS-CoV-2 at k_cell = 38 reads at or above 0.6359.** The same
 threshold as the prior two studies — half the margin its
 publication-disjoint figure held above chance — and the same load-bearing
 role. At k = 36 the control removes more from both classes than
@@ -205,7 +207,7 @@ to five would mean SARS-CoV-2 is real and most other cells were leniency.
   registrations say under this heading stands.
 - **It does not explain MERS-CoV**, which fell from 0.6851 to 0.4845 between
   the two runs and which no registration has accounted for. Its `k_cell` is
-  13 against 41 negatives, the **second-smallest** negative class in the
+  14 against 41 negatives, the **second-smallest** negative class in the
   family after JEV's 27. The first draft of this line called it the
   smallest, which is wrong and was the convenient reading: JEV is smaller
   and moved the opposite way, from 0.1452 to 0.8002, so small-sample noise
@@ -251,31 +253,31 @@ Run 2026-11-11, `make structure-scorer-strength`, written to
 ## The numbers
 
     virus             pos     neg   k      AUC      corrected 95%   skill    k=10   prior     deg
-    Yellow fever      135     882  13  0.8117^ [0.7443, 0.8791]  0.6234  0.8388  0.5545  0.7264
-    JEV                19      27  12  0.7885^ [0.5810, 0.9960]  0.5770  0.8002  0.1452  0.6374
-    SARS-CoV-2      1,761   5,320  36  0.7822^ [0.7620, 0.8025]  0.5645  0.8304  0.7714  0.5151
-    TBEV               72      65  11  0.7389^ [0.6164, 0.8614]  0.4778  0.7464  0.5764  0.4203
-    West Nile         261     311   4  0.7079^ [0.6440, 0.7717]  0.4157  0.6600  0.6308  0.5662
-    Zika              748   2,577   7  0.7032^ [0.6695, 0.7369]  0.4065  0.6812  0.6316  0.5534
-    DENV-2            995   3,043  27  0.6921^ [0.6624, 0.7219]  0.3843  0.7888  0.5742  0.4013
-    HCoV-229E         119      88  11  0.6758^ [0.5684, 0.7832]  0.3516  0.7100  0.5917  0.5879
-    DENV-3            213      95  24  0.6653^ [0.5728, 0.7579]  0.3307  0.6496  0.3861  0.1715
-    DENV-1            195     123  14  0.5967^ [0.5034, 0.6901]  0.1935  0.6066  0.4489  0.3144
-    HCoV-OC43         162      70  27  0.5903  [0.4750, 0.7056]  0.1806  0.5735  0.5257  0.5363
-    SARS-CoV          142      96  10  0.5763  [0.4676, 0.6850]  0.1527  0.5763  0.5098  0.6826
-    MERS-CoV          131      41  13  0.4926  [0.3413, 0.6440] -0.0147  0.4845  0.6851  0.7042
-    DENV-4            153     109  12  0.4792  [0.3735, 0.5850] -0.0416  0.5868  0.4644  0.2302
+    Yellow fever      135     882  13  0.8117^ [0.7443, 0.8791]  0.6234  0.8388  0.5545  0.5079
+    JEV                19      27  12  0.7885^ [0.5810, 0.9960]  0.5770  0.8002  0.1452  0.5263
+    SARS-CoV-2      1,761   5,320  38  0.7803^ [0.7600, 0.8005]  0.5605  0.8304  0.7718  0.5535
+    TBEV               72      65  11  0.7389^ [0.6164, 0.8614]  0.4778  0.7464  0.5764  0.4753
+    West Nile         261     311   4  0.7079^ [0.6440, 0.7717]  0.4157  0.6600  0.6308  0.5319
+    Zika              748   2,577   7  0.7032^ [0.6695, 0.7369]  0.4065  0.6812  0.6316  0.5342
+    DENV-2            995   3,043  27  0.6921^ [0.6624, 0.7219]  0.3843  0.7888  0.5742  0.5638
+    HCoV-229E         119      88  11  0.6758^ [0.5684, 0.7832]  0.3516  0.7100  0.5917  0.6434
+    DENV-3            213      95  24  0.6653^ [0.5728, 0.7579]  0.3307  0.6496  0.3861  0.4970
+    DENV-1            195     123  14  0.5967^ [0.5034, 0.6901]  0.1935  0.6066  0.4489  0.5251
+    HCoV-OC43         162      70  27  0.5903  [0.4750, 0.7056]  0.1806  0.5735  0.5257  0.6222
+    SARS-CoV          142      96  10  0.5763  [0.4676, 0.6850]  0.1527  0.5763  0.5098  0.6908
+    MERS-CoV          131      41  14  0.5045  [0.3538, 0.6552]  0.0089  0.4845  0.6851  0.6533
+    DENV-4            153     109  12  0.4792  [0.3735, 0.5850] -0.0416  0.5868  0.4644  0.5245
 
     ^ clears the corrected alpha above chance.  No cell clears it below.
 
 ## P1 and P5 together: the symmetric study was not measuring its own leniency
 
-This was the question the registration existed to answer. At k_cell = 36 the
-control removes 36 references from **every** candidate of **both** classes,
-against publication-disjointness removing 21.89 per positive and 35.55 per
+This was the question the registration existed to answer. At k_cell = 38 the
+control removes 38 references from **every** candidate of **both** classes,
+against publication-disjointness removing 22.16 per positive and 37.45 per
 negative in that cell — so it is strictly sterner on both sides and
-symmetric. SARS-CoV-2 reads **0.7822 [0.7620, 0.8025]**, above the
-0.6357 threshold and above the publication-disjoint 0.7714 it is compared with.
+symmetric. SARS-CoV-2 reads **0.7803 [0.7600, 0.8005]**, above the
+0.6359 threshold and above the publication-disjoint 0.7718 it is compared with.
 
 **And P5 is the discriminating result.** Ten of 14 cells clear above
 chance — the symmetric study's count, not the publication control's five.
@@ -297,7 +299,7 @@ cells. It rose in 5, so only 9 of 14 fell:
     Zika           k_cell= 7   +0.0221   k < 10, named in advance
     HCoV-OC43      k_cell=27   +0.0168   k > 10, NOT anticipated
     DENV-3         k_cell=24   +0.0157   k > 10, NOT anticipated
-    MERS-CoV       k_cell=13   +0.0082   k > 10, NOT anticipated
+    MERS-CoV       k_cell=14   +0.0200   k > 10, NOT anticipated
 
 Two were named before the run, because their k_cell is below 10 and
 they therefore get a *weaker* control than the companion column. **The other
@@ -314,24 +316,58 @@ not evidence of anything; it is stated as the reason P3's threshold should
 never have been set from the symmetric study's incidental 10-of-14, which is
 what calibrating a prediction on a prior result's margin amounts to.
 
-## The result that weakens the previous verdict
+## The result that weakens the previous verdict — RETRACTION WITHDRAWN 2026-11-17
 
-**The plate-matched NCATS cell no longer clears the corrected alpha.** At
-k=36 it reads **0.5870 [0.4941, 0.6799]** — the interval contains chance. At
-k=10 it read 0.6086 and cleared, which is what the symmetric verdict called
-"the first result in this project where a channel clears a corrected
-threshold on a population matched by construction".
+**The retraction below was itself wrong, and the reason is which family the
+cell was tested in.** It is left in place beneath this paragraph because a
+verdict edited to agree with a later run is not a verdict.
 
-**That claim does not survive the stronger handicap, and it is the headline
-of the previous verdict.** What survives is weaker and still worth having:
-on the plate-matched population the scorer reads above chance at both k
-values, with skill 0.1740 at k=36, and the interval excludes chance at
-k=10 but not at k=36. The honest summary is that the plate-matched evidence is
-**marginal and k-dependent**, not established.
+At k_cell = 38 the plate-matched NCATS cell reads **0.5834**, and whether
+that clears depends on the correction family applied to it:
+
+| level | corrected 95% | verdict |
+|---|---|---|
+| plate family, alpha 0.05/3, z = 2.3940 | [0.5070, 0.6597] | **clears** |
+| ChEMBL family, alpha 0.05/14, z = 2.9137 | [0.4905, 0.6762] | does not clear |
+
+**The plate family is the one this cell is registered in**
+(`docs/prereg_ncats_entry_assays.md`, second amendment: three plate cells,
+alpha 0.05/3). `scripts/structure_scorer.py` was applying the ChEMBL
+family's z to it — a constant declared and never passed — and the
+retraction below was computed under that mistake. Both levels are now
+printed for every plate cell so the question cannot be decided silently
+again.
+
+At k=10 the cell reads **0.6062** and clears under BOTH levels
+([0.5297, 0.6827] and [0.5131, 0.6994]), so nothing about the symmetric
+verdict's headline needed retracting in the first place.
+
+**What is true, stated without the retraction:** on the plate-matched
+population the scorer reads above chance at both handicaps — skill 0.2124
+at k=10 and 0.1667 at k=38 — and clears its registered alpha at both. It
+clears the *ChEMBL family's* stricter alpha at k=10 and not at k=38, which
+is a statement about how much handicap this 89-positive cell can absorb,
+not about whether the effect is there.
 
 The collection-confound gap narrows slightly when both cells are read at the
-same handicap: **0.1952 at k=36**, against 0.22 measured at k=10. Both are
-large.
+same handicap: **0.1969 at k=38**, against 0.22 measured at k=10 (0.2242
+before rounding). Both are large, and the gap is the finding that has never
+moved.
+
+### The superseded paragraph, kept
+
+> **The plate-matched NCATS cell no longer clears the corrected alpha.** At
+> k=36 it reads **0.5870 [0.4941, 0.6799]** — the interval contains chance. At
+> k=10 it read 0.6086 and cleared, which is what the symmetric verdict called
+> "the first result in this project where a channel clears a corrected
+> threshold on a population matched by construction".
+>
+> **That claim does not survive the stronger handicap, and it is the headline
+> of the previous verdict.** What survives is weaker and still worth having:
+> on the plate-matched population the scorer reads above chance at both k
+> values, with skill 0.1740 at k=36, and the interval excludes chance at
+> k=10 but not at k=36. The honest summary is that the plate-matched evidence is
+> **marginal and k-dependent**, not established.
 
 ## What this licenses now
 
@@ -340,13 +376,15 @@ large.
   strong as the one that produced the original below-chance cells.** Ten of
   fourteen cells, zero below chance, ordering stable at +0.912. This is the
   firmest result in the project.
-- **It does not license the plate-matched claim.** That cell is marginal,
-  and the previous verdict's headline about it should be read as retracted to
-  "above chance at both k, clearing at one of them".
+- **It licenses the plate-matched claim at the alpha that cell is
+  registered at, and not at the ChEMBL family's.** 0.6062 at k=10 and
+  0.5834 at k=38, clearing alpha = 0.05/3 at both; clearing 0.05/14 at
+  k=10 only. The retraction printed in the section above was an artifact
+  of applying the wrong family's z and is withdrawn.
 - **The collection confound remains large and measured**, 0.20 to 0.22 AUC
   depending on the handicap.
 - **MERS-CoV is still unexplained**, now across three runs: 0.6851
-  publication, 0.4845 at k=10, 0.4926 at k_cell=13. It is the only cell that
+  publication, 0.4845 at k=10, 0.5045 at k_cell=14. It is the only cell that
   the publication control favoured, and no registration has accounted for
   it.
 - **It still is not a mechanism.**
@@ -361,3 +399,43 @@ data-acquisition problem rather than an analysis one: curating further
 published single-screen panels, which `docs/v1_release_plan.md` already
 lists as out of scope and large. No further control variant will help,
 because the limit is the class size and not the protocol.
+
+---
+
+# Amendment, 2026-11-17: this study's comparator was defective too
+
+**APPENDED, NOT EDITED.** `scripts/structure_scorer.py` computes this
+study's `degree` column as well as the publication-control run's, from
+the same `Graph.load` call on line 565 — which passed no
+`skip_predicates`, so `baselines.degree_ranking` ranked over the whole
+graph including the held-out label edges these studies are scored
+against. The defect, how it was found, the seventeen moved cells and the
+eleven changed significance verdicts are recorded once, in the amendment
+to `docs/prereg_structure_scorer.md`, because it is one missing keyword
+on one line and three studies read it.
+
+Release: v0.1, 78,649 nodes 396,223 edges, `nodes_sha`
+dc6d76a2b3cfb2a1, `edges_sha` 873623c9a9df2049.
+
+**NO STRUCTURE FIGURE IN THIS DOCUMENT MOVES.** 161 non-degree channel
+cells across the three studies are identical before and after, to
+machine precision; every moved number is a `degree` number. So this
+study's thresholds, its k, its asymmetry table and its structure AUCs
+stand exactly as written above.
+
+**WHAT MOVES IS WHAT THE STRUCTURE AUCs ARE COMPARED AGAINST**, and in
+this study that changes which cells can be read as evidence about
+chemistry:
+
+    ChEMBL       DENV-4         structure 0.4792   degree 0.5245
+    ChEMBL       MERS-CoV       structure 0.5045   degree 0.6533  (degree clears its alpha)
+    ChEMBL       HCoV-OC43      structure 0.5903   degree 0.6222  (degree clears its alpha)
+    ChEMBL       SARS-CoV       structure 0.5763   degree 0.6908  (degree clears its alpha)
+    plate entry  MERS-CoV       structure 0.5655   degree 0.6326  (degree clears its alpha)
+
+**5 of the study's cells now have a degree baseline at or
+above the structure statistic**, and the cells marked above are the
+ones where that baseline also clears its registered alpha. Those
+cannot be reported as evidence about chemistry. Every other cell is
+unaffected: its structure AUC is unchanged and its comparator is now
+a null that does not read the labels.

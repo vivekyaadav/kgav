@@ -160,6 +160,20 @@ def block(release: Path) -> list[str]:
             out.extend(_wrap(
                 f"{len(absent_labels)} of {len(labels)} evaluation label "
                 f"predicate(s) carry no edges, {tail}."))
+    # AND THE POSITIVE CASE, because the warning's ABSENCE was carrying
+    # the news. For every release until 2026-11-17 this block printed
+    # "2 of 3 evaluation label predicate(s) carry no edges, so every
+    # evaluation rests on HAS_ANTIVIRAL_ACTIVITY_AGAINST alone", which
+    # docs/scope_and_limits.md and docs/prereg_clinical_labels.md both
+    # quote. When the indications layer filled the other two, the line
+    # simply vanished -- so a reader who had learned to look for it
+    # found nothing and could not tell a fixed gap from a dropped
+    # check. The state is now stated either way.
+    if labels and not [k for k in empty_p if k in labels]:
+        out.extend(_wrap(
+            f"all {len(labels)} evaluation label predicate(s) carry edges: "
+            + ", ".join(f"{k} {preds[k]:,}" for k in sorted(labels))
+            + ". No evaluation rests on one label by necessity."))
     out.append("")
     # PER CURATOR, NOT PER STRING. primary_knowledge_source is a "|"
     # separated list once an edge has been merged, so counting the raw

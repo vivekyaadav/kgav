@@ -201,17 +201,37 @@ def test_the_comments_own_figures_are_the_releases(census):
 
 
 def test_the_direction_of_every_disagreement_is_the_one_stated(census):
-    """The comment says the disagreements run one way only. If a release
-    ever produces an active-then-inactive pair, dropping it is a different
-    decision -- a withdrawn activity, not a missed one -- and the sentence
-    has to be rewritten rather than kept."""
+    """The comment used to say the disagreements run one way only, and this
+    test asserted that no active-then-inactive pair existed -- so that if
+    one appeared, the sentence would have to be rewritten rather than kept.
+
+    ONE APPEARED, on the release of 2026-11-17: ABBADGFSRBWENF against
+    SARS-CoV-2, active in ChEMBL 2020 at 8,770 nM in a cell-based antiviral
+    assay and inactive in the NCATS pseudotyped-entry screen of 2022 above
+    57,100 nM. The sentence was rewritten.
+
+    So this no longer asserts a direction. It asserts that every
+    wrong-way pair is NAMED in the comment by compound, because the risk
+    is not that one exists -- two protocols can disagree honestly -- but
+    that one exists and the prose still claims a uniform direction.
+    """
     wrong_way = {k: (sorted(b), sorted(a)) for k, (b, a) in census.items()
                  if b != a and "active" not in a}
     text = _comment()
-    assert "inactive before and active after" in text
-    assert not wrong_way, (
-        f"the comment says every disagreement is inactive-then-active and "
-        f"these are not: {wrong_way}")
+    assert "inactive before and active after" in text, (
+        "the comment no longer describes the majority direction at all")
+    right_way = len([k for k, (b, a) in census.items()
+                     if b != a and "active" in a])
+    if not wrong_way:
+        return
+    assert f"{right_way} of the {right_way + len(wrong_way)}" in text, (
+        f"{right_way} of {right_way + len(wrong_way)} disagreements run "
+        f"inactive-then-active and the comment does not say so")
+    for virus, compound in wrong_way:
+        assert compound in text, (
+            f"{compound} against {virus} runs active-then-inactive and the "
+            f"comment does not name it; a uniform-direction sentence beside "
+            f"an unnamed exception is the claim this test exists to stop")
 
 
 def test_the_false_justification_is_not_reinstated():

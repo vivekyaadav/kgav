@@ -18,7 +18,7 @@ scoring method for drug repurposing comes after, not in this release.
 
 ## Where the graph stands
 
-Release v0.1: 78,500 nodes, 391,727 edges, schema 0.15.0, `schema: PASS`.
+Release v0.1: 78,649 nodes, 396,223 edges, schema 0.16.0, `schema: PASS`.
 Sixteen viruses — seven coronaviruses and nine flaviviruses — after the
 2026-10-23 promotion took the built set from eight.
 
@@ -42,13 +42,13 @@ taxon clears the corrected threshold in either direction.**
 
 | virus | dependency factors | observed | matched expectation | ratio | p naive | p matched |
 |---|---:|---:|---:|---:|---:|---:|
-| HCoV-NL63 | 57 | 10 | 7.4 | 1.35 | 0.04062 | 0.1978 |
-| SARS-CoV-2 | 3,460 | 383 | 357.4 | 1.07 | 0.0003728 | 0.05909 |
-| HCoV-229E | 1,367 | 128 | 134.8 | 0.95 | 0.5839 | 0.7538 |
-| HCoV-OC43 | 657 | 62 | 65.0 | 0.95 | 0.5416 | 0.6765 |
-| Zika | 815 | 76 | 79.8 | 0.95 | 0.5862 | 0.6975 |
-| MERS-CoV | 678 | 59 | 66.2 | 0.89 | 0.7819 | 0.8467 |
-| DENV-2 | 50 | 2 | 6.3 | 0.32 | 0.9576 | 0.9899 |
+| HCoV-NL63 | 57 | 10 | 7.4 | 1.35 | 0.04124 | 0.1963 |
+| SARS-CoV-2 | 3,460 | 383 | 358.3 | 1.07 | 0.0004557 | 0.06653 |
+| HCoV-229E | 1,367 | 128 | 135.1 | 0.95 | 0.5963 | 0.7643 |
+| HCoV-OC43 | 657 | 63 | 65.2 | 0.97 | 0.4964 | 0.6336 |
+| Zika | 815 | 76 | 80.0 | 0.95 | 0.5956 | 0.7046 |
+| MERS-CoV | 678 | 59 | 66.4 | 0.89 | 0.7883 | 0.853 |
+| DENV-2 | 50 | 2 | 6.3 | 0.32 | 0.9581 | 0.9907 |
 | West Nile | 18 | 0 | 2.5 | 0.00 | 1 | 1 |
 
 **THIS PARAGRAPH CLAIMED A DEPLETION IN EVERY TAXON AND THAT WAS FALSE**
@@ -56,13 +56,14 @@ taxon clears the corrected threshold in either direction.**
 eight taxa ... with matched p from 0.73 to 1.00", and on this release the
 ratios run **0.00 to 1.35** with **two taxa above 1.0** — HCoV-NL63 at 1.35
 and SARS-CoV-2 at 1.07 are ENRICHED, not depleted — and matched p runs from
-**0.05909**, not 0.73. The naive p for SARS-CoV-2 is 0.0003728, not 1.28e-04.
+**0.06653**, not 0.73. The naive p for SARS-CoV-2 is 0.00045571, not
+1.28e-04.
 Every figure came from the 2026-10-28 run and nothing re-derived them
 across four rebuilds; this table is now machine-checked.
 
 The conclusion survives the correction and gets weaker, which is the
 honest direction. **SARS-CoV-2's naive p of 0.0003728 does disappear under
-degree matching** — 0.05909, against a Bonferroni-corrected alpha the
+degree matching** — 0.06653, against a Bonferroni-corrected alpha the
 landscape computes from its own family size — so the headline control still
 works. What cannot be said any more is that the overlap is *depleted*: it
 is indistinguishable from the degree-matched background, in both
@@ -162,7 +163,7 @@ All of it is measured, and the honesty is the contribution:
   `chain_source` has always meant.
 - **CLOSED BY gtop.** 12,155 of 14,381 `TARGETS` edges stated no
   direction (84.5%) before that layer landed; on the assembled v0.1 it is
-  10,175 of 17,587 (57.9%), and the directed count rose 2,226 -> 7,412.
+  10,177 of 17,635 (57.7%), and the directed count rose 2,226 -> 7,458.
   The original statement, kept because the reasoning still holds: so
   "this drug targets a dependency factor" is not "inhibiting it would
   help", and the landscape says so in its own output.
@@ -224,21 +225,31 @@ targets sit in, and does the virus depend on any member of them. That is
   al.'s 368, so IMEx has not curated that paper.
 - **C2. Guide to PHARMACOLOGY. DONE.** `src/kgav/gtop.py` and
   `scripts/ingest_gtop.py` are built, tested AND BUILT INTO v0.1:
-  `docs/kg_release_census.txt` lists `gtop` among the 11 assembled layers
+  `docs/kg_release_census.txt` lists `gtop` among the 12 assembled layers
   with 6,765 edges from `infores:guidetopharmacology`. This entry said
   "the files are not downloaded" after they had been, which also means
   the `direction: unknown` fraction it promised to move has already
   moved -- see scope_and_limits.md for the current figure. OPEN: the
   GtoPdb licence question is use-versus-access, and the edges are
   already in the release, so it needs settling rather than planning.
-- **C3. MONDO terms for 13 of 16 viruses.** Ten Disease nodes on the
-  assembled release as of 2026-11-17 (the entry said three), and still
-  **`TREATS` and `IN_TRIAL_FOR` are both 0 edges**, so the substance of
-  this item is unchanged: every evaluation rests on
-  `HAS_ANTIVIRAL_ACTIVITY_AGAINST` alone. ChEMBL's `drug_indication` table
-  fills both and is already on disk in `chembl_37.db`; the layer queries
-  `activities` and `assays` and never touches it. Blocked behind the
-  Disease axis. Not needed for the pathway paper.
+- **C3. CLOSED 2026-11-17 as an ingest; open as a measurement.** The
+  entry read "MONDO terms for 13 of 16 viruses", then "ten Disease nodes
+  and `TREATS`/`IN_TRIAL_FOR` still 0", then "blocked behind the Disease
+  axis". Each of those was true when written and none was true when
+  read. As of this release: all 16 register entries carry a MONDO id,
+  ten distinct, 16 `CAUSES` edges, and the `indications` layer places
+  **568 `IN_TRIAL_FOR` + 9 `TREATS` = 577 edges** over 293 compounds the
+  graph already held, from `drug_indication` in `chembl_37.db` —
+  registered in advance by `docs/prereg_clinical_labels.md`, which
+  counted 578 before the schema's `required_qualifiers` refused one row
+  that cites no ClinicalTrials reference. `nodes_sha` is unchanged:
+  the layer adds no compounds, by a registered refusal.
+  **WHAT IS LEFT IS THE ANALYSIS, AND IT IS ONE CELL.** COVID-19 against
+  SARS-CoV-2, 222 positives against 12,594 screened negatives, alpha
+  0.05, `degree` as the control that decides whether a result is
+  chemistry or fame. SARS and COVID-19 share 354 of 364 indicated
+  compounds, so they are one cohort and the family is one. Not needed
+  for the pathway paper.
 
 ## D. Out of scope for v1
 
@@ -344,7 +355,7 @@ this document:
 | A4 | needs a test, not prose | **built** — 17 guard tests, 3 of them load-bearing |
 | A5 | nothing answers it | **built** — `GraphTools.pathways`, 66 tests |
 | C1 | lands at the next rebuild | **landed**, 6,617 edges |
-| C3 | three Disease nodes | **ten**, and `TREATS`/`IN_TRIAL_FOR` still 0 |
+| C3 | three Disease nodes | **ten**, and `TREATS`/`IN_TRIAL_FOR` **577 edges** as of 2026-11-17 |
 | D | the scorer is "not run" | **run**, three protocols, 10 of 15 cells clearing |
 
 **SO THE ONLY THING BETWEEN THIS REPOSITORY AND THE RELEASE IS A1, AND A1
@@ -356,9 +367,10 @@ settling rather than building.
 **TWO FIGURES IN THIS DOCUMENT WERE THE PREVIOUS RUN'S**, found the same
 way. `0.05964` and `3.96e-04` were asserted in the prose beneath a table
 that is checked cell by cell, after the L27 rebuild moved them to
-`0.05909` and `0.0003728`. The guard above them asserted the CURRENT
-figures were present — and they were, in the table — so it could not fail
-on a stale claim sitting beside a live one.
+`0.05909` and `0.0003728` — and the entry-assay rebuild of 2026-11-17 moved
+them again, to `0.06653` and `0.00045571`. The guard above them asserted
+the CURRENT figures were present — and they were, in the table — so it
+could not fail on a stale claim sitting beside a live one.
 `test_no_superseded_landscape_p_is_still_asserted_in_prose` now scans the
 landscape section with quoted material and `not X` corrections removed,
 and fails against the version committed in `57602d9`.

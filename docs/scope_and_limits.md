@@ -23,10 +23,10 @@ Seven coronaviruses and nine flaviviruses, built from
 
 | virus        | taxon | family | dependency | restriction | antiviral | chain source | in overlap table |
 |--------------|------:|--------|-----------:|------------:|----------:|--------------|------------------|
-| SARS-CoV-2 | 2697049 | Coronaviridae | 3,460 | 1,122 | 14,711 | species | yes |
+| SARS-CoV-2 | 2697049 | Coronaviridae | 3,460 | 1,122 | 14,902 | species | yes |
 | HCoV-229E | 11137 | Coronaviridae | 1,367 | 9 | 210 | species | yes |
 | Zika | 64320 | Flaviviridae | 815 | 0 | 3,401 | species | yes |
-| MERS-CoV | 1335626 | Coronaviridae | 678 | 0 | 181 | strain 1263720 | yes |
+| MERS-CoV | 1335626 | Coronaviridae | 678 | 0 | 2,203 | strain 1263720 | yes |
 | HCoV-OC43 | 31631 | Coronaviridae | 657 | 6 | 255 | species | yes |
 | HCoV-NL63 | 277944 | Coronaviridae | 57 | 24 | 12 | species | yes |
 | DENV-2 | 11060 | Flaviviridae | 50 | 0 | 4,162 | strain 31634 | yes |
@@ -35,14 +35,14 @@ Seven coronaviruses and nine flaviviruses, built from
 | DENV-1 | 11053 | Flaviviridae | 0 | 0 | 349 | strain 408685 | **no** |
 | DENV-4 | 11070 | Flaviviridae | 0 | 0 | 312 | strain 408689 | **no** |
 | DENV-3 | 11069 | Flaviviridae | 0 | 0 | 311 | strain 408870 | **no** |
-| SARS-CoV | 694009 | Coronaviridae | 0 | 0 | 241 | species | **no** |
+| SARS-CoV | 694009 | Coronaviridae | 0 | 0 | 1,860 | species | **no** |
 | TBEV | 11084 | Flaviviridae | 0 | 0 | 137 | strain 70733 | **no** |
 | JEV | 11072 | Flaviviridae | 0 | 0 | 46 | strain 11073 | **no** |
 | HCoV-HKU1 | 290028 | Coronaviridae | 0 | 0 | 0 | strain 443239 | **no** |
 
 <!-- END TABLE: scope_by_virus -->
 
-7,102 dependency and 1,161 restriction factors, 25,949 antiviral activity
+7,102 dependency and 1,161 restriction factors, 29,781 antiviral activity
 edges. **8 of the 16 viruses have no dependency factor at all** and are
 therefore absent from the overlap analysis entirely.
 
@@ -97,7 +97,7 @@ species is a claim about one isolate of it.
 
 ### Most drug–target edges do not say which direction
 
-10,175 of 17,587 `TARGETS` edges state `direction: unknown` — **57.9%**
+10,177 of 17,635 `TARGETS` edges state `direction: unknown` — **57.7%**
 on the assembled v0.1. It was 12,155 of 14,381 — **84.5%** — before the
 gtop layer landed, and that pre-gtop figure was quoted here, and in six
 other places, as though it described v0.1.
@@ -115,13 +115,13 @@ its input is not downloaded.
 ### The analysable set is 15.8% of the molecules
 
 <!-- FIGURE: analysable_set -->
-Of 25,094 small molecules, **3,957** carry a human `TARGETS` edge and can
+Of 25,243 small molecules, **3,977** carry a human `TARGETS` edge and can
 be placed in a pathway. The rest have no human target in this graph:
 **479** approved, **961** clinical, **35** phase 1, **89** preclinical and
-**19,573** unknown.
+**19,702** unknown.
 
 A curated drug-target source covers the approved and clinical end, so
-**1,440** is the ceiling on what one could add — not 21,137. The
+**1,440** is the ceiling on what one could add — not 21,266. The
 remainder are bulk screening compounds no curated source describes.
 
 **Every figure in this paragraph was wrong until 2026-11-10, and not
@@ -265,27 +265,27 @@ degree-matched expectation.
 | channel | virus | expected | observed | min. detectable | depletion |
 |---|---|---:|---:|---:|---|
 | interactome | JEV | 0.83 | 1 | 6 hits = **7.25x** | **no rejection region** |
-| interactome | West Nile | 0.91 | 4 | 6 hits = **6.62x** | **no rejection region** |
-| pathway | West Nile | 2.49 | 0 | 9 hits = **3.61x** | **no rejection region** |
-| interactome | DENV-3 | 4.42 | 6 | 13 hits = **2.94x** | **no rejection region** |
-| interactome | TBEV | 4.61 | 3 | 13 hits = **2.82x** | **no rejection region** |
-| pathway | DENV-2 | 6.26 | 2 | 16 hits = **2.56x** | **no rejection region** |
-| interactome | DENV-1 | 7.10 | 11 | 17 hits = **2.39x** | testable |
-| pathway | HCoV-NL63 | 7.39 | 10 | 18 hits = **2.44x** | testable |
-| interactome | DENV-2 | 35.35 | 40 | 56 hits = **1.58x** | testable |
-| interactome | HCoV-HKU1 | 36.62 | 25 | 57 hits = **1.56x** | testable |
-| interactome | HCoV-OC43 | 38.15 | 28 | 59 hits = **1.55x** | testable |
-| interactome | HCoV-NL63 | 40.58 | 32 | 62 hits = **1.53x** | testable |
-| interactome | Zika | 44.91 | 47 | 68 hits = **1.51x** | testable |
-| interactome | HCoV-229E | 50.07 | 34 | 74 hits = **1.48x** | testable |
-| pathway | HCoV-OC43 | 65.00 | 62 | 92 hits = **1.42x** | testable |
-| pathway | MERS-CoV | 66.23 | 59 | 93 hits = **1.40x** | testable |
-| interactome | MERS-CoV | 79.70 | 64 | 109 hits = **1.37x** | testable |
-| pathway | Zika | 79.84 | 76 | 109 hits = **1.37x** | testable |
-| pathway | HCoV-229E | 134.84 | 128 | 173 hits = **1.28x** | testable |
-| interactome | SARS-CoV | 149.01 | 167 | 189 hits = **1.27x** | testable |
-| pathway | SARS-CoV-2 | 357.41 | 383 | 417 hits = **1.17x** | testable |
-| interactome | SARS-CoV-2 | 425.17 | 438 | 490 hits = **1.15x** | testable |
+| interactome | West Nile | 0.91 | 4 | 6 hits = **6.60x** | **no rejection region** |
+| pathway | West Nile | 2.51 | 0 | 10 hits = **3.98x** | **no rejection region** |
+| interactome | DENV-3 | 4.43 | 6 | 13 hits = **2.93x** | **no rejection region** |
+| interactome | TBEV | 4.62 | 4 | 13 hits = **2.81x** | **no rejection region** |
+| pathway | DENV-2 | 6.28 | 2 | 16 hits = **2.55x** | **no rejection region** |
+| interactome | DENV-1 | 7.13 | 11 | 18 hits = **2.53x** | testable |
+| pathway | HCoV-NL63 | 7.39 | 10 | 18 hits = **2.43x** | testable |
+| interactome | DENV-2 | 35.45 | 40 | 56 hits = **1.58x** | testable |
+| interactome | HCoV-HKU1 | 36.72 | 25 | 58 hits = **1.58x** | testable |
+| interactome | HCoV-OC43 | 38.25 | 28 | 59 hits = **1.54x** | testable |
+| interactome | HCoV-NL63 | 40.69 | 32 | 62 hits = **1.52x** | testable |
+| interactome | Zika | 45.00 | 47 | 68 hits = **1.51x** | testable |
+| interactome | HCoV-229E | 50.24 | 34 | 74 hits = **1.47x** | testable |
+| pathway | HCoV-OC43 | 65.16 | 63 | 92 hits = **1.41x** | testable |
+| pathway | MERS-CoV | 66.41 | 59 | 94 hits = **1.42x** | testable |
+| interactome | MERS-CoV | 79.86 | 64 | 109 hits = **1.36x** | testable |
+| pathway | Zika | 80.01 | 76 | 110 hits = **1.37x** | testable |
+| pathway | HCoV-229E | 135.13 | 128 | 173 hits = **1.28x** | testable |
+| interactome | SARS-CoV | 149.42 | 167 | 189 hits = **1.26x** | testable |
+| pathway | SARS-CoV-2 | 358.31 | 383 | 418 hits = **1.17x** | testable |
+| interactome | SARS-CoV-2 | 426.36 | 438 | 492 hits = **1.15x** | testable |
 
 **Six of the twenty-two downward tests have no rejection region at all.**
 Under a Poisson background with mean *m* the most extreme downward
@@ -298,15 +298,18 @@ matched expectation and not on any outcome, so it is not choosing tests
 after seeing them — but the family belongs in a preregistration that does
 not exist yet, and it is left alone until it does.
 
-**Seven of the twenty-two need a 2.4x excess or more**, and two need
-roughly 7x. (This count has now moved three times and the figure has never
+**Eight of the twenty-two need a 2.4x excess or more**, and two need
+roughly 7x. (This count has now moved four times and the figure has never
 been wrong by more than one row. It read *seven* until 2026-11-10, when a
 rebuild made it eight and exposed the test beside it asserting the word
 `Seven` — a check written with the same literal it was checking, so the
 pair agreed with each other and not with `pathway_landscape.json`. The
 2026-11-11 rebuild moved it back to seven, and **the row that crossed is
 `interactome` DENV-1, from 2.52x to 2.39x** -- not the one the earlier note
-pointed at. That note named `pathway` HCoV-NL63 as the eighth row at 2.45,
+pointed at. The entry-assay rebuild of 2026-11-17 moved the same row back
+over the line, to 2.53x, so the count is eight again: it is one row
+oscillating around 2.4, which is why the sentence is derived and not
+typed. That note named `pathway` HCoV-NL63 as the eighth row at 2.45,
 said the next one down was 1.59, and concluded "nothing about this sits on
 a rounding boundary". Two of those three statements were wrong: DENV-1 at
 2.52 was the next one down, and it was 0.12 from the boundary. HCoV-NL63
@@ -343,14 +346,49 @@ either way.
 Four declared node classes have no nodes and ten predicates have no
 edges. Two of those matter for interpretation:
 
-- **`TREATS` and `IN_TRIAL_FOR` are empty**, and the schema marks both
-  `evaluation_label`. Every evaluation in this project therefore rests on
-  `HAS_ANTIVIRAL_ACTIVITY_AGAINST` alone. There is no independent label
-  against which to ask whether a result is about the biology or about
-  that one source.
-- **Three `Disease` nodes for sixteen viruses.** 13 of 16 register
-  entries carry `mondo: null`, which is what leaves the two labels above
-  empty.
+- **`TREATS` and `IN_TRIAL_FOR` carry edges since 2026-11-17, and the
+  one result measured against them is a null for the chemistry.** This
+  section said they were empty and that "every evaluation in this
+  project therefore rests on `HAS_ANTIVIRAL_ACTIVITY_AGAINST` alone.
+  There is no independent label against which to ask whether a result is
+  about the biology or about that one source." The indications layer
+  added **568
+  `IN_TRIAL_FOR` and 9 `TREATS`** over 293 compounds the graph already
+  held, from ChEMBL's `drug_indication` table, registered in advance by
+  `docs/prereg_clinical_labels.md`.
+  **AND IT HAS NOW BEEN MEASURED, AND IT IS A NULL FOR THE CHEMISTRY.**
+  The registered cell — COVID-19 against SARS-CoV-2, 221 positives
+  against 12,595 screened negatives, family of one, alpha 0.05 — ran on
+  2026-11-17: the structure statistic reads **0.4087 [0.3734, 0.4440]**,
+  wholly BELOW chance, and the `degree` control reads **0.7751 [0.7385,
+  0.8116]**. So the one independent label does not corroborate the
+  in-vitro rankings — it anti-correlates with them — and it is far
+  better explained by how much a compound has been studied than by its
+  chemistry. It therefore **cannot be used to validate a structure
+  scorer**: doing so would reward the well-studied. The verdict is in
+  `docs/prereg_clinical_labels.md` and the figures in
+  `data/results/clinical_labels.json`. Two
+  things bound what the new axis can settle, both counted before any
+  ranking: **13 of the 222** in-trial compounds carry an
+  `INHIBITS`/`TARGETS` edge into a SARS-CoV-2 protein, so most of that
+  class is not an antiviral cohort; and `drug_indication` carries no
+  usable per-row date, so **no temporal split exists** and a positive
+  result cannot license a predictive claim.
+- **Ten `Disease` nodes for sixteen viruses, and that is no longer the
+  reason the two labels are empty.** This section said "three `Disease`
+  nodes; 13 of 16 register entries carry `mondo: null`, which is what
+  leaves the two labels above empty" until 2026-11-17. All 16 entries
+  carry a MONDO id — ten distinct ones, because four dengue serotypes
+  share `MONDO:0005502` and four coronaviruses share `MONDO:0005709` —
+  and the release carries 16 `CAUSES` edges. The curation was done and
+  the stated cause outlived it; `docs/data_audit_2026-11-07.md` found
+  that on 2026-11-07 and this document kept the old reason for ten days
+  because the test beneath it checked that the predicate *names* were
+  present, not that the explanation was true. The actual cause is
+  narrower: ChEMBL's `drug_indication` table is on disk and is never
+  queried. `docs/prereg_clinical_labels.md` registers the measurement
+  that would fill both predicates — 578 edges over 294 compounds already
+  in the graph — and one evaluable cell.
 
 The resistance axis — `VirusStrain`, `Variant`, `CONFERS_RESISTANCE_TO`,
 `OCCURS_IN`, `HAS_VARIANT`, `HAS_STRAIN` — is entirely absent. No claim

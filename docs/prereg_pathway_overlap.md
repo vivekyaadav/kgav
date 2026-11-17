@@ -20,6 +20,21 @@ signature asserts:
 
 > **Every registered value predates the run. The signature does not.**
 
+**AND THE RUN HAS SINCE BEEN REPEATED TWICE, ON TWO LATER GRAPHS.** The
+artifact on disk was generated at **2026-11-17 at 15:00:19 UTC**
+against the clinical-label release (`edges_sha` 873623c9a9df2049,
+78,649 nodes **396,223 edges**), which is the run every derived figure
+below is now read against. The run before it, at 11:10:53 UTC, was
+against the entry-assay release and is superseded; its figures are not
+quoted anywhere below. That does not move the signature or any registered value:
+the protocol, the family, the permutation count, the alpha and the
+empty-rejection decision were all fixed before 2026-11-11 and are
+unchanged. What moved is the expectations the graph produces, and the
+figures that are functions of them are re-derived by
+`tests/test_landscape.py` rather than maintained here. **The 04:22:49 run's
+ordering problem stands exactly as recorded**; repeating the run on a new
+graph does not retroactively make the signature precede it.
+
 That is a narrower guarantee than the draft asked for and it is worth
 stating what it still rules out: no parameter was chosen, and no test
 dropped from the correction family, after a p-value was in hand. What it
@@ -97,7 +112,7 @@ provenance block, and it is the one parameter this document says the verdict
 depends on (0 of 22 rows clearing Bonferroni under `floor`, 3 under
 `relaxed`). A reader cannot confirm from the result file which operand
 produced it. It is re-derivable from the release, and re-deriving it on the
-current release gives **1,939 drugged of a 20,416-protein human universe**,
+current release gives **1,944 drugged of a 20,416-protein human universe**,
 which matches what is registered below; `tests/test_prereg_is_obeyed.py`
 pins that so the agreement is checked rather than claimed. **At signature it
 was 1,946 and the L27 repair moved it**, which is recorded below under *A
@@ -110,8 +125,8 @@ first time in this document's history.
 **CLOSED 2026-11-17, AND THE ORDER WAS KEPT.** `pathway_landscape.json` now
 carries an `operands` block among its study parameters -- not in its
 provenance block, because these are parameters of the analysis and not of
-the build. It records the drugged proteome as **n = 1,939, a sha256 over
-its sorted ids, and the 1,939 ids themselves**, and the human universe as
+the build. It records the drugged proteome as **n = 1,944, a sha256 over
+its sorted ids, and the 1,944 ids themselves**, and the human universe as
 **n = 20,416 with its own sha256**. Three values are checked against each
 other rather than asserted: `tests/test_prereg_is_obeyed.py` reads the
 figure out of the DECISION paragraph below and out of the JSON and compares
@@ -133,7 +148,7 @@ in it is still loud.
 than overlooked.** Neither this script nor the release manifest records
 whether `floor` or `relaxed` built the graph, so a file asserting `"floor"`
 would be stating something it cannot check -- the defect this document
-exists to avoid. The operand identifies it instead: 1,939 under `floor`
+exists to avoid. The operand identifies it instead: 1,944 under `floor`
 against 2,489 under `relaxed`, which is exactly the discrimination the
 reader was missing.
 
@@ -144,8 +159,8 @@ differences are `measured_on` and the new `operands` key. Every p-value,
 every taxon row and every interactome figure is identical, so this closure
 adds a parameter and does not restate a result.
 
-Date drafted: 2026-11-02. Release: v0.1 (78,500 nodes / 391,727 edges,
-`nodes_sha` b0d6fc69d63942c2, `edges_sha` 545fb7d87b0aec08). Scripts:
+Date drafted: 2026-11-02. Release: v0.1 (78,649 nodes / 395,646 edges,
+`nodes_sha` dc6d76a2b3cfb2a1, `edges_sha` c0c4daccd48e9979). Scripts:
 `scripts/pathway_landscape.py`, read by `src/kgav/landscape.py`.
 
 **The release identification has now been updated twelve times -- once on
@@ -252,6 +267,33 @@ says it should, it would have been a set difference. A gap that was an
 abstract criticism on the day it was written cost a concrete answer nine
 hours later, and that is the whole argument for closing it.
 
+**2026-11-17: THE OPERAND MOVED AGAIN, AND THIS TIME THE PROTEINS CAN BE
+NAMED.** The entry-assay ingest added three NCATS pseudotyped-particle
+screens and rebuilt the release (78,500 / 391,727 -> 78,649 / 395,646).
+**The drugged proteome under `floor` is now 1,944 human proteins, not
+1,939.** Five joined and **none left**:
+
+    UniProtKB:Q16280   UniProtKB:Q4FZB7   UniProtKB:Q86Y97
+    UniProtKB:Q92993   UniProtKB:Q9H7Z6
+
+The human universe is unchanged, and provably so rather than apparently:
+its sha256 is the same `f32b6e78f99a96a5...` the previous artifact
+recorded. **This is the closure above earning its cost on the first
+rebuild after it landed.** Nine hours of work bought the ability to answer
+"which proteins" with a set difference instead of "not answerable from this
+repository" -- and the answer came out five-joined-none-left, which is the
+shape a widening-by-addition should have and a repair-by-collapse should
+not.
+
+**THE RULE IS STILL NOT RE-REGISTERED**, for the reason given above: 1,944
+is `--phase-gate floor`'s value on this release exactly as 1,939 was its
+value on the previous one and 1,946 on the signed one. **THE VERDICT STILL
+DID NOT MOVE** -- 0 of 22 rows clear Bonferroni at alpha = 0.05/44, for the
+third release running. The largest effect is now interactome/HCoV-229E at
+`p_matched` 0.005170 against the 0.001136 threshold, where it was
+interactome/NCBITaxon:11082 at 0.006210; that row now reads 0.005820. So
+the conclusion does not depend on the five proteins either.
+
 **TWO MECHANISMS ARE CONSISTENT WITH A DROP AND NEITHER IS ESTABLISHED.**
 Collapsing a salt onto its parent merges their edges and cannot by itself
 remove a protein from the set, since the protein endpoint survives the merge;
@@ -340,13 +382,14 @@ expectation. Both tails from the same null.
   here because 2026-11-10 proved this analysis's verdict depends on it. The
   ChEMBL drug-target query keeps compounds at `max_phase >= 2`; fix-list B1
   built a `relaxed` policy that also keeps any compound the graph already
-  holds. **The drugged proteome -- this analysis's first operand -- is 1,939
+  holds. **The drugged proteome -- this analysis's first operand -- is 1,944
   human proteins under `floor` and 2,489 under `relaxed` (the `relaxed`
   figure measured on the superseded release; see *A registered operand
   moved*), and the verdict follows it:** interactome/NCBITaxon:2697049 reads
-  `p_matched` 0.2237 under `floor` on the current release -- it read 0.235 at
-  signature -- and 0.000500 under `relaxed` on the signed release, and the run
-  as a whole goes from 0 of 22 rows clearing Bonferroni to 3. A registration that leaves this free
+  `p_matched` 0.2451 under `floor` on the current release -- it read 0.235 at
+  signature and 0.2237 after L27 -- and 0.000500 under `relaxed` on the
+  signed release, and the run as a whole goes from 0 of 22 rows clearing
+  Bonferroni to 3. A registration that leaves this free
   fixes the permutation count to three digits while leaving the operand
   undefined, which is the same incompleteness the seeding scheme had.
 
@@ -385,24 +428,24 @@ expectation. Both tails from the same null.
 
       interactome  JEV          0.83 expected
       interactome  West Nile    0.91
-      pathway      West Nile    2.49
-      interactome  DENV-3       4.42
-      interactome  TBEV         4.61
-      pathway      DENV-2       6.26
+      pathway      West Nile    2.51
+      interactome  DENV-3       4.43
+      interactome  TBEV         4.62
+      pathway      DENV-2       6.28
 
   Dropping them would give 0.05/38 = 0.001316 and is defensible: emptiness
   depends on the matched expectation, which the degree-matched design fixes
   before any outcome is looked at, so it is not choosing tests after seeing
   them. The proposal is to KEEP them, for two reasons. The threshold moves
   16%, from 0.001136 to 0.001316, and the smallest p in the family is
-  0.005760 -- 4.4x the looser bar -- so nothing turns on it. And a family
+  0.005170 -- 3.9x the looser bar -- so nothing turns on it. And a family
   defined as "the tests that could have rejected" has to be recomputed
   whenever an expectation moves, which makes the correction depend on the
   release in a way a reader cannot check by counting.
 
 - **Both procedures reported: Bonferroni and Benjamini-Hochberg at
   q = 0.05.** On the 2026-11-11 figures both reject nothing, and the
-  smallest p is 0.005760 against a Bonferroni bar of 0.001136 and a BH
+  smallest p is 0.005170 against a Bonferroni bar of 0.001136 and a BH
   critical value of 0.001136 at k=1. Bonferroni over 22 correlated rows is
   over-conservative and that objection is worth answering with a number
   rather than a sentence. Primary is Bonferroni; BH is reported beside it.
@@ -445,11 +488,22 @@ The null this document points at, stated so that failing to reject it is a
 result rather than an absence.
 
 **P2. Raising the permutation count will not produce a rejection.** The
-smallest p in the 2026-11-11 family is 0.005760, which is 5.1x the
-Bonferroni threshold. Resolution was never what blocked a finding, and this
-prediction says so in advance: if a rejection appears at 100,000
+smallest p in the 2026-11-17 family is 0.005170, which is 4.5x the
+Bonferroni threshold. Resolution was never what blocked a finding, and
+this prediction says so in advance: if a rejection appears at 100,000
 permutations it did not come from finer resolution and something else
 changed.
+
+**AND THE SMALLEST p IS A ONE-SIDED ONE, which is worth saying because
+it was misread while re-deriving these figures on 2026-11-17.** The
+family holds both directions: `p_matched` for enrichment and
+`p_matched_less` for depletion, and
+`tests/test_landscape.py::test_the_smallest_p_and_its_multiple_of_alpha_are_right`
+takes the minimum over both. 0.005170 is `NCBITaxon:11137`'s interactome
+DEPLETION p. The smallest enrichment p is 0.005820
+(`NCBITaxon:11082`), and reading only that column makes the family look
+0.00065 further from rejection than it is. The test already derived the
+right number; the attempted "correction" was the error.
 
 **P2 WAS TESTED ON 2026-11-11 AND HELD.** The landscape ran at 100,000
 permutations: 113 attainable values below alpha against two at 2,000, and
@@ -484,11 +538,13 @@ test rather than a pooled overlap.
   background. `scripts/pathway_landscape.py` computes no per-pathway
   quantity, and the claim in the paper is being renamed accordingly (P1 in
   the audit fix list) rather than defended here.
-- It does not establish mechanism for any row it cannot reject, and seven of
+- It does not establish mechanism for any row it cannot reject, and eight of
   22 rows need a 2.4x excess or more before they could. (Seven until
-  2026-11-10, eight after that rebuild, and seven again after 2026-11-11 --
-  `interactome` DENV-1 crossed from 2.52x to 2.39x. Two rows now sit within
-  0.05 of the line, so this count moves with the graph. It has been derived
+  2026-11-10, eight after that rebuild, seven again after 2026-11-11 --
+  `interactome` DENV-1 crossed from 2.52x to 2.39x -- and eight again after
+  2026-11-17, when the entry-assay rebuild moved that same row back to
+  2.53x. Two rows sit within 0.05 of the line, so this count moves with the
+  graph. It has been derived
   from the results file since 2026-11-10 rather than typed in two
   documents, which is the only reason the move is visible.)
 - It does not settle `MIN_REACHED_POSITIVES` or `MIN_CLASS_SIZE`. Both are
@@ -511,3 +567,33 @@ still fits.
 affordable the fallback is 8,799, which clears ten steps at today's family
 size and must be revisited when the family changes -- and the fallback has
 to be chosen HERE, not after seeing how long the first attempt takes.
+
+
+---
+
+# Note, 2026-11-17: two cells' observed sets moved and the cause is not settled
+
+**NOT AN AMENDMENT TO THE PROTOCOL.** Nothing registered changes. This
+records an observation made while re-deriving the figures above, so it is
+on the record before anyone reads the two numbers as noise.
+
+Between the pre-entry-assay release and the one on disk, `n_observed`
+moved in two interactome cells — `NCBITaxon:31631` 62 -> 63 and
+`NCBITaxon:11084` 3 -> 4 — and every p_matched in the family shifted in
+the fourth decimal. The drugged proteome growing 1,939 -> 1,944 (recorded
+above) accounts for a shift in every p, because it is the observed set
+the null is built around.
+
+**IT DOES NOT OBVIOUSLY ACCOUNT FOR A NEW MEMBER OF AN INTERACTOME SET.**
+`interactome_partners` excludes hub neighbours by `g.degree[nbr] >
+hub_cut`, and `Graph.degree` counts **every** predicate including the
+held-out labels — which is the same property that made the degree
+comparator in `docs/prereg_structure_scorer.md` defective, found the same
+day. `study_degree` was written precisely to keep that out of the
+degree-MATCHING ("WHY THE DEFAULT DEGREE IS NOT SAFE HERE"), and the hub
+cut still reads it.
+
+Whether the 577 clinical-label edges can reach a protein's hub status
+through that path is **not measured here**, and a controlled re-run on a
+release without them is what would settle it. Stated as an open question
+rather than left as a figure nobody explained.

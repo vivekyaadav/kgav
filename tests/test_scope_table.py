@@ -197,3 +197,54 @@ def test_the_evaluation_label_gap_is_stated():
     src = DOC.read_text()
     assert "TREATS" in src and "IN_TRIAL_FOR" in src
     assert "rests on" in src
+
+
+def test_the_stated_cause_of_the_label_gap_is_the_current_one():
+    """A PRESENCE CHECK CANNOT FAIL ON A WRONG EXPLANATION.
+
+    The test above asserts both predicate names appear and that the
+    document says every evaluation "rests on" one label. Both stayed
+    true while the sentence beneath them went stale: it attributed the
+    empty labels to 13 of 16 viruses lacking a MONDO id, which
+    docs/data_audit_2026-11-07.md recorded as already false. The names
+    were present, the claim was wrong, and nothing could fail.
+
+    So this derives both figures from the register and the release.
+    """
+    import json
+    from kgav import virus_register as vr
+
+    src = DOC.read_text()
+    viruses = vr.load()["viruses"]
+    missing = [v for v in viruses if not v.get("mondo")]
+    distinct = {v["mondo"] for v in viruses if v.get("mondo")}
+    nodes = RELEASE / "nodes.jsonl"
+    diseases = sum(1 for ln in nodes.open() if '"Disease"' in ln
+                   and json.loads(ln)["class"] == "Disease")
+
+    assert not missing, (
+        f"{len(missing)} register entries carry mondo: null again; this "
+        "section's cause has to be restated, not restored")
+    assert len(distinct) == diseases, (
+        f"{len(distinct)} distinct MONDO ids in the register but {diseases} "
+        "Disease nodes in the release")
+    assert f"{_WORDS[diseases]} `Disease` nodes" in src or \
+        f"{diseases} `Disease` nodes" in src, (
+        f"the document does not state {diseases} Disease nodes")
+    # The superseded sentence is KEPT, in quotation marks, as the record
+    # of what this section said -- the same convention the landscape
+    # section uses. So the scan is over the prose with quoted material
+    # removed, which is what distinguishes a stale claim from a quoted one.
+    import re as _re
+    unquoted = _re.sub(r'"[^"]*"', "", src, flags=_re.S)
+    assert "13 of 16" not in unquoted, (
+        "the superseded cause is asserted here outside quotation marks")
+    assert "13 of 16" in src, (
+        "the superseded sentence was deleted rather than quoted; this "
+        "section's correction is then unreadable and this test is vacuous")
+    assert "drug_indication" in src, (
+        "the document states no current cause for the empty labels")
+
+
+#: Spelled out, because the prose does.
+_WORDS = {3: "Three", 10: "Ten", 16: "Sixteen"}

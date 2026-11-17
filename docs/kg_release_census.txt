@@ -8,14 +8,14 @@ docs/kg_audit_report.txt.
 ==============================================================================
 
     release          v0.1
-    nodes_sha        b0d6fc69d63942c2
-    edges_sha        545fb7d87b0aec08
+    nodes_sha        dc6d76a2b3cfb2a1
+    edges_sha        873623c9a9df2049
 
-    78,500 nodes
-    391,727 edges
+    78,649 nodes
+    396,223 edges
 
     NODES BY CLASS   (0 = declared in the schema, absent from this release)
-      SmallMolecule                  25,094
+      SmallMolecule                  25,243
       Protein                        20,888
       Gene                           19,190
       Pathway                        13,236
@@ -32,52 +32,51 @@ docs/kg_audit_report.txt.
     EDGES BY PREDICATE   (L = held out of every metapath, 0 = declared, absent)
       PARTICIPATES_IN                           157,211
       PHYSICALLY_INTERACTS_WITH                 153,533
-      HAS_ANTIVIRAL_ACTIVITY_AGAINST     L       25,949
+      HAS_ANTIVIRAL_ACTIVITY_AGAINST     L       29,781
       ENCODED_BY                                 19,498
-      TARGETS                                    17,587
+      TARGETS                                    17,635
       HOST_FACTOR_FOR                             8,263
       INHIBITS                                    3,874
-      CHEMICALLY_SIMILAR_TO                       2,996
+      CHEMICALLY_SIMILAR_TO                       3,035
       MEASURED_INACTIVE_AGAINST          L        2,420
+      IN_TRIAL_FOR                       L          568
       MEMBER_OF_CLASS                               158
       SAME_AS                                       119
       BELONGS_TO                                     79
       FOLD_SIMILAR_TO                                24
       CAUSES                                         16
+      TREATS                             L            9
       COMBINED_WITH                                   0
       CONFERS_RESISTANCE_TO                           0
       HAS_STRAIN                                      0
       HAS_VARIANT                                     0
-      IN_TRIAL_FOR                       L            0
       OCCURS_IN                                       0
       PREDICTED_INDICATION                            0
       SUBCLASS_OF                                     0
       SUBCLASS_OF_DISEASE                             0
-      TREATS                             L            0
-      10 of 24 declared predicates are empty:
+      8 of 24 declared predicates are empty:
         COMBINED_WITH
         CONFERS_RESISTANCE_TO
         HAS_STRAIN
         HAS_VARIANT
-        IN_TRIAL_FOR  <- EVALUATION LABEL
         OCCURS_IN
         PREDICTED_INDICATION
         SUBCLASS_OF
         SUBCLASS_OF_DISEASE
-        TREATS  <- EVALUATION LABEL
-      2 of 3 evaluation label predicate(s) carry no edges, so every evaluation
-        rests on HAS_ANTIVIRAL_ACTIVITY_AGAINST alone.
+      all 3 evaluation label predicate(s) carry edges:
+        HAS_ANTIVIRAL_ACTIVITY_AGAINST 29,781, IN_TRIAL_FOR 568, TREATS 9. No
+        evaluation rests on one label by necessity.
 
     EDGES BY CURATOR   (an edge with several curators counts once for each)
       infores:uniprot                         176,907
       infores:string                          141,019
-      infores:chembl                           38,848
+      infores:chembl                           39,425
+      infores:ncats-opendata                   11,264
       infores:virhostnet                       10,163
       infores:biogrid-orcs                      8,263
-      infores:ncats-opendata                    7,432
-      infores:guidetopharmacology               6,748
+      infores:guidetopharmacology               6,796
       infores:intact                            6,617
-      infores:kgav-computed                     3,020
+      infores:kgav-computed                     3,059
       infores:mint                                878
       infores:interpro                            158
       infores:mondo                                16
@@ -86,12 +85,13 @@ docs/kg_audit_report.txt.
       8,177 edge(s) cite more than one curator, so these counts sum to more
         than the edge total.
 
-    11 layer(s) assembled, hub cut degree 460
+    12 layer(s) assembled, hub cut degree 460
       chembl
       folds
       gtop
       host
       hosttargets
+      indications
       ncats
       orcs
       selectivity

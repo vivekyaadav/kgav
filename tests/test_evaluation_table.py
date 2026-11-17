@@ -196,12 +196,30 @@ def test_the_unreadable_rows_are_unreadable_for_a_stated_reason():
     """Not a formatting check: it asserts the two mechanisms by name, so
     that a future change which makes these rows readable forces the prose
     above the table to be rewritten rather than left describing a state the
-    data no longer has."""
+    data no longer has.
+
+    THE VIRUS LIST WAS HARD-CODED and one of them changed. MERS-CoV's M4
+    became `trustworthy` on 2026-11-17 -- the pseudotyped-entry assays gave
+    that virus labels it did not have -- and it is now one of the four
+    nominally significant readable cells. A list of four virus names did
+    exactly what this file's docstring warns about: it asserted a state
+    rather than deriving one. The mechanisms are still asserted by name;
+    WHICH rows carry them is read off the results, and every untrustworthy
+    M4 row must be named in the prose."""
     per = json.loads(RESULTS.read_text())["per_virus"]
     assert per["SARS-CoV"]["M1"]["hits_determined"] is False
     assert per["Zika"]["M1"]["hits_determined"] is False
-    for virus in ("MERS-CoV", "HCoV-229E", "HCoV-OC43", "HCoV-NL63"):
-        assert per[virus]["M4"]["trustworthy"] is False, virus
+    untrustworthy = sorted(v for v, ch in per.items()
+                           if "M4" in ch
+                           and ch["M4"].get("trustworthy") is False)
+    assert untrustworthy, (
+        "no M4 row is untrustworthy any more; the prose above the table "
+        "describes a state the data no longer has and must be rewritten")
+    text = " ".join(DOC.read_text().split())
+    for virus in untrustworthy:
+        assert virus in text, (
+            f"{virus}'s M4 is untrustworthy and the document does not name "
+            f"it")
     assert per["HCoV-NL63"]["COMBINED"]["pos"] == 0
 
 
@@ -398,14 +416,29 @@ def test_each_alpha_row_verdict_is_the_comparison_it_describes():
          if n not in ("degree", "COMBINED") and m.get("hits_determined")
          and m.get("trustworthy") and m.get("p_value") is not None
          and m["p_value"] < 0.05))
-    assert len(sig) == 1, (
-        f"{len(sig)} significant readable cells; this table is written for "
-        f"one and its header names that cell's p-value")
+    assert sig, (
+        "no readable cell is significant, so this table judges nothing and "
+        "the section around it must be rewritten")
+    # THE TABLE JUDGES THE SMALLEST p, AND SAYS SO.
+    #
+    # This asserted `len(sig) == 1` and called the cell "the project's
+    # single nominally-significant readable result". On 2026-11-17 there
+    # are four: the pseudotyped-entry assays made two more cells readable
+    # and SARS-CoV-2 M4 crossed 0.05. Four significant cells do not change
+    # what the table is for -- the best case against each family -- but
+    # they do change what it may be CALLED, so the count is derived and
+    # the document has to state it.
     p = sig[0]
     text = DOC.read_text()
-    assert f"M7 at p={p:.6f}" in text, (
+    assert f"at p={p:.6f}" in text, (
         f"the alpha table's header should name the cell it judges, at "
         f"p={p:.6f}")
+    flat = " ".join(text.split())
+    if len(sig) > 1:
+        assert "smallest" in flat, (
+            f"{len(sig)} readable cells are significant and the table "
+            f"judges only the best of them; the document must say it is the "
+            f"smallest p rather than the only one")
     factors_checked = 0
     for label, n in family_sizes().items():
         row = next(ln for ln in text.splitlines()

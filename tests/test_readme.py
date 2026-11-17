@@ -157,14 +157,36 @@ def test_the_empty_label_predicates_are_named_if_they_are_empty():
         # the placeholder is asserted instead of waved through.
         assert "make kg-report" in block
         return
-    m = re.search(r"(\d+) of (\d+) evaluation label", block)
-    assert m, "the census no longer reports absent label predicates"
-    n_absent = int(m.group(1))
-    if n_absent:
+    # THE CENSUS NOW PRINTS BOTH CASES, and this test is why it has to.
+    # It read only "N of M evaluation label predicate(s) carry no edges",
+    # which the writer emitted only while one WAS empty. The indications
+    # layer filled the last two on 2026-11-17, the line vanished, and
+    # this assertion fired on a missing match -- correct, and uninformative
+    # about which way the world had moved. write_kg_report.py prints the
+    # positive form too now, so both branches below read a statement
+    # rather than an absence.
+    absent = re.search(r"(\d+) of (\d+) evaluation label", block)
+    filled = re.search(r"all (\d+) evaluation label predicate\(s\) carry "
+                       r"edges", block)
+    assert absent or filled, (
+        "the census reports neither an absent nor a filled evaluation "
+        "label; the one fact that changes how every result reads is now "
+        "unstated")
+    if absent:
+        n_absent = int(absent.group(1))
         assert f"{'Two' if n_absent == 2 else n_absent} of three evaluation " \
                f"label predicates carry no edges" in flat_readme or \
                f"{n_absent} of three" in flat_readme, (
             f"{n_absent} label predicates are empty and the README does "
             f"not say so")
-    else:
-        assert "carry no edges" not in flat_readme
+        return
+    # Filled. The README must say so -- and the superseded sentence is
+    # kept in quotation marks as the record, the same convention
+    # docs/scope_and_limits.md uses, so the scan that forbids the old
+    # claim runs over the prose with quoted material removed.
+    assert "All three evaluation label predicates carry edges" in flat_readme, (
+        "every label predicate carries edges and the README still reads as "
+        "though two were empty")
+    unquoted = re.sub(r'"[^"]*"', "", flat_readme)
+    assert "carry no edges" not in unquoted, (
+        "the superseded claim is asserted outside quotation marks")

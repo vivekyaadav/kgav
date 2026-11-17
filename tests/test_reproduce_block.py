@@ -70,6 +70,7 @@ WRITERS: list[tuple[str, str]] = [
     (r"^structure_scorer_strength_matched\.json$",
      "make structure-scorer-strength"),
     (r"^repurposing_candidates\.json$", "make repurposing-candidates"),
+    (r"^clinical_labels\.json$", "make clinical-labels"),
 ]
 
 
@@ -446,3 +447,42 @@ def test_every_marked_table_agrees_with_its_own_derivation():
     assert out.returncode == 0, (
         "a marked table disagrees with its own derivation; run "
         "`make rewrite-tables`.\n" + out.stdout[-1500:])
+
+
+def test_the_overlap_control_comment_names_the_refusal_it_describes():
+    """A COMMENT ABOUT A REFUSAL NOBODY READ.
+
+    The block's overlap-policy control is annotated "must refuse, naming
+    the N already-known compounds". That N was 19 and the refusal record
+    on disk named 51, across two viruses rather than one -- the NCATS
+    entry assays enlarged the SARS-CoV-2 label set and gave SARS-CoV its
+    first overlap. Nothing could fail on it, because no test read the
+    artifact the comment describes.
+
+    So this parses the comment's total and the per-virus split out of the
+    document and compares both against the refusal record the control
+    writes.
+    """
+    import json
+    import re
+
+    record = ROOT / "data" / "results" / "temporal_2021_include_overlap-keep.json"
+    if not record.exists():
+        pytest.skip("the control has not been run on this checkout")
+    blob = json.loads(record.read_text())
+    found = sorted(set(re.findall(
+        r"L5 label overlap: (\d+) (positive|negative) compounds for "
+        r"(NCBITaxon:\d+)", json.dumps(blob))))
+    assert found, "the refusal record names no label overlap"
+    total = sum(int(n) for n, _, _ in found)
+    viruses = {v for _, _, v in found}
+
+    text = DOC.read_text()
+    comment = text.split("# control: must refuse")[1].split("python")[0]
+    assert f"{total} of them" in comment, (
+        f"the control refuses over {total} already-known label(s) and the "
+        f"block's comment states a different total")
+    for n, polarity, virus in found:
+        assert re.search(rf"{n} {polarity}", comment), (
+            f"the comment does not state {n} {polarity} for {virus}")
+    assert len(viruses) > 1 or "two viruses" not in comment

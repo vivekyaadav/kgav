@@ -354,3 +354,160 @@ assay**, not a fixture -- the disagreement needs a real fitted curve whose
 potency lands past the threshold, and which rows do that is a property of
 the screen. It reports 17 disagreements against the module committed in
 `a9c05f9` and 0 against the module as amended.
+
+---
+
+# Second amendment, 2026-11-17: one of the four cells cannot exist, and the schema had already said why
+
+**STILL BEFORE ANY AUC.** No score has been computed on any of these cells.
+Appended, replacing nothing above.
+
+The rebuild converged (two passes, `edges_sha 545fb7d87b0aec08 ->
+c0c4daccd48e9979`, second pass byte-identical; 78,649 nodes, 395,646 edges,
+schema 0.16.0). It produced three usable plate cells, not four.
+
+## The finding: edge identity does not include `assay_type`
+
+`assemble.edge_key` is `(subject, predicate, object)` plus
+`primary_knowledge_source` plus the declared `identity_qualifiers`, and
+`assay_type` is **not** one of them. `schema/kg_schema.yaml` says so in
+terms, and says what making it one would cost: *"NOT an identity qualifier.
+Making it one is exactly L2's decision and would split every merged edge."*
+
+So a CPE measurement and an entry measurement of the same compound against
+SARS-CoV-2 are **one fact** to this graph, and they merge. Measured in the
+built release:
+
+| virus | `cell_based_antiviral` | `cell_based_pseudotype_entry` |
+|---|---:|---:|
+| SARS-CoV-2 | 7,427 | **196** |
+| SARS-CoV | 0 | 1,619 |
+| MERS-CoV | 0 | 2,022 |
+
+`(subject, object)` pairs carrying both assay types: **0**. Not "few" --
+none, and none is the signature of a merge rather than of a thin screen.
+The ingest offered 2,818 SARS-CoV-2 entry compounds (321 active, 2,497
+inactive after normalisation); 196 reached the release.
+
+**Why the other two cells are intact.** The object differs, so the edge key
+differs, so there is nothing to collide with -- even though the compounds
+are largely the same ones: 1,554 of the 1,619 SARS-CoV entry compounds and
+1,936 of the 2,022 MERS ones are also in the SARS-CoV-2 CPE compound set.
+The collision is specific to the one virus screened twice.
+
+## The decision — **DECISION, 2026-11-17: the SARS-CoV-2 entry cell is REFUSED**
+
+It survives as 60 positives against 136 negatives. It is refused **not for
+its size but for its membership**. Measured: the overlap between the
+surviving entry compound set and the CPE compound set is **0 of 196**. 195
+of the 196 were never in the pre-entry CPE screen at all, and the one that
+was (`INCHIKEY:VYQNWZOUAUKGHI-UHFFFAOYSA-N`) lost its CPE edge to the entry
+edge in the merge.
+
+That is the definition of a complement: the cell contains exactly the entry
+compounds CPE did not screen. It is neither a random sample nor a complete
+one of the entry assay, so an AUC computed on it measures the structural
+character of "what the CPE library missed" and not the structural character
+of entry inhibition. **It must not be reported as a plate-matched cell**, and
+the refusal is pinned in code rather than left to discipline.
+
+The registration above says SARS-CoV-2 "will have two plate cells, CPE and
+entry... they are not merged." That paragraph was written without checking
+whether the graph could express the distinction. It cannot, short of L2.
+**It is superseded by this one.** Nothing was tuned to produce this outcome:
+the merge is a property of the identity rule, which predates the
+registration by months.
+
+## Correction family — **DECISION, superseding the family of four**
+
+- **Three cells, two-sided.** alpha = 0.05/3 = **0.016667**, **z = 2.3940**.
+- The smallest AUC each surviving cell could distinguish from chance:
+
+| cell | positives | negatives | AUC must exceed | by `detectable_auc` |
+|---|---:|---:|---:|---:|
+| SARS-CoV-2, CPE | 89 | 7,338 | 0.5737 | 0.5762 |
+| SARS-CoV, entry | 95 | 1,524 | 0.5731 | 0.5753 |
+| MERS-CoV, entry | 71 | 1,951 | 0.5835 | 0.5864 |
+| ~~SARS-CoV-2, entry~~ | ~~60~~ | ~~136~~ | ~~0.6074~~ | **refused** |
+
+**Two columns because the two methods disagree, and H1 above used the
+looser one.** Column four is the interval half-width evaluated at AUC =
+0.5, which is what H1's table was computed with and is therefore the
+apples-to-apples comparison against its 0.5769. Column five is the
+project's own `diagnose_structure_scorer_design.detectable_auc`, which
+re-evaluates the Hanley-McNeil variance at each candidate AUC and is the
+figure the evaluation would actually print -- sterner by about 0.0025.
+**No statement in this amendment turns on that gap**, and column five is
+the one to quote outside this document.
+
+- `MIN_REACHED_POSITIVES` = 10, unchanged; all three clear it. The metric is
+  unchanged.
+
+## What this exercise bought, stated against what it was for
+
+**P4 is no longer testable.** It named the SARS-CoV-2 entry cell -- 335
+positives, half-width below 0.05, bar 0.5416 -- as "the prediction the whole
+exercise exists to test." That cell does not exist. No surviving cell has a
+bar below 0.573, which is where the 89-positive CPE cell already sat
+(0.5769 at the family of four). **The entry assays did not buy detection
+power for SARS-CoV-2.**
+
+What they did buy is narrower and real: **SARS-CoV and MERS-CoV now have
+complete plate-matched cells where they had none.** Those are the two
+viruses whose ChEMBL cells read 0.5763 (weak) and 0.4926 (below chance).
+Independently generated labels for them are new evidence about those two
+figures. They are not more power for the one cell this document was written
+to strengthen.
+
+P2 falls with P4 (it was arithmetic about that cell). P3 and P5 stand, and
+P5 now covers two cells rather than two of four.
+
+## The label route of H2 is clean — measured
+
+H2 asked whether the rebuild moves the ChEMBL cells. **It does not move them
+at all.** All **15** ChEMBL cells are byte-identical to the pre-entry
+snapshot (`docs/release_operands_2026-11-17_pre_entry_assays.json`),
+positive and negative sets both, 5,111 positives and 12,854 negatives.
+
+This closes only the label route. The graph-structure route -- new compound
+nodes changing the similarity neighbourhoods that the scorer ranks with --
+is untouched by this and is what `make auc-delta` is for. It has not run.
+
+## P1c failed too, and the accounting is worth keeping
+
+The first amendment predicted the CPE cell becomes **89 / 7,333**: 89
+positives, ten weak-hit compounds removed from 7,343 negatives. The built
+release gives **89 / 7,338**.
+
+The positives are byte-identical (`pos_sha256
+f0dfc331cc232729a0100323dd09cf8269b44baf027cda67e440db0140d5da99`, the
+snapshot's). The negatives lost 5 and gained 0, traced compound by compound
+against the archived pre-entry release:
+
+- **4** of the ten weak-hit compounds left both classes, as predicted.
+- **6** remain negatives, correctly: a second row for the same normalised
+  structure carries a genuine curve-class-4 measurement, and all six now
+  hold a `> 20,000 nM` inactive edge. The weak-hit refusal removed the
+  fitted row; the inactive row was always there and still is.
+- **1** further compound (`VYQNWZOUAUKGHI`) left because its CPE edge lost
+  the merge to an entry edge -- the collision above, costing the CPE cell
+  one negative.
+
+−4 − 1 = −5. **The prediction's error was treating a merged edge as a row.**
+Ten edges carried a weak hit; six of those ten structures had another row
+saying inactive, and refusing the first does not delete the second. That is
+the layer behaving correctly and the prediction being written one level too
+coarse.
+
+## What is pinned
+
+- `labels.build_labels(assay_types=...)` -- a cell is single-protocol by
+  construction or it is not single-protocol. Without it this release's
+  SARS-CoV-2 ncats cell is **149 / 7,474**, the pooled figure the "no
+  pooling" decision forbids, and nothing in the old code could have told
+  the difference.
+- `scripts/structure_scorer.py` `POPULATIONS` -- the protocols are separate
+  populations, and `secondary_ncats` keeps its name so the cell quoted by
+  `prereg_structure_scorer.md` is still the cell being compared.
+- The refusal of the 60/136 remnant, so it cannot be reported by running the
+  scorer with different arguments.

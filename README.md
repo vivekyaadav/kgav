@@ -96,14 +96,25 @@ These are the structural ones. The measured ones — which viruses can be
 scored, which channels clear chance, what the pathway test found — are in
 `docs/evaluation.md` and section 9 of the audit report.
 
-- **Two of three evaluation label predicates carry no edges.** `TREATS` and
+- **All three evaluation label predicates carry edges since 2026-11-17,
+  and only one has been measured against.** This said "`TREATS` and
   `IN_TRIAL_FOR` are declared and empty, so every evaluation rests on
-  `HAS_ANTIVIRAL_ACTIVITY_AGAINST` alone.
-- **One of twelve layers is not built.** `curated` needs published-screen
+  `HAS_ANTIVIRAL_ACTIVITY_AGAINST` alone". The `indications` layer filled
+  them — 568 `IN_TRIAL_FOR`, 9 `TREATS` — from ChEMBL's
+  `drug_indication`, registered in advance by
+  `docs/prereg_clinical_labels.md`. **The one independent label has now
+  been measured against, and it is a null for the chemistry:** the
+  structure statistic reads 0.4087 [0.3734, 0.4440] — below chance — on
+  the registered COVID-19 cell, while the `degree` control reads 0.7751
+  [0.7385, 0.8116]. Reaching a COVID-19 trial is well predicted by how
+  much a compound has been studied and anti-predicted by its similarity
+  to the compounds active in vitro, so this axis cannot be used to
+  validate a structure scorer.
+- **One of thirteen layers is not built.** `curated` needs published-screen
   TSVs whose provenance has to be established first, and it is what would
   give DENV-1, DENV-3, DENV-4, JEV and TBEV their first dependency factors.
   `gtop` WAS in this sentence and is built: `docs/kg_release_census.txt`
-  lists it among the 11 assembled layers with 6,765 edges from
+  lists it among the 12 assembled layers with 6,765 edges from
   `infores:guidetopharmacology`. The prose said "not built" for months
   after the edges landed, which is the drift this release's figures were
   re-derived to find.

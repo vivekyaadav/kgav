@@ -290,6 +290,21 @@ def build_parser(root: Path) -> argparse.ArgumentParser:
                          "a compound came from. One screen means both classes "
                          "come off the same plates under one protocol -- "
                          "matched by construction, not by a filter.")
+    ap.add_argument("--label-assay-type", default=None,
+                    help="AND RESTRICT THEM TO ONE PROTOCOL WITHIN THAT "
+                         "SCREEN, e.g. cell_based_antiviral "
+                         "(comma-separate for several). --label-source is "
+                         "not enough and was assumed to be until "
+                         "2026-11-17: infores:ncats-opendata now publishes "
+                         "a cytopathic-effect screen and three "
+                         "pseudotyped-particle entry screens, and "
+                         "build_labels groups by VIRUS, so the "
+                         "SARS-CoV-2 cell silently became 149 positives "
+                         "over two protocols where the single-screen "
+                         "protocol this flag exists for had 89 over one. "
+                         "'One screen' in the --label-source help above is "
+                         "false without this: two protocols over two "
+                         "concentration ranges are not one plate.")
     ap.add_argument("--publication-disjoint", action="store_true",
                     help="WITHHOLD EVIDENCE THAT SHARES A PAPER WITH ITS OWN "
                          "LABEL. 94.9%% of compounds carrying both an INHIBITS "  # noqa: E501
@@ -337,10 +352,15 @@ def build_parser(root: Path) -> argparse.ArgumentParser:
 def run_protocol(args, cache: GraphCache, schema) -> int:
     label_sources = ({s.strip() for s in args.label_source.split(",") if s.strip()}
                      if args.label_source else None)
+    label_assays = ({s.strip() for s in args.label_assay_type.split(",")
+                     if s.strip()} if args.label_assay_type else None)
     if label_sources:
         print(f"labels restricted to {sorted(label_sources)}")
+    if label_assays:
+        print(f"labels restricted to assay type(s) {sorted(label_assays)}")
     all_labels = build_labels(args.release, inactive_above_nm=args.inactive_above_nm,
                               sources=label_sources,
+                              assay_types=label_assays,
                               dose_series_policy=args.dose_series_policy)
     if label_sources and not any(all_labels.positives.values()):
         print(f"\nNO POSITIVES from {sorted(label_sources)}. Check the source "
@@ -432,6 +452,7 @@ def run_protocol(args, cache: GraphCache, schema) -> int:
         test_labels = build_labels(args.release, year_from=args.cutoff + 1,
                                    inactive_above_nm=args.inactive_above_nm,
                                    sources=label_sources,
+                                   assay_types=label_assays,
                                    dose_series_policy=args.dose_series_policy)
         # The selectivity filter must apply here too. Filtering only the
         # cross-sectional labels would report a temporal number computed on a
@@ -539,6 +560,11 @@ def run_protocol(args, cache: GraphCache, schema) -> int:
                    # the exact failure that module exists to prevent.
                    "publication_disjoint": bool(args.publication_disjoint),
                    "label_source": sorted(label_sources) if label_sources else None,
+                   # RECORDED FOR THE SAME REASON AS label_source: a file
+                   # that does not say which protocol it labelled from
+                   # cannot be told apart from one that pooled two.
+                   "label_assay_type": (sorted(label_assays)
+                                        if label_assays else None),
                    "label_stats": dict(all_labels.stats),
                    # WHICH SPLIT THE TEMPORAL COLUMN CAME FROM, or why there
                    # is no temporal column. Both were previously unrecorded:

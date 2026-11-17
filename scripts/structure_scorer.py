@@ -74,10 +74,37 @@ from kgav.similarity import fingerprints                  # noqa: E402
 # tests/test_prereg_structure_scorer.py.
 PRIMARY_SOURCE = "infores:chembl"
 SECONDARY_SOURCE = "infores:ncats-opendata"
+
+#: (output key, knowledge source, assay_type restriction). The plate-matched
+#: populations are split BY PROTOCOL, not just by source, which is what
+#: makes each one single-screen -- see run_population. The CPE population
+#: yields one cell (SARS-CoV-2) and the entry population three (SARS-CoV-2,
+#: SARS-CoV, MERS-CoV), which are the four cells
+#: docs/prereg_ncats_entry_assays.md fixes at alpha = 0.05/4.
+#:
+#: `secondary_ncats` KEEPS ITS NAME for the CPE population, because that is
+#: the key prereg_structure_scorer.md's registered cell is recorded under
+#: and renaming it would silently orphan every comparison against it.
+POPULATIONS = (
+    ("primary_chembl", PRIMARY_SOURCE, None),
+    ("secondary_ncats", SECONDARY_SOURCE, {"cell_based_antiviral"}),
+    ("secondary_ncats_entry", SECONDARY_SOURCE,
+     {"cell_based_pseudotype_entry"}),
+)
 MIN_CLASS = 10              # calibration.MIN_REACHED_POSITIVES
 FAMILY = 14                 # the readable ChEMBL cells
 ALPHA = 0.05 / FAMILY
 Z_CORRECTED = 2.9137        # two-sided, for ALPHA
+
+# docs/prereg_ncats_entry_assays.md, second amendment 2026-11-17. The
+# registration was signed for FOUR plate cells; one of them cannot exist,
+# because edge identity excludes `assay_type` and the SARS-CoV-2 entry
+# measurements merged into the CPE edges. THREE is the family that was
+# achievable, and it is written here so a run that produces a different
+# number says so instead of dividing by whatever it found.
+PLATE_FAMILY = 3
+PLATE_ALPHA = 0.05 / PLATE_FAMILY
+PLATE_Z_CORRECTED = 2.3940  # two-sided, for PLATE_ALPHA
 TOP_K = 3                   # the one registered alternative statistic
 
 # docs/prereg_structure_scorer_symmetric.md, signed 2026-11-11.
@@ -251,8 +278,28 @@ def score_cell(candidates: list[str], references: list[str],
     return scores, counts
 
 
-def corrected(metrics: dict) -> dict:
+def corrected(metrics: dict, z: float = Z_CORRECTED,
+              also: float | None = None) -> dict:
     """The same AUC at the registered corrected level, and a refusal.
+
+    THE LEVEL IS AN ARGUMENT BECAUSE TWO FAMILIES ARE REGISTERED, and
+    until 2026-11-17 this function applied the ChEMBL family's z to every
+    cell it was handed. The plate-matched cells are registered as their
+    own family of three (docs/prereg_ncats_entry_assays.md, second
+    amendment): alpha 0.05/3, z 2.3940, not 0.05/14 and 2.9137. Declaring
+    PLATE_Z_CORRECTED and then never passing it is the same shape as a
+    counter that cannot be printed -- the constant documents an intention
+    the code does not carry out. Measured cost of the bug: the MERS-CoV
+    entry cell read 0.5873 with corrected bounds [0.4822, 0.6923] and was
+    marked as not clearing; at its own registered level the bounds are
+    [0.5010, 0.6736] and it clears.
+
+    `also` records a SECOND level without choosing between them. The
+    SARS-CoV-2 CPE cell is claimed by two registrations --
+    prereg_structure_scorer.md reports it "at the same corrected level" as
+    the 14-cell family, and prereg_ncats_entry_assays.md makes it one of
+    three plate cells -- so both are computed and both are printed, and
+    neither document gets to be the one silently applied.
 
     A CELL NOTHING WAS SCORED IN IS NOT A NULL AND MUST NOT PRINT AS ONE.
     The first run of this script reported the matched NCATS cell as `0.5000
@@ -279,10 +326,18 @@ def corrected(metrics: dict) -> dict:
         out.pop("auc", None)
         return out
     out["measurable"] = True
+    out["z_corrected"] = z
     lo, hi = auc_interval(metrics["auc"], metrics["n_pos"], metrics["n_neg"],
-                          z=Z_CORRECTED)
+                          z=z)
     out["auc_ci_lo_corrected"] = lo
     out["auc_ci_hi_corrected"] = hi
+    if also is not None:
+        lo2, hi2 = auc_interval(metrics["auc"], metrics["n_pos"],
+                                metrics["n_neg"], z=also)
+        out["z_alternate"] = also
+        out["auc_ci_lo_alternate"] = lo2
+        out["auc_ci_hi_alternate"] = hi2
+        out["clears_alternate_alpha"] = bool(lo2 > 0.5 or hi2 < 0.5)
     # DIRECTION IS PART OF THE VERDICT. A two-sided test is registered, so
     # a cell can clear the corrected alpha by ranking actives BELOW
     # inactives -- and four do. One boolean cannot say which happened.
@@ -292,11 +347,71 @@ def corrected(metrics: dict) -> dict:
     return out
 
 
+def complement_cells(release: Path, source: str,
+                     assay_types: set[str] | None,
+                     labels) -> dict[str, tuple[int, int]]:
+    """Cells whose membership is another protocol's leftovers.
+
+    WHY THIS IS DERIVED AND NOT A LIST OF VIRUS IDS. `assemble.edge_key`
+    does not include `assay_type` -- the schema says so and says that
+    making it one "would split every merged edge" -- so when one source
+    screens one virus under two protocols, the two measurements are one
+    fact and they merge. The protocol that loses the merge does not come
+    out small and representative. It comes out as exactly the compounds
+    the winner never screened, and an AUC on that set measures the
+    structural character of what the other library missed.
+
+    The signature is disjointness: SHARING NO COMPOUNDS AT ALL with the
+    sibling cell is not what a thin screen looks like, it is what a
+    complement looks like. Measured on the 2026-11-17 release, the
+    SARS-CoV-2 entry cell holds 196 compounds and the CPE cell 7,427,
+    and the overlap is 0 of 196.
+
+    A hard-coded `if virus == "NCBITaxon:2697049"` would be a check
+    written with the same literal it is checking, and would say nothing
+    the next time a second protocol is added. This asks the release.
+
+    The smaller side is the one refused: the larger cell's population was
+    not defined by the leftovers of anything. Ties refuse both, which is
+    the conservative direction.
+    """
+    siblings = {k.split(":", 1)[1] for k in labels.stats
+                if k.startswith("other_assay_type:")} - {"none"}
+    siblings -= assay_types or set()
+    if not siblings:
+        return {}
+    other = build_labels(release, sources={source}, assay_types=siblings)
+    out: dict[str, tuple[int, int]] = {}
+    for virus in set(labels.positives) | set(labels.negatives):
+        mine = (set(labels.positives.get(virus, ()))
+                | set(labels.negatives.get(virus, ())))
+        theirs = (set(other.positives.get(virus, ()))
+                  | set(other.negatives.get(virus, ())))
+        if not mine or not theirs or (mine & theirs):
+            continue
+        if len(theirs) >= len(mine):
+            out[virus] = (len(mine), len(theirs))
+    return out
+
+
 def run_population(release: Path, g: Graph, props: dict, source: str,
                    fps: dict, pubs: dict, control: str = "publication",
                    k_map: dict[str, int] | None = None,
-                   strength_matched: bool = True) -> dict:
-    labels = build_labels(release, sources={source})
+                   strength_matched: bool = True,
+                   assay_types: set[str] | None = None,
+                   z: float = Z_CORRECTED,
+                   z_alternate: float | None = None) -> dict:
+    # SOURCE IS NOT ENOUGH TO MAKE A CELL SINGLE-SCREEN, and until
+    # 2026-11-17 this function assumed it was. `infores:ncats-opendata` now
+    # publishes two protocols against SARS-CoV-2 -- a cytopathic-effect
+    # screen and a pseudotyped-particle entry screen -- and grouped by
+    # virus alone they merged into ONE cell of 149 positives. The merge is
+    # exactly what docs/prereg_ncats_entry_assays.md registers against: a
+    # plate-matched cell is worth having because one protocol over one
+    # concentration range produced both classes, and two protocols pooled
+    # destroy that while every count still looks reasonable.
+    labels = build_labels(release, sources={source}, assay_types=assay_types)
+    complement = complement_cells(release, source, assay_types, labels)
     degrees = degree_ranking(g)
     k_map = k_map or {}
     out: dict[str, dict] = {}
@@ -306,6 +421,19 @@ def run_population(release: Path, g: Graph, props: dict, source: str,
         readable = len(pos) >= MIN_CLASS and len(neg) >= MIN_CLASS
         cell: dict = {"n_positives": len(pos), "n_negatives": len(neg),
                       "readable": readable}
+        if virus in complement:
+            # REFUSED FOR ITS MEMBERSHIP, NOT ITS SIZE, and refused here
+            # rather than in the reader's head -- a cell this shape clears
+            # MIN_CLASS and would print an AUC with a plausible interval.
+            mine, theirs = complement[virus]
+            cell["readable"] = False
+            cell["excluded_reason"] = (
+                f"complement cell: all {mine} compounds are absent from "
+                f"this source's other protocol for this virus ({theirs} "
+                f"compounds), so this is what that screen did not cover "
+                f"and not a sample of this one")
+            out[virus] = cell
+            continue
         if not readable:
             # NAMED, NOT DROPPED. A powerless cell removed silently is the
             # row this project has had to go back and label twice.
@@ -358,13 +486,14 @@ def run_population(release: Path, g: Graph, props: dict, source: str,
                                         publication_disjoint=disjoint,
                                         positives=frozenset(pos),
                                         knn=knn)
-            m = corrected(evaluate_against_negatives(scores, pos, neg))
+            m = corrected(evaluate_against_negatives(scores, pos, neg),
+                          z=z, also=z_alternate)
             m["counts"] = counts
             cell[name] = m
         cell["degree"] = corrected(
             evaluate_against_negatives(
                 {d: v for d, v in degrees.items() if d in pos or d in neg},
-                pos, neg))
+                pos, neg), z=z, also=z_alternate)
         out[virus] = cell
     return out
 
@@ -433,7 +562,28 @@ def main(argv=None) -> int:
     print()
 
     schema = load_schema()
-    g = Graph.load(args.release, symmetry=schema.symmetry())
+    # SKIP THE HELD-OUT PREDICATES, and this script was the only
+    # Graph.load caller in the repository that did not.
+    #
+    # `baselines.degree_ranking` says of itself "OVER THE TRAVERSABLE
+    # GRAPH, NOT THE WHOLE ONE (fix-list L7) ... a null hypothesis that
+    # reads the held-out answers is not a null hypothesis". It delivers
+    # that only if its caller asks for it: `Graph.load` takes
+    # `skip_predicates` and defaults it to the EMPTY SET, so without the
+    # argument `degree_unlabelled` is `degree` and the scorer's degree
+    # comparator counted the very label edges it was being scored
+    # against. Twelve other scripts pass `schema.held_out_predicates()`;
+    # this one never did, so L7 was fixed everywhere except in the three
+    # studies whose entire argument is "a structure column that does not
+    # beat its own degree column is not evidence about chemistry".
+    #
+    # A CONTRACT A CALLER HAS TO OPT INTO is the same defect shape as a
+    # constant declared and never passed: the docstring describes the
+    # behaviour, the default silently does not provide it, and nothing
+    # fails. tests/test_degree_baseline_skips_labels.py now checks every
+    # caller rather than this one.
+    g = Graph.load(args.release, skip_predicates=schema.held_out_predicates(),
+                   symmetry=schema.symmetry())
     props = small_molecule_props(args.release)
     pubs = {k: frozenset(v) for k, v in
             label_publication_index(args.release, {ACTIVITY_PREDICATE}).items()}
@@ -473,12 +623,16 @@ def main(argv=None) -> int:
         "family_size": FAMILY,
         "alpha": ALPHA,
         "z_corrected": Z_CORRECTED,
+        "plate_family_size": PLATE_FAMILY,
+        "plate_alpha": PLATE_ALPHA,
+        "plate_z_corrected": PLATE_Z_CORRECTED,
         "fingerprint_stats": dict(fp_stats),
         "n_labelled": len(labelled),
     }
-    for key, source in (("primary_chembl", PRIMARY_SOURCE),
-                        ("secondary_ncats", SECONDARY_SOURCE)):
-        print(f"\n{'=' * 68}\n{key}  ({source})\n{'=' * 68}")
+    for key, source, assay_types in POPULATIONS:
+        print(f"\n{'=' * 68}\n{key}  ({source}"
+              f"{', ' + '/'.join(sorted(assay_types)) if assay_types else ''})"
+              f"\n{'=' * 68}")
         # THE PLATE-MATCHED CELL IS NOT STRENGTH-MATCHED AND THE OUTPUT
         # MUST SAY SO. Publication-disjointness removed every admissible
         # reference there -- 88.00 per positive and 89.00 per negative out
@@ -487,9 +641,18 @@ def main(argv=None) -> int:
         # comparable at one handicap without pretending to match a
         # strength that was total.
         matched = args.control != "strength" or key == "primary_chembl"
+        # A PLATE POPULATION IS TESTED AT THE PLATE FAMILY'S ALPHA. The
+        # ChEMBL family's z is kept as the `also` level for the plate
+        # cells, because prereg_structure_scorer.md quotes its secondary
+        # cell at that level and this script must not pick one
+        # registration over the other without printing both.
+        plate = assay_types is not None
         cells = run_population(args.release, g, props, source, fps, pubs,
                                control=args.control, k_map=k_map,
-                               strength_matched=matched)
+                               strength_matched=matched,
+                               assay_types=assay_types,
+                               z=PLATE_Z_CORRECTED if plate else Z_CORRECTED,
+                               z_alternate=Z_CORRECTED if plate else None)
         payload[key] = cells
         if args.control == "strength" and not matched:
             print("  NOT STRENGTH-MATCHED: the publication control removed "
@@ -498,9 +661,25 @@ def main(argv=None) -> int:
                   "ChEMBL cell's k_cell")
             print("  for comparability; read it as that and not as a "
                   "strength match.")
-        report(cells, control=args.control, prior=prior)
+        report(cells, control=args.control, prior=prior, population=key,
+               plate=plate)
         if args.control in ("knn", "strength"):
             knn_invariant(cells, k_map if args.control == "strength" else None)
+
+    # THE PLATE FAMILY IS REGISTERED TOO, and at three rather than the
+    # four the registration was signed for. Reported, not recomputed.
+    n_plate = sum(1 for key, _, at in POPULATIONS if at is not None
+                  for c in payload[key].values() if c.get("readable"))
+    print(f"\n{'=' * 68}\nplate-matched family: {n_plate} readable cells, "
+          f"registered at {PLATE_FAMILY}")
+    print(f"  alpha = 0.05/{PLATE_FAMILY} = {PLATE_ALPHA:.6f}, "
+          f"z = {PLATE_Z_CORRECTED}")
+    if n_plate != PLATE_FAMILY:
+        print(f"! THE REGISTERED PLATE FAMILY IS {PLATE_FAMILY} AND THIS "
+              f"RELEASE GIVES {n_plate}.")
+        print("  docs/prereg_ncats_entry_assays.md, second amendment. The "
+              "family was fixed before")
+        print("  the run; this line is the finding, not a new alpha.")
 
     # THE FAMILY SIZE IS REGISTERED, SO A MISMATCH IS A FINDING.
     n_readable = sum(1 for c in payload["primary_chembl"].values()
@@ -573,7 +752,8 @@ def fmt(later: float | None, base: float) -> str:
 
 
 def report(cells: dict, control: str = "publication",
-           prior: dict | None = None) -> None:
+           prior: dict | None = None, population: str = "primary_chembl",
+           plate: bool = False) -> None:
     """One table per control, because the columns are not the same question.
 
     The publication control's interesting companion is its own leak -- the
@@ -620,13 +800,19 @@ def report(cells: dict, control: str = "publication",
         # auc_skill of None as a confident 0.0000.
         if control == "strength":
             at10 = c.get(f"structure_max_k{K_PRIMARY}", {}).get("auc")
-            was = None
-            if prior:
-                was = (prior.get("primary_chembl", {}).get(virus, {})
-                       .get("structure_max", {}).get("auc"))
-                if was is None:
-                    was = (prior.get("secondary_ncats", {}).get(virus, {})
-                           .get("structure_max", {}).get("auc"))
+            # THE PRIOR IS THIS POPULATION'S OWN PRIOR. Until 2026-11-17
+            # this read primary_chembl first and fell back to
+            # secondary_ncats only when ChEMBL had no cell for the virus
+            # -- so every plate cell printed the CHEMBL figure under a
+            # column headed "the publication-disjoint figure this
+            # replaces". Measured: the CPE cell showed prior 0.7718 and
+            # the two entry cells 0.6851 and 0.5098, which are the ChEMBL
+            # SARS-CoV-2, MERS-CoV and SARS-CoV AUCs. Those cells have no
+            # prior at all -- their publication-control run REFUSED -- and
+            # a reader comparing 0.6062 against "0.7718" would be reading
+            # a different population's result as this one's history.
+            was = (prior.get(population, {}).get(virus, {})
+                   .get("structure_max", {}).get("auc") if prior else None)
             print(f"  {virus:<20} {m['n_pos']:>6,} {m['n_neg']:>7,} "
                   f"{c['k_cell']:>4} {m['auc']:>7.4f}{mark}{ci:>18} "
                   f"{num(m.get('auc_skill')):>7} {num(at10):>7} "
@@ -642,18 +828,44 @@ def report(cells: dict, control: str = "publication",
             curve = [c.get(f"structure_max_k{k}", {}).get("auc")
                      for k in K_CURVE]
             both = c.get(f"structure_max_k{K_PRIMARY}_both", {}).get("auc")
-            was = None
-            if prior:
-                was = (prior.get("primary_chembl", {}).get(virus, {})
-                       .get("structure_max", {}).get("auc"))
-                if was is None:
-                    was = (prior.get("secondary_ncats", {}).get(virus, {})
-                           .get("structure_max", {}).get("auc"))
+            # THE PRIOR IS THIS POPULATION'S OWN PRIOR. Until 2026-11-17
+            # this read primary_chembl first and fell back to
+            # secondary_ncats only when ChEMBL had no cell for the virus
+            # -- so every plate cell printed the CHEMBL figure under a
+            # column headed "the publication-disjoint figure this
+            # replaces". Measured: the CPE cell showed prior 0.7718 and
+            # the two entry cells 0.6851 and 0.5098, which are the ChEMBL
+            # SARS-CoV-2, MERS-CoV and SARS-CoV AUCs. Those cells have no
+            # prior at all -- their publication-control run REFUSED -- and
+            # a reader comparing 0.6062 against "0.7718" would be reading
+            # a different population's result as this one's history.
+            was = (prior.get(population, {}).get(virus, {})
+                   .get("structure_max", {}).get("auc") if prior else None)
             print(f"  {virus:<20} {m['n_pos']:>6,} {m['n_neg']:>7,} "
                   f"{num(curve[0]):>7} {num(curve[1]):>7} "
                   f"{m['auc']:>7.4f}{mark}{ci:>18} "
                   f"{num(m.get('auc_skill')):>7} {num(both):>7} "
                   f"{num(was):>7} {num(d.get('auc')):>7}")
+    if plate:
+        # BOTH REGISTERED LEVELS, SIDE BY SIDE. The table above is at the
+        # plate family's alpha, which is what this population is
+        # registered at. The ChEMBL family's level is printed here rather
+        # than left to a reader who may be holding the other registration.
+        print(f"    at the plate family's alpha (0.05/{PLATE_FAMILY}, "
+              f"z = {PLATE_Z_CORRECTED}) above; at the ChEMBL family's "
+              f"(0.05/{FAMILY}, z = {Z_CORRECTED}):")
+        for virus, c in sorted(cells.items()):
+            m = c.get("structure_max", {}) if c.get("readable") else {}
+            if "auc_ci_lo_alternate" not in m:
+                continue
+            verdict = ("clears" if m["clears_alternate_alpha"]
+                       else "does NOT clear")
+            agree = "" if (m["clears_alternate_alpha"]
+                           == m["clears_corrected_alpha"]) else \
+                "   <== THE TWO LEVELS DISAGREE FOR THIS CELL"
+            print(f"      {virus:<20} {m['auc']:.4f}  "
+                  f"[{m['auc_ci_lo_alternate']:.4f}, "
+                  f"{m['auc_ci_hi_alternate']:.4f}]  {verdict}{agree}")
     print("  ^ clears the corrected alpha ABOVE chance, v clears it BELOW.")
     if control == "strength":
         print("    k is this cell's own k_cell = ceil(max(pub/pos, "

@@ -46,7 +46,7 @@ value is given beside it in brackets rather than in place of it.
 ## B. Label reachability (why every channel sits at AUC ≈ 0.5) — ~1 day
 
 <!-- FIGURE: label_reachability -->
-Measured: **15,963 of 21,274 labelled compounds (75.0%) have no edge besides their label**.
+Measured: **16,069 of 21,440 labelled compounds (74.9%) have no edge besides their label**.
 The rest are screening compounds with no known target; no data source fixes them.
 
 **THIS HEADER READ 13,916 OF 19,506 (71%) UNTIL 2026-11-10**, and for once the rot ran in

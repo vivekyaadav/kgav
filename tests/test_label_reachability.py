@@ -145,19 +145,43 @@ def test_the_label_predicates_are_the_schemas_held_out_ones():
 
 @pytest.mark.skipif(not (RELEASE / "edges.jsonl").exists(),
                     reason="no release on disk")
-def test_IN_TRIAL_FOR_and_TREATS_really_are_empty():
-    """The claim the test above rests on, measured rather than assumed. If
-    either predicate gains edges, the header's population is wrong and the
-    assertion above is the one that should fail first."""
-    n = 0
+def test_the_clinical_labels_are_excluded_by_decision_and_the_cost_is_stated():
+    """THIS TEST USED TO ASSERT BOTH PREDICATES WERE EMPTY, AND IT FIRED.
+
+    Its note said: "if either predicate gains edges, the header's
+    population is wrong and the assertion above is the one that should
+    fail first". The indications layer gave them 577 edges on
+    2026-11-17, so the question it was holding open had to be answered
+    rather than re-asserted.
+
+    THE ANSWER: this diagnostic's population stays the in-vitro label,
+    because its figures describe the compounds the baselines score and
+    the clinical labels are a separate population with their own
+    registration, cell and control. The decision is recorded in the
+    script beside the constant, together with what it hides -- the
+    compounds carrying ONLY a clinical label, which this script cannot
+    see. This test holds that number to the release so the cost cannot
+    drift away from the comment that states it.
+    """
+    invitro: set[str] = set()
+    clinical: set[str] = set()
     for line in (RELEASE / "edges.jsonl").read_text().splitlines():
         if not line.strip():
             continue
-        if json.loads(line)["predicate"] in ("IN_TRIAL_FOR", "TREATS"):
-            n += 1
-    assert n == 0, (
-        f"{n} IN_TRIAL_FOR/TREATS edges exist now; they are held out of "
-        f"traversal but not counted as labels")
+        e = json.loads(line)
+        if e["predicate"] in D.LABEL_PREDICATES:
+            invitro.add(e["subject"])
+        elif e["predicate"] in D.CLINICAL_LABEL_PREDICATES:
+            clinical.add(e["subject"])
+    hidden = len(clinical - invitro)
+    src = Path(D.__file__).read_text()
+    assert f"**{hidden} carry only a clinical label**" in src, (
+        f"{hidden} compounds carry only a clinical label and are invisible "
+        "to this diagnostic; the constant's comment states a different "
+        "number, so the recorded cost of the decision is stale")
+    assert f"{len(clinical)} compounds" in src, (
+        f"{len(clinical)} compounds carry a clinical label; the comment "
+        "states a different total")
 
 
 def test_mechanism_nodes_joins_on_the_chembl_id_the_ingest_used(tmp_path, monkeypatch):

@@ -215,23 +215,47 @@ def test_p6s_ordering_correlation(doc, runs):
     assert abs(rho) > 0.544
 
 
-def test_the_retraction_is_warranted_and_stated(doc, runs):
-    """THE CLAIM BEING WITHDRAWN. The previous verdict said a channel
-    clears a corrected threshold on a plate-matched population. Here it
-    does not, and if that ever changes this paragraph is wrong in the
-    other direction."""
+def test_the_plate_cells_verdict_names_the_family_it_was_judged_in(doc, runs):
+    """THE CLAIM, AND WHICH ALPHA DECIDES IT.
+
+    This test used to assert the retraction: that the plate cell does NOT
+    clear at its own k_cell, with a note saying "if that ever changes this
+    paragraph is wrong in the other direction." It changed, and the
+    paragraph was wrong in the other direction.
+
+    The cause was not the data. `structure_scorer.py` applied the ChEMBL
+    family's z = 2.9137 to a cell registered in a family of three
+    (docs/prereg_ncats_entry_assays.md, second amendment, alpha 0.05/3,
+    z = 2.3940) -- PLATE_Z_CORRECTED was declared and never passed. At the
+    registered level the cell clears; at the ChEMBL level it does not.
+
+    So this no longer asserts a verdict. It asserts that the document
+    states BOTH intervals and says which family each belongs to, because
+    the failure mode here was a single interval that did not say what it
+    had been corrected for."""
     _pub, knn, sm = runs
     now = sm["secondary_ncats"]["NCBITaxon:2697049"]["structure_max"]
     before = knn["secondary_ncats"]["NCBITaxon:2697049"]["structure_max"]
     assert before["clears_corrected_alpha"] is True, (
-        "the k=10 matched cell no longer cleared, so there is nothing to "
-        "retract and the verdict's account of the previous one is wrong")
-    assert now["clears_corrected_alpha"] is False, (
-        "the matched cell clears at k=33 after all; the verdict retracts a "
-        "claim that stands")
-    assert (f"{now['auc']:.4f} [{now['auc_ci_lo_corrected']:.4f}, "
-            f"{now['auc_ci_hi_corrected']:.4f}]" in doc)
-    assert f"At k=10 it read {before['auc']:.4f} and cleared" in doc
+        "the k=10 matched cell no longer clears its registered alpha, which "
+        "is a change of result rather than of presentation -- rewrite the "
+        "verdict, do not relax this")
+    # BOTH LEVELS MUST BE IN THE DOCUMENT, each with its own z named, so a
+    # reader can see which family produced which verdict.
+    for key_lo, key_hi, key_z in (
+            ("auc_ci_lo_corrected", "auc_ci_hi_corrected", "z_corrected"),
+            ("auc_ci_lo_alternate", "auc_ci_hi_alternate", "z_alternate")):
+        assert key_lo in now, (
+            f"the plate cell records no {key_lo}; the two-family "
+            f"presentation this verdict rests on is gone")
+        assert (f"[{now[key_lo]:.4f}, {now[key_hi]:.4f}]") in doc, (
+            f"the plate cell reads [{now[key_lo]:.4f}, {now[key_hi]:.4f}] "
+            f"at z = {now[key_z]} and the verdict does not carry it")
+        assert f"z = {now[key_z]}" in doc, (
+            f"the verdict quotes an interval without naming z = "
+            f"{now[key_z]}, which is how the retraction happened")
+    assert f"{now['auc']:.4f}" in doc
+    assert f"At k=10 the cell reads **{before['auc']:.4f}**" in doc
     # THE HANDICAP IS READ FROM THE RUN, NOT TYPED. This assertion and the
     # confound-gap one below both carried a literal "k=33", and the L27
     # rebuild moved the matched cell's k_cell to 36 -- so a test written to
@@ -239,13 +263,16 @@ def test_the_retraction_is_warranted_and_stated(doc, runs):
     # written with the same literals it is checking" defect, in a file whose
     # docstring is about exactly that.
     k_m = sm["secondary_ncats"]["NCBITaxon:2697049"]["k_cell"]
-    assert f"skill {now['auc_skill']:.4f} at k={k_m}" in doc, (
+    assert f"{now['auc_skill']:.4f}\nat k=10 and" not in doc
+    assert f"{now['auc_skill']:.4f} at k={k_m}" in doc, (
         f"the matched cell's skill is {now['auc_skill']:.4f} and the verdict "
         f"states otherwise")
     assert now["auc"] > 0.5, (
         "the matched cell no longer reads above chance at all; the verdict's "
         "weaker surviving claim is also gone")
-    assert "should be read as retracted" in doc
+    assert "RETRACTION WITHDRAWN" in doc, (
+        "the verdict no longer records that its retraction was withdrawn; "
+        "the superseded paragraph must stay and must be marked")
 
 
 def test_the_confound_gap_at_equal_handicap(doc, runs):

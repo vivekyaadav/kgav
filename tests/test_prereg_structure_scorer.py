@@ -216,13 +216,31 @@ def test_the_corrected_z_matches_the_family(prereg):
 
 def test_the_secondary_cell_is_the_panels(prereg):
     """The NCATS matched cell carries the registration's load-bearing
-    prediction P5, so its class sizes are derived too."""
+    prediction P5, so its class sizes are derived too.
+
+    AND SOURCE ALONE NO LONGER NAMES IT. Until 2026-11-17 this test asked
+    for `sources={"infores:ncats-opendata"}` because that source published
+    one screen, and the registration's sentence said "one cell". The source
+    now publishes four screens; the same expression gives three cells and a
+    SARS-CoV-2 figure of 149 / 7,474 that POOLS two protocols -- which is
+    the confound the registration's population decision refuses one level
+    up. The cell is identified by source AND protocol, by the same constant
+    the scorer runs, so the test and the run cannot drift apart.
+    """
     from kgav.labels import build_labels
     from kgav.pipeline import release_dir
+    import structure_scorer as S
     rd = release_dir(ROOT)
     if not (rd / "nodes.jsonl").exists():
         pytest.skip("no assembled release on disk")
-    panel = build_labels(rd, sources={"infores:ncats-opendata"})
+    spec = [(src, at) for key, src, at in S.POPULATIONS
+            if key == "secondary_ncats"]
+    assert len(spec) == 1, "the scorer no longer runs one secondary_ncats"
+    source, assay_types = spec[0]
+    assert assay_types, (
+        "the secondary population is pinned by source alone; that source "
+        "publishes more than one protocol and the cell would be pooled")
+    panel = build_labels(rd, sources={source}, assay_types=assay_types)
     cells = {v: (len(panel.positives.get(v, set())),
                  len(panel.negatives.get(v, set())))
              for v in set(panel.positives) | set(panel.negatives)}
@@ -233,6 +251,19 @@ def test_the_secondary_cell_is_the_panels(prereg):
     assert f"{pos} positives against {neg:,} negatives" in prereg, (
         f"the panel cell is {pos} against {neg:,} and the registration does "
         f"not state it")
+
+    # AND THE POOLED FIGURE MUST BE ON THE RECORD, because the expression
+    # the registration was signed with still runs and still returns it.
+    pooled = build_labels(rd, sources={source})
+    for virus, (p, n) in sorted(
+            ((v, (len(pooled.positives.get(v, set())),
+                  len(pooled.negatives.get(v, set()))))
+             for v in set(pooled.positives) | set(pooled.negatives)),
+            key=lambda r: -r[1][0]):
+        assert f"{p:,} / {n:,}" in prereg, (
+            f"source alone gives {virus} as {p:,} / {n:,} and the "
+            f"registration does not state what the signed expression now "
+            f"returns")
 
 
 def test_the_fingerprint_is_imported_not_restated(prereg):
@@ -286,3 +317,78 @@ def test_the_pooled_figure_it_quotes_beside_the_registered_one(prereg, design):
         f"the pooled population holds {len(ids):,} labelled compounds and "
         f"the registration quotes a different figure beside the registered "
         f"one")
+
+
+def test_the_amendments_publication_split_is_the_releases(prereg):
+    """THE AMENDMENT'S CLAIM THAT P5 STILL REFUSES, derived.
+
+    The 2026-11-17 amendment re-derives P5's refusal rather than inheriting
+    it, because the merge changed the publications on that cell's edges.
+    The refusal survives only if EVERY edge in the cell still shares a PMID
+    with every other -- which is a property of the release, so the figures
+    the amendment states for it are read off the release here.
+    """
+    import collections
+    import json
+    from kgav.labels import ACTIVITY_PREDICATE, edge_sources
+    from kgav.pipeline import release_dir
+    import structure_scorer as S
+    rd = release_dir(ROOT)
+    if not (rd / "edges.jsonl").exists():
+        pytest.skip("no assembled release on disk")
+
+    plate = [(src, at) for _k, src, at in S.POPULATIONS if at]
+    sources = {src for src, _ in plate}
+    groups: dict[tuple, collections.Counter] = collections.defaultdict(
+        collections.Counter)
+    for line in (rd / "edges.jsonl").read_text().splitlines():
+        if not line.strip():
+            continue
+        e = json.loads(line)
+        if e["predicate"] != ACTIVITY_PREDICATE:
+            continue
+        if not (edge_sources(e) & sources):
+            continue
+        at = (e.get("qualifiers") or {}).get("assay_type")
+        pubs = tuple(sorted(p for p in (e.get("publications") or []) if p))
+        groups[(at, e["object"])][pubs] += 1
+
+    # THE REGISTERED SECONDARY CELL carries P5, so its split is stated.
+    sec = [(src, at) for key, src, at in S.POPULATIONS
+           if key == "secondary_ncats"]
+    (sec_src, sec_at), = sec
+    sec_keys = [k for k in groups if k[0] in sec_at]
+    assert len(sec_keys) == 1, f"{len(sec_keys)} cells for the secondary"
+    counts = groups[sec_keys[0]]
+    assert len(counts) > 1, (
+        "the secondary cell's edges all cite the same publication list; "
+        "the amendment re-derives P5 from a SPLIT and there is none, so "
+        "this test is checking nothing")
+    plain = prereg.replace("**", "")   # emphasis is not data
+    for pubs, n in sorted(counts.items(), key=lambda r: -r[1]):
+        # Counted WITH its publication list, because a bare "2,622" could
+        # be satisfied by any four-digit figure elsewhere in the document
+        # -- and a bare "1" by every document ever written. The first
+        # draft of this test asserted the bare count and passed against a
+        # DENV-1 class size.
+        cited = " and ".join(f"`{p}`" for p in pubs)
+        claim = f"{n:,} CPE-typed | {cited}"
+        assert claim in plain, (
+            f"the secondary cell has {n:,} edges citing {list(pubs)} and "
+            f"the amendment's table does not carry the row "
+            f"'{claim}'")
+
+    # EVERY PLATE CELL: the refusal is total disjointness being impossible,
+    # so what matters is that one publication is shared by all of its edges.
+    for (at, virus), counts in sorted(groups.items(),
+                                      key=lambda r: -sum(r[1].values())):
+        shared = set.intersection(*(set(p) for p in counts))
+        assert shared, (
+            f"{at} / {virus}: the edges share NO publication, so a "
+            f"publication-disjoint reference set is no longer empty for "
+            f"this cell and the amendment's claim that it still refuses is "
+            f"false")
+        for pmid in sorted(shared):
+            assert pmid in prereg, (
+                f"every edge of {at} / {virus} cites {pmid}, which is why "
+                f"that cell refuses, and the amendment does not name it")

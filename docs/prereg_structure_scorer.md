@@ -18,8 +18,8 @@ diagnostic that produced the design facts below was built with a boundary it
 cannot cross -- `tests/test_prereg_structure_scorer.py` fails if it ever
 computes a similarity.
 
-Date: 2026-11-11. Release: v0.1 (78,500 nodes / 391,727 edges, `nodes_sha`
-b0d6fc69d63942c2, `edges_sha` 545fb7d87b0aec08). Scripts to be written:
+Date: 2026-11-11. Release: v0.1 (78,649 nodes / 395,646 edges, `nodes_sha`
+dc6d76a2b3cfb2a1, `edges_sha` c0c4daccd48e9979). Scripts to be written:
 `scripts/structure_scorer.py`. Design facts below: `make
 diagnose-structure-design`.
 
@@ -60,6 +60,10 @@ document made in its own first draft. So the coverage gap is zero, the floor
 is exactly 0.5000, the ceiling exactly 1.0000, and the span is 0.5000: the
 same span as degree, for the first time in this project. Whatever it reads
 will be a statement about ranking.
+
+**[The pooled figure above is the pre-entry-assay release's. Superseded for
+the current release by the amendment of 2026-11-17 at the end of this
+document; the ChEMBL-only figure is unmoved.]**
 
 **AND THAT IS PRECISELY WHY IT NEEDS REGISTERING RATHER THAN TRYING.** A
 scorer with a real span can produce a real-looking number for reasons that
@@ -346,12 +350,12 @@ appended beneath it.
 | **P3** | floor exactly 0.5000, ceiling exactly 1.0000, every cell | **HELD exactly, all 14** |
 | **P4** | SARS-CoV-2 and DENV-2 clear if any does; JEV clears under no variant | **HALF-FAILED** — both clear, and JEV clears too |
 | **P5** | the matched NCATS cell reads lower than the ChEMBL cell | **CANNOT BE EVALUATED** |
-| **P6** | degree does not clear where the structure scorer does not | **FAILED, 4 cells** |
+| **P6** | degree does not clear where the structure scorer does not | **FAILED, 3 cells** (4 before the comparator was fixed; see the amendment) |
 
 ## The numbers
 
     virus                 pos     neg      AUC   corrected 95%      skill    leak   degree
-    SARS-CoV-2          1,761   5,320   0.7714^  [0.7508, 0.7920]   0.5428  +0.1025  0.5151
+    SARS-CoV-2          1,761   5,320   0.7718^  [0.7512, 0.7924]   0.5436  +0.1021  0.5151
     MERS-CoV              131      41   0.6851^  [0.5566, 0.8135]   0.3701  -0.0067  0.7042
     Zika                  748   2,577   0.6316^  [0.5965, 0.6666]   0.2631  +0.1722  0.5534
     West Nile             261     311   0.6308^  [0.5626, 0.6990]   0.2616  +0.1123  0.5662
@@ -368,21 +372,21 @@ appended beneath it.
 
     ^ clears the corrected alpha above chance   v clears it below
 
-**THE SPAN IS REAL AND P3 IS THE REASON TO BELIEVE ANY OF THIS.** 18,998 of
-18,998 labelled compounds fingerprinted, zero unparseable, zero without
+**THE SPAN IS REAL AND P3 IS THE REASON TO BELIEVE ANY OF THIS.** 19,168 of
+19,168 labelled compounds fingerprinted, zero unparseable, zero without
 SMILES; `coverage_pos` and `coverage_neg` are 1.0000 in all 14 cells, so
 `auc_floor` is exactly 0.5000 and `auc_ceiling` exactly 1.0000 everywhere.
-Every thousandth of SARS-CoV-2's 0.7714 is ranking. For comparison, the
+Every thousandth of SARS-CoV-2's 0.7718 is ranking. For comparison, the
 best metapath channel in this project has a span of 0.0377 and a margin
 above its floor of +0.0050.
 
 ## P5 could not be evaluated, and the reason is a defect in the registration
 
-The matched NCATS cell **refuses rather than reporting**. All 7,432
+The matched NCATS cell **refuses rather than reporting**. All 7,427
 candidates lost their entire reference set: the panel's 89 actives and
-7,343 inactives all cite publications from one screen, so exclusion (3)
+7,338 inactives all cite publications from one screen, so exclusion (3)
 removed every admissible reference for every candidate.
-`excluded_publication` fired 661,358 times, `empty_reference` is 7,432, and
+`excluded_publication` fired 660,913 times, `empty_reference` is 7,427, and
 `coverage_pos` is 0.0.
 
 **The first run of this script reported that cell as `0.5000 [0.4103,
@@ -406,10 +410,25 @@ the one worth asking before any future registration pairs the two.
 
 ## P6 failed, and P4 failed for a reason I registered and then did not think through
 
-**Degree clears the corrected alpha in 4 cells where the structure scorer
-does not** -- DENV-1, DENV-4, Yellow fever and SARS-CoV -- so P6 is false.
-Two of those four clear by ranking actives BELOW inactives (DENV-1 0.3144,
-DENV-4 0.2302), which is the same two-sided reading that broke P4.
+**Degree clears the corrected alpha in 3 cells where the structure scorer
+does not** -- HCoV-229E, HCoV-OC43 and SARS-CoV -- so P6 is false.
+
+**THIS PARAGRAPH SAID "4 cells -- DENV-1, DENV-4, Yellow fever and
+SARS-CoV", AND THREE OF THOSE FOUR WERE AN ARTEFACT OF A DEFECTIVE
+COMPARATOR.** It went on: *"Two of those four clear by ranking actives
+BELOW inactives (DENV-1 0.3144, DENV-4 0.2302), which is the same
+two-sided reading that broke P4."* Those two anti-rankings were the
+degree baseline counting the label edges it was being scored against --
+a ChEMBL negative carries more label edges than a positive, so the null
+ranked negatives first. With the held-out predicates excluded, DENV-1
+reads 0.5251 and DENV-4 0.5245: at chance, clearing nothing. Yellow
+fever went 0.7262 -> 0.5079 the other way. Two cells that could not
+clear before now do -- HCoV-229E 0.6434 and HCoV-OC43 0.6222 -- so the
+count is 3 and only SARS-CoV survives from the original four. The
+defect, and every moved cell, is recorded in the amendment at the foot
+of this document. P6 is still false; it is false about different cells
+and for a reason that is about study volume rather than about an
+arithmetic artefact.
 
 **P4 said JEV "does not clear it under any variant", reasoning that it needs
 0.6632 uncorrected.** It clears at **0.1452**, by anti-ranking, with the
@@ -425,7 +444,7 @@ same-paper actives costs +0.6832 AUC on JEV, +0.3848 on DENV-3, +0.3036 on
 DENV-4, +0.2901 on DENV-2. Only MERS-CoV is unaffected (-0.0067).
 
 **And the leak predicts the result.** Across the 14 cells, Spearman
-correlation between the final AUC and the leak magnitude is **-0.684**,
+correlation between the final AUC and the leak magnitude is **-0.723**,
 which clears the ~0.544 critical value at n=14: the cells that lose the most
 to the control are the cells that end up lowest. Read plainly, most of what
 a naive run of this scorer would have reported is same-paper retrieval.
@@ -440,16 +459,16 @@ nothing. References excluded per candidate, positives against negatives:
     DENV-3         23.66 / 1.94   =  12.2x      AUC 0.3861
     DENV-1         13.68 / 2.75   =   5.0x      AUC 0.4489
     DENV-4         11.93 / 1.98   =   6.0x      AUC 0.4644
-    SARS-CoV        9.14 / 6.60   =   1.4x      AUC 0.5098
+    SARS-CoV        9.23 / 6.71   =   1.4x      AUC 0.5098
     HCoV-OC43      25.36 / 26.99  =   0.9x      AUC 0.5257   <- counterexample
     Yellow fever   12.13 / 2.99   =   4.1x      AUC 0.5545
-    DENV-2         26.97 / 2.13   =  12.7x      AUC 0.5742   <- counterexample
+    DENV-2         26.99 / 2.13   =  12.7x      AUC 0.5742   <- counterexample
     TBEV           10.31 / 5.91   =   1.7x      AUC 0.5764
     HCoV-229E      10.97 / 3.49   =   3.1x      AUC 0.5917
     West Nile       3.16 / 2.18   =   1.5x      AUC 0.6308
-    Zika            6.86 / 0.84   =   8.2x      AUC 0.6316   <- counterexample
-    MERS-CoV       10.90 / 12.93  =   0.8x      AUC 0.6851
-    SARS-CoV-2     21.89 / 35.55  =   0.6x      AUC 0.7714
+    Zika            6.89 / 0.84   =   8.2x      AUC 0.6316   <- counterexample
+    MERS-CoV       10.95 / 13.02  =   0.8x      AUC 0.6851
+    SARS-CoV-2     22.16 / 37.45  =   0.6x      AUC 0.7718
 
     <- counterexample: a cell the asymmetry hypothesis does not
        explain -- handicapped 5x or more against POSITIVES yet above
@@ -524,3 +543,269 @@ omitting DENV-2 at 12.7x and Zika at 8.2x, which are heavily asymmetric and
 ABOVE chance. Those two are counterexamples. The new registration carries
 all fourteen rows with the counterexamples marked, and the -0.490
 correlation reported here already included them -- the table did not.
+
+---
+
+# Amendment, 2026-11-17: the secondary cell needs a second coordinate to name it
+
+**No AUC has been computed on this release.** Appended; nothing above is
+rewritten.
+
+## The expression that defined the secondary cell no longer defines one cell
+
+Signed above: *"`build_labels(sources={"infores:ncats-opendata"})` gives one
+cell, SARS-CoV-2, 89 positives against 7,343 negatives."* On the release of
+2026-11-17 the same expression gives **three** cells, and the SARS-CoV-2 one
+reads **149 / 7,474**.
+
+| virus | by source alone |
+|---|---:|
+| SARS-CoV-2 | 149 / 7,474 |
+| SARS-CoV | 95 / 1,524 |
+| MERS-CoV | 71 / 1,951 |
+
+`infores:ncats-opendata` now publishes four screens rather than one
+(`docs/prereg_ncats_entry_assays.md`), and 149 is a **pooled** figure: a
+cytopathic-effect screen and a pseudotyped-particle entry screen, two
+protocols over two concentration ranges, in one cell.
+
+**This is the registration's own hazard, one level down.** The population
+decision above refuses to pool ChEMBL with the panel because it "mixes
+antiviral research compounds against library compounds". Pooling CPE with
+entry mixes *protect-the-cell* against *block-the-spike* -- and it does it
+inside the cell that exists specifically to be **matched by construction**.
+The sentence "one screen, one protocol, one concentration range, both
+classes off the same plates" stopped being true of that expression, while
+every count it produces still looks reasonable. Nothing in the old code
+could have told the difference.
+
+## The decision — **DECISION, 2026-11-17**
+
+**The secondary cell is `sources={"infores:ncats-opendata"},
+assay_types={"cell_based_antiviral"}`: 89 positives against 7,338
+negatives.** Source answers whose measurement; `assay_type` answers
+measuring what; a cell needs both pinned before "matched by construction" is
+true of it.
+
+- **The positives are the registered ones, unchanged and byte-identical** --
+  `sha256 f0dfc331cc232729a0100323dd09cf8269b44baf027cda67e440db0140d5da99`,
+  the same digest the pre-entry snapshot recorded.
+- **The negatives are 7,338, not the registered 7,343.** Minus five,
+  accounted for compound by compound in
+  `docs/prereg_ncats_entry_assays.md`'s second amendment: four weak-hit
+  refusals and one edge lost to a merge. The direction is conservative --
+  it removes measured inhibitors from the class of non-inhibitors.
+- **The two pseudotyped-entry cells are NOT added to this registration.**
+  They are registered in `prereg_ncats_entry_assays.md` with their own
+  family of three, and this document's family stays the 14 readable ChEMBL
+  cells at alpha = 0.05/14. A second registration's cells do not join a
+  first registration's family after the fact.
+
+## P5 still cannot be evaluated, and that was re-measured rather than assumed
+
+The verdict above records P5 refusing because every candidate lost its
+entire reference set: one screen, one paper, so publication-disjointness
+removes every admissible reference. The merge has since changed the
+publications on that cell's edges, so the refusal was re-derived:
+
+| edges | publications |
+|---|---|
+| 4,805 CPE-typed | `PMID:33708112` only |
+| 2,622 CPE-typed | `PMID:33708112` **and** `PMID:35086793` |
+
+**All 7,427 still carry `PMID:33708112`**, and a reference is excluded on
+*any* shared PMID, so every reference is still excluded for every candidate
+and `coverage_pos` is still 0. **P5's refusal stands, for the reason
+originally recorded.** The second PMID does not loosen the control; it was
+worth checking because it could only have tightened or loosened it, and a
+verdict that assumed either would be guessing.
+
+## Registered in advance for the two new plate cells
+
+Measured before any run: the SARS-CoV entry cell cites exactly one
+publication and the MERS-CoV entry cell cites exactly one, and **it is the
+same paper, `PMID:33330839`.** Both cells therefore refuse under the
+publication control for precisely the reason P5 refused.
+
+**Registered here so it is not reported as a discovery:** all three plate
+cells are unreadable under the publication-disjoint control. The only
+registered control that can read them is the symmetric k-nearest-reference
+exclusion of `docs/prereg_structure_scorer_symmetric.md`, which handicaps
+both classes regardless of who published what. A plate AUC quoted under the
+publication control is a refusal, not a number.
+
+## The premise figures, re-derived
+
+The premise above states SMILES coverage over two populations. On this
+release:
+
+- **ChEMBL-only: 13,345 of 13,345 — unmoved.** The rebuild did not touch the
+  registered population, which is the same finding the entry-assay amendment
+  records for the 15 ChEMBL label cells.
+- **19,091 of 19,091 pooled**, up from the signed 18,900 by the 191
+  compounds the entry assays added. Still 100.0%, so the premise holds and
+  the floor is still exactly 0.5000.
+
+The signed sentence's pooled figure is **superseded for this release** and
+left in place, because a registration edited to match the release it is
+being read against is not a registration.
+
+## Filed, not fixed: the citation on a merged edge
+
+The 2,622 CPE-typed edges citing `PMID:35086793` are the visible shadow of
+the identity rule. `assemble` unions publications by design -- "one fact
+with two witnesses" -- and that is correct *given* that both sides assert
+the same fact. They do not: `edge_key` excludes `assay_type`, so a CPE
+measurement and an entry measurement of one compound against one virus are
+one key, the CPE qualifiers win, and the entry paper is appended as a
+witness to a measurement it does not report.
+
+**It is a useful diagnostic and a wrong citation at the same time.** Useful:
+2,622 + 196 = 2,818, exactly the SARS-CoV-2 entry measurements the ingest
+produced, so the count of two-PMID edges is the count of measurements the
+merge discarded. Wrong: a reader following `PMID:35086793` from an edge
+labelled `cell_based_antiviral` finds a different assay, and cannot tell
+from the edge which paper reports the EC50 it carries.
+
+**Not fixed here.** The fix is to make `assay_type` an identity qualifier,
+which is fix-list L2 and splits every merged edge in the graph. No claim in
+this document rests on the citation list of an NCATS activity edge, and the
+one control that reads publications refuses this cell for an unrelated
+reason. Stated so that it is on the record before anything is reported, not
+after someone follows a link.
+
+---
+
+# Amendment, 2026-11-17: the comparator was reading the answer sheet
+
+**APPENDED, NOT EDITED.** Nothing above is changed. This records a defect
+in the COMPARATOR this registration defined, found after the verdict was
+written, and the verdict figures it moves.
+
+Release this amendment was measured on: v0.1, **78,649 nodes 396,223
+edges**, `nodes_sha` dc6d76a2b3cfb2a1, `edges_sha` 873623c9a9df2049 —
+the release above plus the 577 clinical-label edges of
+`docs/prereg_clinical_labels.md`, which is how the defect surfaced. The
+line the registration was signed on, 395,646 edges, is kept above as
+signed. **No structure figure moves:
+161 non-degree channel cells across the three studies are identical
+before and after, to machine precision. Every moved number is a `degree`
+number.**
+
+## The defect
+
+This registration specified *"the comparator: degree, recomputed on the
+identical population in the same run"*. `baselines.degree_ranking` has
+stated since fix-list L7 that it ranks over the **traversable** graph,
+not the whole one, because *"a null hypothesis that reads the held-out
+answers is not a null hypothesis"*.
+
+It delivers that only if its caller asks. `Graph.load` takes
+`skip_predicates` and **defaults it to the empty set**, in which case
+`degree_unlabelled` is `degree`. **Every other `Graph.load` caller in
+`scripts/` that touches the held-out set passes
+`schema.held_out_predicates()`** — twelve of them on the day this was
+found. `scripts/structure_scorer.py` — the only caller that computes the
+comparator for these three registrations — passed nothing, on line 565,
+from the day it was written, which `git show` of its first commit
+confirms.
+
+The claim above is written as an invariant rather than a count because a
+tally of callers goes stale the next time a script is added, and one was
+added the same day: `scripts/clinical_labels.py`, which passes it.
+
+So every `degree` figure in `structure_scorer.json`,
+`structure_scorer_symmetric.json` and
+`structure_scorer_strength_matched.json`, and every verdict sentence
+comparing a structure channel against "its own degree baseline", was
+measured against a null that counted the `HAS_ANTIVIRAL_ACTIVITY_AGAINST`
+and `MEASURED_INACTIVE_AGAINST` edges the studies are scored on.
+
+**IT WAS FOUND BY COINCIDENCE AND THAT IS THE WORST PART.** The
+`indications` layer added 577 `TREATS`/`IN_TRIAL_FOR` edges on
+2026-11-17. Those predicates are `held_out: true`, so the degree
+baseline was documented as unable to see them — and the plate cells'
+degree AUC moved anyway, 0.5513 -> 0.5524. A number that could not move
+moved, which is the only reason anyone looked. **Twelve hundred tests
+passed over this for six days**, because the docstring described
+behaviour the default did not provide and no test compared the two.
+
+`tests/test_degree_baseline_skips_labels.py` now holds the general form:
+`degree_ranking` REFUSES a graph loaded with nothing skipped, and a
+commit-time check fails any script that ranks by degree over such a
+graph. It fails against the line as it stood.
+
+## What it cost
+
+All seventeen readable cells moved. **Eleven changed significance
+status.** Largest moves, publication-control run (the figures are
+identical in all three studies, because `degree` depends on the graph
+and not on the exclusion protocol):
+
+    virus           before    after     delta   alpha verdict
+    DENV-3          0.1736   0.4970   +0.3234   clears -> does not
+    DENV-4          0.2332   0.5245   +0.2913   clears -> does not
+    Yellow fever    0.7262   0.5079   -0.2184   clears -> does not
+    DENV-1          0.3164   0.5251   +0.2087   clears -> does not
+    DENV-2          0.4012   0.5638   +0.1626
+    JEV             0.6374   0.5263   -0.1111
+    HCoV-OC43       0.5382   0.6222   +0.0840   does not -> clears
+    SARS-CoV-2      0.4874   0.5535   +0.0660   does not -> clears
+    HCoV-229E       0.5879   0.6434   +0.0556   does not -> clears
+    TBEV            0.4203   0.4753   +0.0550
+    MERS-CoV        0.7001   0.6533   -0.0467
+    West Nile       0.5655   0.5319   -0.0337
+    Zika            0.5540   0.5342   -0.0198   clears -> does not
+    SARS-CoV        0.6743   0.6908   +0.0165
+      plate cells
+    SARS-CoV-2 CPE  0.5524   0.5700   +0.0176
+    SARS-CoV entry  0.5536   0.6070   +0.0534   does not -> clears
+    MERS-CoV entry  0.5839   0.6326   +0.0488   does not -> clears
+
+**THE DIRECTION IS EXPLAINED BY THE DEFECT, which is what says this is a
+fix and not a tuning.** Four flavivirus cells had degree AUCs between
+0.17 and 0.33 — far below chance, and "clearing" their alpha in the
+wrong direction. A ChEMBL negative is a compound measured and found
+inactive, often in a large panel, so negatives carry more label edges
+than positives; a null counting label edges therefore ranked negatives
+above positives and produced a strongly anti-predictive baseline out of
+nothing but assay volume. With the label edges out, those four sit
+between 0.4970 and 0.5638 — at chance, which is what a null hypothesis
+on a structureless feature should look like.
+
+## What it costs THIS registration's verdict
+
+P6 read *"degree does not clear where the structure scorer does not"* and
+was recorded **FAILED, 4 cells**. On the corrected comparator the
+publication-control run has **degree at or above the structure statistic
+in 7 of 17 cells**, and clearing its alpha in three of them — HCoV-229E
+0.6434 against 0.5917, HCoV-OC43 0.6222 against 0.5257, SARS-CoV 0.6908
+against 0.5098. P6 does not become passable; it fails differently, and
+the cells it fails on are not the same cells.
+
+The headline SARS-CoV-2 ChEMBL result is **unmoved and the gap widens in
+its favour**: structure 0.7718 publication-disjoint and 0.8304 symmetric,
+against a degree baseline that went 0.4874 -> 0.5535. A corrected null
+nearer chance makes that comparison cleaner, not weaker.
+
+**AND ONE PLATE VERDICT CHANGES.** Under the symmetric control the three
+plate cells were reported as all three clearing with "degree clearing in
+none". With the comparator fixed, degree clears in **two of three** and
+in the MERS-CoV entry cell it is **above** the structure statistic:
+0.6326 against 0.5873. That cell can no longer be read as evidence about
+chemistry.
+
+**AND THE STATEMENT IT FALSIFIES IS NOT IN A DOCUMENT, WHICH IS ITS OWN
+FINDING.** "Degree clears in none of the three plate cells" was reported
+when the plate AUCs were first computed, and neither
+`docs/prereg_structure_scorer_symmetric.md` nor
+`docs/prereg_structure_scorer_strength_matched.md` contains the word
+`degree` at all — nor does the plate family's own registration,
+`docs/prereg_ncats_entry_assays.md`, beyond one aside that degree
+changes when compounds enter. So the comparator that decides whether any
+plate result is about chemistry was quoted in conversation and in
+`data/results`, and written into none of the three registrations that
+depend on it. `docs/scorer_aucs.txt` is generated from the results files
+and prints the degree column beside every structure column for exactly
+this reason; it is regenerated by `make scorer-table` as the last step of
+`make reproduce`.

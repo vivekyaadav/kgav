@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.15.0",
+  "schema_version": "0.16.0",
   "layers": {
     "spine": {
       "path": "data/releases/v0.1-spine",
@@ -46,7 +46,7 @@
     "gtop": {
       "path": "data/releases/v0.1-gtop",
       "nodes_sha": "e3b0c44298fc1c14",
-      "edges_sha": "9eac600e92142f91",
+      "edges_sha": "db326d43438eccb4",
       "sources": {
         "guidetopharmacology": {
           "published": "2026-10-12",
@@ -66,15 +66,15 @@
     "similarity": {
       "path": "data/releases/v0.1-similarity",
       "nodes_sha": "e3b0c44298fc1c14",
-      "edges_sha": "ee008bd8fe1f1e30",
+      "edges_sha": "3a56657d541d825d",
       "sources": {
         "rdkit": "2026.03.6"
       }
     },
     "ncats": {
       "path": "data/releases/v0.1-ncats",
-      "nodes_sha": "40621ea41846625b",
-      "edges_sha": "0f6ff50fd4b226a8",
+      "nodes_sha": "08753570d154eb66",
+      "edges_sha": "6e79c1bc9279a59f",
       "sources": null
     },
     "folds": {
@@ -82,17 +82,31 @@
       "nodes_sha": "227b2780503e9e91",
       "edges_sha": "58a6dd8ef38d9690",
       "sources": null
+    },
+    "indications": {
+      "path": "data/releases/v0.1-indications",
+      "nodes_sha": "e3b0c44298fc1c14",
+      "edges_sha": "edae31401891c832",
+      "sources": {
+        "chembl_indications": {
+          "db": "data/raw/chembl/chembl_37/chembl_37_sqlite/chembl_37.db",
+          "evidence_tier": 2,
+          "ref_type": "ClinicalTrials",
+          "refs_table": "indication_refs",
+          "table": "drug_indication"
+        }
+      }
     }
   },
-  "nodes": 78500,
-  "edges": 391727,
+  "nodes": 78649,
+  "edges": 396223,
   "nodes_by_class": {
     "OrganismTaxon": 16,
     "Protein": 20888,
     "Gene": 19190,
     "Disease": 10,
     "Pathway": 13236,
-    "SmallMolecule": 25094,
+    "SmallMolecule": 25243,
     "TargetClass": 66
   },
   "edges_by_predicate": {
@@ -103,32 +117,34 @@
     "PARTICIPATES_IN": 157211,
     "PHYSICALLY_INTERACTS_WITH": 153533,
     "HOST_FACTOR_FOR": 8263,
-    "HAS_ANTIVIRAL_ACTIVITY_AGAINST": 25949,
+    "HAS_ANTIVIRAL_ACTIVITY_AGAINST": 29781,
     "MEASURED_INACTIVE_AGAINST": 2420,
     "INHIBITS": 3874,
-    "TARGETS": 17587,
-    "CHEMICALLY_SIMILAR_TO": 2996,
+    "TARGETS": 17635,
+    "CHEMICALLY_SIMILAR_TO": 3035,
     "MEMBER_OF_CLASS": 158,
-    "FOLD_SIMILAR_TO": 24
+    "FOLD_SIMILAR_TO": 24,
+    "IN_TRIAL_FOR": 568,
+    "TREATS": 9
   },
   "degree": {
     "median": 2,
     "p99": 127,
     "p99_9": 400,
-    "max": 19307
+    "max": 19498
   },
   "merges": {
-    "edge_merged": 28281,
+    "edge_merged": 30904,
     "qualifier_precedence_decided:detection_method": 4676,
-    "qualifier_precedence_decided:cell_line": 1224,
+    "qualifier_precedence_decided:cell_line": 3846,
     "qualifier_precedence_decided:screen_id": 2849,
     "qualifier_precedence_decided:effect_size": 1816,
     "qualifier_precedence_decided:screen_type": 63,
-    "qualifier_precedence_decided:ec50_nm": 1927,
+    "qualifier_precedence_decided:ec50_nm": 4550,
     "qualifier_precedence_decided:assay_id": 10361,
-    "qualifier_precedence_decided:relation": 1231,
+    "qualifier_precedence_decided:relation": 1490,
     "qualifier_precedence_decided:document_id": 3277,
-    "qualifier_precedence_decided:assay_type": 1575,
+    "qualifier_precedence_decided:assay_type": 4197,
     "qualifier_kept_more_specific:outside_dose_series": 100,
     "qualifier_precedence_decided:nominal_protein_target": 9,
     "qualifier_precedence_decided:ic50_nm": 3853,
@@ -143,7 +159,11 @@
     "qualifier_precedence_decided:potency_min_nm": 6098,
     "qualifier_precedence_decided:potency_max_nm": 6122,
     "qualifier_irreconcilable:direction": 14,
-    "qualifier_kept_more_specific:direction": 49
+    "qualifier_kept_more_specific:direction": 49,
+    "qualifier_precedence_decided:source_efficacy_pct": 1632,
+    "qualifier_precedence_decided:source_curve_class": 272,
+    "qualifier_precedence_decided:cc50_nm": 5,
+    "qualifier_precedence_decided:selectivity_index": 5
   },
   "sources": {
     "declared": {
@@ -168,6 +188,15 @@
       },
       "similarity": {
         "rdkit": "2026.03.6"
+      },
+      "indications": {
+        "chembl_indications": {
+          "db": "data/raw/chembl/chembl_37/chembl_37_sqlite/chembl_37.db",
+          "evidence_tier": 2,
+          "ref_type": "ClinicalTrials",
+          "refs_table": "indication_refs",
+          "table": "drug_indication"
+        }
       }
     },
     "layers_declaring_no_source_version": [
@@ -181,7 +210,7 @@
   "release": "v0.1",
   "hub_cut_degree": 460,
   "code": {
-    "commit": "5151de864b05dcd3eac8f2faf1f655dd80529091",
+    "commit": "447afcc135848c5cad358b087393f59783b4c42d",
     "dirty": true
   }
 }

@@ -1,0 +1,116 @@
+{
+  "measured_by": "scripts/clinical_labels.py",
+  "registered_by": "docs/prereg_clinical_labels.md",
+  "disease": "MONDO:0100096",
+  "virus": "NCBITaxon:2697049",
+  "family_size": 1,
+  "alpha": 0.05,
+  "z": 1.96,
+  "statistic": "max Tanimoto to in-vitro actives, symmetric k=10 exclusion, no publication exclusion (hazard H3)",
+  "clinical_edges": {
+    "TREATS": 1,
+    "IN_TRIAL_FOR": 271
+  },
+  "population": {
+    "labelled": 12816,
+    "invitro_active": 1768,
+    "invitro_inactive": 11048,
+    "positives": 221,
+    "negatives": 12595,
+    "positives_invitro_active": 21,
+    "positives_invitro_inactive": 200
+  },
+  "fingerprinted": {
+    "fingerprinted": 12867
+  },
+  "structure_max_k10": {
+    "n_pos": 221,
+    "n_neg": 12595,
+    "auc": 0.4087075780628311,
+    "evaluable": true,
+    "auc_ci_lo": 0.3734048010888412,
+    "auc_ci_hi": 0.44401035503682096,
+    "imputed": true,
+    "coverage_pos": 1.0,
+    "coverage_neg": 1.0,
+    "auc_ceiling": 1.0,
+    "auc_headroom": 0.5,
+    "auc_floor": 0.5,
+    "auc_skill": -0.18258484387433782,
+    "measurable": true,
+    "z_corrected": 1.96,
+    "auc_ci_lo_corrected": 0.3734048010888412,
+    "auc_ci_hi_corrected": 0.44401035503682096,
+    "clears_corrected_alpha": true,
+    "direction": "below",
+    "counts": {
+      "candidates": 12816,
+      "references": 1768,
+      "references_without_fingerprint": 0,
+      "no_fingerprint": 0,
+      "empty_reference": 0,
+      "excluded_self": 1768,
+      "excluded_skeleton": 191,
+      "excluded_publication": 0,
+      "without_publication": 12816,
+      "excluded_publication_pos": 0,
+      "excluded_publication_neg": 0,
+      "candidates_pos": 221,
+      "candidates_neg": 12595,
+      "excluded_knn": 128160,
+      "excluded_knn_pos": 2210,
+      "excluded_knn_neg": 125950,
+      "knn_short": 0,
+      "excluded_skeleton_pos": 3,
+      "excluded_skeleton_neg": 188
+    }
+  },
+  "degree": {
+    "n_pos": 221,
+    "n_neg": 12595,
+    "auc": 0.7750574367836119,
+    "evaluable": true,
+    "auc_ci_lo": 0.7385454991949779,
+    "auc_ci_hi": 0.811569374372246,
+    "imputed": true,
+    "coverage_pos": 1.0,
+    "coverage_neg": 1.0,
+    "auc_ceiling": 1.0,
+    "auc_headroom": 0.5,
+    "auc_floor": 0.5,
+    "auc_skill": 0.5501148735672239,
+    "measurable": true,
+    "z_corrected": 1.96,
+    "auc_ci_lo_corrected": 0.7385454991949779,
+    "auc_ci_hi_corrected": 0.811569374372246,
+    "clears_corrected_alpha": true,
+    "direction": "above"
+  },
+  "p2_degree_at_or_above_structure": true,
+  "p3_observation": {
+    "clinical_label_only_in_cohort": 51,
+    "scorable_here": 51,
+    "scored": 51,
+    "median_score": 0.20588235294117646,
+    "median_score_positives": 0.1956521739130435,
+    "median_score_negatives": 0.20689655172413793,
+    "note": "a separate population with no screened negative class; reported, not tested"
+  },
+  "p4_untestable": {
+    "note": "the viral-target stratum is 13 of 222 and is registered as not a cell"
+  },
+  "no_temporal_split": "drug_indication carries no usable per-row date, so a positive result does not license a predictive claim (hazard H2)",
+  "provenance": {
+    "release": {
+      "id": "v0.1",
+      "nodes_sha": "dc6d76a2b3cfb2a1",
+      "edges_sha": "873623c9a9df2049"
+    },
+    "code": {
+      "commit": "447afcc135848c5cad358b087393f59783b4c42d",
+      "dirty": true
+    },
+    "schema_version": "0.16.0",
+    "generated_utc": "2026-11-17T15:42:23+00:00"
+  }
+}

@@ -101,7 +101,11 @@ const edges: Edge[] = [
 // (19,190), Compound 21,667 (25,383). AND A FOURTH TIME on 2026-11-11, when
 // the L27 identity repair collapsed salt forms onto their parents and
 // Compound went 25,383 -> 25,094: the only one of the five that a compound
-// merge could move, and it moved. Four drifts now. These are hand-typed
+// merge could move, and it moved. AND A FIFTH TIME on 2026-11-17, when the
+// NCATS pseudotyped-entry assays added compounds: Compound 25,094 ->
+// 25,243, and nothing else moved, because an assay layer adds small
+// molecules and activity edges and touches no protein, gene or pathway.
+// Five drifts now. These are hand-typed
 // because the page is a static prototype with no build step that reads the
 // release; the test below is what makes that tolerable.
 //
@@ -117,7 +121,7 @@ const edges: Edge[] = [
 // comment did not mention. A stated reconciliation that does not reconcile
 // is worse than none, because it reads as having been checked.
 //
-// Today: these five sum to 78,424 against a release of 78,500. The gap is
+// Today: these five sum to 78,573 against a release of 78,649. The gap is
 // 76 = Disease 10 + TargetClass 66. Neither is a filter because neither is a
 // layer a user would browse by. test_the_filters_account_for_every_node
 // checks that sum against the manifest, so a node class added later cannot
@@ -128,7 +132,7 @@ const filters: { label: NodeType; count: number }[] = [
   { label: "Protein", count: 20_888 },
   { label: "Gene", count: 19_190 },
   { label: "Pathway", count: 13_236 },
-  { label: "Compound", count: 25_094 },
+  { label: "Compound", count: 25_243 },
 ];
 
 function AppButton({ children, active = false, onClick }: { children: React.ReactNode; active?: boolean; onClick?: () => void }) {
