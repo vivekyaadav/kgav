@@ -31,6 +31,7 @@ from kgav.ncats import (
     classify_row,
     curve_class,
     index_counterscreen,
+    read_table,
     ingest_cpe,
     join_report,
     resolve_columns,
@@ -732,3 +733,75 @@ def test_the_two_files_this_layer_reads_do_not_state_a_unit():
         assert all(unit_for(c, default="") == "" for c in conc), (
             f"{name} now names its concentration unit; the header path "
             f"handles it and --conc-units is no longer load bearing there")
+
+
+# --------------------------------------------------------------------------
+# THE CONTRACT classify_row's DOCSTRING CLAIMS, which nothing checked.
+# It says: "The qualifiers are written so that labels.classify() reaches the
+# SAME verdict from the emitted edge alone ... That symmetry is the
+# contract." It did not hold. classify_row returned "active" for any fitted
+# hit, labels.classify applied the project's 10 uM threshold to the emitted
+# edge, and 17 CPE compounds with EC50 between 11,220 and 25,119 nM came out
+# as NEGATIVES -- a known weak inhibitor in the class of non-inhibitors.
+# Found 2026-11-17 while adding the pseudotype assays, where it was 810
+# labels rather than 17.
+# --------------------------------------------------------------------------
+def test_every_emitted_edge_classifies_the_way_the_layer_said_it_would():
+    """Over every row of every declared assay, not a fixture.
+
+    A fixture cannot catch this: the disagreement needs a real fitted curve
+    whose potency lands past the threshold, and which rows do that is a
+    property of the screen.
+    """
+    from kgav.labels import classify
+
+    root = Path(__file__).resolve().parents[1]
+    raw = root / "data" / "raw" / "ncats"
+    if not (raw / "cpe_assay.csv").exists():
+        pytest.skip("no NCATS raw data in this checkout")
+    rows, cols = read_table(raw / "cpe_assay.csv")
+    trows, tcols = read_table(raw / "cpe_tox.csv")
+    tox = index_counterscreen(trows, tcols, COUNTERSCREEN_ASSAY)
+    rows = [r for r in rows
+            if (r.get(cols["assay"]) or "").strip().lower() == CANONICAL_ASSAY]
+
+    disagree = []
+    for r in rows:
+        verdict, quals, _why = classify_row(
+            r, cols, ac50_units="uM", conc_units="M",
+            tox_row=tox.get(r[cols["sample"]]), tox_cols=tcols)
+        if verdict is None:
+            continue
+        got = classify({"qualifiers": quals})
+        if got != verdict:
+            disagree.append((r[cols["sample"]], verdict, got,
+                             quals.get("ec50_nm")))
+    assert not disagree, (
+        f"{len(disagree)} edge(s) carry qualifiers that labels.classify "
+        f"reads differently from the verdict this layer assigned, e.g. "
+        f"{disagree[:3]}. A label the layer calls active and the project "
+        f"calls inactive is a known inhibitor counted as a non-inhibitor")
+
+
+def test_a_fitted_hit_past_the_threshold_is_refused_and_not_called_inactive():
+    """NEITHER class, and named. The compound HAS a fitted curve, so
+    calling it inactive asserts the opposite of what the assay measured;
+    its potency is past the threshold the project uses everywhere, so
+    calling it active breaks that convention. The honest third answer is a
+    counted refusal.
+    """
+    from kgav.labels import DEFAULT_ACTIVE_BELOW_NM
+
+    over = DEFAULT_ACTIVE_BELOW_NM / 1000.0 * 2          # nM -> uM, doubled
+    v, q, why = classify_row(_row(ac50=str(over), curve="1.1", eff="80"),
+                             COLS, ac50_units="uM")
+    assert v is None, f"a {over:g} uM fit was called {v!r}"
+    assert why == "weak_hit_above_active_threshold"
+    assert q["ec50_nm"] == pytest.approx(over * 1000), (
+        "the refusal must still record the potency it refused on, or the "
+        "count cannot be audited")
+
+    under = DEFAULT_ACTIVE_BELOW_NM / 1000.0 / 2
+    v2, _, _ = classify_row(_row(ac50=str(under), curve="1.1", eff="80"),
+                            COLS, ac50_units="uM")
+    assert v2 == "active", "the threshold moved the wrong way"

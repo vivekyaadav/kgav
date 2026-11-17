@@ -58,8 +58,13 @@ from __future__ import annotations
 import csv
 import re
 from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 
+# THE THRESHOLD HAS ONE OWNER. Importing it rather than restating
+# it is the point: a second 10_000 here would be the "check written
+# with the literals it is checking" shape, and the two would drift.
+from kgav.labels import DEFAULT_ACTIVE_BELOW_NM
 from kgav.normalize_chem import tautomer_conflations
 from kgav.units import to_nm_strict
 
@@ -83,6 +88,113 @@ DEFAULT_DATE = "2020-08-18"
 # censoring point.
 CANONICAL_ASSAY = "sars-cov-2 cytopathic effect (cpe)"
 COUNTERSCREEN_ASSAY = "sars-cov-2 cytopathic effect (host tox counterscreen)"
+
+
+# --------------------------------------------------------------- assay specs
+#: GAIN vs LOSS of signal, and why this is a declared field rather than an
+#: inference. The CPE assay reads cell viability: a compound that protects
+#: cells RAISES the signal, so antiviral activity is POSITIVE efficacy. The
+#: pseudotyped-particle entry assays read a reporter carried INTO the cell:
+#: a compound that blocks entry LOWERS the signal, so the same activity is
+#: NEGATIVE efficacy and a negative curve class.
+#:
+#: Measured on the ODP exports before this was written: applying the CPE
+#: rule to the three entry files yields ZERO actives, because all 1,004
+#: fitted inhibitors sit at negative efficacy. A layer with one global
+#: convention emits three all-negative cells that validate, count plausibly
+#: and encode the opposite conclusion -- the failure this module's own
+#: ingest script warns about in those words.
+#:
+#: So polarity is DECLARED per assay and CHECKED against the file
+#: (`observed_polarity`), never inferred at runtime: a truncated or empty
+#: download would otherwise redefine what activity means.
+GAIN_OF_SIGNAL = 1
+LOSS_OF_SIGNAL = -1
+
+#: A pseudotyped particle carries the named virus's spike on another viral
+#: core, so inhibiting its entry is evidence about ENTRY and not about
+#: replication of the authentic virus. It is weaker evidence than a
+#: cytopathic-effect assay and carries its own assay_type so a consumer can
+#: separate the two. Registered in docs/prereg_ncats_entry_assays.md.
+CELL_BASED_ANTIVIRAL = "cell_based_antiviral"
+CELL_BASED_PSEUDOTYPE_ENTRY = "cell_based_pseudotype_entry"
+
+SARS_COV = "NCBITaxon:694009"
+MERS_COV = "NCBITaxon:1335626"
+#: Cellosaurus: HEK293T (CVCL_0063) and Huh-7 (CVCL_0336).
+HEK293T = "CVCL:0063"
+HUH7 = "CVCL:0336"
+
+
+@dataclass(frozen=True)
+class AssaySpec:
+    """One NCATS assay, and everything about it that is NOT in its rows.
+
+    The file states efficacy, curve class and AC50. It does NOT state which
+    virus the assay is about, which direction means activity, which cell
+    line, or which counterscreen pairs with it -- and every one of those
+    changes the meaning of the numbers. They are declared here, beside each
+    other, so a new assay cannot be added by passing a path.
+    """
+
+    key: str
+    assay_name: str                  # as it appears in `assay_name`, lowercased
+    taxon: str
+    polarity: int                    # GAIN_OF_SIGNAL or LOSS_OF_SIGNAL
+    assay_type: str
+    cell_line: str
+    counterscreen_assay: str
+    publication: str = CPE_PUBLICATION
+    date: str = DEFAULT_DATE
+    virus_strain: str | None = None
+
+
+CPE = AssaySpec(
+    key="cpe",
+    assay_name=CANONICAL_ASSAY,
+    taxon=SARS_COV_2,
+    polarity=GAIN_OF_SIGNAL,
+    assay_type=CELL_BASED_ANTIVIRAL,
+    cell_line=VERO_E6,
+    counterscreen_assay=COUNTERSCREEN_ASSAY,
+    virus_strain="USA-WA1/2020",
+)
+
+#: The three entry assays, registered 2026-11-17 before this code existed.
+#: The enzymatic and binding assays on the same portal (3CL, RdRp, TMPRSS2,
+#: ACE2, Spike-ACE2) are REFUSED: they measure target engagement, and a
+#: compound that inhibits a protease in a tube has not been shown to inhibit
+#: a virus. They are absent from this table on purpose.
+PP_SARS_COV_2 = AssaySpec(
+    key="pp_sars_cov_2",
+    assay_name="sars-cov-2 pseudotyped particle entry",
+    taxon=SARS_COV_2,
+    polarity=LOSS_OF_SIGNAL,
+    assay_type=CELL_BASED_PSEUDOTYPE_ENTRY,
+    cell_line=HEK293T,
+    counterscreen_assay="sars-cov-2 pseudotyped particle entry (tox counterscreen)",
+)
+PP_SARS_COV = AssaySpec(
+    key="pp_sars_cov",
+    assay_name="sars-cov pseudotyped particle entry",
+    taxon=SARS_COV,
+    polarity=LOSS_OF_SIGNAL,
+    assay_type=CELL_BASED_PSEUDOTYPE_ENTRY,
+    cell_line=VERO_E6,
+    counterscreen_assay="sars-cov pseudotyped particle entry (veroe6 tox counterscreen)",
+)
+PP_MERS = AssaySpec(
+    key="pp_mers",
+    assay_name="mers pseudotyped particle entry",
+    taxon=MERS_COV,
+    polarity=LOSS_OF_SIGNAL,
+    assay_type=CELL_BASED_PSEUDOTYPE_ENTRY,
+    cell_line=HUH7,
+    counterscreen_assay="mers pseudotyped particle entry (huh7 tox counterscreen)",
+)
+
+ASSAYS: dict[str, AssaySpec] = {
+    s.key: s for s in (CPE, PP_SARS_COV_2, PP_SARS_COV, PP_MERS)}
 
 # NCATS qHTS curve classes (Inglese 2006). 1.x complete curve, 2.x incomplete
 # with one asymptote -- both are real concentration-response fits. 3 is
@@ -365,12 +477,77 @@ def curve_class(row: dict, cols: dict) -> tuple[str, int]:
     return raw.lstrip("+-"), sign
 
 
+class PolarityError(ValueError):
+    """A file's own rows disagree with the polarity declared for its assay.
+
+    Deliberately fatal, like ColumnError and for the same reason: a wrong
+    direction produces a release that validates, counts plausibly and
+    encodes the opposite conclusion. The remedy is to look at the file, not
+    to let the data pick a convention at runtime -- a truncated download
+    would then silently redefine activity.
+    """
+
+
+def observed_polarity(rows: list[dict], cols: dict,
+                      min_efficacy_pct: float = MIN_EFFICACY_PCT,
+                      ) -> tuple[int, int, int]:
+    """(sign, n_negative, n_positive) over this file's FITTED rows.
+
+    The sign is whichever direction the strong responders actually go, read
+    only from rows with a real concentration-response fit and an efficacy
+    at or beyond the threshold -- class 4 and the inconclusive classes say
+    nothing about direction and are excluded.
+
+    This does NOT decide the convention. It checks the declared one, so a
+    file that arrives re-exported with its sign flipped stops the build
+    rather than inverting every label in the layer.
+    """
+    neg = pos = 0
+    for row in rows:
+        cls, _sign = curve_class(row, cols)
+        if cls not in CURVE_CLASS_FITTED:
+            continue
+        eff = _f(row.get(cols["efficacy"]))
+        if eff is None or abs(eff) < min_efficacy_pct:
+            continue
+        if eff < 0:
+            neg += 1
+        else:
+            pos += 1
+    if neg == pos:
+        return 0, neg, pos
+    return (LOSS_OF_SIGNAL if neg > pos else GAIN_OF_SIGNAL), neg, pos
+
+
+def check_polarity(rows: list[dict], cols: dict, spec: AssaySpec,
+                   min_efficacy_pct: float = MIN_EFFICACY_PCT) -> tuple[int, int]:
+    """Refuse a file whose strong responders contradict its declared sign."""
+    got, neg, pos = observed_polarity(rows, cols, min_efficacy_pct)
+    if got == 0:
+        raise PolarityError(
+            f"{spec.key}: {neg} negative and {pos} positive strong responders, "
+            f"so the file states no direction. Declared "
+            f"{'loss' if spec.polarity < 0 else 'gain'}-of-signal; look at the "
+            f"file rather than letting it choose")
+    if got != spec.polarity:
+        raise PolarityError(
+            f"{spec.key} is declared "
+            f"{'loss' if spec.polarity < 0 else 'gain'}-of-signal and its own "
+            f"rows say the opposite: {neg:,} fitted responders at or beyond "
+            f"-{min_efficacy_pct:g}% efficacy against {pos:,} at or beyond "
+            f"+{min_efficacy_pct:g}%. One of the two is wrong and guessing "
+            f"here inverts every label in this assay")
+    return neg, pos
+
+
 def classify_row(row: dict, cols: dict, *, ac50_units: str,
                  conc_units: str | None = None,
                  tox_row: dict | None = None, tox_cols: dict | None = None,
                  tox_ac50_units: str = "uM",
                  min_efficacy_pct: float = MIN_EFFICACY_PCT,
                  inactive_at_nm: float = DEFAULT_INACTIVE_AT_NM,
+                 active_below_nm: float = DEFAULT_ACTIVE_BELOW_NM,
+                 spec: AssaySpec = CPE,
                  ) -> tuple[str | None, dict, str]:
     """One screen row -> (verdict, qualifiers, reason).
 
@@ -380,8 +557,9 @@ def classify_row(row: dict, cols: dict, *, ac50_units: str,
     relation ">" with the top concentration tested. That symmetry is the
     contract.
     """
-    quals: dict = {"assay_type": "cell_based_antiviral", "cell_line": VERO_E6,
-                   "virus_strain": "USA-WA1/2020"}
+    quals: dict = {"assay_type": spec.assay_type, "cell_line": spec.cell_line}
+    if spec.virus_strain:
+        quals["virus_strain"] = spec.virus_strain
     cls, sign = curve_class(row, cols)
     eff = _f(row.get(cols["efficacy"]))
     ac50 = to_nm(row.get(cols["ac50"]), ac50_units) if "ac50" in cols else None
@@ -412,12 +590,22 @@ def classify_row(row: dict, cols: dict, *, ac50_units: str,
     # ------------------------------------------- a real fit: which direction?
     if eff is None:
         return None, quals, "fitted_without_efficacy"
-    if eff < 0:
-        # THE TRAP. Gain-of-signal assay: a negative efficacy means the
-        # compound REDUCED viability. It has a clean AC50 and it is cytotoxic,
-        # not antiviral. Counted, never emitted.
+    # THE DIRECTION IS THE ASSAY'S AND NOT THIS MODULE'S. `eff` is multiplied
+    # by the declared polarity, so "active" always means beyond the threshold
+    # in the direction that assay calls inhibition: RAISING viability for
+    # CPE, LOWERING the entry reporter for a pseudotype. A single global sign
+    # test read all 1,004 fitted entry inhibitors as no effect, which is how
+    # this field came to exist.
+    signal = eff * spec.polarity
+    if signal < 0:
+        # THE TRAP, and it stays one under either polarity. For CPE a
+        # negative efficacy means the compound REDUCED viability -- a clean
+        # AC50, cytotoxic rather than antiviral. For an entry assay the
+        # mirror case is a compound that INCREASED entry. Counted, never
+        # emitted, and the reason keeps its original name so a run of either
+        # assay stays comparable with every run before this change.
         return None, quals, "negative_efficacy_cytotoxic"
-    if eff < min_efficacy_pct:
+    if signal < min_efficacy_pct:
         return None, quals, "below_min_efficacy"
     if ac50 is None or ac50 <= 0:
         # Fit and direction agree but no usable potency. `unquantified` is
@@ -425,6 +613,35 @@ def classify_row(row: dict, cols: dict, *, ac50_units: str,
         # than invent one.
         quals["relation"] = "="
         return "active", quals, "fitted_unquantified"
+
+    # ------------------------------- a fitted hit the threshold calls neither
+    # A COMPOUND THE ASSAY FITTED AS AN INHIBITOR IS NOT EVIDENCE OF
+    # INACTIVITY, and until 2026-11-17 it was counted as exactly that. This
+    # function returned "active" for any fitted hit, and `labels.classify`
+    # then read its own threshold off the emitted edge and returned
+    # "inactive" -- so 17 CPE compounds with EC50 between 11,220 and 25,119
+    # nM were negatives in every cell this layer feeds, which is a KNOWN
+    # weak inhibitor sitting in the class of non-inhibitors.
+    #
+    # It also broke this function's stated contract, two paragraphs up: the
+    # qualifiers are written so that labels.classify reaches the SAME
+    # verdict from the edge alone. It did not, and nothing checked it;
+    # tests/test_ncats.py now does, over every row of every assay.
+    #
+    # The refusal is NEITHER class, counted and named -- not "active"
+    # (above the threshold the project uses everywhere) and not "inactive"
+    # (the assay fitted a curve). Decided 2026-11-17 and recorded in
+    # docs/prereg_ncats_entry_assays.md as the amendment that followed P1
+    # failing.
+    #
+    # SCOPE, STATED: this is the NCATS layer only. The same question exists
+    # for ChEMBL -- a published "= 25 uM" becomes an inactive label there
+    # too -- over a much larger population, and it is NOT changed here and
+    # NOT measured. Filed rather than folded in.
+    if ac50 > active_below_nm:
+        quals["ec50_nm"] = ac50
+        quals["relation"] = "="
+        return None, quals, "weak_hit_above_active_threshold"
 
     quals["ec50_nm"] = ac50
     quals["relation"] = "="
@@ -435,6 +652,25 @@ def classify_row(row: dict, cols: dict, *, ac50_units: str,
             if "ac50" in tox_cols else None
         tcls, _ = curve_class(tox_row, tox_cols)
         if cc50 and cc50 > 0 and tcls in CURVE_CLASS_FITTED:
+            # CYTOTOXICITY IS A CONFOUND IN ONE DIRECTION ONLY, and that is
+            # why this refusal is tied to polarity rather than switched on
+            # per assay. In a LOSS-of-signal assay the readout is a reporter
+            # carried into the cell, so a compound that kills cells lowers
+            # it by exactly the route a compound that blocks entry does:
+            # cytotoxicity MIMICS the activity and is indistinguishable from
+            # it in the fitted curve. In the GAIN-of-signal CPE assay the
+            # two have opposite signs, so a cytotoxic compound is already
+            # refused above as `negative_efficacy_cytotoxic` and a second
+            # test here would be redundant -- which is why the CPE cell
+            # registered in prereg_structure_scorer.md does not move.
+            #
+            # Registered in docs/prereg_ncats_entry_assays.md before this
+            # code: "a compound whose counterscreen AC50 is at or below its
+            # antiviral AC50 is killing cells at the concentration where it
+            # works, and is REFUSED rather than called active."
+            if spec.polarity == LOSS_OF_SIGNAL and cc50 <= ac50:
+                quals["cc50_nm"] = cc50
+                return None, quals, "cytotoxic_at_or_below_ec50"
             quals["cc50_nm"] = cc50
             quals["selectivity_index"] = cc50 / ac50
             quals["selectivity_verified"] = True

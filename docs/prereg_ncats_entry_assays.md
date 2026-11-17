@@ -247,3 +247,110 @@ say a ranked compound works: an entry assay at 10 µM in a pseudotype system
 is a screening hit, not a drug. And it cannot repair the ChEMBL cells'
 exposure to publication selection -- it can only measure whether a different
 kind of label agrees.
+
+---
+
+# Amendment, 2026-11-17: P1 failed, and the reason was worth the registration
+
+**STILL BEFORE ANY AUC.** No score has been computed on any of these cells.
+This section is appended and replaces nothing above, because a registration
+edited to match what happened later is worth nothing.
+
+## What P1 said and what the built code gives
+
+P1 predicted the ingest would reproduce the four cells at the tabled sizes,
+"±0 compounds", and said that a different size means the ingest is wrong.
+It was half right and the half it got wrong was mine, not the code's.
+
+| cell | registered | built | positives | negatives |
+|---|---|---|---:|---:|
+| SARS-CoV-2 entry | 335 / 2,857 | 336 / 3,326 | **+1** | **+469** |
+| SARS-CoV entry | 97 / 1,614 | 97 / 1,778 | **0** | **+164** |
+| MERS-CoV entry | 73 / 2,059 | 73 / 2,098 | **0** | **+39** |
+
+**The positives hold.** Two cells match exactly. The +1 on SARS-CoV-2 is a
+duplicate `sample_id`: 44 compounds appear twice in that file, one pair at
+3.16 µM and 0.001 µM, and the reconnaissance filter and the layer resolved
+the pair differently. Replicate handling is the existing layer's
+(`replicate_disagreement`), not a new decision.
+
+**The negatives were wrong in my table, for two reasons, both of them mine.**
+
+1. The prose above registers that an INACTIVE "requires that the assay
+   reached a top concentration at or above 10 µM". **My table did not apply
+   that rule when it was computed** -- it counted every curve-class-4 row
+   with a structure. The layer applies it and refuses 52, 38 and 48 rows
+   respectively. The rule was registered correctly and the figure beside it
+   was not derived from it, which is this repository's most frequent defect
+   appearing inside its own pre-registration.
+2. **The larger half, and a real finding.** My table excluded compounds the
+   assay FITTED as inhibitors whose EC50 lands past the 10 µM threshold. The
+   pipeline did not exclude them -- it counted them as NEGATIVES.
+
+## The finding: a confirmed inhibitor was being counted as a non-inhibitor
+
+`ncats.classify_row` returned "active" for any fitted hit in the right
+direction. `labels.classify` then read the project's threshold off the
+emitted edge and returned "inactive". So a compound with a real
+concentration-response curve at 12-25 µM was a NEGATIVE in every cell this
+layer feeds.
+
+**It also broke the contract `classify_row`'s own docstring states** -- "the
+qualifiers are written so that labels.classify() reaches the SAME verdict
+from the emitted edge alone ... that symmetry is the contract" -- and
+nothing checked it. Measured on the existing CPE layer: **17 edges, EC50
+11,220 to 25,119 nM, 10 distinct compounds after normalisation.** On the
+three entry assays it would have been 596, 209 and 96 edges.
+
+**This is pre-existing and was not introduced by the entry assays.** It was
+found while adding them because they make it twenty times larger.
+
+## The decision taken — **DECISION, 2026-11-17**
+
+**A fitted hit past the active threshold is refused from BOTH classes,
+counted and named** (`weak_hit_above_active_threshold`). Not active: its
+potency is past the threshold the project applies everywhere. Not inactive:
+the assay fitted a curve, so calling it inactive asserts the opposite of
+what was measured. The refusal still records the EC50 it refused on, so the
+count can be audited rather than taken.
+
+**CONSEQUENCE FOR AN ALREADY-REGISTERED CELL, stated rather than buried.**
+`prereg_structure_scorer.md` fixes the secondary NCATS cell at **89
+positives against 7,343 negatives**. After this amendment it is **89 against
+7,333**: ten compounds leave the negative class and **no positive moves**.
+The paragraph above saying "the registered SARS-CoV-2 CPE cell is unchanged"
+was written before this was found and is superseded by this one. The
+direction is the conservative one -- it removes known inhibitors from the
+class of non-inhibitors -- and it slightly *reduces* that cell's power,
+which was already too low to reject.
+
+**SCOPE, FIXED HERE SO IT CANNOT GROW LATER.** This is the NCATS layer only.
+The identical question exists for ChEMBL -- a published "= 25 µM" with a
+stated relation becomes an inactive label there too -- over a population
+orders of magnitude larger. It is **not changed, not measured, and filed**
+rather than folded into this amendment, because changing `labels.classify`
+moves every cell in the project and that is a separate registration.
+
+## P1, restated
+
+- **P1a. The three entry cells' POSITIVE counts are 336, 97 and 73.**
+  Verified against the built layer.
+- **P1b. Their negative counts are not predicted here**, because the
+  label-level figure depends on structure normalisation and dedup that only
+  a rebuild produces. The edge-level counts are 2,805, 1,576 and 2,011 and
+  the refused weak hits are 596, 209 and 96.
+- **P1c. The CPE cell becomes 89 / 7,333.** Measured on the current release
+  by removing the ten compounds rather than predicted.
+
+Everything else above -- P2 through P5, the admission rule, the refusals,
+the correction family of four at alpha = 0.0125 -- is unchanged and still
+precedes any AUC.
+
+## What is pinned
+
+`tests/test_ncats.py::test_every_emitted_edge_classifies_the_way_the_layer_
+said_it_would` asserts the contract over **every row of every declared
+assay**, not a fixture -- the disagreement needs a real fitted curve whose
+potency lands past the threshold, and which rows do that is a property of
+the screen. It reports 17 disagreements against the module committed in
+`a9c05f9` and 0 against the module as amended.
