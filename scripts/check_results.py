@@ -160,11 +160,18 @@ def _report_release_drift(release) -> None:
     now = (code_commit() or {}).get("commit")
     if not now or commit == now:
         return
+    # THE LAST CLAUSE WAS A FACT WITH A SHELF LIFE, and it expired.
+    # It read "and the one time it was tried the graph had moved",
+    # which was true of the L27 rebuild and false from 2026-11-18, when
+    # a rebuild reproduced the release byte-identically (nodes_sha
+    # dc6d76a2b3cfb2a1, edges_sha 873623c9a9df2049, all 16 layer
+    # directories identical, 25m29s). A gate that prints an outdated
+    # fact teaches the reader to discount what it prints, so it now
+    # says only what it can know from the two commits it was handed.
     print(f"\nThis release was assembled at {commit[:12]} and HEAD is "
           f"{now[:12]}.\nThat is normal and is not a failure. It does mean "
           f"nothing here has shown\nthat the current code still produces "
-          f"this graph -- only a rebuild shows that,\nand the one time it "
-          f"was tried the graph had moved.")
+          f"this graph -- only a rebuild shows that.")
     if built.get("dirty"):
         print("The tree was DIRTY when it was assembled, so the commit "
               "above does not\nfully identify what built it.")

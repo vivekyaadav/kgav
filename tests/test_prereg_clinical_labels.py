@@ -270,3 +270,71 @@ def test_the_registration_claims_no_auc_while_no_results_file_exists(prereg):
         assert scores, (
             f"{[p.name for p in existing]} exists, so the registration's "
             "verdict section should now quote its figures")
+
+
+# ------------------------------------------------- the 2026-11-18 amendment
+def _amendment() -> str:
+    """The appended correction, or a failure saying it is missing."""
+    doc = PREREG.read_text()
+    marker = "# Amendment, 2026-11-18"
+    assert marker in doc, (
+        "this document asserts a reason for declining the rebuild that was "
+        "measured to be false; the correction must be appended")
+    return doc[doc.index(marker):]
+
+
+def test_the_falsified_sentence_is_corrected_and_not_deleted():
+    """A REGISTRATION IS APPENDED TO, NEVER REWRITTEN.
+
+    Both halves matter. If the original sentence were edited away, the
+    record would no longer show what was signed; if the amendment were
+    missing, the document would assert something the repository
+    disproves. So the wrong sentence must still be there AND be
+    answered below it.
+    """
+    doc = PREREG.read_text()
+    wrong = "would re-fetch BioGRID ORCS over the network"
+    assert wrong in doc, "the original claim was rewritten instead of amended"
+    tail = _amendment()
+    assert wrong in tail, "the amendment does not quote what it corrects"
+    assert "cache-first" in tail
+
+
+def test_fetch_screen_really_is_cache_first():
+    """THE CLAIM, DERIVED FROM THE CODE RATHER THAN FROM THE AMENDMENT.
+
+    A document correcting a document proves nothing. `fetch_screen` must
+    return a cached screen before it builds a URL, or the original
+    sentence was right after all and this amendment is the error.
+    """
+    src = (ROOT / "scripts" / "ingest_orcs.py").read_text()
+    body = src[src.index("def fetch_screen("):]
+    body = body[:body.index("\ndef ", 1)] if "\ndef " in body[1:] else body
+    read = body.index("read_text()")
+    url = body.index("urlopen")
+    assert read < url, (
+        "fetch_screen reaches the network before reading its cache, so the "
+        "amendment's cache-first claim is wrong")
+    assert "if f.exists()" in body
+
+
+def test_the_amendment_does_not_claim_the_decision_was_wrong():
+    """The decision held; only its stated reason was false. An amendment
+    that overcorrected into 'the deferral was a mistake' would misstate
+    the record in the other direction."""
+    tail = _amendment()
+    assert "THE DECISION WAS STILL RIGHT" in tail
+
+
+def test_the_rebuild_figure_is_the_measured_one():
+    """The amendment reports the rebuild it was declining. The runtime
+    and the two shas are facts, and the shas must match the release the
+    results on disk were measured against."""
+    tail = _amendment()
+    manifest = json.loads(
+        (ROOT / "data" / "releases" / "v0.1" / "MANIFEST.json").read_text())
+    for key in ("nodes_sha", "edges_sha"):
+        sha = manifest.get(key)
+        if sha:
+            assert sha in tail, (
+                f"the amendment names a {key} that is not the release's")

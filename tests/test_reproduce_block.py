@@ -72,6 +72,7 @@ WRITERS: list[tuple[str, str]] = [
     (r"^repurposing_candidates\.json$", "make repurposing-candidates"),
     (r"^clinical_labels\.json$", "make clinical-labels"),
     (r"^degree_weighting_sensitivity\.json$", "make degree-sensitivity"),
+    (r"^landscape_count_move\.json$", "make landscape-count-move"),
 ]
 
 

@@ -470,3 +470,68 @@ class because it is screened and now carries no curated indication. The
 refusal thresholds this document registered (150 positives, 1,000
 negatives) are met with room, and `clinical_labels.py` recounts and
 refuses rather than reporting a cell it did not register.
+
+
+---
+
+# Amendment, 2026-11-18: the reason this document gave for declining the rebuild was false
+
+**NOT AN AMENDMENT TO THE PROTOCOL.** No registered decision changes and
+no figure moves. This corrects a factual claim made above, in the
+section *A FULL REBUILD WAS DECLINED, AND THE REASON IS THE SAME
+CLAUSE*. A registration is appended to and never rewritten, so the
+sentence stands where it was written and is wrong there.
+
+## The sentence, and what is wrong with it
+
+> Re-running them would re-fetch BioGRID ORCS over the network, and a
+> newer screen index would change the graph in ways unrelated to this
+> ingest — which would confound the one comparison this label exists to
+> make.
+
+`scripts/ingest_orcs.py`'s `fetch_screen` is **cache-first**: it reads
+`data/raw/orcs/screens/screen_<sid>.json` when that file exists and only
+calls the API for a screen it does not have. All **81** screens are
+cached. Re-running the `orcs` layer alone reproduced its `edges.jsonl`
+hash `68306c710ed7eff0` **byte-identical in 6.07 seconds**, with no
+network call. Nothing would have been re-fetched, and no newer screen
+index could have entered the graph.
+
+**THE DECISION WAS STILL RIGHT. THE REASON WAS NEVER CHECKED.** What
+actually made the rebuild a bad idea at that moment was that
+`make auc-delta` compares the release on disk against `HEAD~1`, and
+`HEAD~1` was a release built by older code — so the gate could not
+distinguish a scorer regressing from a comparison spanning two label
+populations. Promoting the scratch assembly after the byte comparison
+preserved the one comparison this label was registered to make. That
+argument needs none of the ORCS claim, which is why the false sentence
+survived being read twice: it was decoration on a conclusion that held.
+
+## What it cost, and the rule it earns
+
+Nothing, in figures — and that is the point. An unchecked reason
+attached to a correct decision is harder to catch than a wrong decision,
+because the outcome vindicates it. It then becomes a cited fact: this
+sentence was repeated in `docs/v1_release_plan.md`'s open-work table as
+grounds for deferring the rebuild, so one unverified clause propagated
+into a second document and sat in the way of a 25-minute job for two
+sessions.
+
+**A reason given for a decision is a claim, and carries the same
+obligation as a figure.** If it is about what the code does, it is
+checkable by running the code.
+
+## The rebuild it was declining, now measured
+
+Run on 2026-11-18. **25m29s.** The release came back byte-identical —
+`nodes_sha dc6d76a2b3cfb2a1`, `edges_sha 873623c9a9df2049`, both
+unchanged — and so did all 16 layer directories. `rebuild_release.py
+--plan` now reports no layer "written by different code" and nothing
+UNSTAMPED, so the staleness detector reads as a detector again.
+`make auc-delta` PASSES: 157 claim-carrying cells, 0 stopped carrying a
+claim, 0 started, largest fall +0.0000 against a floor of -0.0100. The
+only diff in the tree was `MANIFEST.json`'s layer ordering.
+
+The 577 edges this document registered therefore cost nothing in the
+existing numbers, as the section *One effect on existing numbers* said
+they were expected to and declined to assert.

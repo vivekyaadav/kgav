@@ -617,3 +617,102 @@ is **not** explained by any of the five: none of them partners a
 SARS-CoV protein over `PHYSICALLY_INTERACTS_WITH`. That one remains
 open, and it is open against the entry-assay ingest rather than against
 the clinical one.
+
+---
+
+# Amendment, 2026-11-18: the one open cell is closed, and the note above looked in the wrong channel
+
+**NOT AN AMENDMENT TO THE PROTOCOL.** Nothing registered changes, no
+figure in `data/results` moves, and the verdict is untouched: still 0 of
+22 rows clearing Bonferroni. This closes the question the note above
+left open, and corrects two errors in how that note stated it.
+
+Measured by `scripts/diagnose_landscape_count_move.py`, artifact
+`data/results/landscape_count_move.json`, `make landscape-count-move`
+(6.7s). Derived by `tests/test_landscape_count_move.py`.
+
+## The note named the wrong channel, and the plan named the wrong virus
+
+Both are errors in the record rather than in the analysis, and both
+sent a reader looking where the answer could not be:
+
+- The note calls `NCBITaxon:31631` 62 -> 63 an **interactome** cell. It
+  is a **dependency** cell. OC43's interactome cell is 28 and did not
+  move. So the note's search for a new `PHYSICALLY_INTERACTS_WITH`
+  partner was conducted in a channel that cell never reads, and **no
+  result that search returned could have been the right one** — which
+  is why it came back with nothing and the cell stayed open.
+- `docs/v1_release_plan.md`'s open-work table called `NCBITaxon:31631`
+  **SARS-CoV**. `config/viruses.yaml` gives 31631 as **HCoV-OC43**;
+  SARS-CoV is 694009, whose cells are 167 and 63 and neither moved.
+
+The second error is the more instructive one. A taxon id is not
+self-describing, and this repository has already paid for that four
+times over in `virus_register.py`'s docstring. The test added here
+resolves every moved cell's name through `config/viruses.yaml` rather
+than accepting a name written in prose.
+
+## The mechanism, which the note did not state
+
+`overlap_row` computes
+
+    n_observed = len(targets & factors)
+
+where `targets` is the drugged proteome and `factors` is the cell's
+dependency or interactome set. **A cell can therefore move without any
+edge in its own channel changing**: it is enough that a protein already
+inside `factors` joins `targets`. The note reasoned about new edges,
+and both moves are instead intersection growth against a set that did
+not move at all.
+
+The drugged proteome went 1,939 -> 1,944, five joined, none left — and
+`diagnose_landscape_count_move.py` re-derives those five **by set
+difference over the two artifacts' recorded `members`**, obtaining
+exactly the five this document names above. That is an independent
+confirmation of a figure nobody could re-measure once the earlier
+release was overwritten, and it is what the member list in `operands`
+was added for.
+
+## Both cells, with a cause each
+
+    channel      taxon             virus       before  after   via
+    -----------------------------------------------------------------------
+    dependency   NCBITaxon:31631   HCoV-OC43       62     63   UniProtKB:Q16280
+    interactome  NCBITaxon:11084   TBEV             3      4   UniProtKB:Q92993
+
+Q92993 is the protein the note already named for TBEV. Its reasoning —
+that it "physically interacts with a TBEV protein" — is true, and is
+also not the mechanism: the interaction was there before, and what
+changed was Q92993 becoming drugged.
+
+## What makes this a measurement rather than a story that fits
+
+Two numbers can be explained by almost anything. The script states both
+falsifiers before it runs and reports them over **all 22 cells**:
+
+    moves with no operand cause               none
+    predicted moves that did not happen       none
+
+The second is the one that does the work. The operand difference
+predicts a nonzero delta in **exactly 2 of 22 cells**, and they are
+exactly the two that moved. Twenty cells predict zero and moved zero.
+Had the five proteins landed in a third cell's factor set, that cell
+would have had to move too, and this would have failed.
+
+An independent check on the same claim: if no channel edge changed,
+every cell's `n_dependency` — the size of `factors` — is identical
+across the two artifacts. **It is, in all 22**, including the 657 of
+OC43's dependency set and the 35 of TBEV's interactome set.
+
+## The controlled re-run is not needed
+
+The note named a controlled `ncats` re-run as the way to close this,
+and `docs/v1_release_plan.md` carried it as remaining work. **It is
+unnecessary.** The earlier artifact is in git (`57602d9`), it records
+the operand's members, and the factor sets are rebuilt from the release
+on disk — so the comparison the re-run would have produced is already
+available, at 6.7 seconds instead of a nine-minute layer rebuild on a
+release that no longer exists to be compared against.
+
+**SETTLED 2026-11-18. Both moved cells have a named cause, the cause is
+the same in both, and no edge in either channel changed.**

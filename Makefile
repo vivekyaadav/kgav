@@ -1,4 +1,4 @@
-.PHONY: identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
+.PHONY: identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
 
 install:
 	pip install -e ".[dev]"
@@ -291,6 +291,30 @@ kg-report-check:
 degree-sensitivity:
 	python scripts/diagnose_label_degree_weighting.py \
 	  --out data/results/degree_weighting_sensitivity.json $(ARGS)
+
+# WHY TWO LANDSCAPE CELLS MOVED, closing the question left open in
+# docs/prereg_pathway_overlap.md's note of 2026-11-17. MEASURED 6.7s: it
+# reads two recorded artifacts and builds the factor sets once. It needs
+# GIT, not a rebuild -- the earlier artifact comes from a revision, which
+# is the whole reason the controlled `ncats` re-run that note named is
+# unnecessary.
+#
+# IT IS IN THE REPRODUCE BLOCK, and the first draft of this comment
+# argued it should not be -- that comparing against a historical release
+# makes it a one-off. That was wrong, and the guard caught it: anything
+# under data/results is globbed by check-results and will be reported
+# stale with nothing able to refresh it, which is the state
+# tests/test_reproduce_block.py exists to prevent. The set-difference
+# mechanism also works across any two artifacts however many releases
+# apart, so the comparison stays valid as the before-side ages.
+#
+# IT EXITS 1 when the operand difference does not account for every move,
+# or when any cell's factor set changed size. That breaks the block on
+# purpose: it means an ingest moved a landscape count and nothing has
+# explained it yet.
+landscape-count-move:
+	python scripts/diagnose_landscape_count_move.py \
+	  --out data/results/landscape_count_move.json $(ARGS)
 
 # THE ONE INDEPENDENT LABEL AXIS, registered in advance by
 # docs/prereg_clinical_labels.md. One cell, family of one, alpha 0.05.

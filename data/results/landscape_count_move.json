@@ -1,0 +1,346 @@
+{
+  "drugged_proteome": {
+    "before": {
+      "n": 1939,
+      "sha256": "a3a9b0aac81557373b5eb83b859c654361d2ec1bfa1aec61125a54709bc9cc14"
+    },
+    "after": {
+      "n": 1944,
+      "sha256": "28d7721112315dbdf2819db34c77b0c63adbc79d24582596cfd968203403cdcc"
+    },
+    "joined": [
+      "UniProtKB:Q16280",
+      "UniProtKB:Q4FZB7",
+      "UniProtKB:Q86Y97",
+      "UniProtKB:Q92993",
+      "UniProtKB:Q9H7Z6"
+    ],
+    "left": []
+  },
+  "cells": {
+    "dependency|NCBITaxon:11060": {
+      "channel": "dependency",
+      "taxon": "NCBITaxon:11060",
+      "n_observed_before": 2,
+      "n_observed_after": 2,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 50,
+      "n_dependency_before": 50,
+      "n_dependency_after": 50,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "dependency|NCBITaxon:11082": {
+      "channel": "dependency",
+      "taxon": "NCBITaxon:11082",
+      "n_observed_before": 0,
+      "n_observed_after": 0,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 18,
+      "n_dependency_before": 18,
+      "n_dependency_after": 18,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "dependency|NCBITaxon:11137": {
+      "channel": "dependency",
+      "taxon": "NCBITaxon:11137",
+      "n_observed_before": 128,
+      "n_observed_after": 128,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 1367,
+      "n_dependency_before": 1367,
+      "n_dependency_after": 1367,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "dependency|NCBITaxon:1335626": {
+      "channel": "dependency",
+      "taxon": "NCBITaxon:1335626",
+      "n_observed_before": 59,
+      "n_observed_after": 59,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 678,
+      "n_dependency_before": 678,
+      "n_dependency_after": 678,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "dependency|NCBITaxon:2697049": {
+      "channel": "dependency",
+      "taxon": "NCBITaxon:2697049",
+      "n_observed_before": 383,
+      "n_observed_after": 383,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 3460,
+      "n_dependency_before": 3460,
+      "n_dependency_after": 3460,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "dependency|NCBITaxon:277944": {
+      "channel": "dependency",
+      "taxon": "NCBITaxon:277944",
+      "n_observed_before": 10,
+      "n_observed_after": 10,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 57,
+      "n_dependency_before": 57,
+      "n_dependency_after": 57,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "dependency|NCBITaxon:31631": {
+      "channel": "dependency",
+      "taxon": "NCBITaxon:31631",
+      "n_observed_before": 62,
+      "n_observed_after": 63,
+      "observed_delta": 1,
+      "predicted_delta": 1,
+      "n_factors": 657,
+      "n_dependency_before": 657,
+      "n_dependency_after": 657,
+      "joined_inside": [
+        "UniProtKB:Q16280"
+      ],
+      "left_inside": []
+    },
+    "dependency|NCBITaxon:64320": {
+      "channel": "dependency",
+      "taxon": "NCBITaxon:64320",
+      "n_observed_before": 76,
+      "n_observed_after": 76,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 815,
+      "n_dependency_before": 815,
+      "n_dependency_after": 815,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "interactome|NCBITaxon:11053": {
+      "channel": "interactome",
+      "taxon": "NCBITaxon:11053",
+      "n_observed_before": 11,
+      "n_observed_after": 11,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 53,
+      "n_dependency_before": 53,
+      "n_dependency_after": 53,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "interactome|NCBITaxon:11060": {
+      "channel": "interactome",
+      "taxon": "NCBITaxon:11060",
+      "n_observed_before": 40,
+      "n_observed_after": 40,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 271,
+      "n_dependency_before": 271,
+      "n_dependency_after": 271,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "interactome|NCBITaxon:11069": {
+      "channel": "interactome",
+      "taxon": "NCBITaxon:11069",
+      "n_observed_before": 6,
+      "n_observed_after": 6,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 33,
+      "n_dependency_before": 33,
+      "n_dependency_after": 33,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "interactome|NCBITaxon:11072": {
+      "channel": "interactome",
+      "taxon": "NCBITaxon:11072",
+      "n_observed_before": 1,
+      "n_observed_after": 1,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 7,
+      "n_dependency_before": 7,
+      "n_dependency_after": 7,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "interactome|NCBITaxon:11082": {
+      "channel": "interactome",
+      "taxon": "NCBITaxon:11082",
+      "n_observed_before": 4,
+      "n_observed_after": 4,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 6,
+      "n_dependency_before": 6,
+      "n_dependency_after": 6,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "interactome|NCBITaxon:11084": {
+      "channel": "interactome",
+      "taxon": "NCBITaxon:11084",
+      "n_observed_before": 3,
+      "n_observed_after": 4,
+      "observed_delta": 1,
+      "predicted_delta": 1,
+      "n_factors": 35,
+      "n_dependency_before": 35,
+      "n_dependency_after": 35,
+      "joined_inside": [
+        "UniProtKB:Q92993"
+      ],
+      "left_inside": []
+    },
+    "interactome|NCBITaxon:11137": {
+      "channel": "interactome",
+      "taxon": "NCBITaxon:11137",
+      "n_observed_before": 34,
+      "n_observed_after": 34,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 397,
+      "n_dependency_before": 397,
+      "n_dependency_after": 397,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "interactome|NCBITaxon:1335626": {
+      "channel": "interactome",
+      "taxon": "NCBITaxon:1335626",
+      "n_observed_before": 64,
+      "n_observed_after": 64,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 622,
+      "n_dependency_before": 622,
+      "n_dependency_after": 622,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "interactome|NCBITaxon:2697049": {
+      "channel": "interactome",
+      "taxon": "NCBITaxon:2697049",
+      "n_observed_before": 438,
+      "n_observed_after": 438,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 3494,
+      "n_dependency_before": 3494,
+      "n_dependency_after": 3494,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "interactome|NCBITaxon:277944": {
+      "channel": "interactome",
+      "taxon": "NCBITaxon:277944",
+      "n_observed_before": 32,
+      "n_observed_after": 32,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 311,
+      "n_dependency_before": 311,
+      "n_dependency_after": 311,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "interactome|NCBITaxon:290028": {
+      "channel": "interactome",
+      "taxon": "NCBITaxon:290028",
+      "n_observed_before": 25,
+      "n_observed_after": 25,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 279,
+      "n_dependency_before": 279,
+      "n_dependency_after": 279,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "interactome|NCBITaxon:31631": {
+      "channel": "interactome",
+      "taxon": "NCBITaxon:31631",
+      "n_observed_before": 28,
+      "n_observed_after": 28,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 289,
+      "n_dependency_before": 289,
+      "n_dependency_after": 289,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "interactome|NCBITaxon:64320": {
+      "channel": "interactome",
+      "taxon": "NCBITaxon:64320",
+      "n_observed_before": 47,
+      "n_observed_after": 47,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 353,
+      "n_dependency_before": 353,
+      "n_dependency_after": 353,
+      "joined_inside": [],
+      "left_inside": []
+    },
+    "interactome|NCBITaxon:694009": {
+      "channel": "interactome",
+      "taxon": "NCBITaxon:694009",
+      "n_observed_before": 167,
+      "n_observed_after": 167,
+      "observed_delta": 0,
+      "predicted_delta": 0,
+      "n_factors": 1238,
+      "n_dependency_before": 1238,
+      "n_dependency_after": 1238,
+      "joined_inside": [],
+      "left_inside": []
+    }
+  },
+  "n_cells": 22,
+  "moved": [
+    "dependency|NCBITaxon:31631",
+    "interactome|NCBITaxon:11084"
+  ],
+  "predicted_to_move": [
+    "dependency|NCBITaxon:31631",
+    "interactome|NCBITaxon:11084"
+  ],
+  "unexplained_moves": [],
+  "moves_predicted_that_did_not_happen": [],
+  "explains_every_move": true,
+  "cells_with_changed_factor_set": [],
+  "factor_sets_unchanged": true,
+  "measured_by": "scripts/diagnose_landscape_count_move.py",
+  "question_from": "docs/prereg_pathway_overlap.md",
+  "before_artifact": "57602d9:data/results/pathway_landscape.json",
+  "after_artifact": "/home/vikas/projects/kgav/data/results/pathway_landscape.json",
+  "before_measured_on": "2026-11-17",
+  "after_measured_on": "2026-11-17",
+  "mechanism": "n_observed = len(targets & factors); a cell moves when a protein already inside factors joins the drugged proteome, with no edge in its own channel changing",
+  "provenance": {
+    "release": {
+      "id": "v0.1",
+      "nodes_sha": "dc6d76a2b3cfb2a1",
+      "edges_sha": "873623c9a9df2049"
+    },
+    "code": {
+      "commit": "ffa75e7cc15fd7ff254aad972f61759a6dfc2113",
+      "dirty": true
+    },
+    "schema_version": "0.16.0",
+    "generated_utc": "2026-11-18T10:05:57+00:00"
+  }
+}

@@ -404,9 +404,32 @@ so the release is not taken for finished:
 | left | what it is |
 |---|---|
 | the paper | *What v1 is* names it as part of the release; nothing in this repository drafts it |
-| `SARS-CoV` interactome 62 → 63 | one unexplained count, attributed to the entry-assay ingest, needs a controlled `ncats` re-run since v0.1 was overwritten |
-| a clean rebuild | the layer stamps are older than the code because registering the `indications` layer edited `pipeline.py`; `make auc-delta` is only interpretable again after a rebuild that does not re-fetch ORCS over the network |
 | HCoV-NL63 / HCoV-HKU1 | no positives, so no cell; the only route is curation, and it is a large job |
+
+**TWO ROWS LEFT THIS TABLE ON 2026-11-18, and both were stated wrongly
+while they were in it.** They are recorded here rather than deleted,
+because what was wrong about them is the reusable part.
+
+*The unexplained count* was listed as `SARS-CoV` interactome 62 → 63
+needing a controlled `ncats` re-run. It is **HCoV-OC43** (`config/viruses.yaml`
+gives 31631 as OC43; SARS-CoV is 694009) and it is a **dependency** cell,
+not an interactome one. The re-run was never needed: `n_observed` is
+`len(targets & factors)`, both artifacts record the operand's members, and
+the earlier artifact is in git — so `make landscape-count-move` closes it
+in 6.7s. The operand difference predicts a nonzero delta in exactly 2 of
+22 cells and they are exactly the two that moved; no factor set changed
+size. Amended into `docs/prereg_pathway_overlap.md`, derived by
+`tests/test_landscape_count_move.py`.
+
+*The clean rebuild* is done — 25m29s, release byte-identical, all 16 layer
+directories byte-identical, `make auc-delta` PASS over 157 claim-carrying
+cells with 0 stopping and a largest fall of +0.0000. The reason given here
+for deferring it was **false**: `fetch_screen` is cache-first, all 81 ORCS
+screens are cached, and the layer alone reproduces `68306c710ed7eff0` in 6
+seconds. Nothing would have been re-fetched. Deferring was still right,
+because what mattered was that `auc-delta`'s two sides spanned different
+label populations — but that is not the reason this table gave, and the
+reason it gave was never checked.
 
 **TWO FIGURES IN THIS DOCUMENT WERE THE PREVIOUS RUN'S**, found the same
 way. `0.05964` and `3.96e-04` were asserted in the prose beneath a table

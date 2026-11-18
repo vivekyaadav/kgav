@@ -1875,6 +1875,21 @@ python scripts/calibrate.py          # which channels were evaluable, and why no
 #    no step here regenerates.
 make pathway-landscape
 
+#    WHY ANY LANDSCAPE CELL MOVED since the pre-entry-assay release. It
+#    reads the artifact just written and the same artifact at an earlier
+#    revision out of GIT, so it needs a repository rather than a rebuild.
+#    `n_observed` is `len(targets & factors)`, so a cell can move with no
+#    edge in its own channel changing -- which is how two moved cells came
+#    to be recorded with a cause that could not have been theirs
+#    (docs/prereg_pathway_overlap.md, amendment 2026-11-18). IT EXITS 1
+#    when the operand difference does not account for every move, or when
+#    any cell's factor set changed size, and that failure is the point:
+#    it means an ingest moved a count and nothing has explained it. Here
+#    rather than left to a reader for the usual reason -- check-results
+#    globs data/results and would report it stale while no step refreshed
+#    it.
+make landscape-count-move
+
 #    the shared-PMID confound, for the same reason. The 88.5% figure is why
 #    this document calls its own M1 result partly self-scoring, and until
 #    2026-11-02 it existed nowhere but that script's console output while

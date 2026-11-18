@@ -187,7 +187,7 @@ DIRECTORY LAYOUT
                       scripts/ingest_spine.py, so "one per source layer"
                       is true of the SCRIPTS and not of this directory.
     src/kgav/agent/   orchestrator, guards, tools, verify, llm
-    scripts/          77 entry points: 13 ingests, the assembler, the
+    scripts/          78 entry points: 13 ingests, the assembler, the
                       evaluation protocols, the diagnostics, the audits,
                       the two generated-report writers, and one shell
                       script (tier_spotcheck.sh)
