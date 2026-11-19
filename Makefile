@@ -1,4 +1,4 @@
-.PHONY: identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
+.PHONY: identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
 
 install:
 	pip install -e ".[dev]"
@@ -321,6 +321,23 @@ landscape-count-move:
 # It reads the release and the three scorer files read nothing from it;
 # it is in the reproduce block before scorer-table because
 # check-results audits data/results and nothing else regenerates this.
+# DOES THE SCORER PREDICT FORWARD. Registered in advance by
+# docs/prereg_temporal_structure_scorer.md, signed 2026-11-19 before any
+# AUC against a post-2021 label existed. Pre-2021 actives are the
+# reference set, post-2021 labels the evaluated population; the
+# statistic, fingerprint and interval are imported from
+# structure_scorer.py rather than copied.
+#
+# It reads data/releases/v0.1-train2021, which `make reproduce` builds in
+# step 1, so it must come after the temporal splits and does not depend
+# on the scorer protocols. It REFUSES -- writing a refusal record, not
+# numbers -- if the split is stale against the release, if the evaluable
+# cell count is not the registered 10, or if fingerprint coverage drops
+# below 95%.
+temporal-structure-scorer:
+	python scripts/temporal_structure_scorer.py \
+	  --out data/results/temporal_structure_scorer.json $(ARGS)
+
 clinical-labels:
 	python scripts/clinical_labels.py $(ARGS)
 

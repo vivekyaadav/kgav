@@ -166,7 +166,8 @@ def test_the_registered_operand_is_the_one_the_release_gives():
     rd = release_dir(ROOT)
     if not (rd / "nodes.jsonl").exists():
         pytest.skip("no assembled release on disk")
-    g = Graph.load(rd, symmetry=load_schema().symmetry())
+    g = Graph.load(rd, skip_predicates=None,
+                   symmetry=load_schema().symmetry())
     drugged = len(PL.drug_targets(g))
     declared = declared_drugged_operand()
     assert drugged == declared, (

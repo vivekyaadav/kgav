@@ -208,3 +208,109 @@ def test_with_no_registered_run_it_refuses_rather_than_listing(
         "a refusal that does not say how to satisfy it is a dead end")
     assert not (tmp_path / "out.json").exists(), (
         "it refused and wrote a file anyway")
+
+
+# ------------------------------------------- the 2026-11-19 tiering and L7
+@pytest.fixture(scope="module")
+def results() -> dict:
+    if not RESULTS.exists():
+        pytest.skip("the shortlist has not been generated on this checkout")
+    return json.loads(RESULTS.read_text())
+
+
+def _tiered_rows(res: dict):
+    """Every suggestion in the artifact, with its cell."""
+    for taxon, cell in res["viruses"].items():
+        for row in cell["suggestions"]:
+            yield taxon, cell, row
+
+
+def test_every_suggestion_declares_a_clinical_tier(results):
+    """A list that mixes an approved drug with a research analog and
+    says which is which answers two questions; one that does not
+    answers neither."""
+    for _t, _c, row in _tiered_rows(results):
+        assert row.get("phase_tier") in R.TIERS, row
+
+
+def test_the_approved_tier_is_exactly_the_approved_flag(results):
+    """phase_tier must not drift from the field the rest of the script
+    and its tests read."""
+    for _t, _c, row in _tiered_rows(results):
+        assert (row["phase_tier"] == "approved") == bool(row["is_approved"])
+
+
+def test_an_absent_max_phase_is_research_and_not_promoted(results):
+    """20,626 of 25,243 compounds carry no max_phase. Unknown maturity
+    must read as research; treating it as clinical would put the bulk of
+    the pool in the tier a lab acts on first."""
+    assert R._phase_tier({}) == "research"
+    assert R._phase_tier({"max_phase": None}) == "research"
+    assert R._phase_tier({"max_phase": "not a number"}) == "research"
+    assert R._phase_tier({"max_phase": 0}) == "research"
+    assert R._phase_tier({"max_phase": 2}) == "clinical"
+    assert R._phase_tier({"max_phase": 4}) == "clinical"   # flag decides
+    assert R._phase_tier({"is_approved": True}) == "approved"
+
+
+def test_the_pool_is_not_restricted_to_approved_compounds(results):
+    """THE POINT OF TIERING RATHER THAN FILTERING. Every small molecule
+    is still scored; what changed is that the window no longer belongs
+    to whichever tier happens to rank highest."""
+    assert results["approved_only"] is False
+    tiers = {row["phase_tier"] for _t, _c, row in _tiered_rows(results)}
+    assert "research" in tiers, (
+        "no research compound survived, so the pool was restricted after "
+        "all")
+
+
+def test_each_tier_is_ranked_on_the_same_statistic(results):
+    """Tiering changes WHICH rows are shown, never their score. Within a
+    tier the order must still be descending Tanimoto."""
+    for taxon, cell in results["viruses"].items():
+        for tier in R.TIERS:
+            tc = [r["tanimoto"] for r in cell["suggestions"]
+                  if r["phase_tier"] == tier]
+            assert tc == sorted(tc, reverse=True), f"{taxon}/{tier}"
+
+
+def test_a_tier_is_capped_and_cannot_crowd_the_others_out(results):
+    """Before tiering, SARS-CoV-2's top 60 by Tanimoto held 0 approved
+    and 0 named compounds: ~25,000 research analogs outranked every drug
+    a lab could order. No tier may exceed its own cap."""
+    cap = results["top"]
+    for taxon, cell in results["viruses"].items():
+        for tier in R.TIERS:
+            n = sum(1 for r in cell["suggestions"]
+                    if r["phase_tier"] == tier)
+            assert n <= cap, f"{taxon}/{tier}: {n} > {cap}"
+
+
+def test_the_reported_graph_degree_does_not_count_held_out_labels():
+    """L7, AT THE POINT THE SHORTLIST IS READ.
+
+    DERIVED FROM THE RELEASE, not from the script. Until 2026-11-19 this
+    script loaded the graph without `skip_predicates`, so
+    `degree_unlabelled` was `degree` and the column counted the labels
+    the shortlist exists to predict: 163 of 195 reported degrees were
+    inflated, and 78 of 195 compounds the graph does not reach were
+    printed as reached. A comment above the field already claimed the
+    labels were excluded, which is why nothing failed.
+    """
+    from kgav.baselines import Graph
+    from kgav.schema import load_schema
+
+    release = ROOT / "data" / "releases" / "v0.1"
+    if not (release / "edges.jsonl").exists():
+        pytest.skip("no assembled release")
+    res = json.loads(RESULTS.read_text())
+    schema = load_schema()
+    g = Graph.load(release, skip_predicates=schema.held_out_predicates(),
+                   symmetry=schema.symmetry())
+    wrong = [(c["name"], r["chembl_id"], r["graph_degree"],
+              g.degree_unlabelled.get(r["candidate"], 0))
+             for _t, c, r in _tiered_rows(res)
+             if r["graph_degree"] != g.degree_unlabelled.get(r["candidate"], 0)]
+    assert not wrong, (
+        "reported graph_degree disagrees with the label-free degree for "
+        f"{len(wrong)} suggestion(s); first few: {wrong[:5]}")

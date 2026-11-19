@@ -252,6 +252,39 @@ def molecules(release: Path) -> dict[str, dict]:
     return out
 
 
+#: Clinical maturity, most actionable first. A lab asking "what can we
+#: test next week" and a chemist asking "what should we make" are
+#: different questions about the SAME ranking, and one list answers both
+#: only if it says which rows are which.
+TIERS = ("approved", "clinical", "research")
+
+#: Printed above each tier's block, so a reader knows what changed
+#: between them is clinical maturity and NOT the score.
+_TIER_BANNER = {
+    "approved": "APPROVED DRUGS -- orderable now",
+    "clinical": "IN CLINICAL DEVELOPMENT (ChEMBL max_phase 1-3)",
+    "research": "RESEARCH COMPOUNDS -- mostly analogs of the known actives",
+}
+
+
+def _phase_tier(prop: dict) -> str:
+    """Which tier a compound belongs to.
+
+    `is_approved` and `max_phase == 4` are not quite the same set (1,676
+    against 1,680 on v0.1), so the approved flag wins where they differ:
+    it is the field the rest of this script and its tests already read.
+    `max_phase` is absent on 20,626 of 25,243 compounds, and absent means
+    research -- not unknown-and-therefore-promoted.
+    """
+    if prop.get("is_approved"):
+        return "approved"
+    try:
+        phase = float(prop.get("max_phase"))
+    except (TypeError, ValueError):
+        return "research"
+    return "clinical" if phase >= 1 else "research"
+
+
 def _heavy_delta(a: str | None, b: str | None) -> int | None:
     """Heavy atoms in `a` minus heavy atoms in `b`, or None if either is
     unparseable. A ring homolog reads 1; a residue permutation reads 0, and
@@ -351,8 +384,27 @@ def suggest(candidates: list[str], actives: list[str], fps: dict,
                      "nearest_active": ref_ids[best_i],
                      "nearest_active_chembl":
                          props.get(ref_ids[best_i], {}).get("chembl_id")})
+        rows[-1]["max_phase"] = props.get(c, {}).get("max_phase")
+        rows[-1]["phase_tier"] = _phase_tier(props.get(c, {}))
     rows.sort(key=lambda r: -r["tanimoto"])
-    return rows[:top]
+
+    # TOP `top` WITHIN EACH TIER, NOT top overall. THE POOL IS NOT
+    # RESTRICTED -- every small molecule is still scored and still
+    # eligible -- but a single max-Tanimoto ranking never surfaces a drug
+    # anyone can order. Measured on SARS-CoV-2 on 2026-11-19: of the top
+    # 60 by Tanimoto, 35 are >= 0.90, the lowest is 0.874, and ZERO are
+    # approved or even named. ~25,000 research analogues outrank every
+    # approved compound, so a reader of the top of this list sees the
+    # same scaffold sixty times and concludes the method found nothing.
+    #
+    # Tiering is not a second protocol and changes no score: the ranking
+    # inside each tier is the identical statistic, and the cell's verdict
+    # still gates whether any list is printed at all.
+    out: list[dict] = []
+    for tier in TIERS:
+        out.extend([r for r in rows if r["phase_tier"] == tier][:top])
+    out.sort(key=lambda r: (TIERS.index(r["phase_tier"]), -r["tanimoto"]))
+    return out
 
 
 def main(argv=None) -> int:
@@ -394,7 +446,19 @@ def main(argv=None) -> int:
 
     props = molecules(args.release)
     schema = load_schema()
-    g = Graph.load(args.release, symmetry=schema.symmetry())
+    # skip_predicates IS LOAD-BEARING HERE, and its absence was a defect
+    # until 2026-11-19. This script reports `graph_degree` per suggestion
+    # from g.degree_unlabelled, and on a graph loaded without this
+    # argument that counter is identical to `degree` -- so the column
+    # said how connected a compound is while counting the held-out
+    # labels the shortlist exists to predict. Measured on the committed
+    # artifact: 163 of 195 reported degrees were inflated, and 78 of 195
+    # compounds the graph does not reach at all were printed as reached.
+    # The ranking is max-Tanimoto and never moved; what moved is what a
+    # reader of the shortlist believes about each row.
+    g = Graph.load(args.release,
+                   skip_predicates=schema.held_out_predicates(),
+                   symmetry=schema.symmetry())
     labels = build_labels(args.release)          # every source: more actives
     names = virus_names()
 
@@ -548,9 +612,13 @@ def main(argv=None) -> int:
             r["name"] = pref.get(r["chembl_id"] or "")
             r["nearest_active_name"] = pref.get(
                 r["nearest_active_chembl"] or "")
-        print(f"  {'#':>2}  {'compound':<30} {'appr':<5} {'Tc':>6} "
+        print(f"  {'#':>2}  {'compound':<30} {'tier':<9} {'Tc':>6} "
               f"{'deg':>5}  resembles")
+        last_tier = None
         for n, r in enumerate(rows, 1):
+            if r["phase_tier"] != last_tier:
+                last_tier = r["phase_tier"]
+                print(f"  -- {_TIER_BANNER[last_tier]}")
             cid = r["chembl_id"] or r["candidate"].split(":", 1)[1][:14]
             shown = r["name"] or cid
             near = (r["nearest_active_name"] or r["nearest_active_chembl"]
@@ -566,17 +634,33 @@ def main(argv=None) -> int:
                            if d else "same atom count: a permutation")
                         + "; NOT the same compound")
             print(f"  {n:>2}  {shown[:30]:<30} "
-                  f"{'YES' if r['is_approved'] else '-':<5}"
+                  f"{r['phase_tier']:<9}"
                   f" {r['tanimoto']:>6.3f} {r['graph_degree']:>5,}  "
                   f"{near[:28]}{flag}")
         if rows:
             n_appr = sum(1 for r in rows if r["is_approved"])
             n_reach = sum(1 for r in rows if r["graph_degree"])
-            print(f"\n  {n_appr} of the top {len(rows)} are approved drugs; "
-                  f"{n_reach} carry any non-label graph edge at all.")
+            by = {t: sum(1 for r in rows if r["phase_tier"] == t)
+                  for t in TIERS}
+            print(f"\n  {len(rows)} shown: "
+                  + ", ".join(f"{by[t]} {t}" for t in TIERS) + ".")
+            # WHAT THE GRAPH ADDS, COUNTED RATHER THAN IMPLIED. Until
+            # 2026-11-19 this line read the held-out labels and reported
+            # every candidate as reached; the true figure on the committed
+            # artifact was 117 of 195. A suggestion with degree 0 rests on
+            # chemistry alone and the graph has nothing to add about it.
+            print(f"  {n_appr} are approved drugs; {n_reach} of {len(rows)} "
+                  f"carry any non-label graph edge at all.")
             n_same = sum(1 for r in rows if r.get("fingerprint_identical"))
-            print(f"  Highest Tc {rows[0]['tanimoto']:.3f}, lowest shown "
-                  f"{rows[-1]['tanimoto']:.3f}.")
+            # PER TIER. rows is now sorted by (tier, -Tc), so rows[0]
+            # and rows[-1] are the top of the first tier and the bottom
+            # of the last -- which printed "Highest Tc 0.723, lowest
+            # shown 0.925" the first time this ran. A summary line that
+            # contradicts the table above it is worse than no summary.
+            for t in TIERS:
+                tc = [r["tanimoto"] for r in rows if r["phase_tier"] == t]
+                if tc:
+                    print(f"  {t:<9} Tc {max(tc):.3f} down to {min(tc):.3f}")
             if n_same:
                 print(f"  {n_same} of them share the active's ECFP4 bits "
                       f"EXACTLY while being a different structure -- read "

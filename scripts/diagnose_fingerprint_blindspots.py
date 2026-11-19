@@ -88,7 +88,11 @@ def main(argv=None) -> int:
     k_map = S.k_cells_from_prior(prior)
 
     schema = load_schema()
-    g = Graph.load(release, symmetry=schema.symmetry())
+    # None, STATED RATHER THAN OMITTED. This script reads g.nodes for a
+    # display name and nothing else -- no traversal, no degree -- so the
+    # held-out edges cannot reach any figure it prints.
+    g = Graph.load(release, skip_predicates=None,
+                   symmetry=schema.symmetry())
     props = S.small_molecule_props(release)
     pubs = {k: frozenset(v) for k, v in label_publication_index(
         release, {S.ACTIVITY_PREDICATE}).items()}

@@ -76,7 +76,8 @@ def _release(tmp_path: Path, n_drugged=6, n_undrugged=10, n_deps=4) -> Path:
 def _graph(rel: Path):
     from kgav.baselines import Graph
     from kgav.schema import load_schema
-    return Graph.load(rel, symmetry=load_schema().symmetry())
+    return Graph.load(rel, skip_predicates=None,
+                      symmetry=load_schema().symmetry())
 
 
 # ----------------------------------------------------------------- census
@@ -587,7 +588,8 @@ def test_degree_bins_breaks_ties_on_the_node_id(tmp_path):
         f"L = import_module('pathway_landscape');"
         f"from kgav.baselines import Graph;"
         f"from kgav.schema import load_schema;"
-        f"g = Graph.load({str(rel)!r}, symmetry=load_schema().symmetry());"
+        f"g = Graph.load({str(rel)!r}, skip_predicates=None, "
+        f"symmetry=load_schema().symmetry());"
         f"print(json.dumps(sorted(L.degree_bins(g, L.human_proteins(g))"
         f".items())))"
     )

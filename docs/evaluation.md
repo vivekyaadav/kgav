@@ -1948,6 +1948,19 @@ make degree-sensitivity
 #    in-vitro assay.
 make clinical-labels
 
+#    DOES IT PREDICT FORWARD. Registered in advance by
+#    docs/prereg_temporal_structure_scorer.md, signed 2026-11-19. It
+#    reads the 2021 split built in step 1 -- pre-2021 actives as the
+#    reference set, post-2021 labels as the evaluated population -- so
+#    it must follow the splits and depends on none of the scorer
+#    protocols above. Everything else in this block is retrospective:
+#    known actives separated from known inactives measured at the same
+#    time. This is the only cell that asks whether the separation
+#    transfers. It REFUSES rather than reporting numbers if the split is
+#    stale, if the family is not the registered 10, or if fingerprint
+#    coverage falls below 95%, and a refusal exits 1.
+make temporal-structure-scorer
+
 #    EVERY SCORER AUC, EVERY VIRUS, SIDE BY SIDE -- each protocol against
 #    its own degree baseline, in docs/scorer_aucs.txt. It computes nothing
 #    and reads the three files written just above, so it goes last among

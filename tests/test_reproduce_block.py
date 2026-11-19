@@ -73,6 +73,7 @@ WRITERS: list[tuple[str, str]] = [
     (r"^clinical_labels\.json$", "make clinical-labels"),
     (r"^degree_weighting_sensitivity\.json$", "make degree-sensitivity"),
     (r"^landscape_count_move\.json$", "make landscape-count-move"),
+    (r"^temporal_structure_scorer\.json$", "make temporal-structure-scorer"),
 ]
 
 

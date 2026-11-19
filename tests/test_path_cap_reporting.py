@@ -83,7 +83,8 @@ def _graph2(tmp_path: Path, n_prot: int, n_path: int) -> Graph:
                           "primary_knowledge_source": "infores:reactome"})
     (rel / "nodes.jsonl").write_text("\n".join(json.dumps(x) for x in nodes))
     (rel / "edges.jsonl").write_text("\n".join(json.dumps(x) for x in edges))
-    return Graph.load(rel, symmetry=load_schema().symmetry())
+    return Graph.load(rel, skip_predicates=None,
+                      symmetry=load_schema().symmetry())
 
 
 def _graph(tmp_path: Path, n_targets: int) -> Graph:
@@ -109,7 +110,8 @@ def _graph(tmp_path: Path, n_targets: int) -> Graph:
                       "primary_knowledge_source": "infores:chembl"})
     (rel / "nodes.jsonl").write_text("\n".join(json.dumps(x) for x in nodes))
     (rel / "edges.jsonl").write_text("\n".join(json.dumps(x) for x in edges))
-    return Graph.load(rel, symmetry=load_schema().symmetry())
+    return Graph.load(rel, skip_predicates=None,
+                      symmetry=load_schema().symmetry())
 
 
 def test_a_complete_walk_reports_not_truncated(tmp_path):

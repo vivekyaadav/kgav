@@ -24,6 +24,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from collections import Counter  # noqa: E402
 from kgav.baselines import Graph, degree_ranking  # noqa: E402
 from kgav.schema import load_schema  # noqa: E402
 
@@ -32,7 +33,9 @@ def test_degree_ranking_refuses_a_graph_that_skipped_nothing():
     """The contract enforced where it matters, not where it is written."""
     g = Graph()
     g.degree["INCHIKEY:A"] = 3
-    g.degree_unlabelled["INCHIKEY:A"] = 3
+    # the PRIVATE counter: the public one is a property that refuses on
+    # exactly this graph, which is the guard added beneath this test.
+    g._degree_unlabelled["INCHIKEY:A"] = 3
     with pytest.raises(ValueError, match="answer sheet"):
         degree_ranking(g)
 
@@ -52,7 +55,7 @@ def test_load_records_what_it_was_asked_to_skip(tmp_path):
     (rel / "edges.jsonl").write_text("")
     g = Graph.load(rel, skip_predicates={"TREATS"}, symmetry={})
     assert g.skipped_predicates == frozenset({"TREATS"})
-    g2 = Graph.load(rel, symmetry={})
+    g2 = Graph.load(rel, skip_predicates=None, symmetry={})
     assert g2.skipped_predicates == frozenset()
 
 
@@ -120,3 +123,100 @@ def test_the_amendment_states_the_invariant_and_the_invariant_holds():
     assert len(passing) > 1, (
         "only one script passes held_out_predicates(), so 'every other "
         "caller' describes nothing and the amendment's argument is vacuous")
+
+
+# ---------------------------------------------- the 2026-11-19 class guards
+def test_degree_unlabelled_refuses_when_nothing_was_skipped(tmp_path):
+    """THE LIE, GUARDED AT THE POINT IT IS TOLD.
+
+    On a graph loaded with no skip, this counter IS `degree`, so the name
+    is false. The refusal added on 2026-11-17 was put on `degree_ranking`
+    alone, and two days later `repurposing_candidates.py` was found
+    reading the counter one level down and publishing a shortlist whose
+    graph-evidence column counted the held-out labels.
+    """
+    rel = tmp_path / "r"
+    rel.mkdir()
+    (rel / "nodes.jsonl").write_text("")
+    (rel / "edges.jsonl").write_text("")
+    g = Graph.load(rel, skip_predicates=None, symmetry={})
+    with pytest.raises(ValueError, match="identical to degree"):
+        _ = g.degree_unlabelled
+    # and it is readable the moment the caller has actually skipped
+    ok = Graph.load(rel, skip_predicates={"TREATS"}, symmetry={})
+    assert ok.degree_unlabelled == Counter()
+
+
+def test_graph_load_refuses_to_guess_skip_predicates(tmp_path):
+    """A CONTRACT A CALLER CAN FORGET IS NOT A CONTRACT.
+
+    The old signature defaulted to None, so a caller who never thought
+    about held-out edges got a graph where they are traversable. Omitting
+    it is now an error; passing None is a decision and is allowed.
+    """
+    rel = tmp_path / "r"
+    rel.mkdir()
+    (rel / "nodes.jsonl").write_text("")
+    (rel / "edges.jsonl").write_text("")
+    with pytest.raises(TypeError, match="requires skip_predicates"):
+        Graph.load(rel, symmetry={})
+    assert Graph.load(rel, skip_predicates=None,
+                      symmetry={}).skipped_predicates == frozenset()
+
+
+def test_every_graph_load_in_the_repository_states_its_choice():
+    """THE GENERAL FORM. The guards above fail a forgotten argument at
+    runtime; this fails one at review time, including in a script no
+    test happens to execute.
+
+    AST, NOT A REGEX. The first draft scanned the source text and
+    reported six hits, every one of them the string "Graph.load(" inside
+    a comment or a docstring -- including the docstrings of the two
+    guards themselves. A checker that cannot tell code from prose about
+    code fails on the documentation that explains it.
+    """
+    import ast
+    bad = []
+    for d in ("scripts", "src", "tests"):
+        for p in sorted((ROOT / d).rglob("*.py")):
+            tree = ast.parse(p.read_text(), filename=str(p))
+            # ALIASES COUNT. tests/test_baselines.py imports
+            # `Graph as G` and calls `G.load(...)`; the first version of
+            # this check looked for the literal name `Graph` and walked
+            # straight past it, so nine tests failed at runtime on a
+            # guard this was supposed to have caught at review time.
+            aliases = {"Graph"}
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom):
+                    aliases |= {a.asname for a in node.names
+                                if a.name == "Graph" and a.asname}
+            # A CALL WRITTEN TO PROVE THE REFUSAL IS NOT A FORGOTTEN
+            # ARGUMENT. The test directly above omits skip_predicates on
+            # purpose, inside pytest.raises, so those line ranges are
+            # exempt -- and only those. Exempting the file instead would
+            # have switched the check off for every other call in it.
+            proving = set()
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.With):
+                    continue
+                if not any("raises" in ast.dump(i.context_expr)
+                           for i in node.items):
+                    continue
+                proving.update(range(node.lineno, (node.end_lineno or
+                                                   node.lineno) + 1))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                f = node.func
+                if not (isinstance(f, ast.Attribute) and f.attr == "load"
+                        and isinstance(f.value, ast.Name)
+                        and f.value.id in aliases):
+                    continue
+                if any(k.arg == "skip_predicates" for k in node.keywords):
+                    continue
+                if node.lineno in proving:
+                    continue
+                bad.append(f"{p.relative_to(ROOT)}:{node.lineno}")
+    assert not bad, (
+        "these Graph.load calls do not say what to do with the held-out "
+        "predicates:\n  " + "\n  ".join(bad))

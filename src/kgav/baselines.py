@@ -29,6 +29,23 @@ from pathlib import Path
 
 from kgav.schema import parse_hop
 
+
+class _Unset:
+    """The absence of an argument, told apart from passing None.
+
+    `Graph.load(skip_predicates=None)` is a caller SAYING it wants every
+    predicate. Not passing the argument is a caller not having thought
+    about it. Those are different, and conflating them is how five
+    scripts ended up traversing held-out label edges, so the default
+    cannot be None and cannot be a set either.
+    """
+
+    def __repr__(self) -> str:  # pragma: no cover - display only
+        return "<unset>"
+
+
+UNSET = _Unset()
+
 DEFAULT_W = 0.4
 
 # THE FRONTIER CAP, measured rather than chosen. walk_metapath stops
@@ -112,7 +129,11 @@ class Graph:
         #: the held-out ones. Read by degree_ranking, the null hypothesis,
         #: which must not see the answer sheet. See the long note in
         #: from_release for why this is separate from `degree`.
-        self.degree_unlabelled: Counter = Counter()
+        #:
+        #: PRIVATE, AND READ THROUGH THE PROPERTY BELOW. load() fills this
+        #: one; everybody else goes through `degree_unlabelled`, which
+        #: refuses when nothing was skipped. See that property.
+        self._degree_unlabelled: Counter = Counter()
         # predicate -> symmetric, straight from the schema. A predicate absent
         # here has no declared symmetry and MUST NOT be traversed: see
         # neighbours().
@@ -129,6 +150,42 @@ class Graph:
         #: use site: a present predicate can still be missing the subset
         #: a metapath walks.
         self.predicate_sources: Counter = Counter()
+
+    @property
+    def degree_unlabelled(self) -> Counter:
+        """Degree with the held-out predicates taken out -- or a refusal.
+
+        WHY THIS IS A PROPERTY AND NOT A COUNTER. On a graph loaded with
+        no `skip_predicates`, nothing was taken out, so this counter is
+        byte-for-byte `degree` and the NAME IS A LIE. A caller reading it
+        believes it has the labels out; it has them in.
+
+        That is not hypothetical. `degree_ranking` was given an explicit
+        refusal on 2026-11-17 after the degree comparator was found
+        ranking three quarters of the compounds by how often they appear
+        in the answer sheet. The refusal was put on `degree_ranking`
+        alone, and on 2026-11-19 `scripts/repurposing_candidates.py` was
+        found doing the same thing one level down: it loads without
+        `skip_predicates`, reads this counter, and published a shortlist
+        in which 163 of 195 reported degrees were inflated and 78 of 195
+        compounds the graph does not reach at all were printed as
+        reached. The guard belonged here, where the lie is told, rather
+        than on one of its readers.
+
+        A caller that wants degree WITH the labels in has `degree`, and
+        saying so is one word. A caller that wants them out passes
+        `skip_predicates` and gets them out. There is no third thing this
+        property could usefully return.
+        """
+        if not self.skipped_predicates:
+            raise ValueError(
+                "degree_unlabelled on a graph loaded with no "
+                "skip_predicates is identical to degree, so the name is "
+                "false: nothing was unlabelled. Load with "
+                "Graph.load(..., skip_predicates=schema."
+                "held_out_predicates()) to take the held-out edges out, "
+                "or read g.degree if you meant to leave them in.")
+        return self._degree_unlabelled
 
     def neighbours(self, predicate: str, node: str, reverse: bool = False
                    ) -> list[tuple[str, dict]]:
@@ -162,10 +219,26 @@ class Graph:
         return (self.inv if reverse else self.out).get((predicate, node), [])
 
     @classmethod
-    def load(cls, release: Path, skip_predicates: set[str] | None = None,
+    def load(cls, release: Path, skip_predicates: set[str] | None | _Unset = UNSET,
              symmetry: dict[str, bool] | None = None,
              drop_pubs_shared_with: dict[str, set[str]] | None = None) -> Graph:
         """Build the traversal graph.
+
+        `skip_predicates` HAS NO DEFAULT, and that is the point. It used
+        to default to the empty set, which meant a caller who never
+        thought about held-out edges got a graph where they are
+        TRAVERSABLE and where `degree_unlabelled` silently equals
+        `degree`. Twelve scripts passed it; five did not, and one of
+        those five published a drug shortlist whose graph-evidence
+        column was counting the answer sheet.
+
+        A CONTRACT A CALLER CAN FORGET IS NOT A CONTRACT. Omitting the
+        argument is now an error that names both choices. Pass
+        `schema.held_out_predicates()` to hold the labels out, or pass
+        `None` to state in writing that this caller wants every
+        predicate -- which is a legitimate thing to want (the pathway
+        landscape's hub cut is defined over full degree) and is now
+        visible in the call rather than in its absence.
 
         drop_pubs_shared_with maps a node to the publications its LABEL edges
         cite (see label_publication_index). An edge whose SUBJECT appears there
@@ -179,6 +252,14 @@ class Graph:
         edge is also only dropped from TRAVERSAL; degree still counts it, for
         the same reason held-out predicates do.
         """
+        if isinstance(skip_predicates, _Unset):
+            raise TypeError(
+                "Graph.load() requires skip_predicates. Pass "
+                "schema.held_out_predicates() to keep the held-out label "
+                "edges out of traversal and out of degree_unlabelled, or "
+                "pass None to say in writing that this caller wants every "
+                "predicate. It used to default to None, and the scripts "
+                "that forgot it got a graph that reads the answer sheet.")
         skip = skip_predicates or set()
         shared = drop_pubs_shared_with or {}
         g = cls(symmetry)
@@ -241,8 +322,8 @@ class Graph:
             if p in skip:
                 g.stats["skipped_held_out"] += 1
                 continue
-            g.degree_unlabelled[e["subject"]] += 1
-            g.degree_unlabelled[e["object"]] += 1
+            g._degree_unlabelled[e["subject"]] += 1
+            g._degree_unlabelled[e["object"]] += 1
             label_pubs = shared.get(e["subject"])
             if label_pubs and label_pubs & {q for q in (e.get("publications") or []) if q}:
                 g.stats["dropped_publication_coincident"] += 1

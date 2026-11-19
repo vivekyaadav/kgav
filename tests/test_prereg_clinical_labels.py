@@ -331,10 +331,21 @@ def test_the_rebuild_figure_is_the_measured_one():
     and the two shas are facts, and the shas must match the release the
     results on disk were measured against."""
     tail = _amendment()
-    manifest = json.loads(
-        (ROOT / "data" / "releases" / "v0.1" / "MANIFEST.json").read_text())
+    # release_fingerprint, NOT MANIFEST.json. The first version of this
+    # test read manifest["nodes_sha"], which does not exist -- the
+    # manifest carries `release`, `code` and the census, and the shas
+    # come from kgav.provenance. `if sha:` then skipped both keys and
+    # the test asserted NOTHING while reading green. A check that cannot
+    # fail is worse than no check: it occupies the place where one
+    # should be.
+    from kgav.provenance import release_fingerprint
+
+    release = ROOT / "data" / "releases" / "v0.1"
+    if not (release / "nodes.jsonl").exists():
+        pytest.skip("no assembled release")
+    fp = release_fingerprint(release)
     for key in ("nodes_sha", "edges_sha"):
-        sha = manifest.get(key)
-        if sha:
-            assert sha in tail, (
-                f"the amendment names a {key} that is not the release's")
+        sha = fp[key]
+        assert sha, f"release_fingerprint returned no {key}"
+        assert sha in tail, (
+            f"the amendment does not name the release's {key} ({sha})")

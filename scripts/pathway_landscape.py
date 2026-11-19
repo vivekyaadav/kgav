@@ -746,7 +746,15 @@ def main(argv=None) -> int:
               f"pathway-landscape`, which passes it.\n")
 
     schema = load_schema()
-    g = Graph.load(args.release, symmetry=schema.symmetry())
+    # None, AND DELIBERATELY SO. This analysis wants FULL degree: the hub
+    # cut excludes a path connector by `g.degree[nbr] > hub_cut`, and that
+    # cut is defined over every predicate. Settled 2026-11-17: held-out
+    # degree reaches 22 Protein nodes and all 22 are VIRAL, while the cut
+    # is class-scoped to host proteins, so the hub set is the same 62
+    # nodes either way. The degree-MATCHING uses study_degree, which is a
+    # different counter written for exactly this reason.
+    g = Graph.load(args.release, skip_predicates=None,
+                   symmetry=schema.symmetry())
     # NO RUN-WIDE GENERATOR. There was one here, passed to every row,
     # and that is the bug row_rng exists to fix -- leaving it in place
     # unused would be an invitation to the next caller.

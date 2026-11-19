@@ -238,7 +238,7 @@ def test_a_reverse_hop_reads_the_inverse_map(g_rev):
 def test_traversing_an_undeclared_predicate_raises(reverse_ppi, schema):
     """Silence is what H1 was: a predicate with no declared symmetry must
     stop the walk, not fall back to inferring direction."""
-    bare = Graph.load(reverse_ppi, symmetry={})
+    bare = Graph.load(reverse_ppi, skip_predicates=None, symmetry={})
     with pytest.raises(ValueError, match="no declared symmetry"):
         bare.neighbours("PHYSICALLY_INTERACTS_WITH", "UniProtKB:HUB2")
 
@@ -959,7 +959,7 @@ def test_metapath_reach_reports_a_metapath_that_reaches_nothing(tmp_path):
     }
     symmetry = {"INHIBITS": False, "ENCODED_BY": False, "BELONGS_TO": False,
                 "MEMBER_OF_CLASS": False, "FOLD_SIMILAR_TO": True}
-    g = Graph.load(rel, symmetry=symmetry)
+    g = Graph.load(rel, skip_predicates=None, symmetry=symmetry)
     dwpc = dwpc_scores(g, metapaths, {})
     reach = metapath_reach(g, metapaths, dwpc)
 
@@ -1561,8 +1561,9 @@ def _scoring_release(tmp_path, n_targets_for_B=10, extra=()):
         {"subject": s, "predicate": p, "object": o, "qualifiers": {},
          "primary_knowledge_source": "infores:chembl", "evidence_tier": 1,
          "first_asserted_date": "2021-01-01"}) for s, p, o in edges))
-    return G.load(tmp_path, symmetry={"INHIBITS": False, "PART_OF": False,
-                                      "CHEMICALLY_SIMILAR_TO": True})
+    return G.load(tmp_path, skip_predicates=None,
+                  symmetry={"INHIBITS": False, "PART_OF": False,
+                            "CHEMICALLY_SIMILAR_TO": True})
 
 
 _PATH = ["SmallMolecule", "INHIBITS", "Protein", "PART_OF", "OrganismTaxon"]
@@ -1817,7 +1818,8 @@ def _proximity_release(tmp_path, decoys: int = 0, shuffle: bool = False,
 
 def _prox(tmp_path, schema, **kw):
     release = _proximity_release(tmp_path, **kw)
-    g = Graph.load(release, symmetry=schema.symmetry())
+    g = Graph.load(release, skip_predicates=None,
+                   symmetry=schema.symmetry())
     stats = Counter()
     return network_proximity(g, V, schema.retrieval_limits, n_random=50,
                              stats=stats), stats
@@ -1900,7 +1902,8 @@ def test_a_degenerate_matched_pool_is_refused_rather_than_scored_zero(
     kept = [ln for ln in (release / "edges.jsonl").read_text().splitlines()
             if "UniProtKB:C1" not in ln and "UniProtKB:C2" not in ln]
     (release / "edges.jsonl").write_text("\n".join(kept))
-    g = Graph.load(release, symmetry=schema.symmetry())
+    g = Graph.load(release, skip_predicates=None,
+                   symmetry=schema.symmetry())
     stats = Counter()
     prox = network_proximity(g, V, schema.retrieval_limits, n_random=50,
                              stats=stats)
