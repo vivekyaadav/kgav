@@ -158,6 +158,71 @@ def _mentions(text: str, name: str) -> bool:
                      text) is not None
 
 
+
+#: How far a typed word may sit from a curated virus name and still be
+#: offered as a suggestion. TWO, and never applied automatically: the four
+#: dengue serotypes are all ONE edit from each other, and DENV-2 is the
+#: only cell in this project that survives a power analysis while DENV-1
+#: cannot be powered at any arm size. Correcting silently between them
+#: would invert the conclusion with nothing on screen to show it.
+MAX_SUGGEST_EDITS = 2
+
+
+def _or_list(items) -> str:
+    """a, b, c or d -- so four candidates do not read as three "or"s."""
+    items = list(items)
+    if len(items) <= 2:
+        return " or ".join(items)
+    return ", ".join(items[:-1]) + " or " + items[-1]
+
+
+def _edits(a: str, b: str) -> int:
+    """Levenshtein distance. Small inputs; no dependency worth adding."""
+    if len(a) < len(b):
+        a, b = b, a
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1,
+                           prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def near_names(question: str, candidates: dict[str, str],
+               max_edits: int = MAX_SUGGEST_EDITS) -> dict[str, list[str]]:
+    """{typed phrase: [curated names within max_edits]}, never applied.
+
+    SUGGESTED, NOT CORRECTED, and the distinction is the whole point.
+    Measured on this release: 6,499 pairs of DIFFERENT compounds have
+    names one character apart -- "penicillin g" and "penicillin v",
+    "pentobarbital" and "phenobarbital", "folic acid" and "oleic acid" --
+    and all four dengue serotypes are one edit from each other. An
+    autocorrect is a silent substitution of the subject, which is the
+    defect class this function exists to replace, not to re-enter by a
+    friendlier route.
+
+    So every candidate within range is returned, and a caller that finds
+    more than one must say so rather than choose.
+    """
+    words = re.findall(r"[a-z0-9][a-z0-9-]*", (question or "").lower())
+    phrases = set(words)
+    for n in (2, 3):
+        phrases |= {" ".join(words[i:i + n])
+                    for i in range(len(words) - n + 1)}
+    out: dict[str, list[str]] = {}
+    for phrase in phrases:
+        if len(phrase) < 3:
+            continue
+        hits = sorted({name for name in candidates
+                       if abs(len(name) - len(phrase)) <= max_edits
+                       and 0 < _edits(phrase, name) <= max_edits})
+        if hits:
+            out[phrase] = hits
+    return out
+
+
 @dataclass
 class Brief:
     """Everything the model is given, and nothing else."""
@@ -280,7 +345,14 @@ class Orchestrator:
         text = (question or "").lower()
         found: dict[str, str] = {}
         for name in sorted(self.tools.names, key=len, reverse=True):
-            if len(name) < MIN_SEARCH_NAME:
+            # THE FLOOR, EXCEPT FOR A CURATED VIRUS NAME. _mentions below
+            # matches on word boundaries, so "jev" cannot hit inside
+            # "jevons"; the floor exists for graph labels, which are not
+            # curated and are numerous. Without this exemption JEV -- the
+            # name every table in this project prints -- resolved to
+            # nothing and the question was answered about SARS-CoV-2.
+            if (len(name) < MIN_SEARCH_NAME
+                    and name not in self.tools._register_names):
                 continue
             # Suppress a shorter name only where every occurrence sits inside
             # a longer match. "chloroquine" is a substring of
@@ -322,11 +394,57 @@ class Orchestrator:
         omitted = [n for n in rest[room:]]
         return keep, "", omitted
 
-    def _virus_in(self, resolved: dict[str, str]) -> str | None:
+    def _viruses_in(self, resolved: dict[str, str]) -> list[str]:
+        """EVERY taxon the question named, in the order it named them.
+
+        THIS RETURNED THE FIRST ONE AND DROPPED THE REST, SILENTLY.
+        "explain remdesivir for Zika and DENV-2" resolved both, answered
+        about DENV-2 and said nothing about Zika -- no caveat, nothing in
+        the trace, and not even the "(assumed)" marker, because a virus
+        HAD been named, just not the one the reader might have meant.
+
+        The winner was whichever name sorted first in a dict built by
+        descending name LENGTH, so "denv-2" beat "zika" for no reason a
+        user could predict. This module's own docstring states the rule
+        it was breaking: "REPORTED, NOT SILENT ... dropping two of seven
+        requested compounds from a ranking is a bounded harm; doing it
+        without saying so is not." That rule was honoured for compounds
+        and not for viruses, which decide the calibration, the caveats
+        and the biology.
+
+        Order is the order of the QUESTION, so a clarification lists them
+        the way they were written rather than the way they were matched.
+        """
+        return [nid for nid in resolved.values()
+                if self.tools.nodes.get(nid, {}).get("class")
+                == "OrganismTaxon"]
+
+    def _disease_taxa(self, resolved: dict[str, str]) -> list[str]:
+        """Taxa reachable from a resolved Disease by its CAUSES edge.
+
+        A question naming a disease rather than a virus -- "what is known
+        about covid-19" -- names a virus as far as a reader is concerned.
+        The graph records which: sixteen OrganismTaxon -CAUSES-> Disease
+        edges. Derived from them rather than from a table here, so a
+        disease added later needs no edit.
+        """
+        out = []
         for nid in resolved.values():
-            if self.tools.nodes.get(nid, {}).get("class") == "OrganismTaxon":
-                return nid
-        return None
+            if self.tools.nodes.get(nid, {}).get("class") != "Disease":
+                continue
+            for e in self.tools.inv.get(("CAUSES", nid), []):
+                if e["subject"] not in out:
+                    out.append(e["subject"])
+        return out
+
+    def _virus_in(self, resolved: dict[str, str]) -> str | None:
+        """The single named virus, or None when there is not exactly one.
+
+        None for "no virus" AND for "more than one", because the caller's
+        job in both cases is to stop and ask rather than to pick.
+        """
+        taxa = self._viruses_in(resolved) or self._disease_taxa(resolved)
+        return taxa[0] if len(taxa) == 1 else None
 
     def _compounds_in(self, resolved: dict[str, str]) -> list[str]:
         return [nid for nid in resolved.values()
@@ -343,7 +461,68 @@ class Orchestrator:
         trace.append(f"resolved={len(resolved)}")
         if omitted:
             trace.append(f"omitted={len(omitted)}")
+        # MORE THAN ONE VIRUS IS A QUESTION, NOT A CHOICE. Answering about
+        # one of them and saying nothing is what this used to do.
+        all_taxa = self._viruses_in(resolved) or self._disease_taxa(resolved)
+        if len(all_taxa) > 1:
+            labels = [self.tools._label(t) for t in all_taxa]
+            trace.append("viruses=" + ",".join(labels))
+            return Brief(
+                question=question, intent=intent.value, allowed=True,
+                clarification=(
+                    f"This question names {len(labels)} viruses — "
+                    + ", ".join(labels)
+                    + ". The virus decides which routes exist, what has been "
+                      "measured and which caveats apply, and they differ: ask "
+                      "about one at a time, and the answers are not "
+                      "interchangeable."),
+                trace=trace + ["ambiguous_virus"])
+
         named = self._virus_in(resolved)
+
+        # NO VIRUS NAMED, BUT SOMETHING CLOSE TO ONE WAS TYPED. Ask.
+        #
+        # A typo used to reach the default silently-but-for-a-caveat:
+        # "yellew fever virus" was answered about SARS-CoV-2. Suggesting
+        # is safe where correcting is not -- every candidate within range
+        # is listed and none is applied, because the four dengue
+        # serotypes are one edit apart and their conclusions are
+        # opposite.
+        if named is None:
+            near = near_names(question, {
+                k: v for k, v in self.tools._register_names.items()
+                if v in self.tools.nodes})
+            if near:
+                # ONE LINE PER SET OF CANDIDATES, keyed by what is being
+                # suggested rather than by what was typed: "yellew fever"
+                # and "yellew fever virus" are the same suggestion twice,
+                # and a reader counting lines would think two things were
+                # wrong with their question.
+                by_target: dict[tuple, list[str]] = {}
+                for phrase, hits in sorted(near.items()):
+                    labels = tuple(sorted({self.tools._label(
+                        self.tools._register_names[h]) for h in hits}))
+                    by_target.setdefault(labels, []).append(phrase)
+                lines = []
+                for labels, phrases in by_target.items():
+                    typed = max(phrases, key=len)
+                    lines.append(f"  \u201c{typed}\u201d — did you mean "
+                                 + _or_list(labels) + "?")
+                trace.append("suggested")
+                return Brief(
+                    question=question, intent=intent.value, allowed=True,
+                    clarification=(
+                        "No virus in this question matched one this release "
+                        "holds, but something close did:\n\n"
+                        + "\n".join(lines)
+                        + "\n\nName it and ask again. Nothing is corrected "
+                          "for you: the four dengue serotypes are one "
+                          "character apart and their results are not "
+                          "interchangeable, so a silent fix would change "
+                          "the answer without showing you that it had."),
+                    trace=trace + ["near_virus_name"])
+
+
         virus = named or self.default_virus
         trace.append(f"virus={virus}{'' if named else ' (assumed)'}")
 
@@ -372,6 +551,43 @@ class Orchestrator:
         # This virus's own calibration, so the caveat quotes what was
         # measured on it rather than a sentence asserting things about
         # other viruses.
+        # A COMPOUND QUESTION THAT NAMED NO COMPOUND THIS GRAPH HOLDS.
+        #
+        # "why might frobnicatinib work against SARS-CoV-2?" resolved the
+        # virus, found no compound, fell through to the final `else` in
+        # retrieval and returned a PROFILE OF THE VIRUS -- edge counts --
+        # with nothing anywhere saying the compound had not been found. A
+        # reader takes that as an answer about frobnicatinib. It is an
+        # answer about SARS-CoV-2.
+        #
+        # EXPLAIN and TRIAGE are the two intents that are ABOUT a
+        # compound; PROFILE and EVIDENCE legitimately take any node.
+        # AFTER the "nothing resolved at all" and "default virus absent"
+        # paths, and only when something DID resolve. Placed before them
+        # at first, it pre-empted both: a question resolving nothing was
+        # told "no compound matched" instead of "no entity matched", and
+        # "rank these compounds" against an absent default virus lost the
+        # clarification that names the viruses the release holds. Caught
+        # by two existing tests that had the orderings right.
+        if resolved and intent in (guards.QueryKind.EXPLAIN,
+                                   guards.QueryKind.TRIAGE):
+            if not [nid for nid in resolved.values()
+                    if self.tools.nodes.get(nid, {}).get("class")
+                    == "SmallMolecule"]:
+                trace.append("no_compound")
+                return Brief(
+                    question=question, intent=intent.value, allowed=True,
+                    clarification=(
+                        "No compound in this question matches one this "
+                        "release holds, and the question asks about a "
+                        "compound. Nothing is substituted for it: answering "
+                        "about the virus instead would read as an answer "
+                        "about the compound you named.\n\n"
+                        "Name it as the graph does — a generic name or a "
+                        "ChEMBL id — or ask what the graph stores about the "
+                        "virus directly."),
+                    trace=trace + ["no_compound_resolved"])
+
         verdict = guards.check(
             intent, virus, calibration=self.tools.calibration_for(virus),
             temporal=self.tools.temporal_for(virus),

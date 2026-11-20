@@ -237,8 +237,14 @@ class GraphTools:
         self._register_doc: dict = {}
         try:
             self._register_doc = virus_register.load()
+            # min_len=1: the resolver matches on word boundaries, so a
+            # three-character curated name is not a substring hazard, and
+            # the default floor made "JEV" -- this project's own canonical
+            # name for NCBITaxon:11072 -- unresolvable. Orchestrator.
+            # _resolve_mentions lets a short name through only when it is
+            # one of these, never for a graph label.
             for key, curie in virus_register.search_names(
-                    self._register_doc).items():
+                    self._register_doc, min_len=1).items():
                 self._register_names[key] = curie
         except (OSError, ValueError, KeyError):
             # A malformed register must not stop the agent answering about
@@ -287,14 +293,34 @@ class GraphTools:
                 if label:
                     self.names.setdefault(str(label).lower(), n["id"])
 
-        # Register names LAST and only for taxa this release holds. setdefault
-        # so a name the release supplied keeps precedence, and the presence
-        # check so a question naming a virus that was declared but not built
-        # resolves to nothing -- which the assumed-virus caveat then reports
-        # honestly -- rather than to a node id with no node behind it.
+        # Register names LAST and only for taxa this release holds. The
+        # presence check is so a question naming a virus that was declared
+        # but not built resolves to nothing -- which the assumed-virus
+        # caveat then reports honestly -- rather than to a node id with no
+        # node behind it.
+        #
+        # A REGISTER VIRUS NAME BEATS A NON-TAXON NODE, and this was
+        # `setdefault`, which does the opposite. The comment justified it:
+        # "so a name the release supplied keeps precedence". True while the
+        # release supplied compound names. The indications layer of
+        # 2026-11-17 added ten Disease nodes whose labels are virus names,
+        # so NAMES.json began mapping "yellow fever" to MONDO:0020502 and
+        # overwriting NCBITaxon:11089. _virus_in then found no taxon, the
+        # question was answered about the default virus, and the caveat
+        # said no virus had been named. Three viruses were affected:
+        # Yellow fever, JEV (japanese encephalitis) and TBEV (tick-borne
+        # encephalitis).
+        #
+        # A release name still wins over another TAXON name -- that case is
+        # a curation question and search_names already raises on it. What
+        # it must not do is win over a different KIND of node.
         for key, curie in self._register_names.items():
-            if curie in self.nodes:
-                self.names.setdefault(key, curie)
+            if curie not in self.nodes:
+                continue
+            held = self.names.get(key)
+            if held is None or self.nodes.get(held, {}).get(
+                    "class") != "OrganismTaxon":
+                self.names[key] = curie
 
         for i, line in enumerate(
                 (release / "edges.jsonl").read_text().splitlines()):

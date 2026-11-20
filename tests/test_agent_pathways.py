@@ -794,19 +794,63 @@ def test_a_register_name_for_an_absent_taxon_is_not_offered(release):
     assert "dengue virus 2" not in t.names
 
 
-def test_the_release_name_wins_over_the_register(release):
-    """A release that curated its own mapping keeps it.
+def test_the_release_name_wins_over_the_register_for_another_taxon(release):
+    """A release that curated its own TAXON mapping keeps it.
 
     The key must be one the register ALSO claims, and must map somewhere
     DIFFERENT, or setdefault and plain assignment behave identically and
     the precedence is untested -- the first version mapped "sars-cov-2" to
     the same node the register does.
+
+    NARROWED 2026-11-20. This mapped a register virus key to a DRUG and
+    asserted the drug won, which is the behaviour that produced the
+    Disease bug below. The precedence it was really protecting -- the
+    release's own curation of which NODE a name means -- is unchanged and
+    is what this now asserts, between two nodes of the same kind.
     """
     import json as _json
+    other = "NCBITaxon:11060"
+    # rstrip + newline: the fixture's nodes.jsonl has no trailing newline,
+    # so a bare append puts two objects on one line.
+    (release / "nodes.jsonl").write_text(
+        (release / "nodes.jsonl").read_text().rstrip("\n") + "\n"
+        + _json.dumps({"id": other, "class": "OrganismTaxon",
+                       "properties": {}}) + "\n")
     (release / "NAMES.json").write_text(_json.dumps(
-        {"druga": DRUG, "sarscov2": DRUG}))
+        {"druga": DRUG, "sarscov2": other}))
     t = GraphTools(release)
-    assert t.names["sarscov2"] == DRUG, "the release's own mapping must win"
+    assert t.names["sarscov2"] == other, "the release's own mapping must win"
+
+
+def test_a_register_virus_name_is_not_shadowed_by_another_kind_of_node(
+        release):
+    """THE BUG THE OWNER FOUND THROUGH THE FRONTEND, 2026-11-20.
+
+    The indications layer of 2026-11-17 added ten Disease nodes whose
+    labels are virus names, so the release's NAMES.json began mapping
+    "yellow fever" to MONDO:0020502. Seeding used setdefault -- "a name
+    the release supplied keeps precedence" -- so NCBITaxon:11089 never
+    won. _virus_in found no taxon, the question was answered about the
+    DEFAULT virus, and the caveat said no virus had been named. Three
+    viruses were affected: Yellow fever, JEV and TBEV.
+
+    A release still wins over the register for another TAXON, above.
+    What it must not do is win with a different KIND of node, because the
+    register is this project's only source of truth for what a virus is
+    called.
+    """
+    import json as _json
+    (release / "nodes.jsonl").write_text(
+        (release / "nodes.jsonl").read_text().rstrip("\n") + "\n"
+        + _json.dumps({"id": "MONDO:9999999", "class": "Disease",
+                       "properties": {"label": "sarscov2"}}) + "\n")
+    (release / "NAMES.json").write_text(_json.dumps(
+        {"druga": DRUG, "sarscov2": "MONDO:9999999"}))
+    t = GraphTools(release)
+    assert t.names["sarscov2"] == V, (
+        "a Disease shadowed the taxon the register declares")
+    # And the drug name, which the register does not claim, is untouched.
+    assert t.names["druga"] == DRUG
 
 
 # ----------------------------------------------- ties, which the audit found

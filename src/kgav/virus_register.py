@@ -187,11 +187,21 @@ def declared_taxa(doc: dict, section: str = "viruses") -> dict[str, str]:
     return out
 
 
-# Below this length a name is not offered for question matching. The agent's
-# resolver skips short strings to avoid spurious substring hits, and a
-# register entry that could never be matched is worse than absent: it reads
-# as support the agent does not have. "wnv", "yfv" and "jev" are therefore
-# NOT declared as aliases -- they would be inert.
+# Below this length a name is not offered for GENERAL question matching.
+# The reason was "the agent's resolver skips short strings to avoid
+# spurious substring hits".
+#
+# THAT REASON EXPIRED. Orchestrator._mentions matches on word boundaries
+# -- `(?<![a-z0-9])name(?![a-z0-9])` -- so "jev" cannot match inside
+# "jevons" and a three-character CURATED name is not a substring hazard.
+# What the floor actually did was make JEV, this project's own canonical
+# name for NCBITaxon:11072 and the name every table prints, unresolvable:
+# a question asking about it was answered about SARS-CoV-2 under a caveat
+# saying no virus had been named. Found by the owner, 2026-11-20.
+#
+# The floor stays as the DEFAULT, because it still guards callers that do
+# unbounded matching. `search_names(min_len=...)` lets a caller that
+# matches on word boundaries ask for the whole curated set.
 MIN_SEARCH_NAME = 4
 
 
@@ -332,7 +342,8 @@ def dropped_short_names(doc: dict, section: str = "viruses") -> dict[str, list[s
     return out
 
 
-def search_names(doc: dict, section: str = "viruses") -> dict[str, str]:
+def search_names(doc: dict, section: str = "viruses",
+                 min_len: int = MIN_SEARCH_NAME) -> dict[str, str]:
     """Every string a person might type for a virus -> its taxon CURIE.
 
     WHY THE AGENT NEEDS THIS. Entity resolution ran off the release's
@@ -362,7 +373,7 @@ def search_names(doc: dict, section: str = "viruses") -> dict[str, str]:
             if not raw:
                 continue
             key = " ".join(str(raw).lower().split())
-            if len(key) < MIN_SEARCH_NAME:
+            if len(key) < min_len:
                 continue
             if key in out and out[key] != curie:
                 raise ValueError(
