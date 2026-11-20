@@ -1,4 +1,4 @@
-.PHONY: agent-ui agent-ask auc-contribution identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
+.PHONY: agent-ui agent-ask auc-contribution hit-rate identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
 
 install:
 	pip install -e ".[dev]"
@@ -272,6 +272,23 @@ agent-ask:
 # Pass --out to keep a copy.
 auc-contribution:
 	python scripts/auc_contribution.py
+
+# THE WET-LAB HIT RATE: of the top k ranked compounds, how many came back
+# active. AUC does not answer this -- it is a statement about ordering,
+# and a screen only ever orders the top of the list.
+#
+# POST-HOC AND NOT A REGISTERED STATISTIC. The temporal registration
+# fixed AUC before any AUC existed; precision@k is computed here after
+# those AUCs were read, on the same held-out labels. Descriptive only,
+# p-values uncorrected for selection, and deliberately NOT written to
+# data/results, where it would read as a claim-carrying result.
+#
+# Reports both registered controls prospectively and all three exclusion
+# strengths on the plate cells, because the figure that matters is how
+# far the precision falls when a candidate's nearest known actives are
+# withheld.
+hit-rate:
+	python scripts/hit_rate_at_k.py
 
 data-audit:
 	python scripts/data_audit.py

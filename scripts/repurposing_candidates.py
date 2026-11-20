@@ -175,13 +175,47 @@ def headline(vs: dict[str, dict], root: Path = ROOT) -> list[str]:
             lines.append(f"  between the two is "
                          f"{min(gap, gap10 or gap):.2f}-"
                          f"{max(gap, gap10 or gap):.2f} AUC.")
-    lines.append("  So every row below is a chemical-analogy suggestion "
-                 "with a")
-    lines.append("  measured hit rate. It is NOT a prediction of activity "
-                 "and NOT a")
-    lines.append("  mechanism: the evidence is 'resembles a known active', "
-                 "and the")
-    lines.append("  known active is named so you can judge.")
+    # "WITH A MEASURED HIT RATE" WAS FALSE AND SAT HERE FOR WEEKS.
+    # This line read "every row below is a chemical-analogy suggestion
+    # with a measured hit rate", and no hit rate had ever been measured
+    # -- checked across structure_scorer.json, its two controls,
+    # temporal_structure_scorer.json and this script's own artifact. What
+    # it quoted was AUC, which is the probability a random active
+    # outranks a random inactive: a statement about the WHOLE ordering,
+    # and the one translation that does not yield a hit rate. A screen
+    # only ever orders the top of the list.
+    #
+    # Measured on 2026-11-20 by scripts/hit_rate_at_k.py, and the reason
+    # this text now points at that report instead of claiming a number:
+    # on the one population matched by assay rather than by source, the
+    # precision of the top of this ranking falls to zero once each
+    # candidate's nearest known actives are withheld. The uncontrolled
+    # figure is large. Both registered controls take it to nothing. No
+    # figure is typed here, because a hit rate copied into a banner is a
+    # hit rate that goes stale silently -- which is how the false claim
+    # survived.
+    lines.append("  So every row below is a chemical-analogy suggestion. "
+                 "It is NOT a")
+    lines.append("  prediction of activity, NOT a mechanism and NOT a hit "
+                 "rate: the")
+    lines.append("  evidence is 'resembles a known active', and the known "
+                 "active is")
+    lines.append("  named so you can judge.")
+    lines.append("")
+    lines.append("  WHAT THAT RESEMBLANCE IS WORTH: `make hit-rate`. It "
+                 "measures how")
+    lines.append("  many of the top-ranked compounds actually came back "
+                 "active, against")
+    lines.append("  the base rate of the population they were ranked in, "
+                 "at three")
+    lines.append("  exclusion strengths. Read it before ordering anything. "
+                 "On the one")
+    lines.append("  assay-matched cell the precision of this ranking's "
+                 "head does not")
+    lines.append("  survive the near-neighbour control, and the AUC above "
+                 "cannot show")
+    lines.append("  that, because it averages over a ranking a screen "
+                 "never sees.")
     return lines
 
 
