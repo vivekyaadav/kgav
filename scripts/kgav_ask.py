@@ -150,6 +150,16 @@ def build_parser(root: Path) -> argparse.ArgumentParser:
                     help="evaluation run whose measured AUCs the caveats "
                          "quote. Absent, a host-directed route is reported as "
                          "uncalibrated rather than given a number.")
+    ap.add_argument("--temporal-results", type=Path,
+                    default=root / "data/results/"
+                                   "temporal_structure_scorer.json",
+                    help="the PROSPECTIVE run whose AUCs the "
+                         "candidate-generation refusal quotes. A separate "
+                         "file from --results because it is a separate "
+                         "study with its own registration and its own "
+                         "shape; --results' `temporal` section is empty on "
+                         "this release, which is why the refusal used to "
+                         "say no prospective result had been measured.")
     ap.add_argument("--landscape", type=Path,
                     default=root / "data/results/pathway_landscape.json",
                     help="pathway_landscape.py --out run whose degree-matched "
@@ -223,14 +233,53 @@ def build_orchestrator(args, note=None) -> Orchestrator:
                       if args.all_viruses else [args.virus_label])
             for label in labels:
                 cals[label] = kgav_calibration.load(args.results, label)
-            for label in (kgav_calibration.available_viruses(
-                    args.results, section="temporal")
-                    if args.all_viruses else [args.virus_label]):
-                temporal[label] = kgav_calibration.load(
-                    args.results, label, section="temporal")
         except (OSError, ValueError, KeyError) as exc:
             note(f"could not read {args.results.name} ({exc}); "
                  f"routes will be reported as uncalibrated")
+
+    # THE PROSPECTIVE CALIBRATION, FROM ITS OWN FILE.
+    #
+    # This used to read --results' `temporal` section with the
+    # cross-sectional loader. That section is `{}` on this release --
+    # hard_negatives.py skipped the temporal protocol, and records that it
+    # did under `temporal_skipped` -- so every calibration it produced was
+    # unusable and the refusal took its no-measurement branch: "this
+    # release carries no measured prospective result". Meanwhile
+    # temporal_structure_scorer.json held ten evaluated cells with six
+    # clearing chance.
+    #
+    # So the agent was understating its own evidence. That is the safe
+    # direction and it is still wrong: guards._temporal_sentence has a
+    # branch for a scorer that clears prospectively, written precisely so
+    # the reader is told before being refused, and nothing could reach it.
+    #
+    # A SEPARATE LOADER BECAUSE IT IS A SEPARATE SHAPE. The prospective
+    # study keys `cells` by taxon CURIE with each scorer beside per-cell
+    # counts; `load` expects {virus: {channel: row}}. Pointed at this file
+    # it returns an empty calibration -- no error, no note, just silence,
+    # which is the failure mode that hid this for eleven days.
+    #
+    # THE REFUSAL ITSELF DOES NOT MOVE. guards.check returns
+    # allowed=False for every PROSPECT query whatever the calibration
+    # says; `temporal` shapes the reason and nothing else, and
+    # temporal_for feeds that one call site. Checked before wiring it.
+    if args.temporal_results.exists():
+        try:
+            taxa = (kgav_calibration.available_temporal_viruses(
+                args.temporal_results)
+                if args.all_viruses else [args.virus_label])
+            for taxon in taxa:
+                temporal[taxon] = kgav_calibration.load_temporal(
+                    args.temporal_results, taxon)
+        except (OSError, ValueError, KeyError) as exc:
+            note(f"could not read {args.temporal_results.name} ({exc}); "
+                 f"the candidate-generation refusal will report no "
+                 f"measured prospective result")
+    else:
+        note(f"{args.temporal_results.name} is absent; the "
+             f"candidate-generation refusal will report no measured "
+             f"prospective result. `make temporal-structure-scorer` "
+             f"produces it.")
     # THE PATHWAY NULL, loaded the same way and for the same reason. Passing
     # the release name lets landscape.load refuse a run measured on a
     # different one rather than quote it. An absent or refused file is not

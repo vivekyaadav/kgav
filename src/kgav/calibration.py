@@ -326,3 +326,166 @@ def _infer_protocol(doc: dict, section: str) -> str:
         # control had passed.
         bits.append("NO-publication-disjoint")
     return "/".join(bits)
+
+
+# ====================================================================
+# THE PROSPECTIVE CALIBRATION
+#
+# A SECOND LOADER, BECAUSE IT IS A SECOND FILE SHAPE AND NOT A SECOND
+# SECTION. `load` above reads hard_negatives.json, whose `temporal`
+# section is a {virus: {channel: row}} mapping. The prospective study
+# writes temporal_structure_scorer.json, which keys `cells` by TAXON
+# CURIE and puts each scorer under its own name beside per-cell counts.
+# Pointing `load` at it returns an empty calibration, which is exactly
+# what happened: hard_negatives.json's `temporal` section is `{}` on this
+# release -- the temporal protocol was skipped there -- so the agent's
+# PROSPECT refusal took its no-measurement branch and told every asker
+# "this release carries no measured prospective result" while
+# temporal_structure_scorer.json recorded six cells clearing chance.
+#
+# The refusal was weaker than the finding, which is the safe direction and
+# still wrong: a refusal that understates what has been measured denies
+# the reader a result they are entitled to before being refused, and
+# guards._temporal_sentence has had a branch for precisely that case
+# ("...which clears chance") that nothing could ever reach.
+
+#: Scorers in the prospective file that must not become ranking weights.
+#: `degree` is the NULL HYPOTHESIS -- the thing a scorer has to beat --
+#: for the same reason `load` excludes it. On this release it is unusable
+#: in all ten cells anyway (the training graph reaches 0.3%-6.5% of the
+#: compounds being ranked), but it is excluded by role and not by its
+#: having come out badly.
+TEMPORAL_EXCLUDE = ("degree",)
+
+#: File key -> what to call the scorer in front of a reader. The agent
+#: prints these inside a refusal, and "primary" names this study's
+#: position in its own registration rather than anything the scorer does.
+#: An unlisted key passes through unchanged, so a new scorer is readable
+#: as its key rather than silently renamed to something it is not.
+TEMPORAL_SCORER_NAMES = {
+    "primary": "max-Tanimoto to pre-cutoff actives",
+    "symmetric_k10": "the same with each candidate's 10 nearest withheld",
+}
+
+
+def available_temporal_viruses(results: Path) -> list[str]:
+    """The taxon keys temporal_structure_scorer.json holds.
+
+    The counterpart of `available_viruses`, so a lookup that misses can be
+    reported with what the file does contain rather than as an empty
+    calibration -- which reads like an empty evaluation.
+    """
+    doc = json.loads(Path(results).read_text())
+    cells = doc.get("cells") or {}
+    return sorted(k for k in cells if isinstance(cells[k], dict))
+
+
+def _temporal_channel(name: str, row: dict, n_pos: int, n_neg: int
+                      ) -> ChannelCalibration:
+    """One prospective scorer, carrying its CORRECTED interval.
+
+    THE CORRECTED ONE, NOT THE 95% ONE. `discriminates` tests
+    `ci_lo > CHANCE`, and the registration
+    (docs/prereg_temporal_structure_scorer.md) decides whether a cell
+    clears at alpha = 0.05/10 with z = 2.8070, not at z = 1.96. Handing
+    it `auc_ci_lo` would let the agent announce cells as clearing chance
+    that the registered family size says do not -- the agent claiming
+    more than the study it is quoting, from the same file.
+
+    Checked by tests/test_temporal_calibration.py, which requires the
+    channels this produces to reproduce the file's own `clears` list
+    exactly rather than approximately.
+    """
+    return ChannelCalibration(
+        name=TEMPORAL_SCORER_NAMES.get(name, name),
+        auc=row.get("auc"),
+        ci_lo=row.get("auc_ci_lo_corrected"),
+        ci_hi=row.get("auc_ci_hi_corrected"),
+        n_pos=int(row.get("n_pos") or n_pos or 0),
+        n_neg=int(row.get("n_neg") or n_neg or 0),
+        coverage_pos=float(row.get("coverage_pos") or 0.0),
+        coverage_neg=float(row.get("coverage_neg") or 0.0),
+    )
+
+
+def temporal_protocol(doc: dict) -> str:
+    """The protocol string the agent quotes, built from the file's own record.
+
+    Named from what the run recorded rather than from a constant, so a
+    split built at a different cutoff cannot be described with this one's
+    wording. The agent prints this, so it has to be readable as well as
+    exact.
+    """
+    bits = ["temporal"]
+    for key, prefix in (("split", ""), ("cutoff", "cutoff-"),
+                        ("undated_policy", "undated-"),
+                        ("overlap_policy", "")):
+        val = doc.get(key)
+        if val not in (None, ""):
+            bits.append(f"{prefix}{val}")
+    return "/".join(bits)
+
+
+def load_temporal(results: Path, virus: str,
+                  exclude: tuple[str, ...] = TEMPORAL_EXCLUDE) -> Calibration:
+    """One virus's prospective calibration from temporal_structure_scorer.json.
+
+    `virus` is matched against the file's `cells` keys, which are taxon
+    CURIEs, and then case-insensitively against each cell's recorded
+    `name` -- so a caller holding either resolves, and a caller holding
+    neither misses rather than receiving somebody else's numbers.
+
+    A cell the protocol refused comes back with `refused_reason` set, so
+    `usable` is False and the agent takes its no-measurement branch. That
+    is the distinction this file exists to preserve: a refused cell is
+    not a cell that scored 0.5.
+    """
+    path = Path(results)
+    doc = json.loads(path.read_text())
+    cells = doc.get("cells") or {}
+    proto = temporal_protocol(doc)
+    cal = Calibration(virus=virus, protocol=proto, source_file=str(path.name))
+
+    row = cells.get(virus)
+    if row is None:
+        for key, val in cells.items():
+            if not isinstance(val, dict):
+                continue
+            if (key.lower() == virus.lower()
+                    or str(val.get("name", "")).lower() == virus.lower()):
+                row = val
+                break
+    if not isinstance(row, dict):
+        # NOT A REFUSAL AND NOT A ZERO. A virus this study never evaluated
+        # has no prospective calibration, and `usable` False with no
+        # reason is how `load` reports the same thing.
+        cal.refused_reason = (
+            f"{path.name} holds no prospective cell for {virus}; it "
+            f"evaluated {len(cells)} of "
+            f"{doc.get('n_cells_total', len(cells))} candidate cells")
+        return cal
+
+    # THE WHOLE FILE'S REFUSAL, if the run itself refused. write_refusal
+    # records the reasons under this key in place of results, and a
+    # refusal record still carries the cells it had, so this has to be
+    # checked before reading any of them.
+    if doc.get("refused"):
+        cal.refused_reason = ("the prospective run refused: "
+                              + "; ".join(doc["refused"]))
+        return cal
+
+    n_pos = int(row.get("n_test_positives") or 0)
+    n_neg = int(row.get("n_test_negatives") or 0)
+    for name, sub in row.items():
+        if name in exclude or not isinstance(sub, dict):
+            continue
+        if "auc" not in sub:
+            continue                       # counts blocks, not scorers
+        if sub.get("measurable") is False or sub.get("refusal"):
+            continue                       # declined, not measured at 0.5
+        cal.channels[name] = _temporal_channel(name, sub, n_pos, n_neg)
+    if not cal.channels:
+        cal.refused_reason = (
+            f"no scorer in {path.name} produced a measurable AUC for "
+            f"{virus}")
+    return cal

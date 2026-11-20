@@ -44,6 +44,12 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Self
 
+# CHANCE, from the module that defines what a calibration means rather
+# than as a 0.5 spelled here. _temporal_sentence needs it to tell a
+# scorer that sits ON chance from one whose interval excludes chance
+# BELOW, and those are different findings.
+from kgav.calibration import CHANCE
+
 # Imported rather than restated. The threshold is derived in landscape.py
 # from the Poisson tail it describes, and a second copy here would be a
 # figure in user-facing prose with nothing linking it to the derivation --
@@ -657,8 +663,42 @@ def _temporal_sentence(temporal) -> str:
         return (f"Measured, {_SPLIT}, the strongest scorer reaches AUC "
                 f"{best.auc:.3f} [{best.ci_lo:.3f}, {best.ci_hi:.3f}] under "
                 f"{temporal.protocol}, which clears chance.")
-    return (f"The limit is measured rather than assumed: {_SPLIT}, every "
-            f"scorer performs at chance — the strongest is {best.name} at "
+
+    # BELOW CHANCE IS NOT AT CHANCE, and until a prospective calibration
+    # was actually loaded nothing could reach this branch to notice.
+    #
+    # Measured on 2026-11-20: Zika's strongest prospective scorer reads
+    # AUC 0.457 with a corrected interval of [0.420, 0.494] -- an upper
+    # bound BELOW 0.5, so the interval excludes chance on the wrong side.
+    # The old wording called that "every scorer performs at chance",
+    # which is not what was measured: the ranking is anti-correlated with
+    # activity, and that is a finding. It also matters to the reader for
+    # the opposite reason to the branch above -- a scorer that reliably
+    # ranks actives LAST is informative, and describing it as noise
+    # throws that away.
+    anti = [c for c in evaluable
+            if c.ci_hi is not None and c.ci_hi < CHANCE]
+    if anti:
+        worst = min(anti, key=lambda c: c.auc)
+        others = (f" {len(anti) - 1} other scorer(s) do the same."
+                  if len(anti) > 1 else "")
+        return (f"Measured, {_SPLIT}, no scorer clears chance and at least "
+                f"one is significantly WORSE than it: {worst.name} reaches "
+                f"AUC {worst.auc:.3f} [{worst.ci_lo:.3f}, "
+                f"{worst.ci_hi:.3f}] under {temporal.protocol}, an interval "
+                f"excluding chance on the wrong side.{others} Its ranking "
+                f"is anti-correlated with activity rather than uninformative, "
+                f"so inverting it is not a shortcut either — nothing here "
+                f"establishes that the inverse would hold prospectively.")
+
+    # "NO SCORER CLEARS CHANCE", not "every scorer performs at chance".
+    # The second is a claim about every scorer; what was measured is that
+    # none of their intervals excludes chance, which is the weaker and
+    # true statement. With real figures loaded the difference is visible:
+    # West Nile's strongest is 0.452 [0.368, 0.536], an interval wide
+    # enough to contain chance and plenty besides.
+    return (f"The limit is measured rather than assumed: {_SPLIT}, no "
+            f"scorer clears chance — the strongest is {best.name} at "
             f"AUC {best.auc:.3f} [{best.ci_lo:.3f}, {best.ci_hi:.3f}] under "
             f"{temporal.protocol}.")
 

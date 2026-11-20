@@ -138,6 +138,7 @@ class Agent:
             "model_available": ok,
             "model_note": None if ok else note,
             "results_file": str(self.args.results),
+            "temporal_results_file": str(self.args.temporal_results),
             "landscape_file": str(self.args.landscape),
             "load_seconds": self.load_seconds,
             "asked": self.asked,
