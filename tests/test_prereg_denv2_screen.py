@@ -469,3 +469,93 @@ def test_it_states_what_a_confirmed_result_would_not_license():
     assert "Would not:" in flat
     assert "other fifteen viruses" in flat
     assert "ranking uses no graph edges" in flat
+
+
+# ------------------------------------------ the draw command, built 2026-11-21
+def _candidates_module():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "repurposing_under_test", ROOT / "scripts" / "repurposing_candidates.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_the_three_promised_flags_exist_now():
+    """Section 11 named them before they existed, so the command could
+    not be adjusted after the list was seen. The promise comes due."""
+    import subprocess
+
+    out = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "repurposing_candidates.py"),
+         "--help"], capture_output=True, text=True, cwd=ROOT, timeout=300)
+    assert out.returncode == 0, out.stderr
+    for flag in ("--exclude-labelled", "--random-arm", "--seed", "--flat"):
+        assert flag in out.stdout, f"{flag} is still not implemented"
+
+
+def test_a_random_arm_without_a_seed_is_refused():
+    """A draw that cannot be reproduced is not a draw: without this the
+    arm could be re-rolled until it looked right, with nothing on the
+    record to show it had been."""
+    import subprocess
+
+    out = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "repurposing_candidates.py"),
+         "--virus", "NCBITaxon:11060", "--random-arm", "20"],
+        capture_output=True, text=True, cwd=ROOT, timeout=600)
+    assert out.returncode == 2, out.stdout
+    assert "requires --seed" in out.stderr
+
+
+def test_flat_returns_one_ranking_not_one_per_tier():
+    """THE MISMATCH THE IMPLEMENTATION FOUND. Section 3 fixes arm A as
+    'the top 20', and the command section 11 recorded returned sixty --
+    twenty from each of three phase tiers."""
+    mod = _candidates_module()
+    import inspect
+
+    src = inspect.getsource(mod.suggest)
+    assert "flat" in inspect.signature(mod.suggest).parameters
+    assert "if flat:" in src
+    assert len(mod.TIERS) == 3, (
+        f"{len(mod.TIERS)} tiers: the sixty in the amendment is "
+        f"20 x len(TIERS) and no longer reads")
+
+
+def test_the_amendment_supersedes_the_recorded_command():
+    flat = _flat()
+    assert "superseded by" in flat
+    assert "--flat --top 20" in flat, (
+        "the amendment does not record the corrected command")
+    assert "disjoint_from_arm_a" in flat
+
+
+@pytest.mark.slow
+@needs_split
+def test_exclude_labelled_is_stricter_than_the_label_sets():
+    """Section 4: 'no activity edge in either direction', which is not
+    the same as 'not in positives or negatives'. The amendment states
+    the gap as a measured figure; this re-derives it."""
+    mod = _candidates_module()
+    release = ROOT / "data" / "releases" / "v0.1"
+    if not (release / "edges.jsonl").exists():
+        pytest.skip("no release")
+    screened = mod.screened_against(release, "NCBITaxon:11060")
+    assert screened, "no compound is screened against DENV-2"
+
+    from kgav.labels import build_labels
+    labels = build_labels(release)
+    known = (labels.positives.get("NCBITaxon:11060", set())
+             | labels.negatives.get("NCBITaxon:11060", set()))
+    extra = screened - known
+    assert extra, (
+        "every screened compound is classified, so --exclude-labelled "
+        "removes nothing the label sets did not; the amendment's figure "
+        "would be zero")
+    flat = _flat()
+    assert f"**{len(extra)} compounds**" in flat, (
+        f"{len(extra)} compounds are screened but unclassified and the "
+        f"amendment states another number")

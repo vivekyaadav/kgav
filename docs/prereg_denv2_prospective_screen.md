@@ -346,6 +346,66 @@ The screen has not been run, nothing has been drawn and no outcome
 exists, so correcting a design error costs nothing that a
 pre-registration protects. Deleting the error would.
 
+
+---
+
+## Amendment, 2026-11-21 — the draw command, now that it exists
+
+Section 11 recorded a command whose three flags did not exist, so that
+the command could not be adjusted after the list was seen. They exist
+now, and building them showed two things the registration had not
+fixed. Nothing above is edited; the clauses below supersede section 11.
+
+### The recorded command returned sixty compounds, not twenty
+
+Section 3 fixes arm A as **"the top 20 by max-Tanimoto"** — one ranking.
+`scripts/repurposing_candidates.py --top 20` returns twenty from each of
+three phase tiers, sixty in all, because tiering was added on 2026-11-19
+so that a browsing reader sees approved drugs without the pool being
+restricted to them. That is right for browsing and wrong for an arm.
+
+`--flat` gives the one ranking section 3 describes. **The command in
+section 11 is superseded by:**
+
+    python scripts/repurposing_candidates.py \
+        --virus NCBITaxon:11060 \
+        --exclude-labelled \
+        --flat --top 20 \
+        --random-arm 20 --seed <recorded at draw time> \
+        --out data/results/denv2_screen_arms.json
+
+### The two arms are disjoint, which section 3 did not say
+
+Section 3 says arm B is "k drawn at random from the same pool". Read
+strictly that admits one compound into both arms, which makes the 2x2
+incoherent — the same well would be a hit in both columns. The draw
+excludes arm A, and records `disjoint_from_arm_a: true` in the artifact.
+
+### What `--exclude-labelled` removes, measured
+
+Section 4 requires a candidate to carry **no** activity edge to
+NCBITaxon:11060 in either direction — stricter than the label sets,
+which are what the potency thresholds could classify. On this release
+that is not a formality: **124 compounds** carry a DENV-2 activity edge
+the thresholds did not classify, and all 124 would otherwise have been
+eligible as suggestions. They have been screened; a prediction about
+them would be re-running somebody's experiment.
+
+Pool after every exclusion: **21,081** of 25,243.
+
+### Orderability is still not automated, and is still required
+
+Section 4 makes orderability a filter on the POOL, applied before either
+arm is drawn and by somebody who has not seen the ranking. The script
+cannot do that and does not pretend to: the artifact it writes is
+**pre-orderability**. A first flat draw is 18 research compounds, 1
+approved and 1 clinical, so the filter is likely to remove a large
+fraction and the draw must then be repeated — with a new seed, recorded.
+
+This is the one step of section 11 that remains manual, and it is the
+step most able to break the comparison if done after the ranking is
+seen.
+
 ---
 
 ## Verdict

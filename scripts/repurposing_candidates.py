@@ -337,7 +337,8 @@ def _heavy_delta(a: str | None, b: str | None) -> int | None:
 
 
 def suggest(candidates: list[str], actives: list[str], fps: dict,
-            props: dict, top: int, degree: dict | None = None) -> list[dict]:
+            props: dict, top: int, degree: dict | None = None,
+            flat: bool = False) -> list[dict]:
     """Top `top` candidates by nearest known active.
 
     The two exclusions that survive from the registered protocol and mean
@@ -435,9 +436,51 @@ def suggest(candidates: list[str], actives: list[str], fps: dict,
     # inside each tier is the identical statistic, and the cell's verdict
     # still gates whether any list is printed at all.
     out: list[dict] = []
+    # FLAT IS ONE RANKING OF `top`, NOT `top` PER TIER.
+    #
+    # The tiers exist so a browsing reader sees approved drugs without
+    # the pool being restricted to them. A SCREEN is a different use:
+    # docs/prereg_denv2_prospective_screen.md section 3 fixes arm A as
+    # "the top 20 by max-Tanimoto", one ranking -- and the command the
+    # registration records, `--top 20`, returns SIXTY under tiering,
+    # twenty from each of three tiers. Measured on DENV-2 before this
+    # flag existed.
+    if flat:
+        out = sorted(rows, key=lambda r: -r["tanimoto"])[:top]
+        return out
     for tier in TIERS:
         out.extend([r for r in rows if r["phase_tier"] == tier][:top])
     out.sort(key=lambda r: (TIERS.index(r["phase_tier"]), -r["tanimoto"]))
+    return out
+
+
+#: Predicates that mean somebody has screened this compound against this
+#: virus. Both directions: an inactive result is a screening result.
+SCREENED_PREDICATES = ("HAS_ANTIVIRAL_ACTIVITY_AGAINST",
+                       "MEASURED_INACTIVE_AGAINST")
+
+
+def screened_against(release: Path, virus: str) -> set[str]:
+    """Every compound with ANY activity edge to `virus`, either way.
+
+    STRICTER THAN THE LABEL SETS, and that is the point. labels.positives
+    and labels.negatives are what the potency thresholds could classify;
+    a row whose value the thresholds could not read is in neither, and
+    its compound has still been screened. A prospective screen that drew
+    such a compound would be re-running somebody's experiment and
+    calling the result a prediction.
+    """
+    out: set[str] = set()
+    for line in (release / "edges.jsonl").read_text().splitlines():
+        if not line.strip():
+            continue
+        e = json.loads(line)
+        if e["predicate"] not in SCREENED_PREDICATES:
+            continue
+        if e["object"] == virus:
+            out.add(e["subject"])
+        elif e["subject"] == virus:
+            out.add(e["object"])
     return out
 
 
@@ -450,6 +493,29 @@ def main(argv=None) -> int:
                          "flags is_approved -- the repurposing question in "
                          "its narrowest form")
     ap.add_argument("--virus", default=None)
+    ap.add_argument("--exclude-labelled", action="store_true",
+                    help="drop every candidate carrying ANY activity edge "
+                         "to this virus, in either direction -- not only "
+                         "those the potency thresholds classified. "
+                         "docs/prereg_denv2_prospective_screen.md section 4 "
+                         "requires 'never screened against DENV-2 in either "
+                         "direction', which is stricter than the label sets: "
+                         "a measurement the thresholds could not classify "
+                         "still means somebody has screened it.")
+    ap.add_argument("--flat", action="store_true",
+                    help="one ranking of --top compounds by max-Tanimoto, "
+                         "instead of --top from each of the three phase "
+                         "tiers. What a two-arm screen needs: the "
+                         "registration fixes arm A as 'the top 20', and "
+                         "tiered that command returns sixty.")
+    ap.add_argument("--random-arm", type=int, default=0, metavar="N",
+                    help="also draw N compounds uniformly at random from "
+                         "the same pool, as the comparator arm of a two-arm "
+                         "screen. Requires --seed.")
+    ap.add_argument("--seed", type=int, default=None,
+                    help="the seed for --random-arm, recorded in the "
+                         "artifact. Required with --random-arm so the draw "
+                         "is reproducible and cannot be re-rolled.")
     ap.add_argument("--out", type=Path,
                     default=ROOT / "data/results/repurposing_candidates.json")
     args = ap.parse_args(argv)
@@ -516,9 +582,31 @@ def main(argv=None) -> int:
                "approved_only": bool(args.approved_only),
                "top": args.top, "viruses": {}}
 
+    # A DRAW THAT CANNOT BE REPRODUCED IS NOT A DRAW. The registration
+    # records the seed in the artifact and in the commit message, so a
+    # random arm without one is refused rather than given an arbitrary
+    # default -- which would let the draw be re-rolled until it looked
+    # right, with nothing on the record to show it had been.
+    if args.random_arm and args.seed is None:
+        print("--random-arm requires --seed: the draw has to be "
+              "reproducible from the artifact", file=sys.stderr)
+        return 2
+    if args.seed is not None and not args.random_arm:
+        print("--seed without --random-arm draws nothing", file=sys.stderr)
+        return 2
+
+    screened: set[str] = set()
+    if args.exclude_labelled:
+        if not args.virus:
+            print("--exclude-labelled needs --virus: 'screened against "
+                  "what' has no answer otherwise", file=sys.stderr)
+            return 2
+
     for virus in sorted(set(labels.positives) | set(labels.negatives)):
         if args.virus and args.virus not in (virus, names.get(virus)):
             continue
+        if args.exclude_labelled:
+            screened = screened_against(args.release, virus)
         actives = sorted(labels.positives.get(virus, set()))
         inactives = labels.negatives.get(virus, set())
         if len(actives) < MIN_ACTIVES:
@@ -542,9 +630,14 @@ def main(argv=None) -> int:
                 par = parent_of(s)
                 if par:
                     known_parents.add(par)
-        candidates, salts = [], 0
+        candidates, salts, screened_out = [], 0, 0
         for c in pool:
             if c in known:
+                continue
+            if c in screened:
+                # Has an activity edge to this virus that the thresholds
+                # did not classify. Known is a subset of this.
+                screened_out += 1
                 continue
             if c in known_parents:
                 salts += 1
@@ -573,13 +666,55 @@ def main(argv=None) -> int:
             rows = []
         else:
             rows = suggest(candidates, actives, fps, props, args.top,
+                           flat=args.flat,
                            degree=g.degree_unlabelled)
+        # ----------------------------------------------- the comparator arm
+        #
+        # DRAWN FROM THE POOL ARM A WAS RANKED FROM, AND DISJOINT FROM IT.
+        #
+        # docs/prereg_denv2_prospective_screen.md section 3 says "k drawn
+        # at random from the same pool". Read strictly that admits a
+        # compound into BOTH arms, which makes the 2x2 incoherent -- the
+        # same well would be a hit in both columns. Disjoint is the only
+        # coherent reading and is recorded here as a choice rather than
+        # assumed, because it is a detail the registration did not fix.
+        #
+        # The seed is recorded in the artifact. The draw is over a SORTED
+        # pool so it depends on the seed and the release, not on dict
+        # ordering.
+        arm_b: list[str] = []
+        if args.random_arm:
+            import random as _random
+
+            # "candidate" is the key suggest() emits the compound id
+            # under. Guessing "inchikey" or "id" here would silently make
+            # the arms non-disjoint: the set would be empty, every
+            # filter would pass, and arm B could redraw arm A.
+            chosen = {r["candidate"] for r in rows}
+            eligible = sorted(c for c in candidates if c not in chosen)
+            rng = _random.Random(args.seed)
+            arm_b = (rng.sample(eligible, args.random_arm)
+                     if len(eligible) >= args.random_arm else [])
+            if not arm_b:
+                print(f"  REFUSED the random arm: {len(eligible):,} "
+                      f"eligible, {args.random_arm} needed")
+
         payload["viruses"][virus] = {
             "name": names.get(virus),
             "n_known_actives": len(actives),
             "n_known_inactives": len(inactives),
             "n_candidates": len(candidates),
             "n_salts_of_known_compounds_dropped": salts,
+            "n_screened_against_this_virus_dropped": screened_out,
+            "exclude_labelled": bool(args.exclude_labelled),
+            "random_arm": ({
+                "seed": args.seed,
+                "n_requested": args.random_arm,
+                "n_drawn": len(arm_b),
+                "disjoint_from_arm_a": True,
+                "drawn_from": len(candidates),
+                "compounds": arm_b,
+            } if args.random_arm else None),
             # WHAT THE REGISTERED RUNS SAY ABOUT THIS CELL, carried in the
             # file beside the list so the two cannot be read apart.
             "scorer_verdict": dict(v or {}, tier=t_),
