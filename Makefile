@@ -1,4 +1,4 @@
-.PHONY: agent-ui agent-ask auc-contribution hit-rate identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
+.PHONY: agent-ui agent-ask auc-contribution hit-rate screen-power identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
 
 install:
 	pip install -e ".[dev]"
@@ -289,6 +289,23 @@ auc-contribution:
 # withheld.
 hit-rate:
 	python scripts/hit_rate_at_k.py
+
+# HOW BIG A PROSPECTIVE WET-LAB SCREEN WOULD HAVE TO BE, per virus.
+# Two arms -- the scorer's top k against k drawn at random from the same
+# pool -- sized by exact one-sided Fisher power at the measured precision
+# and base rate.
+#
+# THIS IS WHAT ANSWERS "register the screen for every virus". Six of the
+# ten prospective cells cannot reach 80% power at any arm size up to 120,
+# and two of those six have among the highest AUCs in the study: the
+# binding constraint is enrichment headroom, not AUC. Registered for
+# DENV-2 only, by docs/prereg_denv2_prospective_screen.md.
+#
+# ~2 minutes: the power is enumerated exactly rather than approximated,
+# because at these arm sizes the normal approximation errs in the
+# direction that flatters the design.
+screen-power:
+	python scripts/screen_power.py
 
 data-audit:
 	python scripts/data_audit.py

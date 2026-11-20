@@ -192,14 +192,66 @@ def test_a_vanished_cell_is_named(tmp_path, capsys):
 
 
 # ------------------------------------------------- against the real history
-@pytest.mark.slow
-def test_the_l27_repair_cost_no_claim_carrying_auc():
-    """THE MEASUREMENT THIS SCRIPT WAS WRITTEN FOR, kept as a test so the
-    answer cannot rot into a sentence. The identity repair of 2026-11-11
-    moved a thousand figures; it must not have weakened a result."""
+#: The two commits that bracket the L27 identity repair of 2026-11-11.
+#: BEFORE is the last commit with the defect in it; AFTER is the one whose
+#: subject line is "L27 repaired".
+L27_BEFORE = "5151de8"
+L27_AFTER = "e3a94e5"
+
+
+def _results_at(commit: str, dest: Path) -> bool:
+    """Extract one commit's data/results into `dest`. False if absent."""
     import subprocess
-    probe = subprocess.run(["git", "cat-file", "-e", "5151de8^{commit}"],
+    import tarfile
+    import io
+
+    probe = subprocess.run(["git", "cat-file", "-e", f"{commit}^{{commit}}"],
                            cwd=ROOT, capture_output=True)
     if probe.returncode != 0:
-        pytest.skip("the pre-repair commit is not in this checkout")
-    assert C.main(["--against", "5151de8", "--fail-below", "-0.01"]) == 0
+        return False
+    ar = subprocess.run(["git", "archive", commit, "data/results"],
+                        cwd=ROOT, capture_output=True)
+    if ar.returncode != 0:
+        return False
+    dest.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(fileobj=io.BytesIO(ar.stdout)) as t:
+        t.extractall(dest, filter="data")
+    return (dest / "data" / "results").is_dir()
+
+
+@pytest.mark.slow
+def test_the_l27_repair_cost_no_claim_carrying_auc(tmp_path):
+    """THE MEASUREMENT THIS SCRIPT WAS WRITTEN FOR, kept as a test so the
+    answer cannot rot into a sentence. The identity repair of 2026-11-11
+    moved a thousand figures; it must not have weakened a result.
+
+    BOTH ENDS ARE NOW FIXED COMMITS, AND THAT IS THE FIX.
+
+    This read `--against 5151de8` with no `--new-dir`, so the new side was
+    the WORKING TREE. That was right on 2026-11-11 and wrong from the next
+    regeneration onward: by 2026-11-20 it spanned eight commits and four
+    releases, and it failed -- nine hard_negatives SARS-CoV-2 cells past
+    the -0.01 floor, the largest -0.0406. None of them was L27. The
+    symmetric control, the strength-matched run, the degree comparator
+    repair and two rebuilds had all landed in between, and the test
+    attributed every one of their deltas to the identity repair.
+
+    It was `@pytest.mark.slow`, so `make test` never ran it and only
+    `make test-all` did -- a gate that is permanently red where almost
+    nobody looks, which is worse than no gate: it teaches the people who
+    DO look to scroll past red.
+
+    Pinning the new side to `e3a94e5`, whose subject is "L27 repaired",
+    makes this a comparison between two fixed points. It answers the
+    question it was written for, it answers it forever, and it cannot be
+    broken by later work. The question "did TODAY's results weaken a
+    claim" is a different one and `make auc-delta` is what asks it -- on
+    HEAD~1, every run, where the answer is actionable.
+    """
+    before, after = tmp_path / "before", tmp_path / "after"
+    if not (_results_at(L27_BEFORE, before) and _results_at(L27_AFTER, after)):
+        pytest.skip("the commits bracketing the L27 repair are not in this "
+                    "checkout")
+    assert C.main(["--against-dir", str(before / "data" / "results"),
+                   "--new-dir", str(after / "data" / "results"),
+                   "--fail-below", "-0.01"]) == 0

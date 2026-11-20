@@ -16,6 +16,39 @@ The pathway analysis over every small molecule the graph holds, shipped
 with the agent in `src/kgav/agent/`, and the paper written from it. A
 scoring method for drug repurposing comes after, not in this release.
 
+**CHANGED BY THE OWNER, 2026-11-20. v1 IS NOW EVERYTHING MEASURED TO
+DATE.** The paragraph above stands as what was decided on 2026-10-23 and
+is no longer the plan. The decision: publish what the research has
+actually produced, which is four findings and not one —
+
+1. the metapath result, a negative: of eight reasoning channels four were
+   ever evaluable and all four are indistinguishable from chance;
+2. the pathway overlap, also a negative: 0 of 22 rows clear a corrected
+   alpha;
+3. the structure scorer, which clears in 8 of 17 registered cells above a
+   degree baseline that does not clear — and whose top-of-list precision
+   collapses to zero under the near-neighbour control on the one
+   assay-matched cell, measured 2026-11-20;
+4. the prospective study, the only out-of-time measurement here: 6 of 10
+   cells clear above chance, 2 clear BELOW it, and 0 of 10 have a usable
+   degree comparator.
+
+**WHAT THIS CHANGES ABOUT THE WORK.** The sentence "a scoring method
+comes after" was the reason the last fortnight's work was formally out of
+scope while being the only work happening. It is in scope now, so the
+remaining question is not what to measure — it is what to write. Nothing
+in this repository drafts the paper, and that is now the single blocking
+item for v1.
+
+**WHAT IT DOES NOT CHANGE.** No finding is upgraded by being published
+together with the others. The scorer's 8 cells are not evidence for a
+shortlist's hit rate (`docs/evaluation.md`, `claim_hit_rate`), the
+prospective cells are not shown to beat a baseline because none is
+usable, and the graph's own contribution to every scorer here is measured
+at zero or negative against degree (`make auc-contribution`). Publishing
+four findings means publishing four, including the two negatives and the
+two cells that predict backwards.
+
 ## Where the graph stands
 
 Release v0.1: 78,649 nodes, 396,223 edges, schema 0.16.0, `schema: PASS`.
@@ -137,6 +170,13 @@ plus the agent plus the paper, and `docs/evaluation.md` is a repository
 document rather than the paper — so the scorer ships alongside v1
 without being its subject. If the owner wants the scoring work IN v1
 instead, *What v1 is* is the line to change, not the claim block.
+
+**SETTLED 2026-11-20: the owner took the second option and changed
+*What v1 is*.** The scoring work is in v1, the claim block stands as
+written, and A1 is closed in full. Two findings have been added to that
+block since this item was first closed — the prospective study and the
+hit-rate qualification — and both are derived cell by cell by
+`tests/test_claim_block.py` rather than restated.
 
 ### A2. `host` layer provenance — **DONE 2026-11-11, and the report was the last part to be fixed**
 
@@ -286,8 +326,16 @@ targets sit in, and does the virus depend on any member of them. That is
 
 ## D. Out of scope for v1
 
+**SUPERSEDED IN PART, 2026-11-20.** See *What v1 is*: the owner moved v1
+to "everything measured to date", so the first entry below — the temporal
+split and everything downstream — is now IN scope and is one of the four
+findings v1 publishes. The entry is kept rather than deleted because the
+four corrections recorded under it are the useful part, and because a
+plan that quietly loses the reasoning behind a reversed decision cannot
+be audited.
+
 - **The temporal split and everything downstream.** Decided 2026-10-24: the
-  pathway analysis uses the whole graph.
+  pathway analysis uses the whole graph. **Reversed 2026-11-20.**
 
   **THIS NOTE WAS WRONG IN FOUR WAYS UNTIL 2026-11-11, AND C1/C2/V4 HAD
   ALREADY FIXED OR MEASURED EVERY ONE OF THEM.** It read: *"all 150,432

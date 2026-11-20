@@ -166,7 +166,7 @@ run, and `make diagnose-tautomer-conflation` lists them.
 rather than repaired.** Canonical-tautomer SMILES would separate these nine
 and split compounds every source treats as one; tautomers are frequently not
 separable experimentally either. The alternative is a different identity for
-the whole graph to resolve nine nodes out of 25,383, and the honest trade is
+the whole graph to resolve nine nodes out of 25,243, and the honest trade is
 to declare the policy on every node and count the cases.
 
 **What it costs a reader, measured rather than assumed:** on those nine, an
