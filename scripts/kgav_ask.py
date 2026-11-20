@@ -218,14 +218,15 @@ def build_orchestrator(args, note=None) -> Orchestrator:
     # does not cover resolves to None -- reported as uncalibrated rather than
     # borrowing another virus's numbers.
     cals: dict[str, object] = {}
-    # AND THE PROSPECTIVE SECTION OF THE SAME FILE (fix-list A7).
-    # guards.check's refusal for a candidate-generation question quotes the
-    # temporal calibration, and nothing had ever loaded one -- so the
-    # sentence a user got was the no-measurement branch, which until today
-    # asserted "every scorer performs at chance" regardless. Read from the
-    # same document, by the same loader, with section="temporal": a file
-    # whose temporal column is empty yields an unusable calibration and the
-    # refusal then says so instead of inventing a verdict.
+
+    # THE PARAGRAPH THAT STOOD HERE DESCRIBED LOADING THIS FILE NO LONGER
+    # DOES. It said the prospective calibration was "read from the same
+    # document, by the same loader, with section='temporal'" -- true
+    # until 2026-11-20, left in place when that loop was replaced by the
+    # dedicated file and loader below. A comment that describes the code
+    # it sits above, inaccurately, is how a maintainer "re-fixes" a thing
+    # back to the defect. The history is in the commit; the current
+    # arrangement is documented where it happens.
     temporal: dict[str, object] = {}
     if args.results.exists():
         try:
@@ -269,8 +270,27 @@ def build_orchestrator(args, note=None) -> Orchestrator:
                 args.temporal_results)
                 if args.all_viruses else [args.virus_label])
             for taxon in taxa:
+                # THE RELEASE, so a file measured on another graph is
+                # refused rather than quoted. landscape.load and
+                # measured_reach are both given it for the same reason.
                 temporal[taxon] = kgav_calibration.load_temporal(
-                    args.temporal_results, taxon)
+                    args.temporal_results, taxon, release=args.release)
+            # A FILE THAT YIELDS NOTHING MUST SAY SO. A refusal record
+            # carries no `cells`, so available_temporal_viruses returns
+            # [] and this loop runs zero times -- silently, which is the
+            # shape of the defect this whole change was fixing.
+            if not temporal:
+                note(f"{args.temporal_results.name} yielded no prospective "
+                     f"cell (a refusal record, or a run that evaluated "
+                     f"none); the candidate-generation refusal will "
+                     f"report no measured prospective result")
+            elif not any(getattr(c, "usable", False)
+                         for c in temporal.values()):
+                reasons = {getattr(c, "refused_reason", "")
+                           for c in temporal.values()}
+                note(f"every prospective cell in "
+                     f"{args.temporal_results.name} is unusable: "
+                     + "; ".join(sorted(r for r in reasons if r)))
         except (OSError, ValueError, KeyError) as exc:
             note(f"could not read {args.temporal_results.name} ({exc}); "
                  f"the candidate-generation refusal will report no "

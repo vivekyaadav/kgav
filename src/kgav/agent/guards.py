@@ -660,9 +660,20 @@ def _temporal_sentence(temporal) -> str:
         # prospectively, a refusal built on "every scorer is at chance" has
         # stopped being true and the person is entitled to know that before
         # being refused.
-        return (f"Measured, {_SPLIT}, the strongest scorer reaches AUC "
-                f"{best.auc:.3f} [{best.ci_lo:.3f}, {best.ci_hi:.3f}] under "
-                f"{temporal.protocol}, which clears chance.")
+        # NAMES THE SCORER, as the other two branches do. Without it the
+        # sentence reads "this graph cannot support prospective candidate
+        # generation ... the strongest scorer reaches AUC 0.802 ... which
+        # clears chance", and a reader is entitled to conclude that some
+        # GRAPH route works prospectively. The scorer is max-Tanimoto to
+        # pre-cutoff known actives: chemistry, using no graph edge at all.
+        # TEMPORAL_SCORER_NAMES exists so this sentence can say so, and
+        # until 2026-11-20 this was the one branch that did not use it --
+        # which is also the branch 6 of the 10 loaded cells reach.
+        return (f"Measured, {_SPLIT}, the strongest scorer — {best.name} — "
+                f"reaches AUC {best.auc:.3f} [{best.ci_lo:.3f}, "
+                f"{best.ci_hi:.3f}] under {temporal.protocol}, which clears "
+                f"chance. That scorer uses no graph edge: it ranks by "
+                f"chemical similarity to compounds already known active.")
 
     # BELOW CHANCE IS NOT AT CHANCE, and until a prospective calibration
     # was actually loaded nothing could reach this branch to notice.

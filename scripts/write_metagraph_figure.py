@@ -14,9 +14,9 @@ omitted TWO predicates:
     dense float32              24.8GB ->  24.7GB
     CSR                        3.4MB  ->  3.5MB
     SmallMolecule             25,383  ->  25,243
-    SmallMolecule mean degree      2.2 ->  2.4
-    OrganismTaxon mean degree  2,033  ->  2,383.7
-    SARS-CoV-2 degree         17,493  ->  19,498
+    SmallMolecule mean degree      2.2 ->  2.3
+    OrganismTaxon mean degree  2,033  ->  2,247.9
+    SARS-CoV-2 degree         17,493  ->  17,342
     HAS_ANTIVIRAL_ACTIVITY    24,496  ->  27,928
     TARGETS                   17,982  ->  17,635
     TARGETS reach        4,130/1,946  ->  3,977/1,944
@@ -25,6 +25,16 @@ omitted TWO predicates:
     CHEMICALLY_SIMILAR_TO      3,384  ->  3,035
 
     missing entirely: IN_TRIAL_FOR (568) and TREATS (9)
+
+THE THREE DEGREE FIGURES ABOVE ARE AGAINST THE PAIR CONVENTION. The
+first version of this generator counted node degree in edges.jsonl
+LINES while every arrow counted distinct (subject, object) pairs, so one
+picture used two conventions and "mean deg 2.4" was not comparable to
+the nnz beside it. The gap is the 2,296 lines two sources assert for one
+edge. Both halves now count distinct (subject, predicate, object), which
+moves SmallMolecule 2.4 -> 2.3, OrganismTaxon 2,383.7 -> 2,247.9 and
+SARS-CoV-2 19,498 -> 17,342 -- the last landing near the hand-written
+17,493, which suggests the original author counted pairs too.
 
 The two missing ones matter most. They are the clinical axis, added on
 2026-11-17, and they are one of the four findings v1 now publishes --
@@ -113,10 +123,18 @@ class Census:
         self.block: dict[tuple, set] = collections.defaultdict(set)
         self.degree: collections.Counter = collections.Counter()
         self.pairs: set = set()
-        self.subjects: dict[str, set] = collections.defaultdict(set)
-        self.objects: dict[str, set] = collections.defaultdict(set)
-        self.viral_objects: dict[str, set] = collections.defaultdict(set)
+        # KEYED BY BLOCK, NOT BY PREDICATE. These were {predicate: set},
+        # so a predicate linking two class pairs -- which the docstring
+        # above promises will draw itself as two arrows -- would print
+        # the same pooled counts on both, mixing classes and able to
+        # exceed the class size it names. No predicate does that on this
+        # release, which is exactly why it had to be fixed by reading
+        # rather than by a failure.
+        self.subjects: dict[tuple, set] = collections.defaultdict(set)
+        self.objects: dict[tuple, set] = collections.defaultdict(set)
+        self.viral_objects: dict[tuple, set] = collections.defaultdict(set)
         self.lines = 0
+        self._counted: set = set()
         for line in (release / "edges.jsonl").read_text().splitlines():
             if not line.strip():
                 continue
@@ -125,13 +143,22 @@ class Census:
             self.lines += 1
             key = (self.node_class.get(s), p, self.node_class.get(o))
             self.block[key].add((s, o))
-            self.degree[s] += 1
-            self.degree[o] += 1
+            # DEGREE COUNTS THE SAME THING THE ARROWS DO: distinct
+            # (subject, object) pairs under one predicate. It counted
+            # edges.jsonl LINES, so the node labels and the arrow labels
+            # used two conventions in one picture -- a reader comparing
+            # "mean deg 2.4" against the nnz beside it was comparing
+            # different quantities, and the gap is the 2,296 duplicate
+            # lines two sources assert.
+            if (s, p, o) not in self._counted:
+                self._counted.add((s, p, o))
+                self.degree[s] += 1
+                self.degree[o] += 1
             self.pairs.add((s, o))
-            self.subjects[p].add(s)
-            self.objects[p].add(o)
+            self.subjects[key].add(s)
+            self.objects[key].add(o)
             if o in self.is_viral:
-                self.viral_objects[p].add(o)
+                self.viral_objects[key].add(o)
 
         self.by_class: dict[str, list[int]] = collections.defaultdict(list)
         for nid, cls in self.node_class.items():
@@ -204,14 +231,19 @@ def annotation(c: Census, pred: str, sc: str, oc: str) -> str:
 
     It answers "reaches how much of what it points at", which a block's
     nnz does not: 17,635 TARGETS edges could be 17,635 drugs or 400.
+
+    PER BLOCK. The counts belong to this arrow's (subject class,
+    predicate, object class), not to the predicate pooled across every
+    class pair it might link.
     """
-    subs, objs = len(c.subjects[pred]), len(c.objects[pred])
+    key = (sc, pred, oc)
+    subs, objs = len(c.subjects[key]), len(c.objects[key])
     # Into a small class, the useful figure is coverage of it.
     if c.count(oc) <= 100:
         reach = f"{objs} of {c.count(oc)} {MEMBERS.get(oc, (oc, oc))[1]}"
         return f"({_members(sc, subs)} -> {reach})"
     note = f"({_members(sc, subs)} -> {_members(oc, objs)})"
-    viral = len(c.viral_objects.get(pred, ()))
+    viral = len(c.viral_objects.get(key, ()))
     if viral and oc == "Protein":
         note = note[:-1] + (", all viral)" if viral == objs
                             else f", {viral} viral)")
@@ -243,8 +275,8 @@ def render_dot(c: Census) -> str:
         f"whole graph: A ∈ {{0,1}}^({c.n_nodes:,} × {c.n_nodes:,}), "
         f"{c.n_pairs:,} unique directed pairs, density {c.density:.1e} "
         f"(dense float32 = {c.dense_gb:.1f} GB; CSR ≈ {c.csr_mb:.1f} MB)\\n"
-        f"nnz is DISTINCT (subject, object) pairs; edges.jsonl holds "
-        f"{c.lines:,} lines\\n"
+        f"nnz and every degree count DISTINCT (subject, predicate, object); "
+        f"edges.jsonl holds {c.lines:,} lines\\n"
         f"edges_sha {fp['edges_sha']}"
     )
     lines += [

@@ -284,14 +284,157 @@ def test_the_denv2_precision_and_base_rate_are_the_measured_ones():
 def test_every_refusal_condition_is_stated_before_the_numbers_exist():
     """Five of them, and the document must not be able to lose one
     quietly: a refusal condition added after a result is not a refusal
-    condition."""
+    condition. Condition 3 is the amended one -- see below."""
     flat = _flat()
     for needle in ("Fewer than 20 eligible orderable compounds",
                    "Any plate control fails",
-                   "outside P2's 2%–15%",
                    "The release moves",
                    "Arm membership is disclosed"):
         assert needle in flat, f"refusal condition missing: {needle!r}"
+
+
+# ----------------------------------------------- the amendment's figures
+@pytest.mark.skipif(not TEMPORAL.exists(), reason="no prospective results")
+def test_the_refusal_condition_does_not_refuse_the_likeliest_outcome():
+    """THE DEFECT THE AMENDMENT EXISTS FOR.
+
+    As signed, condition 3 refused whenever arm B fell outside a 2%-15%
+    RATE band. With 20 compounds only 1, 2 or 3 hits are inside it, so
+    29.8% of runs refused before any test -- including 0 hits, which is
+    both the single most likely outcome at a 6.51% base rate and the
+    worked example in section 5.
+
+    The replacement is an implausibility bound in COUNTS. This asserts
+    the arithmetic behind it, so the band cannot drift back.
+    """
+    from math import comb
+
+    base = _denv2_base_rate()
+    n = 20
+    pmf = [comb(n, k) * base ** k * (1 - base) ** (n - k)
+           for k in range(n + 1)]
+    flat = _flat()
+
+    # The old band must be gone as a live condition.
+    assert "outside P2's 2%–15%" not in flat.split("## Amendment")[0] \
+        or "superseded" in flat, "the amendment does not supersede the band"
+
+    # 0 hits is ordinary, not a refusal.
+    assert f"{pmf[0]:.1%}" in flat, (
+        f"P(arm B hits 0) is {pmf[0]:.1%} and the amendment does not say so")
+
+    # The new bound: smallest c with P(X >= c) <= 0.01.
+    c = next(k for k in range(n + 1) if sum(pmf[k:]) <= 0.01)
+    assert f"**arm B\nhits {c} or more of {n}**" in _text() \
+        or f"arm B hits **{c} or more of {n}**" in flat, (
+        f"the amended refusal should fire at {c} or more hits")
+    assert f"{sum(pmf[c:]):.4f}" in flat, (
+        f"P(refuse) is {sum(pmf[c:]):.4f} and is not stated")
+
+    # And the old condition's cost, recorded.
+    old = 1 - sum(pmf[k] for k in range(n + 1) if 0.02 <= k / n <= 0.15)
+    assert f"{old:.1%}" in flat, (
+        f"the amendment does not record that the signed condition refused "
+        f"{old:.1%} of runs")
+
+
+@pytest.mark.skipif(not TEMPORAL.exists(), reason="no prospective results")
+def test_the_amended_power_is_net_of_the_refusal():
+    """The signed power ignored the refusal and overstated a readable
+    result by ~30 points. The amendment states both."""
+    from math import comb
+
+    sp = _power_module()
+    base, prec, n = _denv2_base_rate(), _stated_precision(), 20
+    pmf = [comb(n, k) * base ** k * (1 - base) ** (n - k)
+           for k in range(n + 1)]
+    c = next(k for k in range(n + 1) if sum(pmf[k:]) <= 0.01)
+    flat = _flat()
+
+    # PARSED FROM THE TABLE, not searched for in the document. The first
+    # version asserted `f"{net:.1%}" in flat`, and 99.1% appears twice --
+    # in the table and in section 9's reworded NOT CONFIRMED outcome --
+    # so changing the table's figure still found the other one and the
+    # test passed. A figure must be checked where it is stated.
+    # SCOPED TO THE POWER TABLE. Parsing every three-field line that
+    # ends in two percentages also swallowed the hits/probability table
+    # above it, which is a different table with a different meaning.
+    body = _text().split("power (test alone)", 1)
+    assert len(body) == 2, "the amendment's power table lost its header"
+    rows = {}
+    for line in body[1].splitlines():
+        parts = line.split()
+        if len(parts) != 3 or not all(x.endswith("%") for x in parts[1:]):
+            if rows:
+                break               # the table has ended
+            continue
+        try:
+            rows[float(parts[0])] = (parts[1], parts[2])
+        except ValueError:
+            break
+    assert set(rows) == {0.05, 0.005}, (
+        f"the amendment's power table has rows {sorted(rows)}")
+
+    for alpha, (alone, net_shown) in rows.items():
+        raw = sp.power(n, prec, base, alpha)
+        net = 0.0
+        for a in range(n + 1):
+            wa = comb(n, a) * prec ** a * (1 - prec) ** (n - a)
+            if wa < 1e-15:
+                continue
+            for b in range(c):            # a refused run is not a success
+                wb = pmf[b]
+                if wb < 1e-15:
+                    continue
+                if sp.fisher_one_sided(a, n, b, n) <= alpha:
+                    net += wa * wb
+        assert alone == f"{raw:.1%}", (
+            f"alpha {alpha}: test-alone power is {raw:.1%}, table says "
+            f"{alone}")
+        assert net_shown == f"{net:.1%}", (
+            f"alpha {alpha}: power net of the refusal is {net:.1%}, table "
+            f"says {net_shown}")
+
+    # And section 9's reworded outcome must quote the NET figure.
+    net_05 = rows[0.05][1]
+    assert f"a screen with {net_05} power" in flat, (
+        f"section 9 should now say {net_05}, the power net of the refusal")
+
+
+@pytest.mark.skipif(not TEMPORAL.exists(), reason="no prospective results")
+def test_p2_is_a_count_interval_not_a_rate_band():
+    """A rate band on twenty compounds is what produced the defect."""
+    from math import comb
+
+    base, n = _denv2_base_rate(), 20
+    pmf = [comb(n, k) * base ** k * (1 - base) ** (n - k)
+           for k in range(n + 1)]
+    best = None
+    for lo in range(n + 1):
+        for hi in range(lo, n + 1):
+            m = sum(pmf[lo:hi + 1])
+            if m >= 0.95 and (best is None or hi - lo < best[1] - best[0]):
+                best = (lo, hi, m)
+    flat = _flat()
+    assert f"**{best[0]} to {best[1]} of {n}**" in flat, (
+        f"the shortest 95% count interval is {best[0]}-{best[1]} and the "
+        f"amendment states something else")
+    assert f"{best[2]:.1%}" in flat
+
+
+def test_the_unenriched_cell_count_is_right_everywhere():
+    """Section 10 said two cells rank below their own base rate; four
+    do. The amendment corrects it, and the table is the source."""
+    text = _text()
+    table = text.split("every prospective cell", 1)[1].split("\n\n", 2)[1]
+    below = [ln[4:18].strip() for ln in table.splitlines()
+             if ln.startswith("    ") and "virus" not in ln
+             and float(ln.split("x")[0].split()[-1]) < 1.0]
+    assert len(below) == 4, f"expected four cells under 1.0x, got {below}"
+    flat = _flat()
+    assert "**Four** rank below their own base rate" in flat, (
+        f"{len(below)} cells rank below their base rate and the amendment "
+        f"does not say four")
 
 
 def test_exactly_the_four_named_outcomes_are_declared():

@@ -54,6 +54,14 @@ from math import comb
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from temporal_structure_scorer import ALPHA as TEMPORAL_ALPHA
+from temporal_structure_scorer import FAMILY as TEMPORAL_FAMILY
+
+#: The conventional uncorrected level, named so the pair below reads as
+#: a comparison rather than as two magic numbers.
+UNCORRECTED_ALPHA = 0.05
 
 #: Power the sizing targets. 0.80 is the conventional floor and is stated
 #: here rather than assumed, because a screen sized at 0.5 power is a
@@ -66,9 +74,18 @@ TARGET_POWER = 0.80
 K_MAX = 120
 K_STEP = 2
 
-#: The alphas reported: uncorrected, and corrected for a family of ten --
-#: what registering every evaluable prospective cell would cost.
-ALPHAS = (0.05, 0.005)
+#: The alphas reported: uncorrected, and the registered family's
+#: correction -- what registering every evaluable prospective cell would
+#: cost.
+#:
+#: IMPORTED, NOT RESTATED. This read `(0.05, 0.005)` under a comment
+#: saying "corrected for a family of ten", beside a summary line that
+#: printed "once the family is {len(rows)}". If the number of evaluable
+#: cells ever changed, the table would have sized every arm at 0.05/10
+#: while the sentence beneath it named a different family -- and the arm
+#: size is the one figure a signed registration cannot revise.
+#: scripts/hit_rate_at_k.py already imports from this module.
+ALPHAS = (UNCORRECTED_ALPHA, TEMPORAL_ALPHA)
 
 RULE = "=" * 78
 
@@ -128,14 +145,29 @@ def measured(k: int = 10) -> dict:
             [sys.executable, str(script), "--out", str(out), "--k", str(k)],
             capture_output=True, text=True, cwd=ROOT, timeout=1800)
         if r.returncode != 0:
-            raise SystemExit(f"hit_rate_at_k.py failed:\n{r.stderr}")
+            # BOTH STREAMS. hit_rate_at_k.py prints its refusals --
+            # "the split was built from a different release than the one
+            # on disk" -- to STDOUT and returns 1, so showing stderr
+            # alone produced "hit_rate_at_k.py failed:" and nothing
+            # after it, in exactly the case an operator needs the reason
+            # (a stale split after a rebuild).
+            raise SystemExit("hit_rate_at_k.py failed:\n"
+                             + (r.stdout or "") + (r.stderr or ""))
         return json.loads(out.read_text())
 
 
-def _per_k(block: dict, k: int) -> dict:
-    """per_k survives a JSON round trip with string keys."""
+def _per_k(block: dict, k: int) -> dict | None:
+    """per_k survives a JSON round trip with string keys.
+
+    None when the cut depth is absent. hit_rate_at_k.precision_rows
+    skips any k larger than the cell's pool, so `--k 100` against a cell
+    with 81 candidates has no entry -- and this used to raise a bare
+    KeyError that aborted the whole table rather than naming the cell.
+    """
     pk = block["per_k"]
-    return pk[str(k)] if str(k) in pk else pk[k]
+    if str(k) in pk:
+        return pk[str(k)]
+    return pk.get(k)
 
 
 def main(argv=None) -> int:
@@ -177,10 +209,14 @@ def main(argv=None) -> int:
     print("  " + "-" * (len(hdr) - 2))
 
     rows = []
+    skipped = []
     for cell in cells:
         p_b = cell["base_rate"]
-        p_a = _per_k(cell["controls"]["symmetric_k10"],
-                     args.k)["precision_expected"]
+        sized = _per_k(cell["controls"]["symmetric_k10"], args.k)
+        if sized is None:
+            skipped.append(f"{cell['name']} (pool {cell['pool']:,})")
+            continue
+        p_a = sized["precision_expected"]
         needs = [smallest_arm(p_a, p_b, a) for a in ALPHAS]
         rows.append({"name": cell["name"], "base_rate": p_b,
                      "precision": p_a,
@@ -191,6 +227,9 @@ def main(argv=None) -> int:
         print(f"  {cell['name']:<14}{p_b:>6.1%}{p_a:>7.0%}"
               f"{(p_a / p_b if p_b else 0):>6.1f}x{cols}")
     print("  " + "-" * (len(hdr) - 2))
+    if skipped:
+        print(f"  not sized at k={args.k}, pool smaller than the cut: "
+              + ", ".join(skipped))
     print()
 
     corrected = str(ALPHAS[-1])
@@ -225,7 +264,8 @@ def main(argv=None) -> int:
         a_co = r["arm_per_alpha"][corrected]
         if a_un and a_co and a_co > a_un:
             print(f"    {r['name']:<14}{a_un} -> {a_co} compounds per arm "
-                  f"once the family is {len(rows)}")
+                  f"at alpha {ALPHAS[-1]:g} (a family of "
+                  f"{TEMPORAL_FAMILY})")
     print()
 
     if args.out:

@@ -38,6 +38,8 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from kgav import provenance
+
 # A channel must beat chance with its interval, not its point estimate.
 CHANCE = 0.5
 
@@ -427,7 +429,8 @@ def temporal_protocol(doc: dict) -> str:
 
 
 def load_temporal(results: Path, virus: str,
-                  exclude: tuple[str, ...] = TEMPORAL_EXCLUDE) -> Calibration:
+                  exclude: tuple[str, ...] = TEMPORAL_EXCLUDE,
+                  release: Path | None = None) -> Calibration:
     """One virus's prospective calibration from temporal_structure_scorer.json.
 
     `virus` is matched against the file's `cells` keys, which are taxon
@@ -439,12 +442,45 @@ def load_temporal(results: Path, virus: str,
     `usable` is False and the agent takes its no-measurement branch. That
     is the distinction this file exists to preserve: a refused cell is
     not a cell that scored 0.5.
+
+    `release` IS THE ONE THE AGENT IS SERVING, and a file stamped for a
+    different one is refused rather than quoted. Spelled the way
+    landscape.load and labels.measured_reach already spell it, and for
+    the same reason: until 2026-11-20 this path quoted no prospective
+    AUC at all, so a stale file was harmless. It is not harmless now --
+    the refusal would tell a reader that a scorer "clears chance" using
+    figures measured on a graph that no longer exists. None skips the
+    check, which is what a caller with no release in hand must do.
     """
     path = Path(results)
     doc = json.loads(path.read_text())
     cells = doc.get("cells") or {}
     proto = temporal_protocol(doc)
     cal = Calibration(virus=virus, protocol=proto, source_file=str(path.name))
+
+    # THE WHOLE RUN'S REFUSAL, AND THE RELEASE STAMP, BEFORE ANY CELL.
+    #
+    # Both of these were checked after the cell lookup, and the refusal
+    # was checked under the key `refused`. write_refusal writes
+    # provenance.REFUSAL_KEY, which is "refused_by" -- so the branch
+    # could not fire under any circumstance, and a refusal record (which
+    # carries no `cells` at all, because temporal_structure_scorer.py
+    # returns before it sets them) reported "holds no prospective cell
+    # for X" instead of the reasons the protocol recorded. That is this
+    # project's own named defect: a check that cannot fail is worse than
+    # no check, and this one stood in for the case the comment above it
+    # claimed to handle.
+    if release is not None:
+        status, message = provenance.check_file(path, release)
+        if status != "ok":
+            cal.refused_reason = (
+                f"{path.name} is {status} against {Path(release).name}: "
+                f"{message}")
+            return cal
+    if doc.get(provenance.REFUSAL_KEY):
+        cal.refused_reason = ("the prospective run refused: "
+                              + "; ".join(doc[provenance.REFUSAL_KEY]))
+        return cal
 
     row = cells.get(virus)
     if row is None:
@@ -463,15 +499,6 @@ def load_temporal(results: Path, virus: str,
             f"{path.name} holds no prospective cell for {virus}; it "
             f"evaluated {len(cells)} of "
             f"{doc.get('n_cells_total', len(cells))} candidate cells")
-        return cal
-
-    # THE WHOLE FILE'S REFUSAL, if the run itself refused. write_refusal
-    # records the reasons under this key in place of results, and a
-    # refusal record still carries the cells it had, so this has to be
-    # checked before reading any of them.
-    if doc.get("refused"):
-        cal.refused_reason = ("the prospective run refused: "
-                              + "; ".join(doc["refused"]))
         return cal
 
     n_pos = int(row.get("n_test_positives") or 0)

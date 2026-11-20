@@ -11,7 +11,7 @@
 <polygon fill="white" stroke="transparent" points="-36,36 -36,-905.07 2325.69,-905.07 2325.69,36 -36,36"/>
 <text text-anchor="middle" x="1144.84" y="-853.87" font-family="Helvetica,sans-Serif" font-size="14.00">kgav v0.1 metagraph — each arrow is one sparse block matrix: rows×cols, nnz, density</text>
 <text text-anchor="middle" x="1144.84" y="-838.87" font-family="Helvetica,sans-Serif" font-size="14.00">whole graph: A ∈ {0,1}^(78,649 × 78,649), 393,927 unique directed pairs, density 6.4e&#45;05 (dense float32 = 24.7 GB; CSR ≈ 3.5 MB)</text>
-<text text-anchor="middle" x="1144.84" y="-823.87" font-family="Helvetica,sans-Serif" font-size="14.00">nnz is DISTINCT (subject, object) pairs; edges.jsonl holds 396,223 lines</text>
+<text text-anchor="middle" x="1144.84" y="-823.87" font-family="Helvetica,sans-Serif" font-size="14.00">nnz and every degree count DISTINCT (subject, predicate, object); edges.jsonl holds 396,223 lines</text>
 <text text-anchor="middle" x="1144.84" y="-808.87" font-family="Helvetica,sans-Serif" font-size="14.00">edges_sha 873623c9a9df2049</text>
 <!-- SM -->
 <g id="node1" class="node">
@@ -19,7 +19,7 @@
 <ellipse fill="#fbe5d6" stroke="black" cx="1091.69" cy="-761.47" rx="60.62" ry="39.7"/>
 <text text-anchor="middle" x="1091.69" y="-776.67" font-family="Helvetica,sans-Serif" font-size="11.00">SmallMolecule</text>
 <text text-anchor="middle" x="1091.69" y="-764.67" font-family="Helvetica,sans-Serif" font-size="11.00">25,243</text>
-<text text-anchor="middle" x="1091.69" y="-752.67" font-family="Helvetica,sans-Serif" font-size="11.00">mean deg 2.4</text>
+<text text-anchor="middle" x="1091.69" y="-752.67" font-family="Helvetica,sans-Serif" font-size="11.00">mean deg 2.3</text>
 <text text-anchor="middle" x="1091.69" y="-740.67" font-family="Helvetica,sans-Serif" font-size="11.00">73 isolated</text>
 </g>
 <!-- SM&#45;&gt;SM -->
@@ -69,7 +69,7 @@
 <ellipse fill="#f8cbad" stroke="black" cx="1105.69" cy="-207.34" rx="154.3" ry="31.23"/>
 <text text-anchor="middle" x="1105.69" y="-216.54" font-family="Helvetica,sans-Serif" font-size="11.00">OrganismTaxon</text>
 <text text-anchor="middle" x="1105.69" y="-204.54" font-family="Helvetica,sans-Serif" font-size="11.00">16</text>
-<text text-anchor="middle" x="1105.69" y="-192.54" font-family="Helvetica,sans-Serif" font-size="11.00">mean deg 2,383.7 (SARS&#45;CoV&#45;2: 19,498)</text>
+<text text-anchor="middle" x="1105.69" y="-192.54" font-family="Helvetica,sans-Serif" font-size="11.00">mean deg 2,247.9 (SARS&#45;CoV&#45;2: 17,342)</text>
 </g>
 <!-- SM&#45;&gt;T -->
 <g id="edge3" class="edge">

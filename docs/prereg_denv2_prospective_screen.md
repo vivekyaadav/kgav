@@ -250,6 +250,102 @@ They are named here so the command cannot be adjusted after the list is
 seen, and implementing them is the next commit. The seed is recorded in
 the artifact and in the commit message at draw time.
 
+
+---
+
+## Amendment, 2026-11-20 — the refusal condition refused the experiment
+
+**Found by external review, hours after signing and before anything was
+drawn or plated. Section 8 as signed would have refused about 30% of
+runs before any test, including the single most likely outcome, which is
+also the worked example in section 5.**
+
+Nothing above is edited. The original text stands so the error is on the
+record; the clauses below supersede it.
+
+### What was wrong
+
+Refusal condition 3 read:
+
+> **Arm B's hit rate falls outside P2's 2%–15%.** Then the pool that was
+> screened is not the pool that was ranked ... including if arm B hits
+> at 0%, which would make the pool's base rate unmeasurable from this
+> experiment.
+
+With **20** compounds in arm B, the only attainable rates inside that
+band are 1, 2 or 3 hits. Against the registered base rate of 6.51%:
+
+    hits    rate    probability
+       0      0%        26.0%      <- REFUSED, and the most likely outcome
+       1      5%        36.2%
+       2     10%        24.0%
+       3     15%        10.0%
+       4     20%         3.0%      <- REFUSED
+      >=5   >=25%        0.8%      <- REFUSED
+
+    P(refused before any test is run) = 29.8%
+
+And section 5's own worked example — *"The test rejects at alpha 0.05
+with 5 or more hits in arm A against 0 in arm B"* — describes a run that
+condition 3 refuses. The registration's illustration of success was a
+refusal.
+
+The 99.8% power in section 5, and the phrase *"a screen with 99.8% power
+to detect the retrospective effect"* in section 9's NOT CONFIRMED
+outcome, were computed on the test alone and ignore the refusal. They
+overstated the chance of a readable result by roughly 30 points.
+
+**The error was reasoning about a RATE where the experiment produces a
+COUNT.** A 2%–15% band is a sensible interval on a proportion and an
+unsatisfiable one on twenty compounds.
+
+### What replaces it
+
+**P2 (superseded).** Arm B hits **0 to 3 of 20**. That is the shortest
+count interval covering 95% of Binomial(20, 0.0651); it holds **96.2%**
+of the mass. Arm B hitting 0 is an ordinary outcome, not a failure.
+
+**Refusal condition 3 (superseded).** The screen is refused if **arm B
+hits 5 or more of 20**. Under the registered base rate that happens with
+probability **0.0080**, so it is a genuine implausibility bound rather
+than a coin flip: it fires when the pool that was screened is enriched
+relative to the pool that was ranked, which is the only direction that
+breaks the comparison. A low arm B does not break it — a random arm that
+hits nothing is what a 6.51% base rate looks like in twenty wells.
+
+**Power (superseded).** Net of the new refusal condition, at the
+measured precision of 70% and base rate of 6.51%, 20 compounds per arm:
+
+    alpha      power (test alone)    power net of refusal
+    0.05                   99.8%                   99.1%
+    0.005                  96.4%                   96.0%
+
+Section 9's NOT CONFIRMED wording becomes *"a screen with 99.1% power to
+detect the retrospective effect"*.
+
+The rejection threshold is unchanged: **5 or more hits in arm A against
+0 in arm B** rejects at alpha 0.05, and 0 in arm B is now a readable
+result rather than a refusal.
+
+### And one count in section 10 was wrong
+
+Section 10 says the result would license nothing about the other viruses
+because *"six of their cells cannot be powered at all, and two rank
+below their own base rate"*. **Four** rank below their own base rate —
+West Nile 0.4x, Yellow fever 0.3x, HCoV-OC43 0.8x and Zika 0.5x, as
+section 2's own table and the sentence beneath it both state. The "two"
+conflated them with the two cells whose AUC clears BELOW chance, which
+is a different finding about different cells.
+
+### Why this is an amendment and not an edit
+
+This project amends a registration by appending, never by rewriting what
+was signed — the rule that produced the amendments in
+`docs/prereg_pathway_overlap.md` and `docs/prereg_clinical_labels.md`.
+The screen has not been run, nothing has been drawn and no outcome
+exists, so correcting a design error costs nothing that a
+pre-registration protects. Deleting the error would.
+
 ---
 
 ## Verdict

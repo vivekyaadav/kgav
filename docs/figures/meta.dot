@@ -7,15 +7,15 @@
 // drifted by thirteen figures and two whole predicates.
 // release v0.1  nodes_sha dc6d76a2b3cfb2a1  edges_sha 873623c9a9df2049
 digraph meta {
-  graph [fontname="Helvetica", label="kgav v0.1 metagraph — each arrow is one sparse block matrix: rows×cols, nnz, density\nwhole graph: A ∈ {0,1}^(78,649 × 78,649), 393,927 unique directed pairs, density 6.4e-05 (dense float32 = 24.7 GB; CSR ≈ 3.5 MB)\nnnz is DISTINCT (subject, object) pairs; edges.jsonl holds 396,223 lines\nedges_sha 873623c9a9df2049", labelloc=t, fontsize=14, pad=0.5, nodesep=1.4, ranksep=1.3];
+  graph [fontname="Helvetica", label="kgav v0.1 metagraph — each arrow is one sparse block matrix: rows×cols, nnz, density\nwhole graph: A ∈ {0,1}^(78,649 × 78,649), 393,927 unique directed pairs, density 6.4e-05 (dense float32 = 24.7 GB; CSR ≈ 3.5 MB)\nnnz and every degree count DISTINCT (subject, predicate, object); edges.jsonl holds 396,223 lines\nedges_sha 873623c9a9df2049", labelloc=t, fontsize=14, pad=0.5, nodesep=1.4, ranksep=1.3];
   node [fontname="Helvetica", shape=ellipse, style=filled, fontsize=11];
   edge [fontname="Helvetica", fontsize=9];
-  SM  [label="SmallMolecule\n25,243\nmean deg 2.4\n73 isolated", fillcolor="#fbe5d6"];
+  SM  [label="SmallMolecule\n25,243\nmean deg 2.3\n73 isolated", fillcolor="#fbe5d6"];
   P   [label="Protein\n20,888\nmean deg 24.7\n632 isolated", fillcolor="#deebf7"];
   G   [label="Gene\n19,190\nmean deg 1.0", fillcolor="#e2f0d9"];
   PW  [label="Pathway (GO+Reactome)\n13,236\nmean deg 11.9", fillcolor="#fff2cc"];
   TC  [label="TargetClass\n66\nmean deg 2.4", fillcolor="#eeeeee"];
-  T   [label="OrganismTaxon\n16\nmean deg 2,383.7 (SARS-CoV-2: 19,498)", fillcolor="#f8cbad"];
+  T   [label="OrganismTaxon\n16\nmean deg 2,247.9 (SARS-CoV-2: 17,342)", fillcolor="#f8cbad"];
   D   [label="Disease\n10\nmean deg 59.3", fillcolor="#eeeeee"];
   P   -> PW  [label="PARTICIPATES_IN 20,888×13,236 · 157,211 · 5.7e-04\n(17,598 proteins -> 13,236 pathways)", penwidth=3];
   P   -> P   [label="PHYSICALLY_INTERACTS_WITH · 153,533 · 3.5e-04\n(11,873 proteins -> 11,807 proteins, 130 viral)", penwidth=3];

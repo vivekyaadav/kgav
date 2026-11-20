@@ -8,7 +8,7 @@ two predicates:
     SmallMolecule 25,383 -> 25,243, HAS_ANTIVIRAL 24,496 -> 27,928,
     TARGETS 17,982 -> 17,635, INHIBITS 3,943 -> 3,874,
     CHEMICALLY_SIMILAR_TO 3,384 -> 3,035, SARS-CoV-2 degree
-    17,493 -> 19,498, and six more.
+    17,493 -> 17,342, and six more.
 
     absent entirely: IN_TRIAL_FOR (568) and TREATS (9)
 

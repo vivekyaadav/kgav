@@ -110,11 +110,22 @@ def test_it_uses_the_corrected_interval_and_not_the_95_percent_one():
 
     for taxon, scorer in disagreeing:
         cal = C.load_temporal(TEMPORAL, taxon)
-        readable = C.TEMPORAL_SCORER_NAMES.get(scorer, scorer)
-        assert readable not in cal.discriminating(), (
+        # ASSERTED ON THE CHANNEL, NOT ON A DISPLAY STRING. This compared
+        # TEMPORAL_SCORER_NAMES[scorer] -- "the same with each
+        # candidate's 10 nearest withheld" -- against
+        # `discriminating()`, which returns the dict KEYS
+        # ("primary", "symmetric_k10"). The display name is never in that
+        # list, so the assertion held whatever interval the loader read,
+        # and the one regression it exists to catch would have passed it.
+        # Found by review, 2026-11-20; it is this repository's own named
+        # defect, in the test written to prevent the defect.
+        assert scorer in cal.channels, f"{taxon} has no {scorer} channel"
+        assert not cal.channels[scorer].discriminates, (
             f"{taxon}/{scorer} clears at 95% and not at the corrected "
             f"alpha, and the loader reports it as clearing: it read the "
             f"uncorrected interval")
+        assert scorer not in cal.discriminating(), (
+            f"{taxon}/{scorer} is listed as discriminating")
 
 
 @needs_temporal
