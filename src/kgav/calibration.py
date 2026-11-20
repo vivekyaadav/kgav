@@ -364,9 +364,16 @@ TEMPORAL_EXCLUDE = ("degree",)
 #: position in its own registration rather than anything the scorer does.
 #: An unlisted key passes through unchanged, so a new scorer is readable
 #: as its key rather than silently renamed to something it is not.
+#: EACH NAME STANDS ALONE. "the same with each candidate's 10 nearest
+#: withheld" was written to follow the primary in a list and is the only
+#: place it reads: guards._temporal_sentence drops one name into a
+#: sentence, and a Yellow fever refusal served "the strongest is the same
+#: with each candidate's 10 nearest withheld at AUC 0.386", which is not
+#: English. A name that only works beside its sibling is not a name.
 TEMPORAL_SCORER_NAMES = {
     "primary": "max-Tanimoto to pre-cutoff actives",
-    "symmetric_k10": "the same with each candidate's 10 nearest withheld",
+    "symmetric_k10": "max-Tanimoto with each candidate's 10 nearest "
+                     "actives withheld",
 }
 
 
