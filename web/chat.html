@@ -118,6 +118,7 @@
     position: sticky; top: 0; z-index: 10;
     display: flex; align-items: center; gap: 12px;
     padding: 10px 16px;
+    background: var(--bg);
     background: color-mix(in srgb, var(--bg) 88%, transparent);
     backdrop-filter: saturate(1.4) blur(8px);
     border-bottom: 1px solid var(--line);
@@ -277,6 +278,7 @@
   /* --------------------------------------------------------- composer */
   footer {
     position: sticky; bottom: 0;
+    background: var(--bg);
     background: color-mix(in srgb, var(--bg) 88%, transparent);
     backdrop-filter: saturate(1.4) blur(8px);
     border-top: 1px solid var(--line);
@@ -305,6 +307,7 @@
     display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
     margin-top: 9px; font-size: 12px; color: var(--ink-3);
   }
+  .ctrls .spacer { margin-left: auto; }
   .toggle { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
   .toggle input { accent-color: var(--accent); margin: 0; }
   kbd {
