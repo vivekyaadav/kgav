@@ -303,3 +303,125 @@ def test_a_question_resolving_nothing_is_an_ENTITY_problem_not_a_virus_one():
     # virus, and its refusal quotes that virus's own figures.
     out = o.answer("which drugs should we test?", None)
     assert "virus_not_named" in _trace(out), _trace(out)
+
+
+# ================== 7: three defects the owner found using the frontend
+#
+# All three are the same failure as the five above wearing a different
+# coat: the agent produced output that looked like an answer and was not
+# one. Found 2026-11-21 by using it, which is the only way any of these
+# were ever found.
+
+@needs_release
+def test_an_answer_that_only_restates_its_caveats_is_withheld():
+    """MEASURED: asking "DENV-1" returned 1,083 characters, and with
+    every required caveat removed it was the EMPTY STRING. It passed
+    verification and was shown as the ANSWER, so the reader saw the same
+    three paragraphs twice -- the second time implying synthesis had
+    happened.
+
+    The incentive points straight at it: required caveats must appear
+    VERBATIM, so copying them and stopping is the cheapest way to pass.
+    """
+    from kgav.agent.verify import verify
+
+    cav = "VIRUS NOT VALIDATED: scoring is not validated for this virus."
+    v = verify(cav, ["DENV-1 (OrganismTaxon, NCBITaxon:11053)"], [],
+               required_warnings=[cav])
+    assert not v.passed
+    assert "says_nothing" in {f.code for f in v.findings}
+
+
+def test_a_terse_answer_that_adds_something_is_not_rejected():
+    """The guard must not become a guard against brevity. A true answer
+    of two words beats a padded one, and the evidence and caveats carry
+    the weight in this design."""
+    from kgav.agent.verify import verify
+
+    cav = "RANKING: compounds are ordered by direct evidence, then potency."
+    v = verify(f"{cav} Nirmatrelvir first.",
+               ["1. nirmatrelvir: best direct IC50 3 nM"], [],
+               required_warnings=[cav])
+    assert "says_nothing" not in {f.code for f in v.findings}, v.findings
+
+
+def test_the_withheld_reason_matches_the_finding():
+    """Telling a reader the model invented something when it said
+    nothing is the same class of error the checks exist to catch."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "kgav_ask_withheld", ROOT / "scripts" / "kgav_ask.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+
+    class _F:
+        def __init__(self, code):
+            self.severity, self.code, self.detail = "fail", code, ""
+
+    class _V:
+        def __init__(self, codes):
+            self.passed, self.cited = False, []
+            self.findings = [_F(c) for c in codes]
+
+    out = {"allowed": True, "answer": "x", "facts": [], "warnings": []}
+    said_nothing = mod.json_payload(dict(out), _V(["says_nothing"]))
+    invented = mod.json_payload(dict(out), _V(["invented_citation"]))
+    assert "restated the required caveats" in said_nothing["answer_withheld"]
+    assert "not supported" not in said_nothing["answer_withheld"]
+    assert "not supported" in invented["answer_withheld"]
+
+
+@needs_release
+@pytest.mark.parametrize("typed,expect", [
+    ("hi introduce yourself", "about_agent"),
+    ("what can you do?", "about_agent"),
+    ("list all the viruses i can talk to you about ?", "about_viruses"),
+    ("which viruses do you cover", "about_viruses"),
+])
+def test_the_agent_answers_questions_about_itself(orch, typed, expect):
+    """Both commonest first questions returned "No entity in this
+    question matches a node in the graph" -- the virus list especially
+    badly, because the agent lists those sixteen in three other replies
+    and would not do it when asked."""
+    out = orch.answer(typed, None)
+    assert expect in _trace(out), _trace(out)
+    assert out.get("clarification")
+
+
+@needs_release
+def test_the_self_description_counts_from_the_release(orch):
+    """So it cannot drift from the graph it describes."""
+    import json as _json
+
+    census = _json.loads(
+        (RELEASE / "MANIFEST.json").read_text())["nodes_by_class"]
+    out = orch.answer("introduce yourself", None)["answer"]
+    assert f"{sum(census.values()):,} nodes" in out
+    assert f"{census['SmallMolecule']:,} small molecules" in out
+    assert f"{census['OrganismTaxon']} viruses" in out
+
+
+@needs_release
+def test_the_self_description_states_the_refusal(orch):
+    """An introduction that omitted it would be selling something the
+    agent does not do."""
+    out = orch.answer("what can you do?", None)["answer"]
+    assert "refuse" in out.lower()
+    assert "shortlist of NEW candidates" in out
+
+
+@needs_release
+@pytest.mark.parametrize("typed,expect", [
+    ("nile", ["West Nile"]),
+    ("sars", ["SARS-CoV", "SARS-CoV-2"]),
+])
+def test_a_whole_word_inside_a_name_is_suggested(orch, typed, expect):
+    """"nile" returned nothing while "west nile" worked: they differ by
+    five characters and no edit budget covers that. Every candidate is
+    listed, so "sars" offers both coronaviruses rather than choosing."""
+    out = orch.answer(typed, None)
+    assert "near_virus_name" in _trace(out), _trace(out)
+    for name in expect:
+        assert name in out["answer"], f"{name} not offered for {typed!r}"

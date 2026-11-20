@@ -222,9 +222,21 @@ def near_names(question: str, candidates: dict[str, str],
         # Every real near-miss measured here is ONE edit: yellew/yellow,
         # zikaa/zika, denv-5/denv-1.
         budget = max_edits if len(phrase) >= 6 else 1
-        hits = sorted({name for name in candidates
-                       if abs(len(name) - len(phrase)) <= budget
-                       and 0 < _edits(phrase, name) <= budget})
+        hits = {name for name in candidates
+                if abs(len(name) - len(phrase)) <= budget
+                and 0 < _edits(phrase, name) <= budget}
+        # A WHOLE WORD INSIDE A CURATED NAME. "nile" returned nothing
+        # while "west nile" worked, because the two differ by five
+        # characters and no edit budget covers that. Matching a whole
+        # word -- not a prefix, not a substring -- suggests West Nile
+        # from "nile" and both coronaviruses from "sars", which is the
+        # right answer in each case because it lists every candidate
+        # rather than choosing.
+        hits |= {name for name in candidates
+                 if name != phrase
+                 and re.search(rf"(?<![a-z0-9]){re.escape(phrase)}"
+                               rf"(?![a-z0-9])", name)}
+        hits = sorted(hits)
         if hits:
             out[phrase] = hits
     return out
@@ -458,8 +470,73 @@ class Orchestrator:
                 if self.tools.nodes.get(nid, {}).get("class") == "SmallMolecule"]
 
     # ------------------------------------------------------------ pipeline
+    #: Questions about the agent itself rather than about the graph.
+    #: Matched before entity resolution, because they name no entity and
+    #: the resolver can only report that.
+    #:
+    #: THE TWO COMMONEST FIRST QUESTIONS BOTH FAILED. "hi introduce
+    #: yourself" and "list all the viruses i can talk to you about" both
+    #: returned "No entity in this question matches a node in the graph"
+    #: -- the second one especially badly, because the agent lists those
+    #: sixteen viruses in three other replies and simply would not do it
+    #: when asked. Found by the owner using the frontend, 2026-11-21.
+    ABOUT = ("introduce yourself", "who are you", "what are you",
+             "what can you do", "what can i ask", "what do you do",
+             "how do you work", "help", "hello", "hi there")
+    LIST_VIRUSES = ("list all the viruses", "list the viruses",
+                    "which viruses", "what viruses", "all the viruses",
+                    "viruses you", "viruses do you", "viruses can i")
+
+    def _about(self) -> str:
+        held = sorted(self.tools._label(nid)
+                      for nid, d in self.tools.nodes.items()
+                      if d.get("class") == "OrganismTaxon")
+        n_cmpd = sum(1 for d in self.tools.nodes.values()
+                     if d.get("class") == "SmallMolecule")
+        return (
+            "I answer questions from a curated antiviral knowledge graph: "
+            f"{len(self.tools.nodes):,} nodes covering {n_cmpd:,} small "
+            f"molecules and {len(held)} viruses. Every answer is built "
+            "from retrieved edges, each carrying the source it came "
+            "from, and a written answer that cannot be checked against "
+            "those edges is withheld rather than shown.\n\n"
+            "What I can do:\n"
+            "  - explain why a compound with known activity might work "
+            "against a virus, route by route\n"
+            "  - rank a set of compounds YOU name\n"
+            "  - say which pathway a compound acts through\n"
+            "  - retrieve provenanced evidence for one specific claim\n"
+            "  - say what the graph holds about a compound, protein or "
+            "virus\n\n"
+            "What I refuse: generating a shortlist of NEW candidates. "
+            "That is measured, not modest — the refusal quotes the "
+            "measurement for the virus you name.\n\n"
+            "Viruses I hold: " + ", ".join(held) + ".")
+
     def build_brief(self, question: str) -> Brief:
         trace: list[str] = []
+
+        # ABOUT THE AGENT, NOT ABOUT THE GRAPH. Answered from the
+        # release's own census, so the counts cannot drift from it.
+        low = " ".join((question or "").lower().split())
+        if any(p in low for p in self.LIST_VIRUSES):
+            held = sorted(self.tools._label(nid)
+                          for nid, d in self.tools.nodes.items()
+                          if d.get("class") == "OrganismTaxon")
+            return Brief(
+                question=question, intent="about", allowed=True,
+                clarification=(
+                    f"This release holds {len(held)} viruses:\n\n  "
+                    + "\n  ".join(held)
+                    + "\n\nName one and ask about it. What has been "
+                      "MEASURED differs sharply between them, and every "
+                      "answer says which applies."),
+                trace=trace + ["about_viruses"])
+        if any(p == low or p in low for p in self.ABOUT):
+            return Brief(
+                question=question, intent="about", allowed=True,
+                clarification=self._about(),
+                trace=trace + ["about_agent"])
 
         intent = guards.classify_intent(question)
         trace.append(f"intent={intent.value}")

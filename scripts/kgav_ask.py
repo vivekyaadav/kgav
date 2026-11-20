@@ -112,10 +112,27 @@ def json_payload(out: dict, verification=None) -> dict:
     payload = {k: v for k, v in out.items() if "prompt" not in k}
     if verification is not None and not verification.passed:
         payload["answer"] = None
-        payload["answer_withheld"] = (
-            "failed verification; see verification.findings. The model "
-            "produced text that is not supported by the retrieved "
-            "evidence, and `facts` is what the graph actually contains.")
+        # THE REASON FOLLOWS THE FINDINGS. This asserted one cause --
+        # "produced text that is not supported by the retrieved
+        # evidence" -- for every failure. When `says_nothing` was added
+        # on 2026-11-21 that sentence became false for the commonest
+        # new case: an answer that reproduces its own caveats and stops
+        # IS supported by the evidence, it just contains nothing else.
+        # Telling a reader the model invented something, when it did
+        # not, is the same class of error as the checks exist to catch.
+        codes = {f.code for f in verification.findings
+                 if f.severity == "fail"}
+        if codes == {"says_nothing"}:
+            payload["answer_withheld"] = (
+                "the model restated the required caveats and added "
+                "nothing: with them removed the answer was empty. The "
+                "caveats are already shown, and `facts` is what the "
+                "graph holds.")
+        else:
+            payload["answer_withheld"] = (
+                "failed verification; see verification.findings. The model "
+                "produced text that is not supported by the retrieved "
+                "evidence, and `facts` is what the graph actually contains.")
     payload["verification"] = None if verification is None else {
         "passed": verification.passed,
         "findings": [{"severity": f.severity, "code": f.code,

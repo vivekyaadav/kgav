@@ -107,6 +107,21 @@ _CAVEAT_LABEL_RE = re.compile(
     + r")\s*:\s*", re.IGNORECASE)
 
 
+#: Words an answer must contain BEYOND the caveats it is required to
+#: reproduce.
+#:
+#: DELIBERATELY ALMOST ZERO. The first version demanded twelve -- about
+#: one sentence -- and rejected "RANKING: <caveat>. Nirmatrelvir first.",
+#: which adds two words and the entire outcome of the ranking. A check
+#: against saying nothing must not become a check against brevity: a
+#: terse true answer is better than a padded one, and this project's
+#: whole posture is that the caveats and the evidence carry the weight.
+#:
+#: What it catches is the measured case: an answer whose residue, after
+#: removing every required caveat, is the EMPTY STRING.
+MIN_ANSWER_WORDS = 2
+
+
 def _strip_openings(sentence: str) -> str:
     """The claim a sentence makes, with its hedges and labels removed.
 
@@ -593,7 +608,43 @@ def verify(answer: str, facts: list[str], citable_edge_ids: list[str],
             "fail", "ungrounded_number",
             f"figures not present in the retrieved facts: {', '.join(stray[:6])}"))
 
-    # 5. Optional model-based check, advisory only.
+    # 5. THE ANSWER MUST SAY SOMETHING THE CAVEATS DO NOT.
+    #
+    # Every check above is a check that the answer does not say too
+    # much. None of them notices an answer that says NOTHING, and the
+    # incentives point straight at it: required_warnings must appear
+    # VERBATIM, so reproducing the caveats and stopping is the cheapest
+    # way to pass. The retry prompt, which exists to put a dropped
+    # caveat back, pushes the same way.
+    #
+    # Measured on 2026-11-21, asking the agent "DENV-1": the answer was
+    # 1,083 characters, and with every required caveat removed it was
+    # the EMPTY STRING. It passed, was reported as verified, and the
+    # reader saw the same three paragraphs twice -- once under CAVEATS
+    # and once under ANSWER, the second time implying that synthesis had
+    # happened. Found by the owner using the frontend.
+    #
+    # A synthesis that restates its own inputs is not a synthesis. The
+    # brief's FACTS are what the answer is for.
+    residue = answer or ""
+    for w in required_warnings:
+        residue = residue.replace(str(w), " ")
+    # Labels alone are not content either: "VIRUS NOT VALIDATED:" left
+    # behind by a near-verbatim copy should not count as a sentence.
+    for label in caveat_labels(required_warnings):
+        residue = residue.replace(label, " ")
+    residue_words = [w for w in _normalise(residue, drop_punct=True).split()
+                     if w]
+    if required_warnings and len(residue_words) < MIN_ANSWER_WORDS:
+        findings.append(Finding(
+            "fail", "says_nothing",
+            f"with the required caveats removed the answer has "
+            f"{len(residue_words)} word(s) left, below the "
+            f"{MIN_ANSWER_WORDS} needed to be a synthesis rather than a "
+            f"copy of its own inputs. The retrieved facts are what the "
+            f"answer is for; the caveats are already shown above it."))
+
+    # 6. Optional model-based check, advisory only.
     if model_check is not None:
         verdict = model_check(answer, facts)
         if verdict and not verdict.get("supported", True):

@@ -615,7 +615,15 @@ def test_a_restated_caveat_is_still_exempt():
     hedge list anyway. Removing them must not start reporting genuine
     caveats as fabrications, or the check gets switched off."""
     cav = _cav()
-    assert verify(str(cav), [_FACT], ["E1"], required_warnings=[cav]).passed
+    v = verify(str(cav), [_FACT], ["E1"], required_warnings=[cav])
+    # NARROWED 2026-11-21. This asserted `.passed`, which since
+    # `says_nothing` also covers "the answer is NOTHING BUT the caveat"
+    # -- a different property, and one this fixture happens to have
+    # because it is the shortest way to write the case. What the test is
+    # for is that a restated caveat is not reported as a fabrication, so
+    # that is what it asserts.
+    assert "uncited_claim" not in {f.code for f in v.findings}, v.findings
+    assert "fabricated" not in {f.code for f in v.findings}, v.findings
 
 
 def test_half_a_restated_caveat_is_still_exempt():
