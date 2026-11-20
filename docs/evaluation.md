@@ -119,13 +119,98 @@ by its resemblance to the compounds active in vitro, and
 200 of the
 221 positives were measured inactive. So the
 independent axis measures something else rather than confirming this one,
-it cannot be used to validate a structure scorer, and no claim here is
-predictive: `drug_indication` carries no usable per-row date, so no
-temporal split exists.
+it cannot be used to validate a structure scorer, and IT cannot license a
+predictive claim: `drug_indication` carries no usable per-row date, so no
+temporal split exists for this axis.
+
+That clause used to read "no claim here is predictive", which was a
+statement about this whole section and stopped being true on 2026-11-19.
+The prospective study below is predictive by construction; what the
+clinical axis lacks is a date, and that is a fact about `drug_indication`
+alone.
+
+**AND THERE IS NOW A PROSPECTIVE MEASUREMENT, WHICH ASKS A DIFFERENT
+QUESTION FROM EVERY FIGURE ABOVE.** Everything to this point is
+cross-sectional: the labels were split by publication or by assay, never
+by time, so a scorer could be ranking chemistry that was already known
+when the test compound was published.
+`docs/prereg_temporal_structure_scorer.md`, signed before any post-2021
+AUC existed, trains on activity published at or before the cutoff and
+tests on activity published after it — the arrangement that answers
+"would this have worked". Family of 10, alpha
+0.005000, z = 2.807.
+
+<!-- BLOCK: claim_prospective — asserted cell by cell by
+     tests/test_claim_block.py against
+     data/results/temporal_structure_scorer.json. Do not hand-edit;
+     re-derive by running the Reproducing block.
+
+     THE THREE GROUPS ARE THE WHOLE EVALUABLE FAMILY. `clears` is the
+     file's own `clears` list; `clears BELOW` is a cell whose corrected
+     interval excludes chance on the WRONG side, which is a finding and
+     not a failure to clear -- the distinction the agent's refusal was
+     getting wrong until 2026-11-20. Columns are the primary AUC (no
+     exclusion beyond the split, which is what the registration fixed),
+     its CORRECTED interval, the test-set counts, and the degree
+     comparator -- empty wherever the pre-cutoff graph reaches too few
+     of the compounds being ranked to produce one. -->
+
+    clears        DENV-1        0.8025  [0.7004, 0.9046]     71 / 82          --
+    clears        DENV-4        0.7896  [0.6830, 0.8961]     67 / 86          --
+    clears        DENV-2        0.7518  [0.6926, 0.8109]    186 / 2669        --
+    clears        DENV-3        0.7300  [0.6132, 0.8468]     70 / 79          --
+    clears        HCoV-229E     0.7136  [0.5713, 0.8560]     76 / 32          --
+    clears        SARS-CoV-2    0.6209  [0.5899, 0.6519]   1432 / 1093        --
+
+    no clear      HCoV-OC43     0.4348  [0.3163, 0.5533]    147 / 70          --
+    no clear      Yellow fever  0.3722  [0.1962, 0.5482]     30 / 51          --
+
+    clears BELOW  Zika          0.4218  [0.3859, 0.4577]    567 / 2495        --
+    clears BELOW  West Nile     0.3532  [0.2735, 0.4329]    181 / 189         --
+
+**6 of the 10 evaluable cells clear above chance, and 2
+clear BELOW it** — which is not the same as the other 2 merely failing
+to clear. Zika and West Nile rank post-cutoff actives reliably LAST, on
+corrected intervals that exclude chance on the wrong side. Nothing here
+establishes that inverting them would hold forward either.
+
+**0 of the 10 cells have a usable degree comparator.** The
+pre-cutoff graph reaches too few of the compounds being ranked to rank
+them at all, so the baseline column is empty by measurement rather than
+by omission, and the clearing cells above are not shown to beat a
+baseline — there is none to beat.
+
+**AND AN AUC IS NOT A HIT RATE.** Every figure above is a statement about
+ORDERING -- the probability a random active outranks a random inactive --
+and a screen only ever orders the top of a list. Measured separately
+(`make hit-rate`, `scripts/hit_rate_at_k.py`): on the one population
+matched by assay rather than by source, the head of this ranking holds no
+actives at all once each candidate's nearest known actives are withheld.
+That population is the `SARS-CoV-2  plate CPE` row above -- one of the
+cells that clears.
+
+<!-- BLOCK: claim_hit_rate — asserted by tests/test_claim_block.py, which
+     re-runs scripts/hit_rate_at_k.py and compares. POST-HOC: precision@k
+     was computed after the registered AUCs were read, so it is written
+     here as a QUALIFICATION on the claim above and is not itself a
+     registered claim. It is deliberately not in data/results. -->
+
+    precision@10, SARS-CoV-2 cytopathic plate, base rate 1.20%
+
+        no exclusion                   50.0%
+        symmetric k = 10                0.0%
+        strength-matched (k_cell 38)    0.0%
+
+A precision that vanishes when a candidate's nearest known actives are
+withheld was never a hit rate: it was analogue retrieval. The AUC cannot
+show this, because it averages over a ranking nobody screens -- that cell's
+strength-matched AUC is 0.5834 and it CLEARS its registered alpha.
 
 The graph can report evidence for a compound it is asked about. For a
 SHORTLIST, the measured basis is the structure scorer's 8
-cells and not the metapath channels.
+cells and not the metapath channels -- and that basis is a statement that
+a compound RESEMBLES a known active, not an expected hit rate. Read the
+block above before ordering anything.
 
 ### Those AUCs are not comparable to each other, and the decomposition says why
 
@@ -200,6 +285,16 @@ measured.
 this table is empty and the paragraph below is what the decomposition says
 instead. Five cells were here on 2026-11-08 and all five were the
 similarity leak.
+
+**THAT SENTENCE IS ABOUT THIS TABLE, WHOSE CELLS ARE `temporal_split.py`'s
+METAPATH SCORERS.** Read as a statement about the project it became false
+on 2026-11-19: the structure scorer registered in
+`docs/prereg_temporal_structure_scorer.md` finds six prospective cells
+whose corrected intervals exclude chance, and two that exclude it below.
+They are in the claim block at the top of this document. The two studies
+split the labels by time in the same way and differ in what they rank, so
+neither result bears on the other -- which is why both are printed rather
+than one being reconciled into the other.
 
 **ACROSS ALL 41 TEMPORAL AUC CELLS, 31 EQUAL THEIR OWN IMPUTATION FLOOR TO
 FOUR DECIMAL PLACES.** The median deviation from the floor is **three ten-

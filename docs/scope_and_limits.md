@@ -241,6 +241,38 @@ The 1986–2008 shape of the histogram is UniProt's curation history —
 176,907 of 392,624 edges — not a record of when anything about these
 drugs was learned.
 
+### An AUC above chance is not an expected hit rate
+
+The structure scorer clears its registered alpha in 8 of 17 cells, and
+that is a statement about ORDERING: the probability that a randomly
+chosen active outranks a randomly chosen inactive. A screen never sees
+the whole ordering. It sees the top of a list, so the quantity a bench
+decision needs is the precision of that head — of the compounds you
+actually order, how many come back active — and the two can disagree
+completely.
+
+They do here. On the one population matched by assay rather than by
+source, the head of this ranking holds **no actives at all** once each
+candidate's nearest known actives are withheld, under either registered
+control. Uncontrolled it looks excellent. That cell's AUC clears its
+alpha either way, because an AUC averages over a ranking nobody screens.
+
+So: a row on a shortlist is the claim that a compound RESEMBLES a known
+active, with the known active named. It is not an expected hit rate, and
+until 2026-11-20 `scripts/repurposing_candidates.py` printed the
+opposite — "every row below is a chemical-analogy suggestion with a
+measured hit rate" — while no hit rate had ever been measured anywhere in
+this project.
+
+THE FIGURES ARE NOT REPEATED HERE. They live in one place, the
+`claim_hit_rate` block of `docs/evaluation.md`, re-derived from
+`scripts/hit_rate_at_k.py` by `tests/test_claim_block.py`. A limit
+restated with its own copy of the numbers is a second thing to go stale,
+which is the failure this document has already had twice. `make hit-rate`
+prints the full ladder, prospectively and on the plate cells, and labels
+itself post-hoc: precision@k was computed after the registered AUCs were
+read, so it qualifies a claim rather than being one.
+
 ## What the pathway null could have detected
 
 **A null result is only a finding if the reader knows what would have

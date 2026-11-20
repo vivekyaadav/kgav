@@ -388,3 +388,46 @@ def test_the_withdrawn_claim_about_missing_coverages_is_recorded():
     assert "auc_coverage_pos" in m and "auc_coverage_neg" in m
     flat = " ".join(DOC.read_text().split())
     assert "The fields were there under a different prefix" in flat
+
+
+def test_the_empty_temporal_table_says_which_temporal_study_it_is_about():
+    """THE SENTENCE IS TRUE OF THIS TABLE AND WAS READ AS TRUE OF THE
+    PROJECT.
+
+    "No temporal cell has an AUC interval excluding 0.5 on this release"
+    describes `temporal_split.py`'s metapath scorers, which is what this
+    table holds. From 2026-11-19 the structure scorer registered in
+    docs/prereg_temporal_structure_scorer.md has six prospective cells
+    whose corrected intervals exclude chance and two that exclude it
+    below -- so a reader taking that sentence at face value concludes the
+    project has no forward-looking result, which is wrong.
+
+    The fix was to scope the sentence rather than reverse it. This keeps
+    the scoping: whenever the other study HAS a clearing cell, the
+    paragraph must name it. Deleting the qualification silently
+    reinstates the misreading, and the test above would not notice,
+    because the substring it looks for is still there.
+    """
+    import json as _j
+
+    other = ROOT / "data" / "results" / "temporal_structure_scorer.json"
+    if not other.exists():
+        pytest.skip("temporal_structure_scorer.json absent")
+    clears = _j.loads(other.read_text()).get("clears") or []
+
+    text = DOC.read_text()
+    body = text.split(TEMPORAL_MARKER, 1)[1]
+    # Only the passage belonging to this table, so a mention elsewhere in
+    # the document cannot satisfy it.
+    passage = " ".join(body.split("### ", 1)[0].split())
+
+    if not parse_temporal():
+        assert "about this table" in passage.lower(), (
+            "the empty-table sentence is unqualified; a reader reads it as "
+            "a statement about the project")
+        assert "temporal_split.py" in passage, (
+            "the passage does not say whose cells this table holds")
+    if clears:
+        assert "prereg_temporal_structure_scorer.md" in passage, (
+            f"{len(clears)} prospective cell(s) clear in another registered "
+            f"study and this passage does not point at it")

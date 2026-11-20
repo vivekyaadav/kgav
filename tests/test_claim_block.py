@@ -484,3 +484,282 @@ def test_the_clinical_null_in_the_claim_block_is_the_runs(scorer):
     assert cl["structure_max_k10"]["auc_ci_hi_corrected"] < 0.5, (
         "the clinical cell is no longer wholly below chance and the claim "
         "block says it is")
+
+
+# --------------------------------------------------------------------------
+# THE THIRD CLAIM: a PROSPECTIVE measurement, added to this section on
+# 2026-11-20. Everything above it in the document is cross-sectional --
+# the labels were split by publication or by assay, never by time -- so
+# this is the only block in the claim section that answers "would this
+# have worked", and it is the one a reader is most likely to quote.
+#
+# The document carried the opposite statement until today. Its temporal
+# decomposition said "No temporal cell has an AUC interval excluding 0.5
+# on this release", which is true of THAT table (temporal_split.py's
+# metapath scorers) and false of the project from 2026-11-19 onward.
+# --------------------------------------------------------------------------
+
+TEMPORAL = RESULTS_DIR / "temporal_structure_scorer.json"
+PROSPECTIVE_MARKER = "<!-- BLOCK: claim_prospective"
+
+#: The verdict word each group prints. `clears BELOW` is NOT a third
+#: flavour of failure: it is a cell whose corrected interval excludes
+#: chance on the WRONG side, which is a finding. Conflating it with "no
+#: clear" is the error the agent's refusal was making until 2026-11-20.
+PROSPECTIVE_MARKS = {0: "clears", 1: "no clear", 2: "clears BELOW"}
+
+
+@pytest.fixture(scope="module")
+def prospective() -> dict:
+    if not TEMPORAL.exists():
+        pytest.skip("temporal_structure_scorer.json absent")
+    return json.loads(TEMPORAL.read_text())
+
+
+def _prospective_group(taxon: str, cell: dict, clears: set[str]) -> int:
+    p = cell["primary"]
+    if taxon in clears:
+        return 0
+    if p.get("clears_corrected_alpha") and p.get("direction") == "below":
+        return 2
+    return 1
+
+
+def _prospective_expected(doc: dict) -> dict:
+    """{virus name: (mark, auc, ci_lo, ci_hi, n_pos, n_neg, degree)}."""
+    clears = set(doc["clears"])
+    out = {}
+    for taxon, cell in doc["cells"].items():
+        p = cell.get("primary") or {}
+        if not isinstance(p.get("auc"), (int, float)):
+            continue
+        dg = cell.get("degree") or {}
+        degree = (f"{dg['auc']:.4f}"
+                  if isinstance(dg.get("auc"), (int, float)) and dg.get("usable")
+                  else "--")
+        out[cell["name"]] = (
+            PROSPECTIVE_MARKS[_prospective_group(taxon, cell, clears)],
+            f"{p['auc']:.4f}",
+            f"{p['auc_ci_lo_corrected']:.4f}",
+            f"{p['auc_ci_hi_corrected']:.4f}",
+            str(p["n_pos"]), str(p["n_neg"]), degree)
+    return out
+
+
+@pytest.fixture(scope="module")
+def prospective_block() -> dict:
+    """The block as the document prints it: {virus: tuple of fields}."""
+    text = DOC.read_text()
+    assert PROSPECTIVE_MARKER in text, "the prospective claim block is gone"
+    body = text.split("to produce one. -->", 1)[1]
+    body = body.split("**", 1)[0]
+    rows = {}
+    for ln in body.splitlines():
+        if not ln.startswith("    "):
+            continue
+        mark = ln[4:18].strip()
+        virus = ln[18:32].strip()
+        rest = ln[32:].replace("[", "").replace("]", "").replace(",", " ")
+        auc, lo, hi, n_pos, _slash, n_neg, degree = rest.split()
+        rows[virus] = (mark, auc, lo, hi, n_pos, n_neg, degree)
+    assert rows, "the prospective block parsed no rows"
+    return rows
+
+
+def test_the_prospective_block_holds_every_evaluable_cell(
+        prospective, prospective_block):
+    """NOT THE SIX THAT CLEAR. A block of the clearing cells alone would be
+    the selection failure this project is built against, and the two cells
+    that clear BELOW chance are the ones a reader most needs."""
+    expected = _prospective_expected(prospective)
+    assert set(prospective_block) == set(expected), (
+        f"block prints {sorted(prospective_block)}, the run evaluated "
+        f"{sorted(expected)}")
+    assert len(expected) == prospective["n_evaluable"], (
+        "the run's own n_evaluable disagrees with the cells carrying an AUC")
+
+
+@pytest.mark.parametrize("field,label", list(enumerate(
+    ("verdict", "AUC", "corrected ci_lo", "corrected ci_hi",
+     "n_pos", "n_neg", "degree comparator"))))
+def test_every_field_in_the_prospective_block_is_the_runs(
+        prospective, prospective_block, field, label):
+    expected = _prospective_expected(prospective)
+    wrong = [(v, prospective_block[v][field], expected[v][field])
+             for v in expected
+             if prospective_block[v][field] != expected[v][field]]
+    assert not wrong, f"{label} differs: {wrong}"
+
+
+def test_the_block_prints_the_corrected_interval_not_the_95_percent_one():
+    """The registration decides at alpha 0.05/10, z = 2.8070. Printing the
+    95% interval would show cells excluding chance that the registered
+    family size says do not -- the document claiming more than the study
+    it is reporting, out of the same file."""
+    doc = json.loads(TEMPORAL.read_text())
+    disagree = [(t, c["primary"]) for t, c in doc["cells"].items()
+                if isinstance((c.get("primary") or {}).get("auc_ci_lo"), float)
+                and c["primary"]["auc_ci_lo"]
+                != c["primary"]["auc_ci_lo_corrected"]]
+    assert disagree, "no cell distinguishes the two intervals on this release"
+    text = DOC.read_text()
+    body = text.split("to produce one. -->", 1)[1].split("**", 1)[0]
+    for _taxon, p in disagree:
+        assert f"{p['auc_ci_lo']:.4f}" not in body, (
+            f"the block prints the uncorrected lower bound "
+            f"{p['auc_ci_lo']:.4f}")
+
+
+def test_the_counts_in_the_prospective_sentences_are_the_groups(prospective):
+    expected = _prospective_expected(prospective)
+    counts = {m: sum(1 for v in expected.values() if v[0] == m)
+              for m in PROSPECTIVE_MARKS.values()}
+    flat = " ".join(DOC.read_text().split())
+    assert (f"**{counts['clears']} of the {len(expected)} evaluable cells "
+            f"clear above chance, and {counts['clears BELOW']} clear BELOW "
+            f"it**") in flat, (
+        f"the sentence does not state the derived groups {counts}")
+    usable = len(prospective["comparator_usable"])
+    assert (f"**{usable} of the {len(expected)} cells have a usable degree "
+            f"comparator.**") in flat
+
+
+def test_a_cell_that_clears_below_chance_is_not_called_a_failure_to_clear(
+        prospective, prospective_block):
+    """The distinction the whole block turns on. A cell whose interval
+    excludes chance on the wrong side ranks actives reliably LAST, which
+    is information; "does not clear" says the opposite of information."""
+    expected = _prospective_expected(prospective)
+    below = [v for v, f in expected.items() if f[0] == "clears BELOW"]
+    assert below, "no cell clears below chance, so this asserts nothing"
+    for v in below:
+        assert prospective_block[v][0] == "clears BELOW", v
+    flat = " ".join(DOC.read_text().split())
+    assert "exclude chance on the wrong side" in flat
+    assert "inverting them would hold forward" in flat
+
+
+# --------------------------------------------------------------------------
+# AND THE QUALIFICATION ON ALL OF IT: an AUC is not a hit rate.
+#
+# POST-HOC, and written into the document as a qualification rather than a
+# claim. scripts/hit_rate_at_k.py deliberately writes nothing into
+# data/results, so this test RE-RUNS it and compares -- one implementation
+# of precision@k, not a second copy living in a test.
+# --------------------------------------------------------------------------
+
+HIT_RATE_MARKER = "<!-- BLOCK: claim_hit_rate"
+
+
+def test_the_hit_rate_block_is_marked_as_machine_checked():
+    text = DOC.read_text()
+    assert HIT_RATE_MARKER in text, "the hit-rate qualification lost its marker"
+    head = text.split(HIT_RATE_MARKER, 1)[1].split("-->", 1)[0]
+    # It must say what it is, because a post-hoc statistic presented
+    # beside registered ones acquires their standing by adjacency.
+    assert "POST-HOC" in head
+    assert "not in data/results" in head
+
+
+@pytest.mark.slow
+def test_the_hit_rate_figures_in_the_document_are_the_scripts():
+    """Re-runs scripts/hit_rate_at_k.py and compares its plate ladder
+    against the three percentages the document prints.
+
+    SLOW because it fingerprints the plate population three times, which
+    is the price of not keeping a second implementation of precision@k in
+    a test file.
+    """
+    import subprocess
+    import tempfile
+
+    script = ROOT / "scripts" / "hit_rate_at_k.py"
+    if not script.exists():
+        pytest.skip("hit_rate_at_k.py absent")
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "hr.json"
+        r = subprocess.run([sys.executable, str(script), "--out", str(out),
+                            "--k", "10"],
+                           capture_output=True, text=True, cwd=ROOT,
+                           timeout=1800)
+        assert r.returncode == 0, r.stderr
+        doc = json.loads(out.read_text())
+
+    plate = [c for c in doc["plate_cells"]
+             if c["population"] == "secondary_ncats"]
+    assert len(plate) == 1, f"expected one cytopathic plate cell, got {plate}"
+    cell = plate[0]
+
+    text = " ".join(DOC.read_text().split())
+    assert f"base rate {cell['base_rate']:.2%}" in text, (
+        f"the document does not state the measured base rate "
+        f"{cell['base_rate']:.2%}")
+
+    k_cell = cell["k_cell"]
+    for label, control in (("no exclusion", "no exclusion"),
+                           ("symmetric k = 10", "k10"),
+                           (f"strength-matched (k_cell {k_cell})",
+                            f"k_cell={k_cell}")):
+        got = cell["controls"][control]["per_k"][str(10)] \
+            if str(10) in cell["controls"][control]["per_k"] \
+            else cell["controls"][control]["per_k"][10]
+        pct = f"{got['precision_expected']:.1%}"
+        assert f"{label} {pct}" in text, (
+            f"the document does not print {label} at {pct}")
+
+
+@pytest.mark.slow
+def test_the_qualified_cell_is_one_the_claim_block_says_clears():
+    """The point of the qualification. If the cell whose head holds no
+    actives were one that fails its alpha, there would be nothing to
+    qualify -- the force of it is that a CLEARING cell behaves this way,
+    and the AUC cannot show it."""
+    sym = _scorer_cells(SCORER_SYM, "structure_max_k10")
+    key = ("plate CPE", "SARS-CoV-2")
+    assert key in sym, "the cytopathic plate cell is gone from the family"
+    s, _g = sym[key]
+    assert s.get("clears_corrected_alpha"), (
+        "the qualified cell no longer clears its alpha; the paragraph's "
+        "argument has changed and the wording must change with it")
+    text = " ".join(DOC.read_text().split())
+    assert "one of the cells that clears" in text
+
+
+def test_the_scope_statement_carries_the_hit_rate_limit_without_copying_it():
+    """docs/scope_and_limits.md is where a limit belongs, and it must not
+    keep its own copy of the figures.
+
+    A limit restated with its own numbers is a second thing to go stale,
+    and this document has had that failure twice. So: the limit must be
+    there, it must name the mechanism, and the three percentages must NOT
+    be, because `claim_hit_rate` in evaluation.md is their one home.
+    """
+    scope = ROOT / "docs" / "scope_and_limits.md"
+    text = scope.read_text()
+    flat = " ".join(text.split())
+
+    assert "An AUC above chance is not an expected hit rate" in text, (
+        "the scope statement does not carry the hit-rate limit")
+    assert "claim_hit_rate" in flat, "it does not point at the figures' home"
+    assert "no actives at all" in flat, "it does not state the finding"
+
+    # The figures the claim block owns, absent from THIS SECTION.
+    #
+    # SCOPED, AND MATCHED AS WHOLE FIGURES -- the first version of this
+    # check was wrong twice over. It searched the whole file, where an
+    # unrelated label-census line reads "5,200 active (20.0%)"; and it
+    # tested `"0.0%" in flat`, so that 20.0% matched by substring. A test
+    # that reports an unrelated figure as a duplication gets relaxed
+    # until it reports nothing.
+    section = text.split("An AUC above chance is not an expected hit rate",
+                         1)[1].split("\n## ", 1)[0]
+    doc = DOC.read_text()
+    block = doc.split(HIT_RATE_MARKER, 1)[1].split("A precision that", 1)[0]
+    owned = set(re.findall(r"\d+\.\d%", block))
+    assert owned, "the claim block prints no percentages to protect"
+    here = set(re.findall(r"\d+\.\d%", section))
+    duplicated = sorted(owned & here)
+    assert not duplicated, (
+        f"the hit-rate section of scope_and_limits.md repeats "
+        f"{duplicated} from the claim block; those have one home and this "
+        f"is a second place to drift")
