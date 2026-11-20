@@ -1,4 +1,4 @@
-.PHONY: agent-ui agent-ask auc-contribution hit-rate screen-power metagraph-figure metagraph-figure-check arch-figures identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
+.PHONY: agent-ui agent-ask auc-contribution hit-rate screen-power metagraph-figure metagraph-figure-check arch-figures results-doc results-doc-check identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
 
 install:
 	pip install -e ".[dev]"
@@ -349,6 +349,24 @@ arch-figures:
 		-o docs/figures/kgav_architecture_a4.pdf
 	dot -Tpng -Gsize=8.07,11.49 -Gdpi=300  docs/figures/arch_a4.dot \
 		-o docs/figures/kgav_architecture_a4.png
+
+# THE RESULTS DOCUMENT: methodology and every measured result, with the
+# positive findings stated first and their qualifications attached.
+#
+# docs/evaluation.md is the working record -- how each result was arrived
+# at, including the versions that were wrong. That is the right shape for
+# the people who built it and the wrong shape for anyone else, because
+# the strongest finding sits four sections deep behind two negatives.
+# docs/results.md is the other half.
+#
+# GENERATED, like every other figure-bearing document here. ~15s: it
+# re-runs scripts/hit_rate_at_k.py so the qualification beside the AUCs
+# is the measured one rather than a copy.
+results-doc:
+	python scripts/write_results_doc.py
+
+results-doc-check:
+	python scripts/write_results_doc.py --check
 
 data-audit:
 	python scripts/data_audit.py
