@@ -1,4 +1,4 @@
-.PHONY: agent-ui agent-ask auc-contribution hit-rate screen-power metagraph-figure metagraph-figure-check arch-figures results-doc results-doc-check identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
+.PHONY: agent-ui agent-ask auc-contribution hit-rate screen-power protocol-disagreement metagraph-figure metagraph-figure-check arch-figures results-doc results-doc-check identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
 
 install:
 	pip install -e ".[dev]"
@@ -367,6 +367,18 @@ results-doc:
 
 results-doc-check:
 	python scripts/write_results_doc.py --check
+
+# WHY DENV-4 ANTI-RANKS CROSS-SECTIONALLY AND CLEARS PROSPECTIVELY.
+# The two read as a contradiction and are not one: they use different
+# REFERENCE SETS, and for a post-cutoff active the cross-sectional
+# control removes its own series while the prospective one cannot,
+# because that series is not in the pre-cutoff reference set at all.
+#
+# Computes no new claim and amends no verdict; both registered results
+# stand. ~2s. Recorded in the amendment to
+# docs/prereg_temporal_structure_scorer.md.
+protocol-disagreement:
+	python scripts/diagnose_protocol_disagreement.py
 
 data-audit:
 	python scripts/data_audit.py

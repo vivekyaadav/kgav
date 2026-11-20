@@ -335,3 +335,101 @@ H3's analogue question is now answerable from the stored scores and is
 **not** answered here; the k=10 secondary column drops the dengue cells
 by 0.06 to 0.18 and leaves HCoV-229E almost untouched, which is a
 pointer, not a finding.
+
+---
+
+## Amendment, 2026-11-21 — DENV-4 clears here and anti-ranks cross-sectionally
+
+**DENV-4 is the one cell where the two protocols disagree, and the
+disagreement is not a contradiction.** It is recorded because the pair
+reads as one, and because a reader who sees only this registration would
+take the prospective pass to license a shortlist. It does not.
+
+Measured by `scripts/diagnose_protocol_disagreement.py`
+(`make protocol-disagreement`), which computes no new claim and amends
+no verdict.
+
+### The two results
+
+| protocol | AUC | verdict |
+|---|---:|---|
+| cross-sectional, strength-matched (k_cell 12) | 0.4792 | below chance — the shortlist tool REFUSES this cell |
+| prospective, no exclusion | 0.7896 | clears |
+| prospective, symmetric k10 | 0.6868 | clears |
+
+### It is not the populations
+
+They are nested exactly. Every prospective test positive is a
+cross-sectional positive (67 of
+67), and so is every reference
+(86 of 86).
+The cross-sectional cell's 153 positives are
+the 86 pre-2021 actives — which the prospective
+split uses as REFERENCES — plus the 67 post-2021
+actives it tests. Train and test overlap in
+0 compounds.
+
+### It is not era pooling
+
+A pooled AUC can sit below both of its parts, so the published cell was
+split by era under its own control:
+
+| scored | AUC |
+|---|---:|
+| all vs all — *the published cell* | 0.4792 |
+| post-2021 vs post-2021 | 0.4842 |
+| pre-2021 vs pre-2021 | 0.6105 |
+| pre-2021 positives vs post-2021 negatives | 0.3791 |
+
+The post-cutoff half is **also below chance**. Pooling is not the
+explanation.
+
+### It is the reference set
+
+Those post-cutoff compounds are exactly the prospective test set, so the
+two numbers are directly comparable — identical compounds, identical
+labels:
+
+    post-cutoff compounds, references = all 153 actives : 0.4842
+    post-cutoff compounds, references = 86 pre-2021 actives : 0.7896
+
+**The mechanism, measured.** For a post-2021 DENV-4 active, of the 12
+nearest references the cross-sectional control removes, the share that
+are its own post-2021 era-mates is **median 100%, mean
+83%** over 67 compounds.
+
+The DENV-4 actives are tight chemical series. Cross-sectionally, a
+post-cutoff active's nearest references ARE its own series, and the
+strength-matched control removes them by construction — that is what it
+is for. Prospectively, the series is not in the pre-cutoff reference set
+at all, so the control cannot remove it. **The cross-sectional control is
+strictly stronger for exactly these compounds.**
+
+### Both results stand, and they answer different questions
+
+- **cross-sectional, strength-matched** — *setting aside a compound's own
+  analogues, does chemistry separate actives from inactives?* For DENV-4,
+  no: it anti-separates. Strip the series and an active resembles the
+  remaining actives LESS than an inactive does. That is a real statement
+  about how clustered this virus's actives are.
+- **prospective** — *does pre-cutoff chemistry rank post-cutoff
+  compounds?* Yes, 0.7896.
+
+### What this amendment forecloses
+
+**A prospective pass does not license a shortlist.** The shortlist ranks
+never-screened compounds against ALL known actives, which is the
+cross-sectional setting — the one where DENV-4 is below chance and
+`scripts/repurposing_candidates.py` refuses it. That refusal is correct
+and stays.
+
+What the prospective pass licenses is narrower and stated here in full:
+that someone holding the pre-2021 DENV-4 series would have ranked what
+came next, by analogy to that series. It rests on cross-era analogy,
+which is how medicinal chemistry proceeds and is precisely what the
+strength-matched control exists to remove.
+
+**This also sharpens H3, which the verdict above left open.** The
+analogue question is not a pointer any more for this cell: the
+prospective signal here IS analogy to a known series, and the measurement
+is the era-mate share above.
