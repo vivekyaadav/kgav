@@ -6,7 +6,9 @@ of drug–virus–protein facts (a "knowledge graph"). It prints the facts it fo
 each with the research paper it came from, plus warnings about how far to trust them.
 
 - It runs entirely on our workstation. Nothing is sent to the internet.
-- There is no web page yet. Everything happens in a terminal window.
+- There is a web page: `make agent-ui`, then open <http://127.0.0.1:8765>. It is a
+  chat window, and it is the easiest way in if you don't use a terminal.
+- It listens on this machine only. Nobody else on the network can open it.
 
 ---
 
@@ -23,11 +25,16 @@ In plain words:
 
 | Thing | How many | Example |
 |---|---|---|
-| Small molecules (drugs and test compounds) | 25,383 | nirmatrelvir, remdesivir |
+| Small molecules (drugs and test compounds) | 25,243 | nirmatrelvir, remdesivir |
 | Proteins (human and viral) | 20,888 | the SARS-CoV-2 main protease "nsp5" |
 | Genes | 19,190 | |
 | Biological pathways | 13,236 | "autophagy" |
 | Viruses | 16 | SARS-CoV-2, Zika, Dengue 1–4 … |
+
+These counts are typed into this page and go stale when the graph is rebuilt — the
+small-molecule figure was wrong by 140 until 2026-11-20. The live ones are on the
+web page's release chip (hover it), which reads them from the release itself, and in
+`docs/kg_release_census.txt`, which is generated.
 
 The red arrow, "has antiviral activity against", is the lab result the system is
 graded on. It is kept separate from the reasoning on purpose.
@@ -85,12 +92,44 @@ up-arrow key, edit the text between the quotes, and press Enter.
 
 ---
 
-## 3. Two ways to ask
+## 3. Three ways to ask
 
-| Mode | Command starts with | Speed | What you get |
+| Mode | How | Speed | What you get |
 |---|---|---|---|
-| **Facts only** (recommended) | `python scripts/kgav_ask.py --no-model "…"` | ~10 s | The facts and warnings, same output every time |
+| **The web page** (easiest) | `make agent-ui`, then <http://127.0.0.1:8765> | ~4 s facts, ~35 s with the written answer | A chat window. The "evidence only" tickbox is the facts-only mode below |
+| **Facts only** | `python scripts/kgav_ask.py --no-model "…"` | ~10 s | The facts and warnings, same output every time |
 | **Facts + written answer** | `python scripts/kgav_ask.py "…"` | ~40 s | Also a paragraph written by an AI model (Qwen 2.5, running locally) |
+
+All three run the same agent and apply the same checks. The web page is faster per
+question only because the server loads the graph once and keeps it, where each
+command-line run reloads it (about 5 of those 10 seconds).
+
+Timings measured on this workstation on 2026-11-20, not estimated.
+
+### Using the web page
+
+Start it once and leave it running:
+
+```
+make agent-ui
+```
+
+Then open <http://127.0.0.1:8765> in a browser on this machine. Type a question and
+press Enter. Things worth knowing:
+
+- **Nobody else can open it.** It listens on this machine only. If you need to change
+  that, somebody has to pass `BIND=0.0.0.0` on purpose, and then anyone on the network
+  can read whatever you ask it.
+- **The reply is in the same order as the terminal**: the facts first, then the
+  caveats, then the written answer. That order is deliberate — a warning printed
+  under a fluent paragraph is a warning nobody reads.
+- **The two chips at the top** show which release it is reading and whether the local
+  AI model is running. Hover them for detail. If the model chip is grey, the page
+  still works and gives you facts without the written paragraph.
+- **"evidence only"** at the bottom skips the AI entirely. It is about nine times
+  faster and the output is identical every time.
+- If you change the page itself (`web/chat.html`), just reload the browser — there is
+  no build step and no restart needed.
 
 In "written answer" mode, every sentence the AI writes is checked against the facts.
 If any sentence is not backed by a fact, the paragraph is **withheld** and you see

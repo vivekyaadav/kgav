@@ -1,4 +1,4 @@
-.PHONY: identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
+.PHONY: agent-ui agent-ask auc-contribution identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
 
 install:
 	pip install -e ".[dev]"
@@ -237,6 +237,42 @@ data-timeline:
 # a reader counting lines sees a complete graph. This prints the absences,
 # derived from the schema rather than a list kept here, and carries the
 # recorded remedy for each gap so it is not worked out twice.
+# THE CHAT FRONTEND, and the agent behind it. Loads the release once and
+# holds it, so a question costs what the question costs rather than the
+# ~5s reload `kgav_ask.py` pays every time it starts.
+#
+# LOOPBACK ONLY. scripts/agent_server.py defaults --bind to 127.0.0.1
+# because the payloads name compounds, targets and unpublished AUCs, and
+# the model is reached at localhost:11434. Pass BIND=0.0.0.0 if you mean
+# to expose it.
+#
+# STDLIB ONLY: http.server plus one HTML file. There is no npm install
+# step to forget, which is the whole reason the previous frontend --
+# 472MB of node_modules for a page that made no network call -- is gone.
+PORT ?= 8765
+BIND ?= 127.0.0.1
+agent-ui:
+	python scripts/agent_server.py --port $(PORT) --bind $(BIND)
+
+# The same agent from the command line, for a one-off question. Q is the
+# question; everything after it goes to the script, so
+# `make agent-ask Q="..." ARGS=--no-model` skips synthesis.
+agent-ask:
+	@test -n "$(Q)" || { echo 'usage: make agent-ask Q="your question"'; exit 2; }
+	python scripts/kgav_ask.py $(ARGS) "$(Q)"
+
+# WHERE THE AUC COMES FROM, AS A SHARE PER APPROACH. Reads every figure
+# from data/results and computes no AUC of its own. Answers the question
+# "percentage-wise, what did each approach contribute" without pretending
+# the approaches stack: section 2 is the one genuine decomposition,
+# because degree and structure rank the same candidates in the same cell.
+#
+# NOT IN THE REPRODUCE BLOCK, and not written to data/results: it derives
+# nothing new, so there is nothing for `make check-results` to find stale.
+# Pass --out to keep a copy.
+auc-contribution:
+	python scripts/auc_contribution.py
+
 data-audit:
 	python scripts/data_audit.py
 

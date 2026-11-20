@@ -38,20 +38,21 @@ htmlcov/
 *.key
 credentials.json
 
-# web UI
-web/node_modules/
-web/dist/
-web/.vite/
-web/client/public/data/
+# web UI -- the chat frontend is ONE HTML FILE, web/chat.html, served by
+# scripts/agent_server.py from the Python standard library. There is no
+# node_modules, no lockfile, no build step and nothing here to ignore.
+#
+# What used to be ignored: web/node_modules/ (472MB), web/dist/,
+# web/.vite/, web/patches/, web/.manus-logs/. Those belonged to a
+# scaffolded React/Vite template that drew a hand-written graph and made
+# no network call -- docs/data_audit_2026-11-07.md listed it as "unused
+# Manus template (fix list P11)". Deleted 2026-11-20.
 
-# agent-tooling artifacts, not part of the app
-web/.manus-logs/
-web/client/public/__manus__/
-# Review patches dropped in the worktree ROOT only. Must NOT be a bare
-# *.patch glob: web/patches/ holds pnpm dependency patches, which are
-# build inputs. Those are tracked, so a bare glob does not remove them
-# -- it silently drops the NEXT one `pnpm patch-commit` writes, and the
-# build then differs between machines with nothing in git status to say so.
+# Review patches dropped in the worktree ROOT only. A bare *.patch glob
+# was refused while web/patches/ held tracked pnpm dependency patches
+# that were build inputs; that directory is gone, but the anchored form
+# is still what is wanted -- a review patch lands in the root, and a
+# bare glob would catch patch files anywhere in the tree.
 /*.patch
 
 # run_reproduce_block.py: lock and the script it runs

@@ -90,8 +90,26 @@ def json_payload(out: dict, verification=None) -> dict:
     Extracted to module level for the same reason `render` is: the test
     that matters asks BOTH for the same case and fails if they disagree,
     and it could not reach this code while it lived inside main().
+
+    PROMPTS ARE EXCLUDED BY SHAPE, NOT BY NAME. This read
+    `if k != "prompt"`, naming one key, and the orchestrator sets two:
+    `prompt` and, when the first answer dropped a required warning,
+    `retry_prompt`. So every --json reply to a question that needed a
+    retry carried ~2,900 characters of prompt -- the system rules, the
+    whole brief, and the "YOUR PREVIOUS ANSWER WAS REJECTED" preamble --
+    in a surface whose author had deliberately removed the other one.
+    `--show-prompt` is the opt-in for seeing a prompt, and it prints
+    `out["prompt"]` only, so the retry prompt was readable in the
+    machine surface and nowhere else.
+
+    This is the defect class the repository already has a name for: a
+    filter that lists what it excludes goes stale the moment the thing
+    it filters grows a sibling. Matching `*prompt*` means the next one
+    is covered on the day it is added, and
+    tests/test_agent_json_surface.py fails if a prompt-shaped key ever
+    reaches a caller again.
     """
-    payload = {k: v for k, v in out.items() if k != "prompt"}
+    payload = {k: v for k, v in out.items() if "prompt" not in k}
     if verification is not None and not verification.passed:
         payload["answer"] = None
         payload["answer_withheld"] = (
@@ -149,14 +167,33 @@ def build_parser(root: Path) -> argparse.ArgumentParser:
     return ap
 
 
-def main() -> int:
-    root = Path(__file__).resolve().parents[1]
-    args = build_parser(root).parse_args()
-    question = " ".join(args.question)
+def build_orchestrator(args, note=None) -> Orchestrator:
+    """Everything between a parsed namespace and a ready Orchestrator.
 
-    if not (args.release / "nodes.jsonl").exists():
-        print(f"release not found at {args.release}", file=sys.stderr)
-        return 2
+    EXTRACTED SO THE SERVER CANNOT LOAD IT DIFFERENTLY. This was the body
+    of main(), which meant scripts/agent_server.py had two options: import
+    main() and get a CLI, or copy sixty lines of loading and let the two
+    drift. The second is how the agent came to quote SARS-CoV-2's AUC for
+    a question about Zika -- one caller passed a single calibration where
+    another passed a dict -- and how --results was handed to
+    measured_reach as a file for weeks. The project has a name for this:
+    a contract a caller can forget is not a contract.
+
+    So there is one loader, it takes the namespace `build_parser` produces,
+    and the server builds its namespace from that same parser rather than
+    from a dict of its own defaults. A default that moves, moves for both.
+
+    `note` receives the degradation messages -- an unreadable results file,
+    a refused landscape, an unmeasurable reach. None sends them to stderr,
+    which is what the CLI wants; the server collects them and serves them
+    as data, because a note printed into a server log is a note the user
+    asking the question never sees.
+    """
+    if note is None:
+        def note(msg: str) -> None:
+            # "note: " is the prefix the CLI printed before this was
+            # extracted, kept so stderr reads the same as it always has.
+            print(f"note: {msg}", file=sys.stderr)
 
     # The caveats quote measured AUCs, so the run that measured them is
     # loaded here and named in the text. A missing or unreadable results file
@@ -192,8 +229,8 @@ def main() -> int:
                 temporal[label] = kgav_calibration.load(
                     args.results, label, section="temporal")
         except (OSError, ValueError, KeyError) as exc:
-            print(f"note: could not read {args.results.name} ({exc}); "
-                  f"routes will be reported as uncalibrated", file=sys.stderr)
+            note(f"could not read {args.results.name} ({exc}); "
+                 f"routes will be reported as uncalibrated")
     # THE PATHWAY NULL, loaded the same way and for the same reason. Passing
     # the release name lets landscape.load refuse a run measured on a
     # different one rather than quote it. An absent or refused file is not
@@ -201,8 +238,8 @@ def main() -> int:
     # release, which is weaker than the finding and true.
     land = kgav_landscape.load(args.landscape, release=args.release.name)
     if not land.usable:
-        print(f"note: {land.refused_reason}; the pathway route will be "
-              f"reported as unmeasured", file=sys.stderr)
+        note(f"{land.refused_reason}; the pathway route will be "
+             f"reported as unmeasured")
     # MEASURED REACH, the fact that separates `evaluable` from ROUTES
     # REACH NO LABEL. Loaded like the two above and refused the same
     # way: a metapath_comparison.json that is absent, stale or stamped
@@ -222,13 +259,26 @@ def main() -> int:
     # refuses the second rather than reporting it as the first.
     reach = measured_reach(args.results.parent, args.release)
     if reach is None:
-        print("note: metapath_comparison.json is absent, stale or stamped "
-              "for another release; whether a route reaches a label will be "
-              "reported as unmeasured. `make check-results` says which.",
-              file=sys.stderr)
+        note("metapath_comparison.json is absent, stale or stamped "
+             "for another release; whether a route reaches a label will "
+             "be reported as unmeasured. `make check-results` says which.")
     orch = Orchestrator(GraphTools(args.release, calibration=cals or None,
                                    temporal=temporal or None,
                                    landscape=land, reach=reach))
+
+    return orch
+
+
+def main() -> int:
+    root = Path(__file__).resolve().parents[1]
+    args = build_parser(root).parse_args()
+    question = " ".join(args.question)
+
+    if not (args.release / "nodes.jsonl").exists():
+        print(f"release not found at {args.release}", file=sys.stderr)
+        return 2
+
+    orch = build_orchestrator(args)
 
     model = None
     if not args.no_model:

@@ -19,10 +19,14 @@ So this reports, and the reading is yours:
                                        nothing distinguishes them but
                                        reading the sentence
 
-WHY BOTHER. web/client/src/pages/Home.tsx quoted five "real figures from
-release v0.1" and four were wrong, in a file whose comment already recorded
-being wrong once. evaluation.md is the same kind of artifact with far more
-numbers in it, and nothing has ever checked them.
+WHY BOTHER. The prototype UI (web/client/src/pages/Home.tsx, deleted
+2026-11-20) quoted five "real figures from release v0.1" and four were
+wrong, in a file whose comment already recorded being wrong once.
+evaluation.md is the same kind of artifact with far more numbers in it,
+and nothing has ever checked them. The replacement frontend hand-types no
+figure at all -- it reads every count from the release over HTTP -- which
+is why the test that policed those five numbers went with it and this
+script did not.
 
 WHAT IT LOOKS FOR. Interval-shaped figures -- 0.512 [0.49, 0.54] -- because
 an AUC with its confidence bounds is distinctive enough to match without
