@@ -1,4 +1,4 @@
-.PHONY: agent-ui agent-ask auc-contribution hit-rate screen-power protocol-disagreement metagraph-figure metagraph-figure-check arch-figures results-doc results-doc-check identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
+.PHONY: agent-ui agent-ask auc-contribution hit-rate screen-power protocol-disagreement prospective-analogy metagraph-figure metagraph-figure-check arch-figures results-doc results-doc-check identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
 
 install:
 	pip install -e ".[dev]"
@@ -379,6 +379,19 @@ results-doc-check:
 # docs/prereg_temporal_structure_scorer.md.
 protocol-disagreement:
 	python scripts/diagnose_protocol_disagreement.py
+
+# IS THE PROSPECTIVE RESULT PREDICTION, OR RETRIEVAL OF A KNOWN SERIES?
+# The registered AUC recomputed with the k nearest pre-cutoff actives
+# withheld from every candidate alike, k = 0, 5, 10, 20, 40. k=0 is the
+# registration's primary and k=10 its secondary, so two rungs reproduce
+# published figures.
+#
+# A cell that stops clearing at small k was ranking by one near
+# neighbour; one still clearing at k=40 is not. Closes H3, which
+# docs/prereg_temporal_structure_scorer.md left open as "a pointer, not
+# a finding". ~10s. Computes no new claim; not written to data/results.
+prospective-analogy:
+	python scripts/diagnose_prospective_analogy.py
 
 data-audit:
 	python scripts/data_audit.py

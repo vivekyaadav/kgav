@@ -141,6 +141,34 @@ Split `v0.1-train2021` · undated `include` · overlap `drop-from-test` · famil
 
 **0 of 10 cells have a usable degree comparator.** The pre-cutoff graph reaches too few of the compounds being ranked to rank them at all, so the baseline column is empty by measurement rather than by omission — and these clearing cells are therefore **not shown to beat a baseline**, because there is none to beat.
 
+### Three of those six are analogy, and three are not
+
+The six clearing cells are **not one result**. The registered AUC, recomputed with the k nearest pre-cutoff actives withheld from every candidate alike — `k=0` is the registration's primary, `k=10` its secondary:
+
+| virus | k=0 | k=5 | k=10 | k=20 | k=40 | clears up to |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| DENV-2 | 0.752\* | 0.719\* | 0.708\* | 0.687\* | 0.655\* | k≤40 |
+| HCoV-229E | 0.714\* | 0.737\* | 0.711\* | 0.678\* | 0.662\* | k≤40 |
+| SARS-CoV-2 | 0.621\* | 0.635\* | 0.636\* | 0.623\* | 0.614\* | k≤40 |
+| DENV-4 | 0.790\* | 0.727\* | 0.687\* | 0.516 | 0.436 | k≤10 |
+| DENV-1 | 0.802\* | 0.690\* | 0.618 | 0.462 | 0.357 | k≤5 |
+| DENV-3 | 0.730\* | 0.654\* | 0.590 | 0.452 | 0.368 | k≤5 |
+
+**3 survive to k = 40** — DENV-2, HCoV-229E, SARS-CoV-2 — with 40 of their closest known actives removed and the order still holding. That is a chemotype signal.
+
+**2 stop clearing before k = 10** — DENV-1, DENV-3. Their signal was carried by a handful of near neighbours: retrieval of a known series, which is useful and is a narrower claim than the AUC sounds.
+
+**The headline AUC is close to anti-correlated with robustness:**
+
+```
+by the published AUC (k=0) : DENV-1 > DENV-4 > DENV-2 > DENV-3 > HCoV-229E > SARS-CoV-2
+by robustness      (k=40)  : HCoV-229E > DENV-2 > SARS-CoV-2 > DENV-4 > DENV-3 > DENV-1
+```
+
+DENV-1 has the highest primary AUC of the six and loses the most (0.802 to 0.357). SARS-CoV-2 has the lowest and barely moves (0.621 to 0.614). **A cell's headline number does not say which kind of result it is.**
+
+Registered as H3 in `docs/prereg_temporal_structure_scorer.md`, left open there as "a pointer, not a finding", and closed by the amendment of 2026-11-21. `make prospective-analogy`.
+
 ---
 
 ## Result 3 — the knowledge graph adds nothing over a degree baseline

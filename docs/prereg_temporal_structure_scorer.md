@@ -433,3 +433,89 @@ strength-matched control exists to remove.
 analogue question is not a pointer any more for this cell: the
 prospective signal here IS analogy to a known series, and the measurement
 is the era-mate share above.
+
+---
+
+## Amendment, 2026-11-21 — H3 answered: three of the six are analogy
+
+The verdict above left H3 open in as many words: *"H3's analogue
+question is now answerable from the stored scores and is **not**
+answered here; the k=10 secondary column drops the dengue cells by 0.06
+to 0.18 and leaves HCoV-229E almost untouched, which is a pointer, not a
+finding."*
+
+It is answered now, by `scripts/diagnose_prospective_analogy.py`
+(`make prospective-analogy`). The pointer was right and understated.
+
+### The ladder
+
+The registered prospective AUC, recomputed with the **k nearest
+pre-cutoff actives withheld from every candidate alike**. `k=0` is the
+registration's primary and `k=10` its secondary, so two rungs reproduce
+published figures; the rest extend them. `\*` = still clears the
+registered corrected alpha.
+
+| virus | k=0 | k=5 | k=10 | k=20 | k=40 | clears up to |
+|---|---:|---:|---:|---:|---:|---|
+| DENV-2 | 0.752\* | 0.719\* | 0.708\* | 0.687\* | 0.655\* | k≤40 |
+| HCoV-229E | 0.714\* | 0.737\* | 0.711\* | 0.678\* | 0.662\* | k≤40 |
+| SARS-CoV-2 | 0.621\* | 0.635\* | 0.636\* | 0.623\* | 0.614\* | k≤40 |
+| DENV-4 | 0.790\* | 0.727\* | 0.687\* | 0.516 | 0.436 | k≤10 |
+| DENV-1 | 0.802\* | 0.690\* | 0.618 | 0.462 | 0.357 | k≤5 |
+| DENV-3 | 0.730\* | 0.654\* | 0.590 | 0.452 | 0.368 | k≤5 |
+
+**3 of 6 survive to k = 40**: DENV-2, HCoV-229E, SARS-CoV-2.
+Forty of their closest known actives removed, and the order holds.
+
+**2 stop clearing before k = 10**: DENV-1, DENV-3. Their
+signal was carried by a handful of near neighbours.
+**DENV-4** clears at k = 10 and not at k = 20.
+
+### The headline AUC is close to anti-correlated with robustness
+
+    ranked by the published AUC (k=0) : DENV-1 > DENV-4 > DENV-2 > DENV-3 > HCoV-229E > SARS-CoV-2
+    ranked by robustness     (k=40)   : HCoV-229E > DENV-2 > SARS-CoV-2 > DENV-4 > DENV-3 > DENV-1
+
+DENV-1 has the **highest** primary AUC of the six and loses the most
+(0.802 to
+0.357). SARS-CoV-2 has the
+**lowest** and barely moves
+(0.621 to
+0.614, a drop of
+-0.007).
+
+**A cell's headline number does not say which kind of result it is.**
+That is the finding, and it applies to how every figure in this
+registration should be read.
+
+### How close the nearest known active actually is
+
+Median max-Tanimoto to the pre-cutoff reference set, no exclusion:
+
+| virus | positives | negatives | gap |
+|---|---:|---:|---:|
+| DENV-2 | 0.369 | 0.271 | +0.098 |
+| DENV-4 | 0.290 | 0.209 | +0.081 |
+| DENV-1 | 0.271 | 0.208 | +0.063 |
+| SARS-CoV-2 | 0.263 | 0.229 | +0.034 |
+| DENV-3 | 0.251 | 0.210 | +0.042 |
+| HCoV-229E | 0.208 | 0.170 | +0.039 |
+
+All six sit well below identity, so this is not near-twin matching in
+the median. Combined with the ladder, the reading is that a **minority**
+of positives have a very close pre-cutoff neighbour and those few carry
+the AUC in the cells that collapse.
+
+### What this changes
+
+- **Nothing is retracted.** Every rung is the registered statistic on
+  the registered split at a different exclusion strength.
+- **The six clearing cells are not one result.** Three are a chemotype
+  signal; three are retrieval of a series. A summary that reports "6 of
+  10 clear" without this is true and misleading.
+- **It strengthens the DENV-2 choice.** DENV-2 is the only cell that is
+  simultaneously the most enriched at the top of its ranking (10.74x),
+  powerable at a feasible screen size, and robust to k = 40. The screen
+  registered in `docs/prereg_denv2_prospective_screen.md` was chosen on
+  the first two; the third was not known when it was signed.
+- **H3 is closed.**

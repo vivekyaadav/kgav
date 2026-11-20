@@ -124,6 +124,26 @@ def hit_rate() -> dict:
         return json.loads(out.read_text())
 
 
+def analogy() -> dict:
+    """Run scripts/diagnose_prospective_analogy.py and read it.
+
+    THROUGH THE SCRIPT, one implementation. ~10s, and it is the
+    difference between "6 of 10 clear" being a result and being a
+    summary that hides two different kinds of result inside one count.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "an.json"
+        r = subprocess.run(
+            [sys.executable,
+             str(ROOT / "scripts" / "diagnose_prospective_analogy.py"),
+             "--out", str(out)],
+            capture_output=True, text=True, cwd=ROOT, timeout=1800)
+        if r.returncode != 0:
+            raise SystemExit("diagnose_prospective_analogy.py failed:\n"
+                             + (r.stdout or "") + (r.stderr or ""))
+        return json.loads(out.read_text())
+
+
 def _pk(block: dict, k: int) -> dict | None:
     per = block["per_k"]
     return per[str(k)] if str(k) in per else per.get(k)
@@ -167,6 +187,7 @@ def build() -> str:
     land = load("pathway_landscape.json")
     clin = load("clinical_labels.json")
     hr = hit_rate()
+    an = analogy()
 
     L: list[str] = []
     w = L.append
@@ -454,6 +475,64 @@ def build() -> str:
       f"measurement rather than by omission — and these clearing cells "
       f"are therefore **not shown to beat a baseline**, because there is "
       f"none to beat.")
+    w("")
+
+    # --------------------- and what kind of result Result 2 actually is
+    w("### Three of those six are analogy, and three are not")
+    w("")
+    w("The six clearing cells are **not one result**. The registered AUC, "
+      "recomputed with the k nearest pre-cutoff actives withheld from "
+      "every candidate alike — `k=0` is the registration's primary, "
+      "`k=10` its secondary:")
+    w("")
+    ks = an["ks"]
+    w(row("virus", *[f"k={k}" for k in ks], "clears up to"))
+    w(row("---", *["---:"] * len(ks), "---"))
+    for c in sorted(an["cells"], key=lambda c: -(c["clears_up_to_k"] or -1)):
+        cells_ = [f"{c['ladder'][str(k)]['auc']:.3f}"
+                  + ("\\*" if c["ladder"][str(k)]["clears"] else "")
+                  for k in ks]
+        upto = (f"k≤{c['clears_up_to_k']}"
+                if c["clears_up_to_k"] is not None else "nowhere")
+        w(row(c["name"], *cells_, upto))
+    deep = [c["name"] for c in an["cells"]
+            if (c["clears_up_to_k"] or -1) >= max(ks)]
+    shallow = [c["name"] for c in an["cells"]
+               if (c["clears_up_to_k"] or -1) < 10]
+    w("")
+    w(f"**{len(deep)} survive to k = {max(ks)}** — {', '.join(sorted(deep))} "
+      f"— with {max(ks)} of their closest known actives removed and the "
+      f"order still holding. That is a chemotype signal.")
+    w("")
+    w(f"**{len(shallow)} stop clearing before k = 10** — "
+      f"{', '.join(sorted(shallow))}. Their signal was carried by a "
+      f"handful of near neighbours: retrieval of a known series, which "
+      f"is useful and is a narrower claim than the AUC sounds.")
+    w("")
+    by0 = [c["name"] for c in sorted(an["cells"],
+                                     key=lambda c: -c["ladder"]["0"]["auc"])]
+    by_last = [c["name"] for c in sorted(
+        an["cells"], key=lambda c: -c["ladder"][str(max(ks))]["auc"])]
+    w("**The headline AUC is close to anti-correlated with robustness:**")
+    w("")
+    w("```")
+    w("by the published AUC (k=0) : " + " > ".join(by0))
+    w(f"by robustness      (k={max(ks)})  : " + " > ".join(by_last))
+    w("```")
+    w("")
+    best = min(an["cells"], key=lambda c: c["ladder"]["0"]["auc"])
+    worst = max(an["cells"], key=lambda c: c["ladder"]["0"]["auc"])
+    w(f"{worst['name']} has the highest primary AUC of the six and loses "
+      f"the most ({worst['ladder']['0']['auc']:.3f} to "
+      f"{worst['ladder'][str(max(ks))]['auc']:.3f}). {best['name']} has "
+      f"the lowest and barely moves "
+      f"({best['ladder']['0']['auc']:.3f} to "
+      f"{best['ladder'][str(max(ks))]['auc']:.3f}). **A cell's headline "
+      f"number does not say which kind of result it is.**")
+    w("")
+    w("Registered as H3 in `docs/prereg_temporal_structure_scorer.md`, "
+      "left open there as \"a pointer, not a finding\", and closed by "
+      "the amendment of 2026-11-21. `make prospective-analogy`.")
     w("")
 
     # ============================== RESULT 3: the graph's contribution
