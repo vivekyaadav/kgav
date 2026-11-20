@@ -1966,6 +1966,114 @@ class GraphTools:
             edge_ids=[e["_id"] for e in hits],
             note=f"truncated to {limit}" if truncated else "")
 
+    #: predicate -> (incoming clause, outgoing clause).
+    #:
+    #: WHY THE SENTENCES ARE WRITTEN HERE AND NOT BY THE MODEL.
+    #:
+    #: Direction markers were added to the evidence rows so a model
+    #: could read which way an edge runs. It then wrote "Zika belongs
+    #: to the gene KGAV:GENE_64320_POLY" from a row that plainly said
+    #: `<- BELONGS_TO` -- the gene belongs to Zika. It had got
+    #: HAS_ANTIVIRAL_ACTIVITY_AGAINST right only because that edge
+    #: carries a loud warning paragraph of its own.
+    #:
+    #: So the marker did not teach it to read arrows; it fixed the one
+    #: predicate that was shouted at. A model handed a relation name
+    #: and a number defaults to making the focal node the subject of
+    #: every sentence, and no sternness in the prompt changes that.
+    #: Demonstrated twice on two predicates, which is enough.
+    #:
+    #: The facts are therefore stated as finished English here, from
+    #: the edge tuples, and the model is asked only to interpret them.
+    #: `{n}` is the neighbour count, `{focal}` the node asked about,
+    #: `{names}` the neighbours when few enough to name.
+    RELATION_CLAUSES = {
+        "HAS_ANTIVIRAL_ACTIVITY_AGAINST": (
+            "{n} {kind} have measured antiviral activity against {focal}",
+            "{focal} has measured antiviral activity against {n} {kind}"),
+        "MEASURED_INACTIVE_AGAINST": (
+            "{n} {kind} were measured and found INACTIVE against {focal}",
+            "{focal} was measured inactive against {n} {kind}"),
+        "HOST_FACTOR_FOR": (
+            "{n} {kind} are annotated as host factors for {focal}",
+            "{focal} is annotated as a host factor for {n} {kind}"),
+        "BELONGS_TO": (
+            "{n} {kind} belong to {focal}",
+            "{focal} belongs to {names}"),
+        "CAUSES": (
+            "{n} {kind} cause {focal}",
+            "{focal} causes {names}"),
+        "TREATS": (
+            "{n} {kind} are recorded as treating {focal}",
+            "{focal} is recorded as treating {names}"),
+        "IN_TRIAL_FOR": (
+            "{n} {kind} are in trials for {focal}",
+            "{focal} is in trials for {names}"),
+        "INHIBITS": (
+            "{n} {kind} inhibit {focal}",
+            "{focal} inhibits {names}"),
+        "INTERACTS_WITH": (
+            "{n} {kind} interact with {focal}",
+            "{focal} interacts with {names}"),
+    }
+
+    #: At or below this many neighbours they are named, not counted.
+    NAME_AT_MOST = 5
+
+    #: Node class -> what a reader calls it. "3,401 SmallMolecules"
+    #: is a schema identifier leaking into prose.
+    CLASS_NAMES = {"SmallMolecule": ("small molecule", "small molecules"),
+                   "Protein": ("protein", "proteins"),
+                   "Gene": ("gene", "genes"),
+                   "Disease": ("disease", "diseases"),
+                   "OrganismTaxon": ("virus", "viruses"),
+                   "Pathway": ("pathway", "pathways"),
+                   "BiologicalProcess": ("biological process",
+                                         "biological processes"),
+                   "CellLine": ("cell line", "cell lines")}
+
+    #: Plural verb -> singular, applied to an INCOMING clause when the
+    #: neighbour count is 1. "1 Gene belong to Zika" announces that a
+    #: template wrote it; the direction was right and the grammar gave
+    #: it away, which costs the sentence the credibility the fix was
+    #: for.
+    _AGREE = (("have ", "has "), ("are ", "is "), ("were ", "was "),
+              ("belong ", "belongs "), ("cause ", "causes "),
+              ("inhibit ", "inhibits "), ("interact ", "interacts "),
+              ("treat ", "treats "))
+
+    def _relation_sentences(self, node_id: str,
+                            groups: dict) -> list[str]:
+        """Finished English for each (direction, predicate, class)."""
+        focal = self._label(node_id)
+        out = []
+        for (arrow, pred, klass), others in sorted(
+                groups.items(), key=lambda kv: (-len(kv[1]), kv[0][1])):
+            n = len(others)
+            names = ", ".join(sorted(self._label(o) for o in others)) \
+                if n <= self.NAME_AT_MOST else ""
+            one, many = self.CLASS_NAMES.get(klass, (klass, klass + "s"))
+            kind = one if n == 1 else many
+            tmpl = self.RELATION_CLAUSES.get(pred)
+            if tmpl is None:
+                # UNKNOWN PREDICATE STATES THE TUPLE, never a guess at
+                # English. A new predicate reads as a relation with a
+                # direction rather than being silently voiced wrong.
+                side = "->" if arrow == "->" else "<-"
+                out.append(f"{focal} {side} {pred} {side} {n} {kind}"
+                           + (f" ({names})" if names else ""))
+                continue
+            clause = tmpl[0] if arrow == "<-" else tmpl[1]
+            if arrow == "<-" and n == 1:
+                for plural, singular in self._AGREE:
+                    clause = clause.replace(plural, singular)
+            text = clause.format(n=f"{n:,}", kind=kind, focal=focal,
+                                 names=names or f"{n:,} {kind}")
+            if names and "{names}" not in clause:
+                text += f" ({names})"
+            out.append(text + ".")
+        return out
+
     def profile(self, node_id: str) -> ToolResult:
         """What the graph holds about one entity."""
         n = self.nodes.get(node_id)
@@ -2014,12 +2122,6 @@ class GraphTools:
         held = {k: v for k, v in counts.items() if k in self._held_out}
         feat = {k: v for k, v in counts.items() if k not in self._held_out}
 
-        #: At or below this many neighbours, they are NAMED instead of
-        #: counted. "belongs to 1 category" and "causes 1 condition"
-        #: told a reader nothing at all; the family and the disease are
-        #: the entire content of those two edges.
-        NAME_AT_MOST = 5
-
         def _rows(d):
             out = []
             for pred, _n in sorted(d.items(), key=lambda kv: -kv[1]):
@@ -2035,7 +2137,7 @@ class GraphTools:
                                      or (e["object"] == node_id
                                          and arrow == "<-")))
                     label = f"  {arrow} {p} {klass}: "
-                    if len(others) <= NAME_AT_MOST:
+                    if len(others) <= self.NAME_AT_MOST:
                         out.append(label + ", ".join(
                             sorted(self._label(o) for o in others)))
                     else:
@@ -2060,6 +2162,12 @@ class GraphTools:
                                 "edge_counts": dict(counts),
                                 "feature_edge_counts": feat,
                                 "held_out_label_counts": held,
+                                # FINISHED ENGLISH, so the model is
+                                # never the thing deciding which way
+                                # a predicate runs.
+                                "relation_sentences":
+                                    self._relation_sentences(
+                                        node_id, groups),
                                 # DIRECTED, so a consumer never has to
                                 # guess which way a predicate runs.
                                 "directed": [

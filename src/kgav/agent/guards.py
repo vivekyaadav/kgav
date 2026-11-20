@@ -181,6 +181,7 @@ class QueryKind(str, Enum):
     PATHWAY = "pathway"          # which pathways does X sit in? -> supported
     PROSPECT = "prospect"        # what should we test? -> REFUSED
     CAPABILITY = "capability"    # CAN this do X? -> answered from measurements
+    METHOD = "method"            # HOW did you get that? -> explained
     UNKNOWN = "unknown"
 
 
@@ -568,6 +569,30 @@ def classify_intent(text: str) -> QueryKind:
     # So a capability phrase paired with "which" or "what ... should"
     # falls through to the backstop below rather than being answered as
     # a capability question.
+    # HOW DID YOU GET THAT, asked of the agent's own reasoning.
+    #
+    # "can you explain the logic behind these suggestions?" was routed
+    # to EXPLAIN -- the compound-mechanism intent -- and answered "No
+    # entity in this question matches a node in the graph". It is the
+    # most likely question to follow a ranking, and a user who asks
+    # why and is told to name a compound concludes the ranking was
+    # unexplainable. There is a precise answer and it does not need an
+    # entity: the method is one scorer with named controls.
+    #
+    # BEFORE `capability`, because "can you explain..." matches both
+    # and the method question is the more specific reading.
+    method = (
+        "explain the logic", "logic behind", "how did you rank",
+        "how do you rank", "how did you get", "how does the ranking",
+        "why these", "why those", "how was this ranked",
+        "what is the method", "how does it score", "how do you score",
+        "what does tc mean", "what is tc", "what is tanimoto",
+        "explain the method", "how does this work", "reasoning behind",
+        "basis for these", "how are these ranked", "what does resembles",
+    )
+    if any(p in t for p in method):
+        return QueryKind.METHOD
+
     capability = (
         "can i repurpose", "can you repurpose", "can this repurpose",
         "can i use this", "can i use it", "can this be used",
@@ -798,9 +823,17 @@ def _virus_caveat(calibration) -> str:
     _channel_caveat twenty lines below did exactly that. Same bug, same file.
     """
     if calibration is None or not getattr(calibration, "usable", False):
-        return ("no channel performance has been measured for this virus on "
-                "this release, so its reliability is unknown. Paths retrieved "
-                "here are evidence to read, not a ranking to trust.")
+        # WHOSE RELIABILITY IS UNKNOWN. This read "its reliability is
+        # unknown" with "this virus" as the nearest antecedent, so it
+        # parsed as the VIRUS being unreliable. What is unmeasured is
+        # the graph's scoring channels ON this virus. Reported by the
+        # owner's reviewer, 2026-11-21.
+        return ("no channel performance has been measured for this virus "
+                "on this release, so how well THE GRAPH'S SCORING CHANNELS "
+                "do here is unknown. That is a gap in what has been "
+                "measured and not a statement about the virus. Paths "
+                "retrieved here are evidence to read, not a ranking to "
+                "trust.")
     disc = calibration.discriminating()
     if disc:
         return (f"scoring for this virus is measured under "
@@ -853,12 +886,35 @@ def check(kind: QueryKind, virus: str | None = None,
             offer = (
                 "What this graph can do: explain the mechanism of a compound "
                 "with known activity, rank a set of compounds you already "
-                "have, and retrieve provenanced evidence for a specific claim."
+                "have, and retrieve provenanced evidence for a specific "
+                "claim. For a virus where a cross-sectional ranking IS "
+                "licensed, it will also rank APPROVED and clinical-stage "
+                "compounds by analogy to that virus's known actives — ask "
+                "\"can I repurpose drugs\" to see which viruses those are "
+                "and which are refused."
             )
         return Verdict(
             allowed=False,
             reason=(
-                "This graph cannot support prospective candidate generation. "
+                # SCOPE-SPECIFIC, NOT CATEGORICAL.
+                #
+                # This said "This graph cannot support prospective
+                # candidate generation", full stop, and listed
+                # capabilities that excluded candidate generation
+                # entirely -- while the same agent answered "name a
+                # drug for yellow fever" with twelve ranked
+                # approved and clinical compounds. Both turns are
+                # defensible and together they read as an arbitrary
+                # gate. The limitation is real and it is narrower
+                # than the sentence: what cannot be ranked is NOVEL
+                # chemical matter, because it is absent from a graph
+                # built before it existed. Already-approved and
+                # clinical-stage compounds ARE in the graph and can
+                # be ranked by analogy wherever a cross-sectional
+                # ranking is licensed and the prospective control
+                # does not contradict it.
+                "This graph cannot rank NOVEL chemical matter for this "
+                "virus, which is what a candidate screen asks of it. "
                 f"{_temporal_sentence(temporal)} "
                 "The reason is that the large majority of compounds screened "
                 "after the cutoff do not appear anywhere in the graph built "

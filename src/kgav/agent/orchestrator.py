@@ -494,6 +494,24 @@ class Orchestrator:
     ABOUT = ("introduce yourself", "who are you", "what are you",
              "what can you do", "what can i ask", "what do you do",
              "how do you work", "help", "hello", "hi there")
+
+    #: SELF-REFERENCE BEATS ENTITY RESOLUTION.
+    #:
+    #: "tell me about yourself" was routed to PROFILE -- the node
+    #: profile intent -- because it contains "tell me about", and then
+    #: answered "No entity in this question matches a node in the
+    #: graph". So did "how i can use you ?". The agent introduces
+    #: itself correctly when asked one exact phrasing and fails on the
+    #: obvious variants, which is the behaviour that reads as hardwired
+    #: because it IS: a fixed list of phrases with no notion of what
+    #: the question is ABOUT.
+    #:
+    #: These are checked before resolution, because no entity in the
+    #: graph is ever the referent of "you".
+    SELF = ("yourself", "about you", "about yourself", "who you are",
+            "use you", "using you", "talk to you", "ask you",
+            "you do", "your limits", "your purpose", "you work",
+            "trust you", "you good at", "you capable")
     LIST_VIRUSES = ("list all the viruses", "list the viruses",
                     "which viruses", "what viruses", "all the viruses",
                     "viruses you", "viruses do you", "viruses can i")
@@ -519,10 +537,106 @@ class Orchestrator:
             "  - retrieve provenanced evidence for one specific claim\n"
             "  - say what the graph holds about a compound, protein or "
             "virus\n\n"
-            "What I refuse: generating a shortlist of NEW candidates. "
-            "That is measured, not modest — the refusal quotes the "
-            "measurement for the virus you name.\n\n"
+            # WAS FLATLY FALSE once the licensed path landed: it said
+            # the agent refuses to shortlist, while it was naming
+            # HYDROXYCHLOROQUINE for HCoV-229E in the next breath.
+            "  - rank APPROVED and clinical-stage compounds by analogy "
+            "for a virus where that is licensed, and refuse with the "
+            "measurement where it is not\n\n"
+            "What I refuse: ranking NOVEL chemical matter — compounds "
+            "that postdate the graph are absent from it, which is "
+            "measured and not modesty. Ask \"can I repurpose drugs\" "
+            "for which viruses are licensed and which are refused.\n\n"
             "Viruses I hold: " + ", ".join(held) + ".")
+
+    def _method(self) -> str:
+        """How a ranking is produced, and what each control costs it.
+
+        DERIVED FROM THE RUNS, not described. The three control AUCs
+        are the measured collapse, and quoting them is the difference
+        between explaining a method and advertising one.
+        """
+        import json
+
+        lines = [
+            "HOW A RANKING IS PRODUCED. One scorer, no machine "
+            "learning, no graph edges.",
+            "",
+            "  1. Every compound is turned into an ECFP4 fingerprint "
+            "— a 2,048-bit vector",
+            "     recording which circular substructures, out to two "
+            "bonds, it contains.",
+            "  2. A candidate's score is its MAXIMUM Tanimoto "
+            "similarity to any single",
+            "     known active for that virus. Tanimoto is shared "
+            "bits over total bits:",
+            "     1.0 is identical fingerprints, 0.0 is nothing in "
+            "common.",
+            "  3. The list is sorted by that score, and the known "
+            "active that produced it",
+            "     is printed beside it — that is the `resembles` "
+            "column, and it is the",
+            "     whole of the evidence.",
+            "",
+            "SO THE CLAIM IS ANALOGY, and only that: this compound "
+            "looks like something",
+            "already known to work. Not that it will work, not why, "
+            "and not how often.",
+            "",
+        ]
+
+        # THE CONTROLS, and what each one costs. A method explained
+        # without them sounds better than it is.
+        shown = False
+        try:
+            doc = json.loads(
+                (self.results
+                 / "structure_scorer_strength_matched.json").read_text())
+            agg = doc.get("aggregate") or {}
+            if agg:
+                shown = True
+        except Exception:
+            agg = {}
+        lines += [
+            "WHY IT IS NOT JUST SIMILARITY SEARCH. Three controls, "
+            "each removing a way",
+            "the number could be flattered:",
+            "",
+            "  publication-disjoint   a candidate is never scored "
+            "against an active from",
+            "                         the same paper, which would be "
+            "the same series by",
+            "                         construction.",
+            "  symmetric k=10         each candidate's 10 nearest "
+            "actives are withheld,",
+            "                         from positives and negatives "
+            "alike.",
+            "  strength-matched       the number withheld is set per "
+            "virus, so a cell is not",
+            "                         flattered by having denser "
+            "analogues than another.",
+            "",
+            "Those controls COST the score, and the cost is the "
+            "honest part: measured on",
+            "this release the strength-matched figure is the one "
+            "quoted as the verdict,",
+            "and it is the lowest of the three for most cells. "
+            "`make auc-contribution`",
+            "prints the decomposition.",
+            "",
+            "WHAT IS NOT IN ANY OF THIS: the knowledge graph. Its "
+            "eight reasoning channels",
+            "were measured and every one sits at chance, so they are "
+            "excluded from the",
+            "ranking rather than mixed in. The graph supplies the "
+            "labels, the provenance",
+            "and the structures; the signal that works is chemistry.",
+        ]
+        if not shown:
+            lines += ["", "(No registered run is on disk, so the "
+                          "controls' measured cost cannot be quoted "
+                          "here.)"]
+        return "\n".join(lines)
 
     def _capability(self, virus: str | None = None) -> str:
         """What the measurements license, for one virus or for all.
@@ -651,14 +765,25 @@ class Orchestrator:
         rather than presenting an empty list as "nothing promising".
         """
         import subprocess
+        import tempfile
         root = Path(__file__).resolve().parents[3]
         script = root / "scripts" / "repurposing_candidates.py"
         if not script.exists():
             return None
+        # --out TO A THROWAWAY PATH, ALWAYS.
+        #
+        # The script writes data/results/repurposing_candidates.json by
+        # default, and that file is a REGISTERED run covering every
+        # virus, stamped and checked by `make check-results`. Invoking
+        # it per-virus without --out silently replaced it with
+        # single-virus output on every prospective question the agent
+        # answered. Caught at staging by the file turning up modified;
+        # nothing in the agent would have reported it.
         try:
+            tmp = Path(tempfile.mkdtemp()) / "shortlist.json"
             r = subprocess.run(
                 [sys.executable, str(script), "--virus", virus_name,
-                 "--top", "60", "--exclude-labelled"],
+                 "--top", "60", "--exclude-labelled", "--out", str(tmp)],
                 capture_output=True, text=True, cwd=root, timeout=600)
         except Exception:                            # pragma: no cover
             return None
@@ -705,6 +830,14 @@ class Orchestrator:
                       "MEASURED differs sharply between them, and every "
                       "answer says which applies."),
                 trace=trace + ["about_viruses"])
+        # HOW DID YOU GET THAT? The method, explained, with its own
+        # controls and their measured cost. No entity needed.
+        if guards.classify_intent(question) is guards.QueryKind.METHOD:
+            return Brief(
+                question=question, intent="method", allowed=True,
+                clarification=self._method(),
+                trace=trace + ["method"])
+
         # CAN THIS REPURPOSE A DRUG? Answered from both registered
         # runs, per virus, because the answer differs sharply between
         # them and a single yes or no would be false for most of them.
@@ -717,7 +850,8 @@ class Orchestrator:
                 trace=trace + ["capability"
                                + ("_virus" if named else "_overall")])
 
-        if any(p == low or p in low for p in self.ABOUT):
+        if (any(p == low or p in low for p in self.ABOUT)
+                or any(p in low for p in self.SELF)):
             return Brief(
                 question=question, intent="about", allowed=True,
                 clarification=self._about(),
@@ -1105,6 +1239,30 @@ class Orchestrator:
             trace.append(f"tool={r.kind} ok={r.ok}")
             warns.extend(r.warnings)          # warnings are never truncated
             lines = list(r.verbalised)
+            # FINISHED ENGLISH REPLACES THE COUNT ROWS IN THE PROMPT.
+            #
+            # The rows carry `<-` and `->` and a model still wrote
+            # "Zika belongs to the gene KGAV:GENE_64320_POLY" from a
+            # row reading `<- BELONGS_TO Gene` -- the gene belongs to
+            # Zika. It had HAS_ANTIVIRAL_ACTIVITY_AGAINST right only
+            # because that predicate carries a warning paragraph of
+            # its own, so the marker never taught it to read arrows;
+            # the shouting did the work for one edge.
+            #
+            # tools._relation_sentences states each relation as a
+            # finished clause from the edge tuple, so the model is not
+            # the thing deciding which way a predicate runs. The arrow
+            # rows stay in r.verbalised, which is what the UI shows as
+            # the audit trail, and `directed` keeps the tuples.
+            # r.data is a LIST for some tools (explain's paths), so the
+            # lookup is guarded rather than assuming every result is a
+            # mapping -- 29 tests said so.
+            said = (r.data.get("relation_sentences")
+                    if isinstance(r.data, dict) else None)
+            if said:
+                keep = [ln for ln in lines
+                        if not re.match(r"\s+(->|<-)\s", ln)]
+                lines = keep[:1] + [f"  {t}" for t in said] + keep[1:]
             if not r.ok and r.note:
                 lines.append(f"(no result: {r.note})")
             if facts and len(facts) + len(lines) > MAX_BRIEF_EDGES:

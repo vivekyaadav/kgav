@@ -80,7 +80,7 @@ def test_prospective_question_is_refused_before_retrieval(orch):
     # The refusal and its reason, not a figure. "0.50" was pinned here and in
     # guards' own test, so a stale number could not be removed from
     # user-facing prose without the suite failing.
-    assert "cannot support prospective" in out["answer"]
+    assert "cannot rank NOVEL chemical matter" in out["answer"]
 
 
 def test_refusal_happens_even_when_entities_resolve(orch):

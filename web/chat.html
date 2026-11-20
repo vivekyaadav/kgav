@@ -600,8 +600,55 @@ function renderReply(host, p) {
     }
     s.append(box);
   } else if (p.answer) {
-    s.append(el("div", "h", p.clarification ? "The agent needs more" : "Answer"));
-    s.append(el("div", "answer", p.answer));
+    // THE LABEL FOLLOWS THE OUTCOME, NOT WHICH FIELD IS POPULATED.
+    //
+    // It read `clarification ? "The agent needs more" : "Answer"`, so a
+    // complete 12-compound ranking and the full capability answer were
+    // both headed "The agent needs more" -- the two richest replies the
+    // agent produces, labelled as failures to answer. The intents that
+    // DO need more from the user are the ones that ask a question back.
+    var needs = { about: "About", capability: "What is licensed",
+                  prospect_licensed: "Candidates", about_viruses: "Viruses" };
+    var head = p.clarification
+      ? (needs[p.intent] || "The agent needs more")
+      : "Answer";
+    s.append(el("div", "h", head));
+    // THE CAVEATS ARE NOT SHOWN TWICE.
+    //
+    // orchestrator.py requires the model to repeat each caveat
+    // VERBATIM in the answer, so that an answer copied out of this UI
+    // still carries its conditions. That requirement is right and it
+    // made this panel render them byte-identically twice in a row --
+    // once under "Caveats" and again as the first paragraphs of the
+    // answer. Confirmed identical on the DENV-2 and Zika replies.
+    //
+    // The caveats block above stays authoritative; the duplicated
+    // leading copy is dropped from the prose here. Only an exact
+    // match is removed, so a caveat the model has REWORDED survives
+    // and remains visible as its own sentence -- this hides nothing
+    // the agent did not already say above.
+    var prose = p.answer;
+    for (const w of (p.warnings || [])) {
+      const flat = w.replace(/\s+/g, " ").trim();
+      let seen = prose.replace(/\s+/g, " ").trim();
+      if (!flat) continue;
+      const at = seen.indexOf(flat);
+      if (at !== -1 && at < 400) {
+        // Re-find it in the unflattened text to cut precisely.
+        const head = flat.slice(0, 40);
+        const i = prose.replace(/\s+/g, " ").indexOf(head);
+        if (i !== -1) {
+          const re = new RegExp("\\*{0,2}" + head.slice(0, 24)
+            .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+            .replace(/ /g, "[\\s*]+") + "[\\s\\S]*?"
+            + flat.slice(-24).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+              .replace(/ /g, "[\\s*]+"));
+          prose = prose.replace(re, "");
+        }
+      }
+    }
+    prose = prose.replace(/^[\s*]+/, "").trim();
+    s.append(el("div", "answer", prose || p.answer));
     if (v && v.findings && v.findings.length) {
       const ul = el("ul", "findings");
       for (const f of v.findings) {

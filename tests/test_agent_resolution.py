@@ -409,7 +409,7 @@ def test_the_self_description_states_the_refusal(orch):
     agent does not do."""
     out = orch.answer("what can you do?", None)["answer"]
     assert "refuse" in out.lower()
-    assert "shortlist of NEW candidates" in out
+    assert "ranking NOVEL chemical matter" in out
 
 
 @needs_release

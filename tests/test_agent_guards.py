@@ -148,8 +148,25 @@ def test_prospective_queries_are_refused():
     """
     v = check(QueryKind.PROSPECT)
     assert v.allowed is False
-    assert "cannot support prospective" in v.reason
     assert "novel chemical matter" in v.reason, "the durable reason, not a number"
+
+    # SCOPE-SPECIFIC, NOT CATEGORICAL.
+    #
+    # It said "This graph cannot support prospective candidate
+    # generation", full stop, and listed capabilities excluding
+    # candidate generation entirely -- while the same agent answered
+    # "name a drug for yellow fever" with twelve ranked approved and
+    # clinical compounds. Both turns were defensible and together they
+    # read as an arbitrary gate. What cannot be ranked is NOVEL
+    # chemical matter; compounds already in the graph can be ranked by
+    # analogy where a cross-sectional ranking is licensed.
+    assert "cannot rank NOVEL chemical matter" in v.reason
+    assert "cannot support prospective candidate generation" not in v.reason, (
+        "the refusal claims candidate generation is impossible in "
+        "general, which contradicts the licensed path")
+    assert "licensed" in v.reason, (
+        "the refusal does not tell the reader that some viruses ARE "
+        "licensed, so the two behaviours read as one arbitrary gate")
 
 
 def test_the_refusal_claims_no_result_without_a_calibration():
@@ -755,7 +772,7 @@ def test_the_general_limit_is_still_stated_for_a_routeless_virus():
     could reasonably conclude a richer virus would be answered."""
     v = check(QueryKind.PROSPECT, virus="NCBITaxon:11089",
               routes=_routeless())
-    assert "cannot support prospective candidate generation" in v.reason
+    assert "cannot rank NOVEL chemical matter" in v.reason
     assert "temporal split" in v.reason
 
 
