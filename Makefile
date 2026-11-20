@@ -1,4 +1,4 @@
-.PHONY: agent-ui agent-ask auc-contribution hit-rate screen-power identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
+.PHONY: agent-ui agent-ask auc-contribution hit-rate screen-power metagraph-figure metagraph-figure-check identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
 
 install:
 	pip install -e ".[dev]"
@@ -306,6 +306,25 @@ hit-rate:
 # direction that flatters the design.
 screen-power:
 	python scripts/screen_power.py
+
+# THE METAGRAPH FIGURE, GENERATED FROM THE RELEASE. docs/figures/meta.dot
+# was hand-written on 2026-11-03 and nothing checked it: by 2026-11-20 it
+# carried thirteen stale figures AND omitted two predicates entirely --
+# IN_TRIAL_FOR and TREATS, the clinical axis, which is one of the four
+# findings v1 publishes. A hand-drawn figure cannot acquire a predicate.
+#
+# The topology is derived too, not just the numbers: every arrow is a
+# (subject class, predicate, object class) block present in edges.jsonl,
+# so a new predicate draws itself.
+#
+# RE-RENDERS THE PNG AND SVG, which --check cannot verify -- graphviz
+# versions differ in their output, so the check covers the .dot and this
+# target regenerates both from it.
+metagraph-figure:
+	python scripts/write_metagraph_figure.py --render
+
+metagraph-figure-check:
+	python scripts/write_metagraph_figure.py --check
 
 data-audit:
 	python scripts/data_audit.py
