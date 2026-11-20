@@ -215,11 +215,91 @@ def test_the_suggester_is_bounded():
     assert not near_names("what about zikaaaa", cands)   # 3
 
 
+# ============================== 6: the agent stopped assuming a virus
+#
+# The owner's decision, 2026-11-20. guards.virus_assumed_caveat defended
+# the default: "SARS-CoV-2 is the only virus any protocol here evaluated.
+# Defaulting without saying so is [wrong]." Fourteen ChEMBL cells, three
+# plate cells and ten prospective cells later, the premise is gone.
+
 @needs_release
-def test_a_question_with_no_near_miss_still_gets_the_old_behaviour(orch):
-    """Suggestions were added; the assumed-virus path was not removed.
-    Whether it SHOULD be is the owner's decision and is still open."""
+@pytest.mark.parametrize("typed", [
+    "is chloroquine useful?",                 # UNKNOWN intent, a compound
+    "could remdesivir be repurposed?",        # PROSPECT, a compound
+    "what is the evidence that remdesivir inhibits nsp12?",  # falls to explain
+])
+def test_a_virus_decided_question_asks_instead_of_assuming(orch, typed):
+    out = orch.answer(typed, None)
+    assert "virus_not_named" in _trace(out), _trace(out)
+    assert out.get("clarification")
+    assert "does not name a virus" in out["answer"]
+
+
+@needs_release
+def test_the_condition_is_what_retrieval_uses_not_the_intent(orch):
+    """"is chloroquine useful?" classifies as UNKNOWN and still reaches
+    explain(compound, virus). Keying the rule on intent alone missed it,
+    which is the case virus_assumed_caveat's own docstring cites."""
+    from kgav.agent.guards import QueryKind, classify_intent
+    assert classify_intent("is chloroquine useful?") is QueryKind.UNKNOWN
     out = orch.answer("is chloroquine useful?", None)
+    assert "virus_not_named" in _trace(out)
+
+
+@needs_release
+@pytest.mark.parametrize("typed", [
+    "what is known about SIGMAR1?",           # PROFILE of a protein
+    "what is known about SARS-CoV-2?",        # PROFILE of a taxon
+])
+def test_a_question_the_virus_does_not_decide_still_answers(orch, typed):
+    """The guard must not be satisfied by refusing everything. A profile
+    of a node that is not a virus does not need one."""
+    out = orch.answer(typed, None)
+    assert not out.get("clarification"), _trace(out)
+    assert "tool=profile ok=True" in _trace(out)
+
+
+@needs_release
+def test_the_assumed_caveat_still_fires_where_a_virus_IS_assumed(orch):
+    """The caveat was not deleted, only made rarer. PROFILE of a
+    non-virus node still carries a default, and still says so."""
+    out = orch.answer("what is known about SIGMAR1?", None)
     assert "(assumed)" in _trace(out), _trace(out)
     assert any("VIRUS ASSUMED" in w for w in (out.get("warnings") or [])), (
-        "the assumed-virus caveat stopped firing")
+        "the assumed-virus caveat stopped firing where it still applies")
+
+
+def test_the_suggester_ignores_short_common_words():
+    """"the" is two edits from "tbev", which is two thirds of a
+    three-letter word. With a flat budget an ordinary English sentence
+    produced a clarification about a virus nobody typed."""
+    from kgav.agent.orchestrator import near_names
+
+    cands = {"tbev": "NCBITaxon:11084", "zika": "NCBITaxon:64320"}
+    assert near_names("what is the evidence for this", cands) == {}
+    # And a long enough phrase still gets the full budget.
+    assert near_names("yellew fever", {"yellow fever": "NCBITaxon:11089"})
+
+
+@needs_release
+def test_a_question_resolving_nothing_is_an_ENTITY_problem_not_a_virus_one():
+    """"which drugs should we test?" names nothing the graph holds. The
+    useful reply says what kinds of thing it does hold -- which the
+    existing `problem` path already did -- not "name a virus", which
+    answers a question the reader has not reached yet.
+
+    Pinned because the first version of the ask ran before that path and
+    took it over, and because the boundary between the two is the only
+    thing deciding which of two true messages a reader gets.
+    """
+    from kgav.agent.orchestrator import Orchestrator
+    from kgav.agent.tools import GraphTools
+    o = Orchestrator(GraphTools(RELEASE))
+    out = o.answer("explain the mechanism of frobnicatinib", None)
+    assert "virus_not_named" not in _trace(out), _trace(out)
+    assert "No entity" in (out.get("answer") or "")
+
+    # PROSPECT is the exception: it is a complete question missing only a
+    # virus, and its refusal quotes that virus's own figures.
+    out = o.answer("which drugs should we test?", None)
+    assert "virus_not_named" in _trace(out), _trace(out)

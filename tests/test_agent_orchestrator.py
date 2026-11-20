@@ -345,27 +345,35 @@ def test_the_retry_prompt_names_the_specific_label():
 
 
 # ------------------------------------------- an assumed virus is said out loud
-def test_a_question_naming_no_virus_says_which_one_it_assumed(orch):
-    """build_brief reads `self._virus_in(resolved) or self.default_virus`, so
-    a question naming only a compound was answered about SARS-CoV-2 with
-    nothing marking the choice. The virus decides the calibration, the
-    caveats and the cell-context biology, so a question meant about Zika
-    answered about a coronavirus is wrong in all three at once. Latent while
-    the graph held one virus; live since it holds eight across two families.
+def test_a_compound_question_naming_no_virus_now_asks(orch):
+    """SUPERSEDED 2026-11-20, BY THE OWNER'S DECISION.
+
+    This asserted that "why might nirmatrelvir work?" was answered about
+    SARS-CoV-2 under a VIRUS ASSUMED caveat. The caveat was the right fix
+    at the time and rested on a premise stated in
+    guards.virus_assumed_caveat: "SARS-CoV-2 is the only virus any
+    protocol here evaluated. Defaulting without saying so is [wrong]."
+
+    Fourteen ChEMBL cells, three plate cells and ten prospective cells
+    later -- six of the ten clearing chance -- that premise is gone, and
+    what remained was a caveat apologising for a guess. The agent now
+    asks, for any question whose RETRIEVAL would use the virus.
+
+    The caveat is not deleted: a PROFILE of a node that is not a virus
+    still carries a default, and the test below still holds it to the
+    enforcement every caveat gets.
     """
     brief = orch.build_brief("why might nirmatrelvir work?")
     assert brief.allowed
-    assert any(getattr(w, "key", "") == "virus_assumed" for w in brief.warnings)
-    assumed = next(w for w in brief.warnings
-                   if getattr(w, "key", "") == "virus_assumed")
-    assert "VIRUS ASSUMED" in assumed
-    # NOT "named no virus": that asserts a reason, and the reason was wrong
-    # in the case that mattered -- "for dengue virus 2" resolved to nothing
-    # and was answered about SARS-CoV-2 under a sentence saying the question
-    # had named no virus, while listing DENV-2 two clauses later.
-    assert "no virus in this question resolved" in assumed
-    assert "named no virus" not in assumed
-    assert any("(assumed)" in t for t in brief.trace)
+    assert brief.clarification, brief.trace
+    assert "virus_not_named" in brief.trace
+    assert "does not name a virus" in brief.clarification
+    # It must say WHICH viruses are available, or the reader cannot act.
+    assert "SARS-CoV-2" in brief.clarification
+    # And it must not have answered about one anyway.
+    assert not any("(assumed)" in t for t in brief.trace)
+    assert not any(getattr(w, "key", "") == "virus_assumed"
+                   for w in brief.warnings)
 
 
 def test_naming_the_virus_adds_no_assumption_caveat(orch):
@@ -381,7 +389,13 @@ def test_the_assumption_caveat_is_enforced_like_every_other(orch):
     """It is in CAVEAT_LABELS, so verify.dropped_warnings requires its label
     in the answer. A caveat the model may drop for brevity is not a caveat."""
     from kgav.agent.verify import caveat_labels, dropped_warnings
-    brief = orch.build_brief("why might nirmatrelvir work?")
+    # A PROFILE of a node that is not a virus, because that is where a
+    # default is still taken since 2026-11-20. A compound question that
+    # names no virus now asks instead of assuming, so it carries no
+    # assumption caveat to enforce.
+    brief = orch.build_brief("what is known about SIGMAR1")
+    assert any(getattr(w, "key", "") == "virus_assumed"
+               for w in brief.warnings), brief.trace
     assert "VIRUS ASSUMED" in caveat_labels(brief.warnings)
     assert dropped_warnings("an answer that mentions nothing", brief.warnings)
     kept = "VIRUS ASSUMED: this is about SARS-CoV-2. " + " ".join(
@@ -1036,12 +1050,13 @@ def test_the_cap_is_not_a_literal_in_the_loop():
     assert "len(name) < 4" not in src
 
 
-# ------------------------- an assumed virus is said out loud ON A REFUSAL
-def test_a_refusal_says_the_virus_was_assumed(crowded):
-    """THE PATH WHERE IT MATTERS MOST. The condition was `named is None
+# ------------- the agent no longer refuses about a virus you did not name
+def test_a_refusal_is_not_produced_for_a_virus_that_was_never_named(crowded):
+    """THE PATH WHERE IT MATTERED MOST. The condition was `named is None
     and verdict.allowed`, so the one case where the substitution does
     the most damage -- refusing, in detail and with figures, about a
-    virus the user never named -- was the case that said nothing."""
+    virus the user never named -- was the case that said nothing. It was
+    then made to say so; since 2026-11-20 it does not happen."""
     # The default must be a virus this graph HOLDS, or the absent-default
     # guard answers first with a clarification -- which is the correct
     # behaviour there and not the path under test. The first version of
@@ -1050,11 +1065,24 @@ def test_a_refusal_says_the_virus_was_assumed(crowded):
     # produce one.
     orch = Orchestrator(crowded.tools, default_virus=ZIKA)
     b = orch.build_brief("which compounds should be considered")
-    assert not b.allowed, (b.clarification, b.trace)
-    assert "VIRUS ASSUMED" in (b.refusal or ""), b.refusal[:200]
-    assert any("VIRUS ASSUMED" in str(w) for w in b.warnings)
-    # and the refusal itself still follows it
-    assert "prospective candidate generation" in b.refusal
+
+    # SUPERSEDED 2026-11-20, BY SOMETHING STRONGER. This asserted that
+    # the refusal CARRIED a VIRUS ASSUMED caveat, which was the right fix
+    # while the agent still refused about an assumed virus. It no longer
+    # does: a PROSPECT question naming no virus is asked about instead,
+    # so the case this test was written for cannot occur.
+    #
+    # The property is now the absence of that path, which is why this
+    # test is kept rather than deleted -- "the one case where the
+    # substitution does the most damage" is worth a test either way.
+    assert b.allowed, (b.refusal, b.trace)
+    assert b.clarification, b.trace
+    assert "virus_not_named" in b.trace
+    assert "does not name a virus" in b.clarification
+    # No refusal was produced, so there is no refusal quoting another
+    # virus's figures.
+    assert not b.refusal
+    assert not any("VIRUS ASSUMED" in str(w) for w in b.warnings)
 
 
 def test_the_assumed_caveat_claims_nothing_about_evaluation(crowded):

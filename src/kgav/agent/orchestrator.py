@@ -213,11 +213,18 @@ def near_names(question: str, candidates: dict[str, str],
                     for i in range(len(words) - n + 1)}
     out: dict[str, list[str]] = {}
     for phrase in phrases:
-        if len(phrase) < 3:
+        if len(phrase) < 4:
             continue
+        # TWO EDITS ONLY FOR SOMETHING LONG ENOUGH TO HAVE MEANT IT.
+        # A flat budget of two let "the" suggest TBEV -- two edits is
+        # two thirds of a three-letter word -- so an ordinary English
+        # sentence produced a clarification about a virus nobody typed.
+        # Every real near-miss measured here is ONE edit: yellew/yellow,
+        # zikaa/zika, denv-5/denv-1.
+        budget = max_edits if len(phrase) >= 6 else 1
         hits = sorted({name for name in candidates
-                       if abs(len(name) - len(phrase)) <= max_edits
-                       and 0 < _edits(phrase, name) <= max_edits})
+                       if abs(len(name) - len(phrase)) <= budget
+                       and 0 < _edits(phrase, name) <= budget})
         if hits:
             out[phrase] = hits
     return out
@@ -476,9 +483,34 @@ class Orchestrator:
                       "measured and which caveats apply, and they differ: ask "
                       "about one at a time, and the answers are not "
                       "interchangeable."),
+                resolved=resolved,
                 trace=trace + ["ambiguous_virus"])
 
         named = self._virus_in(resolved)
+
+        # DOES THE ANSWER DEPEND ON THE VIRUS? Computed once, and used by
+        # both the suggestion below and the "name one" path after it.
+        #
+        # Gating only the second was wrong: "what is the evidence that
+        # remdesivir inhibits nsp12?" names no virus and does not need
+        # one -- evidence(a, b) takes two node ids -- yet the suggester
+        # fired and asked about TBEV. A clarification on a question the
+        # agent could have answered is its own kind of wrong answer.
+        compounds_named = [
+            nid for nid in resolved.values()
+            if self.tools.nodes.get(nid, {}).get("class") == "SmallMolecule"]
+        # The EVIDENCE carve-out holds only when evidence() can actually
+        # run, which needs two resolved nodes. With one it falls through
+        # to `elif compounds` and calls explain(compound, virus) -- so
+        # "what is the evidence that remdesivir inhibits nsp12?", where
+        # nsp12 does not resolve, was answered about an ASSUMED virus
+        # under an exemption granted on the grounds that it would not use
+        # one.
+        evidence_pair = (intent is guards.QueryKind.EVIDENCE
+                         and len(resolved) >= 2)
+        needs_virus = (intent in guards.ROUTED_KINDS
+                       or intent is guards.QueryKind.PROSPECT
+                       or (compounds_named and not evidence_pair))
 
         # NO VIRUS NAMED, BUT SOMETHING CLOSE TO ONE WAS TYPED. Ask.
         #
@@ -488,7 +520,11 @@ class Orchestrator:
         # is listed and none is applied, because the four dengue
         # serotypes are one edit apart and their conclusions are
         # opposite.
-        if named is None:
+        # OR NOTHING RESOLVED AT ALL. "what is known about zikaa?" is a
+        # PROFILE question, so needs_virus is false -- but it resolved
+        # nothing, and "did you mean Zika?" is a better reply than "no
+        # entity in this question matches a node in the graph".
+        if named is None and (needs_virus or not resolved):
             near = near_names(question, {
                 k: v for k, v in self.tools._register_names.items()
                 if v in self.tools.nodes})
@@ -520,8 +556,71 @@ class Orchestrator:
                           "character apart and their results are not "
                           "interchangeable, so a silent fix would change "
                           "the answer without showing you that it had."),
-                    trace=trace + ["near_virus_name"])
+                    resolved=resolved,
+                trace=trace + ["near_virus_name"])
 
+
+        # NO VIRUS NAMED, AND THE VIRUS DECIDES THE ANSWER: ASK.
+        #
+        # The fallback to self.default_virus was defended by
+        # guards.virus_assumed_caveat's docstring: "The default itself is
+        # not wrong: SARS-CoV-2 is the only virus any protocol here
+        # evaluated. Defaulting without saying so is." That was true when
+        # written and is not true now -- fourteen ChEMBL cells, three
+        # plate cells and ten prospective cells have been evaluated since,
+        # six of the ten clearing chance. The premise that made a default
+        # defensible is gone, and what remained was a caveat apologising
+        # for a guess.
+        #
+        # THE CONDITION IS WHAT RETRIEVAL WILL ACTUALLY USE, not the
+        # intent alone. ROUTED_KINDS and PROSPECT are virus-decided by
+        # definition; so is any question that resolved a COMPOUND,
+        # because retrieval then calls explain(compound, virus) or
+        # triage(compounds, virus) whatever the intent classifier made of
+        # the wording.
+        #
+        # Keying on intent alone missed exactly the case
+        # virus_assumed_caveat's own docstring cites: "is chloroquine
+        # useful?" classifies as UNKNOWN, falls to `elif compounds` in
+        # retrieval, and was answered about SARS-CoV-2.
+        #
+        # PROFILE and EVIDENCE with no compound are about a node that may
+        # not be a virus at all, so they keep the default and the caveat
+        # that names it.
+        # AND ONLY WHEN SOMETHING DID RESOLVE. With an empty `resolved`
+        # the question named nothing the graph holds -- "explain the
+        # mechanism of aspirin" -- and the useful reply names what kinds
+        # of thing it does hold, which the `problem` path below already
+        # does. Asking for a virus there answers a question the user did
+        # not hit yet.
+        # PROSPECT IS EXEMPT FROM THE "something resolved" REQUIREMENT.
+        # "which drugs should we test?" is a COMPLETE question missing
+        # only a virus -- there is no entity for it to have named -- and
+        # the refusal it would otherwise get is virus-specific: the AUCs
+        # it quotes, and whether the closing offer about explaining a
+        # mechanism is even true for that virus. Refusing in detail about
+        # SARS-CoV-2 is the case guards' own comment calls the one where
+        # "the substitution does the most damage".
+        if named is None and needs_virus and (
+                resolved or intent is guards.QueryKind.PROSPECT):
+            held = sorted(self.tools._label(nid)
+                          for nid, d in self.tools.nodes.items()
+                          if d.get("class") == "OrganismTaxon")
+            trace.append("no_virus_named")
+            return Brief(
+                question=question, intent=intent.value, allowed=True,
+                clarification=(
+                    "This question does not name a virus, and for a question "
+                    "of this kind the virus decides the answer: which routes "
+                    "exist, what has been measured, which caveats apply, and "
+                    "what a refusal is entitled to say.\n\n"
+                    "This release holds " + ", ".join(held) + ".\n\n"
+                    "Nothing is assumed for you. Until 2026-11-20 this "
+                    "answered about SARS-CoV-2 under a caveat, on the "
+                    "grounds that it was the only virus any protocol here "
+                    "had evaluated — which stopped being true."),
+                resolved=resolved,
+                trace=trace + ["virus_not_named"])
 
         virus = named or self.default_virus
         trace.append(f"virus={virus}{'' if named else ' (assumed)'}")
@@ -586,7 +685,8 @@ class Orchestrator:
                         "Name it as the graph does — a generic name or a "
                         "ChEMBL id — or ask what the graph stores about the "
                         "virus directly."),
-                    trace=trace + ["no_compound_resolved"])
+                    resolved=resolved,
+                trace=trace + ["no_compound_resolved"])
 
         verdict = guards.check(
             intent, virus, calibration=self.tools.calibration_for(virus),
