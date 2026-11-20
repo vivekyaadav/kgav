@@ -1,7 +1,7 @@
 digraph kgav {
   rankdir=LR; newrank=true; compound=true;
   graph [fontname="Helvetica", fontsize=11, nodesep=0.25, ranksep=0.6, pad=0.3,
-         label="kgav — architecture as wired in code (not as documented)\nred = defect found in this audit", labelloc=t, fontsize=16];
+         label="kgav — architecture as wired in code (not as documented)\nfigures from release v0.1; red = defect still OPEN on 2026-11-20\nclosed ones are recorded in docs/audit_2026-11-03_fixes.md, not drawn here", labelloc=t, fontsize=16];
   node  [fontname="Helvetica", fontsize=10, shape=box, style="rounded,filled", fillcolor="#ffffff"];
   edge  [fontname="Helvetica", fontsize=8, color="#555555"];
 
@@ -38,18 +38,18 @@ digraph kgav {
   }
 
   asm2 [label="assemble_release.py  (phase 4)", shape=box, style="filled", fillcolor="#fff2cc"];
-  rel  [label="data/releases/v0.1\n78,789 nodes · 392,907 edges\nnodes.jsonl / edges.jsonl / MANIFEST\nvalidate_release.py → PASS", shape=cylinder, fillcolor="#ffe599"];
+  rel  [label="data/releases/v0.1\n78,649 nodes · 396,223 edges\nnodes.jsonl / edges.jsonl / MANIFEST\nvalidate_release.py → PASS", shape=cylinder, fillcolor="#ffe599"];
 
   orch [label="pipeline.py (LAYERS as data)\nrebuild_release.py", shape=note, fillcolor="#f4f4f4"];
 
   subgraph cluster_eval { label="Evaluation  (src/kgav/baselines, labels, temporal, calibration, landscape)"; style=filled; fillcolor="#f3eefa";
-    temporal [label="temporal_split.py\ncut on first_asserted_date ≤ 2021\n→ v0.1-train2021{,-strict,-corrected}"];
+    temporal [label="temporal_split.py\ncut on first_asserted_date ≤ 2021\n→ v0.1-train2021{,-strict,-corrected,-corrected-strict}"];
     labels   [label="labels.build_labels\npositives/negatives from\nHAS_ANTIVIRAL_ACTIVITY edges\n(EC50 ≤ 10 µM vs '>' ≥ 10 µM)"];
     graphld  [label="baselines.Graph.load\nheld-out predicates not walked\n(degree counts them anyway)"];
     scorers  [label="Scorers per (compound, virus)\nM1..M8 DWPC metapaths\nCOMBINED = max percentile\ndegree · network proximity"];
     metrics  [label="Metrics\nHits@k / MRR (run_baselines)\nlift + hypergeometric p (compare_metapaths)\nROC-AUC vs measured negatives (hard_negatives)\npermutation null (pathway_landscape)"];
   }
-  results [label="data/results/*.json  (28 files, provenance-stamped)\n+ stale results-corrected/, results-prechange/", shape=folder, fillcolor="#e9e2f5"];
+  results [label="data/results/*.json  (36 files, provenance-stamped)\n`make check-results` says which describe this graph", shape=folder, fillcolor="#e9e2f5"];
   docs    [label="docs/*.md, README\n(hand-written claims;\n~190 tests grep their text)", shape=note, fillcolor="#f4f4f4"];
 
   subgraph cluster_agent { label="Q&A agent  (src/kgav/agent)"; style=filled; fillcolor="#e8f6f6";
@@ -61,7 +61,7 @@ digraph kgav {
     verify [label="verify\ncitations / caveat substrings /\nnumbers must appear in brief"];
   }
 
-  web [label="web/  (Manus/shadcn template)\nstatic Express server, hand-typed demo graph\nNOT connected to anything", fillcolor="#eeeeee", fontcolor="#666666"];
+  web [label="web/chat.html  (one file, no build step)\nserved by scripts/agent_server.py (stdlib http.server)\nloopback only · calls the agent below", fillcolor="#e8f6f6"];
 
   // raw -> layers
   r_cfg -> l_spine; r_prot -> l_spine; r_host -> l_host;
@@ -93,14 +93,10 @@ digraph kgav {
 
   // defects
   node [shape=box, style="filled", fillcolor="#fde2e1", color="#c00000", fontcolor="#900000", fontsize=9];
-  d1 [label="D: STRING dated 2023-08-28, VH-PPI 2024-01-01 (release dates)\n→ train2021 has 0 PPI edges → M3/M5 silently gone"];
-  d2 [label="D: 69% of 'HAS_ANTIVIRAL_ACTIVITY' edges are\nmeasured INACTIVE (censored '>')"];
-  d3 [label="D: 71% of labelled compounds have no edge\nbesides their label → unreachable by any metapath"];
-  d4 [label="D: GtoP + similarity dated 1970 ('undated')\n→ always in the 2021 train graph (leak)"];
-  d5 [label="D: degree beats every channel\n(SARS-CoV-2 AUC 0.62 vs ≤0.58)"];
-  d6 [label="D: CI runs full ruff → 281 findings → red"];
-  d7 [label="D: reach caveat never loads\n(file passed where dir expected)"];
+  d2 [label="D: 77.8% of labelled activity edges are\nmeasured INACTIVE (censored '>')"];
+  d3 [label="D: 72.9% of labelled compounds have no edge\nbesides their label → unreachable by any metapath"];
+  d4 [label="GtoP + similarity dated 1970 ('undated')\n→ in every 2021 train graph. REGISTERED as\n--undated include, not an unmanaged leak"];
+  d5 [label="D: degree beats every channel\n(SARS-CoV-2 AUC 0.570 vs ≤0.540)"];
   edge [color="#c00000", style=dashed, arrowhead=none];
-  d1 -> temporal; d2 -> l_chembl; d3 -> labels; d4 -> l_sim; d5 -> metrics; d7 -> cli;
-  d6 -> orch;
+  d2 -> l_chembl; d3 -> labels; d4 -> l_sim; d5 -> metrics;
 }

@@ -4,7 +4,7 @@
 digraph kgav_a4 {
   rankdir=TB;
   size="7.9,11.3"; margin=0.1;
-  graph [label=<<font point-size="18"><b>kgav — architecture as wired in code</b></font><br/><font point-size="10">audit 2026-11-03 · release v0.1 · 78,789 nodes · 392,907 edges</font><br/><font point-size="10" color="#c00000">red ①–⑧ = known defect, see key at the bottom</font>>, labelloc=t, labeljust=c, fontname="Helvetica", fontsize=12, nodesep=0.45, ranksep=0.3, bgcolor=white, labeljust=l, penwidth=0.8, outputorder=edgesfirst];
+  graph [label=<<font point-size="18"><b>kgav — architecture as wired in code</b></font><br/><font point-size="10">audit 2026-11-03, figures refreshed 2026-11-20 · release v0.1 · 78,649 nodes · 396,223 edges</font><br/><font point-size="10" color="#c00000">red = still open on 2026-11-20 · grey = closed since the audit · see key</font>>, labelloc=t, labeljust=c, fontname="Helvetica", fontsize=12, nodesep=0.45, ranksep=0.3, bgcolor=white, labeljust=l, penwidth=0.8, outputorder=edgesfirst];
   node  [fontname="Helvetica", fontsize=10, shape=box, style="rounded,filled", fillcolor="#ffffff",
          penwidth=0.8, margin="0.08,0.05", width=1.35, height=0.45];
   edge  [fontname="Helvetica", fontsize=8.5, color="#555555", arrowsize=0.6, penwidth=0.9];
@@ -32,7 +32,7 @@ digraph kgav_a4 {
   // ---------------------------------------------------------------- 2 MERGE
   subgraph cluster_merge { label=<<b>2 · Merge into one graph</b>   <font point-size="9">scripts/assemble_release.py runs twice</font>>; style="rounded"; color="#d6b656"; margin=10;
     asm1 [label="merge, pass 1", fillcolor="#fff2cc"];
-    rel  [label=<<b>data/releases/v0.1</b><br/>78,789 nodes · 392,907 edges>, shape=cylinder, style=filled, fillcolor="#ffe599", width=2.3, height=0.6];
+    rel  [label=<<b>data/releases/v0.1</b><br/>78,649 nodes · 396,223 edges>, shape=cylinder, style=filled, fillcolor="#ffe599", width=2.3, height=0.6];
     node [fillcolor="#fdebd9"];
     p1 [label="selectivity\nCC50 / EC50"]; p2 [label=<similarity<br/>Tanimoto ≥ 0.7 <font color="#c00000"><b>②</b></font>>]; p3 [label=<gtop<br/>GtoPdb drug targets <font color="#c00000"><b>②</b></font>>];
     asm2 [label="merge, pass 2\n(writes final v0.1)", fillcolor="#fff2cc"];
@@ -54,7 +54,7 @@ digraph kgav_a4 {
     e2 [label=<labels<br/>active ≤ 10 µM <font color="#c00000"><b>③④</b></font>>];
     e3 [label=<scorers<br/>M1–M8, degree <font color="#c00000"><b>⑤</b></font>>];
     e4 [label=<metrics<br/>AUC, Hits@k, lift <font color="#c00000"><b>⑥</b></font>>];
-    res [label="data/results/\n28 JSON files", shape=folder, fillcolor="#e2d8f2"];
+    res [label="data/results/\n36 JSON files", shape=folder, fillcolor="#e2d8f2"];
     docs [label=<docs/*.md<br/>claims copied by hand <font color="#c00000"><b>⑦</b></font>>, shape=note, fillcolor="#f2f2f2"];
     {rank=same; e1 e2}
     {rank=same; e3 e4}
@@ -83,14 +83,14 @@ digraph kgav_a4 {
   key [shape=plaintext, style="", label=<
     <table border="1" color="#c00000" cellborder="0" cellspacing="0" cellpadding="3" bgcolor="#fff5f5">
       <tr><td align="left" colspan="2"><font color="#c00000" point-size="11"><b>Known defects</b></font><font point-size="9">   details and fixes: docs/audit_2026-11-03_fixes.md</font></td></tr>
-      <tr><td align="left" valign="top"><font color="#c00000"><b>①</b></font></td><td align="left"><font point-size="10">PPI edges carry database release dates (2023, 2024), so the 2021 training graph has no PPI edges</font></td></tr>
-      <tr><td align="left" valign="top"><font color="#c00000"><b>②</b></font></td><td align="left"><font point-size="10">GtoP and similarity edges are dated 1970 ("undated"), so they leak into every training graph</font></td></tr>
-      <tr><td align="left" valign="top"><font color="#c00000"><b>③</b></font></td><td align="left"><font point-size="10">69% of "has antiviral activity" edges are actually measured-inactive results</font></td></tr>
-      <tr><td align="left" valign="top"><font color="#c00000"><b>④</b></font></td><td align="left"><font point-size="10">71% of labelled compounds have no other edge, so no metapath can reach them</font></td></tr>
-      <tr><td align="left" valign="top"><font color="#c00000"><b>⑤</b></font></td><td align="left"><font point-size="10">The degree baseline (AUC 0.62) beats every reasoning channel (0.58 or less)</font></td></tr>
-      <tr><td align="left" valign="top"><font color="#c00000"><b>⑥</b></font></td><td align="left"><font point-size="10">About 150 tests with no multiple-testing correction; Hits@k depends on tie order</font></td></tr>
-      <tr><td align="left" valign="top"><font color="#c00000"><b>⑦</b></font></td><td align="left"><font point-size="10">Headline claims in the docs contradict the results files</font></td></tr>
-      <tr><td align="left" valign="top"><font color="#c00000"><b>⑧</b></font></td><td align="left"><font point-size="10">Reach caveat never loads; triage ranks using held-out labels</font></td></tr>
+      <tr><td align="left" valign="top"><font color="#777777"><b>①</b></font></td><td align="left"><font point-size="10" color="#777777">CLOSED — PPI edges carry release dates, so the 2021 training graph was said to have none. It holds 11,744.</font></td></tr>
+      <tr><td align="left" valign="top"><font color="#c00000"><b>②</b></font></td><td align="left"><font point-size="10">GtoP and similarity edges are dated 1970 ("undated") — OPEN, and now a registered choice: --undated include</font></td></tr>
+      <tr><td align="left" valign="top"><font color="#c00000"><b>③</b></font></td><td align="left"><font point-size="10">77.8% of labelled activity edges are actually measured-inactive results</font></td></tr>
+      <tr><td align="left" valign="top"><font color="#c00000"><b>④</b></font></td><td align="left"><font point-size="10">72.9% of labelled compounds have no other edge, so no metapath can reach them</font></td></tr>
+      <tr><td align="left" valign="top"><font color="#c00000"><b>⑤</b></font></td><td align="left"><font point-size="10">The degree baseline (AUC 0.570) beats every reasoning channel (0.540 or less)</font></td></tr>
+      <tr><td align="left" valign="top"><font color="#777777"><b>⑥</b></font></td><td align="left"><font point-size="10" color="#777777">CLOSED — four declared correction families; hits_at_k_range bounds every tie at the cut</font></td></tr>
+      <tr><td align="left" valign="top"><font color="#777777"><b>⑦</b></font></td><td align="left"><font point-size="10" color="#777777">CLOSED — the claim block is derived from the results files, tests/test_claim_block.py</font></td></tr>
+      <tr><td align="left" valign="top"><font color="#777777"><b>⑧</b></font></td><td align="left"><font point-size="10" color="#777777">CLOSED 2026-11-07 and 2026-11-19 — reach loads; the shortlist no longer counts held-out labels</font></td></tr>
     </table>>];
   a5 -> key [style=invis, weight=10];
 

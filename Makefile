@@ -1,4 +1,4 @@
-.PHONY: agent-ui agent-ask auc-contribution hit-rate screen-power metagraph-figure metagraph-figure-check identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
+.PHONY: agent-ui agent-ask auc-contribution hit-rate screen-power metagraph-figure metagraph-figure-check arch-figures identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
 
 install:
 	pip install -e ".[dev]"
@@ -325,6 +325,30 @@ metagraph-figure:
 
 metagraph-figure-check:
 	python scripts/write_metagraph_figure.py --check
+
+# RE-RENDER THE ARCHITECTURE FIGURES from the hand-drawn .dot sources.
+#
+# UNLIKE meta.dot THESE ARE NOT GENERATED, and should not be: the
+# grouping, the ordering and the choice of what to draw are editorial.
+# What IS checked is every claim in them that is a fact about this
+# repository -- tests/test_architecture_figure.py, after twelve wrong
+# items sat in them for seventeen days, including three defects drawn in
+# red that were fixed or false and a box describing a directory that had
+# been deleted.
+#
+# THE SIZE FLAGS ARE LOAD-BEARING AND WERE TRIBAL KNOWLEDGE. graphviz
+# adds about 0.2in of margin on top of -Gsize, so asking for A4 exactly
+# produces a page 11.89in tall that does not fit A4 -- which is what
+# docs/agent_guide.md promises of the PDF. 8.07x11.49 lands at 11.68.
+# 300 dpi because the previous PNG was 2480x3508 and a careless
+# re-render dropped it to 930x1726.
+arch-figures:
+	dot -Tpng docs/figures/arch.dot    -o docs/figures/kgav_architecture.png
+	dot -Tsvg docs/figures/arch.dot    -o docs/figures/kgav_architecture.svg
+	dot -Tpdf -Gsize=8.07,11.49            docs/figures/arch_a4.dot \
+		-o docs/figures/kgav_architecture_a4.pdf
+	dot -Tpng -Gsize=8.07,11.49 -Gdpi=300  docs/figures/arch_a4.dot \
+		-o docs/figures/kgav_architecture_a4.png
 
 data-audit:
 	python scripts/data_audit.py
