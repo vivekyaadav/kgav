@@ -2,6 +2,7 @@
 absence reported as absence rather than as a negative finding.
 """
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -775,13 +776,41 @@ def test_profile_lists_labels_apart_from_features(graph):
     # listing each label predicate twice, once as a feature -- survived
     # it. The verbalised block is what the model is shown, so a label
     # counted among the features is the leak back in full.
+    # Each row now carries its DIRECTION, so a predicate is matched
+    # after the arrow rather than at the start of the line.
+    def _pred_of(ln: str) -> str:
+        m = re.match(r"(->|<-)\s+(\S+)", ln.strip())
+        return m.group(2) if m else ""
+
     for pred in HELD_OUT:
-        hits = [i for i, ln in enumerate(lines) if ln.strip().startswith(pred)]
+        hits = [i for i, ln in enumerate(lines) if _pred_of(ln) == pred]
         assert len(hits) <= 1, f"{pred} listed {len(hits)} times: {lines}"
         for i in hits:
             assert i > heading, f"{pred} listed among the features: {lines}"
-    assert any(ln.strip().startswith("HAS_ANTIVIRAL_ACTIVITY_AGAINST")
+    assert any(_pred_of(ln) == "HAS_ANTIVIRAL_ACTIVITY_AGAINST"
                for ln in lines[heading + 1:]), lines
+
+    # AND THE DIRECTION IS THERE AT ALL.
+    #
+    # Without it a model reading "HAS_ANTIVIRAL_ACTIVITY_AGAINST:
+    # 4,162" under a VIRUS wrote "DENV-2 has antiviral activity
+    # against 4,162 entities" -- inverted, because the edge runs
+    # compound -> virus. The caveat block already forbade misreading
+    # the evidence and the next paragraph misread it, so the fix is in
+    # the data and this is what holds it there.
+    for ln in lines:
+        if ln.startswith("  ") and "held-out" not in ln:
+            assert re.match(r"\s+(->|<-)\s", ln), (
+                f"a profile row carries no direction: {ln!r}")
+    # The activity edge points AT the virus, never away from it.
+    activity = next(ln for ln in lines
+                    if _pred_of(ln) == "HAS_ANTIVIRAL_ACTIVITY_AGAINST")
+    assert activity.strip().startswith("<-"), (
+        f"the activity edge is drawn as outgoing from the virus: "
+        f"{activity!r}")
+    assert "SmallMolecule" in activity, (
+        "the neighbour class is absent, so a reader cannot tell what "
+        "4,162 of them are")
     assert "HAS_ANTIVIRAL_ACTIVITY_AGAINST" in r.data["held_out_label_counts"]
     assert "HAS_ANTIVIRAL_ACTIVITY_AGAINST" not in r.data[
         "feature_edge_counts"]

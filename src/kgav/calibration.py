@@ -523,3 +523,164 @@ def load_temporal(results: Path, virus: str,
             f"no scorer in {path.name} produced a measurable AUC for "
             f"{virus}")
     return cal
+
+
+# ==================================================================
+# WHAT THE MEASUREMENTS LICENSE FOR ONE VIRUS
+# ==================================================================
+#
+# THE QUESTION THIS ANSWERS, which is the only question anyone
+# actually asks: can I use this to repurpose a drug against virus X?
+#
+# It had no single answer in the codebase, and the two places that
+# answered it disagreed:
+#
+#   scripts/repurposing_candidates.py gates on the CROSS-SECTIONAL
+#   strength-matched verdict alone. So it prints a usable list for
+#   Zika and West Nile -- both of which clear BELOW chance
+#   PROSPECTIVELY, meaning that when the scorer was trained on
+#   pre-cutoff activity and asked to rank what came next, it put the
+#   actives LAST. The list is the thing a reader acts on and it
+#   carried no sign of that.
+#
+#   src/kgav/agent could not answer the question at all: "can i
+#   repurpose drugs using this" returned "No entity in this question
+#   matches a node in the graph", after silently assuming SARS-CoV-2.
+#
+# So the verdict is derived ONCE, here, from both registered runs,
+# and both callers read it. A cell is licensed for a shortlist only
+# if the cross-sectional control clears AND the prospective control
+# does not contradict it -- because a shortlist is a prospective act
+# dressed as a cross-sectional one.
+
+#: Prospective verdicts, worst first. `below` is not "no result": it
+#: is a measured anti-ranking, and it is the one a shortlist must not
+#: be built on.
+PROSPECTIVE_BELOW = "below"
+PROSPECTIVE_CLEARS = "clears"
+PROSPECTIVE_NO_VERDICT = "no_verdict"
+PROSPECTIVE_UNTESTED = "not_evaluable"
+
+
+@dataclass(frozen=True)
+class Capability:
+    """What the registered runs license for one virus."""
+    virus: str
+    name: str
+    cross_sectional: str          # clears | weak | below | unknown
+    cross_auc: float | None
+    prospective: str              # see PROSPECTIVE_* above
+    prospective_auc: float | None
+
+    @property
+    def shortlist_licensed(self) -> bool:
+        """A shortlist ranks compounds nobody has screened, which is a
+        PROSPECTIVE act. Clearing cross-sectionally is necessary and is
+        not sufficient: a cell that anti-ranks prospectively has been
+        measured doing the exact thing a shortlist asks of it, and
+        getting it backwards."""
+        return (self.cross_sectional == "clears"
+                and self.prospective != PROSPECTIVE_BELOW)
+
+    @property
+    def contradicted(self) -> bool:
+        """Clears cross-sectionally, anti-ranks prospectively. Zika and
+        West Nile. The list used to print anyway."""
+        return (self.cross_sectional == "clears"
+                and self.prospective == PROSPECTIVE_BELOW)
+
+    def sentence(self) -> str:
+        """One line, for a reader who asked what this virus licenses."""
+        if self.contradicted:
+            return (
+                f"{self.name}: NO. The scorer clears cross-sectionally "
+                f"({self.cross_auc:.3f}), but trained on pre-cutoff "
+                f"activity and asked to rank what came next it ranked "
+                f"the actives LAST ({self.prospective_auc:.3f}, clearing "
+                f"below chance). A shortlist is that same prospective "
+                f"act, so it is not licensed here.")
+        if self.cross_sectional == "below":
+            return (
+                f"{self.name}: NO. The scorer ranks this virus's known "
+                f"actives UNDER its known inactives "
+                f"({self.cross_auc:.3f}), so any ranking of unlabelled "
+                f"compounds from it is worse than random.")
+        if self.cross_sectional in ("weak", "unknown"):
+            return (
+                f"{self.name}: NOT SHOWN. The cross-sectional control "
+                f"does not clear its corrected threshold"
+                + (f" ({self.cross_auc:.3f})" if self.cross_auc else "")
+                + ", so nothing licenses a ranking here.")
+        if self.prospective == PROSPECTIVE_CLEARS:
+            return (
+                f"{self.name}: a ranking is licensed. Cross-sectional "
+                f"{self.cross_auc:.3f}, and prospectively — trained "
+                f"before the cutoff, scored on what came after — "
+                f"{self.prospective_auc:.3f}. This is the strongest "
+                f"evidence any cell here has.")
+        return (
+            f"{self.name}: a ranking is licensed cross-sectionally "
+            f"({self.cross_auc:.3f}). It has NOT been tested "
+            f"prospectively"
+            + (" (too few post-cutoff actives)"
+               if self.prospective == PROSPECTIVE_UNTESTED else "")
+            + ", so there is no measurement of it ranking compounds it "
+              "had not already seen the answers for.")
+
+
+def _prospective(cell: dict | None) -> tuple[str, float | None]:
+    if not cell:
+        return PROSPECTIVE_UNTESTED, None
+    row = cell.get("primary") or {}
+    auc = row.get("auc")
+    if auc is None:
+        return PROSPECTIVE_UNTESTED, None
+    if row.get("clears_corrected_alpha"):
+        return ((PROSPECTIVE_BELOW, auc) if row.get("direction") == "below"
+                else (PROSPECTIVE_CLEARS, auc))
+    return PROSPECTIVE_NO_VERDICT, auc
+
+
+def capabilities(results: Path, names: dict[str, str] | None = None,
+                 cross_tier=None) -> dict[str, Capability]:
+    """virus curie -> Capability, from both registered runs.
+
+    `cross_tier` is repurposing_candidates.tier, passed in so the two
+    callers cannot drift apart on what "clears" means. It is a
+    parameter rather than an import because scripts/ is not importable
+    from src/; the caller that owns the tiering supplies it.
+    """
+    names = names or {}
+    sm = results / "structure_scorer_strength_matched.json"
+    cross = {}
+    if sm.exists():
+        doc = json.loads(sm.read_text())
+        for pop in ("primary_chembl", "secondary_ncats",
+                    "secondary_ncats_entry"):
+            for virus, cell in (doc.get(pop) or {}).items():
+                row = cell.get("structure_max") or {}
+                if "auc" in row:
+                    cross.setdefault(virus, row)
+
+    tp = results / "temporal_structure_scorer.json"
+    temporal = json.loads(tp.read_text()) if tp.exists() else {}
+    pro_cells = temporal.get("cells") or {}
+    for virus, cell in pro_cells.items():
+        names.setdefault(virus, cell.get("name", virus))
+
+    out = {}
+    for virus in sorted(set(cross) | set(pro_cells)):
+        row = cross.get(virus)
+        tier = (cross_tier(row) if cross_tier is not None
+                else ("unknown" if not row else
+                      "below" if (row.get("auc", 1) < CHANCE
+                                  or row.get("direction") == "below")
+                      else "clears" if row.get("clears_corrected_alpha")
+                      else "weak"))
+        pstate, pauc = _prospective(pro_cells.get(virus))
+        out[virus] = Capability(
+            virus=virus, name=names.get(virus, virus),
+            cross_sectional=tier,
+            cross_auc=(row or {}).get("auc"),
+            prospective=pstate, prospective_auc=pauc)
+    return out

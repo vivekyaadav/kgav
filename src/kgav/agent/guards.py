@@ -180,6 +180,7 @@ class QueryKind(str, Enum):
     PROFILE = "profile"          # what is known about X? -> supported
     PATHWAY = "pathway"          # which pathways does X sit in? -> supported
     PROSPECT = "prospect"        # what should we test? -> REFUSED
+    CAPABILITY = "capability"    # CAN this do X? -> answered from measurements
     UNKNOWN = "unknown"
 
 
@@ -547,6 +548,44 @@ def classify_intent(text: str) -> QueryKind:
     must not be probabilistic.
     """
     t = (text or "").lower()
+
+    # CAN IT, not DO IT -- and this runs FIRST, ahead of the
+    # prospective backstop.
+    #
+    # "can i repurpose drugs using this" is the single most common
+    # question anyone asks of this system, and it used to return "No
+    # entity in this question matches a node in the graph" after
+    # silently assuming SARS-CoV-2. It names no compound because it is
+    # not asking about one; it is asking what the measurements license.
+    # That has an answer, it is per-virus, and refusing to give it while
+    # the repository holds ten registered cells was the worst reply in
+    # the system.
+    #
+    # It must be distinguished from a request for a list, which stays
+    # PROSPECT: "what drugs should i repurpose for DENV-2" wants names
+    # and gets the measured refusal. The split is modal -- can/could/does
+    # /is it able, versus an imperative or a "which/what X should".
+    # So a capability phrase paired with "which" or "what ... should"
+    # falls through to the backstop below rather than being answered as
+    # a capability question.
+    capability = (
+        "can i repurpose", "can you repurpose", "can this repurpose",
+        "can i use this", "can i use it", "can this be used",
+        "can you find me", "can you find a", "can this find",
+        "can it find", "can you tell me which drug",
+        "can you suggest", "can this predict", "can it predict",
+        "can you predict", "does this work", "does it work",
+        "does this actually work", "is this any good", "how good is",
+        "how well does", "what is this good for", "what can you do for",
+        "are you able to", "is it able to", "can i trust",
+        "how reliable", "should i believe", "is this reliable",
+        "can i publish", "is this publishable",
+    )
+    asks_for_names = ("which drug" in t or "which compound" in t
+                      or "what drugs should" in t
+                      or "what compounds should" in t)
+    if any(p in t for p in capability) and not asks_for_names:
+        return QueryKind.CAPABILITY
 
     prospective = (
         "what should we test", "what should i test", "which drug should",

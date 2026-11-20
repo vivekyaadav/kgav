@@ -350,7 +350,8 @@ def build_orchestrator(args, note=None) -> Orchestrator:
              "be reported as unmeasured. `make check-results` says which.")
     orch = Orchestrator(GraphTools(args.release, calibration=cals or None,
                                    temporal=temporal or None,
-                                   landscape=land, reach=reach))
+                                   landscape=land, reach=reach),
+                        results=args.temporal_results.parent)
 
     return orch
 

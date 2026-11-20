@@ -29,6 +29,8 @@ graph, a query language, or discretion about scope.
 from __future__ import annotations
 
 import re
+import sys
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -336,9 +338,18 @@ class Brief:
 
 
 class Orchestrator:
-    def __init__(self, tools: GraphTools, default_virus: str = guards.SUPPORTED_VIRUS):
+    def __init__(self, tools: GraphTools,
+                 default_virus: str = guards.SUPPORTED_VIRUS,
+                 results: Path | None = None):
         self.tools = tools
         self.default_virus = default_virus
+        #: Directory holding the registered runs, for the capability
+        #: answer. OPTIONAL AND EXPLICIT: absent, "can I repurpose
+        #: drugs" says no run is on disk rather than inventing a
+        #: verdict. The real caller (scripts/kgav_ask.build_orchestrator)
+        #: passes it; a fixture building a graph in tmp_path has no
+        #: results and must not be given a fabricated one.
+        self.results = results
 
     # ------------------------------------------------------------- stage 3
     def _resolve_mentions(
@@ -513,6 +524,168 @@ class Orchestrator:
             "measurement for the virus you name.\n\n"
             "Viruses I hold: " + ", ".join(held) + ".")
 
+    def _capability(self, virus: str | None = None) -> str:
+        """What the measurements license, for one virus or for all.
+
+        EVERY FIGURE DERIVED. The honest answer to "can I repurpose
+        drugs with this" is neither yes nor no: it is yes for eight
+        cells, no for six, and the reason differs between them. A
+        single sentence either overstates or throws away the result.
+        """
+        from kgav.calibration import capabilities
+
+        try:
+            from repurposing_candidates import tier as _tier
+        except ImportError:                          # pragma: no cover
+            _tier = None
+        names = {nid: self.tools._label(nid)
+                 for nid, d in self.tools.nodes.items()
+                 if d.get("class") == "OrganismTaxon"}
+        caps = (capabilities(self.results, names=dict(names),
+                             cross_tier=_tier)
+                if self.results and self.results.exists() else {})
+        if not caps:
+            return ("No registered run is on disk, so nothing licenses "
+                    "an answer about what this can do.")
+
+        if virus and virus in caps:
+            c = caps[virus]
+            head = c.sentence()
+            extra = (
+                "\n\nWhat a licensed ranking IS: compounds that "
+                "RESEMBLE a known active, with the known active named "
+                "so you can judge it. It is not a prediction of "
+                "activity, not a mechanism, and not a hit rate.")
+            return head + (extra if c.shortlist_licensed else "")
+
+        lic = sorted((c for c in caps.values() if c.shortlist_licensed),
+                     key=lambda c: c.name)
+        con = sorted((c for c in caps.values() if c.contradicted),
+                     key=lambda c: c.name)
+        bad = sorted((c for c in caps.values()
+                      if c.cross_sectional == "below"),
+                     key=lambda c: c.name)
+        thin = sorted((c for c in caps.values()
+                       if c.cross_sectional in ("weak", "unknown")),
+                      key=lambda c: c.name)
+        strong = sorted((c for c in lic if c.prospective == "clears"),
+                        key=lambda c: -(c.prospective_auc or 0))
+
+        out = [
+            "Partly, and the honest answer is per-virus, not one "
+            f"sentence. Of {len(caps)} measured cells, {len(lic)} "
+            "license a ranking and " f"{len(caps) - len(lic)} do not.",
+            "",
+            "WHAT IT CAN DO. For a licensed virus it ranks compounds "
+            "by resemblance to that virus's known actives, and names "
+            "the known active each one resembles. The strongest "
+            "evidence is prospective: trained on activity published "
+            "before a cutoff, then scored on compounds published "
+            "after.",
+            "",
+        ]
+        if strong:
+            out.append("  Licensed AND tested prospectively:")
+            for c in strong:
+                out.append(f"    {c.name:<12} cross-sectional "
+                           f"{c.cross_auc:.3f}, prospective "
+                           f"{c.prospective_auc:.3f}")
+            out.append("")
+        other = [c for c in lic if c not in strong]
+        if other:
+            out.append("  Licensed cross-sectionally, never tested "
+                       "prospectively:")
+            out.append("    " + ", ".join(c.name for c in other))
+            out.append("")
+        if con:
+            out.append("  REFUSED although they clear cross-sectionally "
+                       "— these were measured ranking")
+            out.append("  future actives LAST:")
+            for c in con:
+                out.append(f"    {c.name:<12} cross-sectional "
+                           f"{c.cross_auc:.3f} BUT prospective "
+                           f"{c.prospective_auc:.3f} (below chance)")
+            out.append("")
+        if bad:
+            out.append("  REFUSED — the scorer ranks known actives "
+                       "under known inactives:")
+            out.append("    " + ", ".join(
+                f"{c.name} {c.cross_auc:.3f}" for c in bad))
+            out.append("")
+        if thin:
+            out.append("  Nothing licensed — the control does not clear:")
+            out.append("    " + ", ".join(c.name for c in thin))
+            out.append("")
+        out += [
+            "WHAT IT CANNOT DO. It cannot tell you a compound WILL "
+            "work. A ranking is chemical analogy; the evidence is "
+            "'resembles a known active'. No mechanism is claimed and "
+            "no clinical claim is made. The knowledge graph's own "
+            "reasoning channels sit at chance, so the signal that "
+            "works is chemistry, not the graph.",
+            "",
+            "Name one of the viruses above and ask again, and you get "
+            "that cell's numbers rather than this summary.",
+        ]
+        return "\n".join(out)
+
+    #: How many named candidates a prospective answer shows per tier.
+    SHORTLIST_SHOW = 6
+
+    def _shortlist(self, virus_name: str) -> list[str] | None:
+        """Named candidates for a LICENSED virus, from the one scorer.
+
+        WHY A SUBPROCESS AND NOT AN IMPORT. The ranking, the tier
+        split, the duplicate-compound drop and the "resembles" column
+        all live in scripts/repurposing_candidates.py, which is not
+        importable from src/. Reimplementing any of it here would give
+        the agent a second scorer that could disagree with the tool --
+        the exact failure this repository keeps finding. One
+        implementation, invoked.
+
+        WHY IT IS GATED ON `self.results`. Absent a registered run
+        there is no verdict, so there is nothing to license a list and
+        this is never reached.
+
+        None on any failure, so the caller falls back to the refusal
+        rather than presenting an empty list as "nothing promising".
+        """
+        import subprocess
+        root = Path(__file__).resolve().parents[3]
+        script = root / "scripts" / "repurposing_candidates.py"
+        if not script.exists():
+            return None
+        try:
+            r = subprocess.run(
+                [sys.executable, str(script), "--virus", virus_name,
+                 "--top", "60", "--exclude-labelled"],
+                capture_output=True, text=True, cwd=root, timeout=600)
+        except Exception:                            # pragma: no cover
+            return None
+        if r.returncode != 0:
+            return None
+        out, block = [], None
+        for line in r.stdout.splitlines():
+            if "-- APPROVED DRUGS" in line:
+                block = "approved"
+                continue
+            if "-- IN CLINICAL" in line:
+                block = "clinical"
+                continue
+            if "-- RESEARCH" in line:
+                block = "research"
+                continue
+            m = re.match(r"\s*\d+\s+(\S+)\s+(approved|clinical|research)"
+                         r"\s+([\d.]+)\s+\d+\s+(\S.*?)\s*$", line)
+            if m and block in ("approved", "clinical"):
+                name, tier_, tc, like = m.groups()
+                if sum(1 for o in out if o.startswith(f"  {tier_}")) \
+                        >= self.SHORTLIST_SHOW:
+                    continue
+                out.append(f"  {tier_:<9} {name:<22} Tc {tc}  "
+                           f"resembles {like}")
+        return out or None
+
     def build_brief(self, question: str) -> Brief:
         trace: list[str] = []
 
@@ -532,6 +705,18 @@ class Orchestrator:
                       "MEASURED differs sharply between them, and every "
                       "answer says which applies."),
                 trace=trace + ["about_viruses"])
+        # CAN THIS REPURPOSE A DRUG? Answered from both registered
+        # runs, per virus, because the answer differs sharply between
+        # them and a single yes or no would be false for most of them.
+        if guards.classify_intent(question) is guards.QueryKind.CAPABILITY:
+            cap_resolved, _p, _o = self._resolve_mentions(question)
+            named = self._virus_in(cap_resolved)
+            return Brief(
+                question=question, intent="capability", allowed=True,
+                clarification=self._capability(named),
+                trace=trace + ["capability"
+                               + ("_virus" if named else "_overall")])
+
         if any(p == low or p in low for p in self.ABOUT):
             return Brief(
                 question=question, intent="about", allowed=True,
@@ -723,6 +908,59 @@ class Orchestrator:
                         for nid, d in self.tools.nodes.items()
                         if d.get("class") == "OrganismTaxon")) + "."),
                 trace=trace + ["default_virus_absent"])
+
+        # A LICENSED VIRUS GETS NAMES, NOT A BLANKET REFUSAL.
+        #
+        # The refusal used to fire for every virus, because it was
+        # written before any cell had been measured. So
+        # scripts/repurposing_candidates.py would name HYDROXYCHLOROQUINE
+        # for HCoV-229E and MIGLUSTAT for DENV-2 -- from this same
+        # release, under a registered verdict -- while the agent said it
+        # does not generate candidates. One of the two was wrong, and it
+        # was the agent.
+        #
+        # The gate is calibration.Capability.shortlist_licensed, the same
+        # predicate the tool now uses: the cross-sectional control must
+        # clear AND the prospective control must not contradict it. Zika
+        # and West Nile clear cross-sectionally and ranked future actives
+        # LAST, so they are still refused, and the refusal says which
+        # measurement refuses them.
+        if (intent is guards.QueryKind.PROSPECT and named
+                and self.results and self.results.exists()):
+            from kgav.calibration import capabilities
+            try:
+                from repurposing_candidates import tier as _t
+            except ImportError:                      # pragma: no cover
+                _t = None
+            caps = capabilities(
+                self.results,
+                names={nid: self.tools._label(nid)
+                       for nid, d in self.tools.nodes.items()
+                       if d.get("class") == "OrganismTaxon"},
+                cross_tier=_t)
+            cap = caps.get(named)
+            if cap is not None and cap.shortlist_licensed:
+                rows = self._shortlist(cap.name)
+                if rows:
+                    return Brief(
+                        question=question, intent="prospect_licensed",
+                        allowed=True,
+                        clarification=(
+                            cap.sentence() + "\n\n"
+                            "Approved and clinical-stage compounds this "
+                            "scorer ranks highest, excluding everything "
+                            "already screened against "
+                            f"{cap.name}:\n\n"
+                            + "\n".join(rows)
+                            + "\n\nEACH ROW IS A CHEMICAL ANALOGY. The "
+                              "evidence is that it resembles the named "
+                              "known active, at that Tanimoto. It is not "
+                              "a prediction of activity, not a mechanism "
+                              "and not a hit rate. The full list, with "
+                              "research compounds and the controls, is "
+                              f"`python scripts/repurposing_candidates.py "
+                              f"--virus {cap.name} --exclude-labelled`."),
+                        trace=trace + ["prospect_licensed"])
 
         # This virus's own calibration, so the caveat quotes what was
         # measured on it rather than a sentence asserting things about

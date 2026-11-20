@@ -1972,9 +1972,37 @@ class GraphTools:
         if not n:
             return ToolResult(False, "profile", note=f"{node_id} not in graph")
         counts: dict[str, int] = defaultdict(int)
+        # DIRECTION AND NEIGHBOUR TYPE, KEPT.
+        #
+        # The flat `predicate: count` list below dropped both, and a
+        # model handed "HAS_ANTIVIRAL_ACTIVITY_AGAINST: 4,162" under
+        # DENV-2 wrote "DENV-2 has antiviral activity against 4,162
+        # entities". The edge runs compound -> virus, so the direction
+        # is inverted: there are 4,162 activity records measured
+        # AGAINST DENV-2. A virus does not have antiviral activity.
+        #
+        # The caveat block already said nothing below may be misread
+        # and the next paragraph misread it, which is the lesson: a
+        # warning in a prompt enforces nothing, and the fix belongs in
+        # the data handed over, not in a sterner sentence about it.
+        #
+        # Reported by the owner's reviewer, 2026-11-21.
+        #
+        # DISTINCT NEIGHBOURS TOO. 4,162 edges is not 4,162 compounds
+        # when one compound carries several measurements, and the
+        # inverted sentence also said "4,162 entities". Both numbers
+        # are now stated so neither can be inferred from the other.
+        groups: dict[tuple[str, str, str], set[str]] = defaultdict(set)
         for e in self.edges:
-            if e["subject"] == node_id or e["object"] == node_id:
-                counts[e["predicate"]] += 1
+            if e["subject"] == node_id:
+                other, arrow = e["object"], "->"
+            elif e["object"] == node_id:
+                other, arrow = e["subject"], "<-"
+            else:
+                continue
+            counts[e["predicate"]] += 1
+            klass = (self.nodes.get(other) or {}).get("class", "Unknown")
+            groups[(arrow, e["predicate"], klass)].add(other)
         # FEATURES AND LABELS, LISTED APART. One flat list of predicate
         # counts is how "which compounds should be considered for Yellow
         # fever" returned a taxon profile reading "1,030 antiviral
@@ -1986,9 +2014,35 @@ class GraphTools:
         held = {k: v for k, v in counts.items() if k in self._held_out}
         feat = {k: v for k, v in counts.items() if k not in self._held_out}
 
+        #: At or below this many neighbours, they are NAMED instead of
+        #: counted. "belongs to 1 category" and "causes 1 condition"
+        #: told a reader nothing at all; the family and the disease are
+        #: the entire content of those two edges.
+        NAME_AT_MOST = 5
+
         def _rows(d):
-            return [f"  {k}: {v:,}" for k, v in sorted(d.items(),
-                                                       key=lambda kv: -kv[1])]
+            out = []
+            for pred, _n in sorted(d.items(), key=lambda kv: -kv[1]):
+                for (arrow, p, klass), others in sorted(
+                        groups.items(),
+                        key=lambda kv: (-len(kv[1]), kv[0][1], kv[0][0])):
+                    if p != pred:
+                        continue
+                    edges = sum(1 for e in self.edges
+                                if e["predicate"] == p
+                                and ((e["subject"] == node_id
+                                      and arrow == "->")
+                                     or (e["object"] == node_id
+                                         and arrow == "<-")))
+                    label = f"  {arrow} {p} {klass}: "
+                    if len(others) <= NAME_AT_MOST:
+                        out.append(label + ", ".join(
+                            sorted(self._label(o) for o in others)))
+                    else:
+                        out.append(
+                            f"{label}{edges:,} edges "
+                            f"({len(others):,} distinct)")
+            return out
 
         lines = [f"{self._label(node_id)} ({n['class']}, {node_id})"]
         lines += _rows(feat)
@@ -2005,7 +2059,19 @@ class GraphTools:
                                 "properties": n["properties"],
                                 "edge_counts": dict(counts),
                                 "feature_edge_counts": feat,
-                                "held_out_label_counts": held},
+                                "held_out_label_counts": held,
+                                # DIRECTED, so a consumer never has to
+                                # guess which way a predicate runs.
+                                "directed": [
+                                    {"direction": a, "predicate": p,
+                                     "neighbour_class": k,
+                                     "distinct": len(v),
+                                     "names": sorted(
+                                         self._label(o) for o in v)
+                                     if len(v) <= 5 else []}
+                                    for (a, p, k), v in sorted(
+                                        groups.items(),
+                                        key=lambda kv: -len(kv[1]))]},
                           warnings=[guards.caveat(
                               "held_out_label",
                               guards.held_out_caveat(held))] if held else [],
