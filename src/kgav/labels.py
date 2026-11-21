@@ -93,9 +93,13 @@ here, because they move every published figure:
     nM is active and 10,001 nM is inactive. classify() takes them as
     independent parameters and will accept a gap; only the CLI ties them,
     and --active-below-nm does not exist.
-  - 56.5% of positives at 10 uM are not positive at 1 uM, so the majority
-    of the positive set is weak-potency chemical matter grouped with
-    sub-nanomolar compounds under one label.
+  - MOST of the positive set is weak-potency chemical matter grouped with
+    sub-nanomolar compounds under one label: the majority of positives at
+    10 uM are not positive at 1 uM. THE FRACTION IS NOT TYPED HERE. It was
+    -- as 56.5% -- and it drifted, and it was quoted into doc2 as prose
+    where nothing could check it. `scripts/write_doc2.py` derives it from
+    this function at two thresholds, `doc2/09-limits.md` prints it, and
+    `tests/test_v2_plan_figures.py` holds it.
 
 AMBIGUOUS COMPOUNDS ARE EXCLUDED, NOT ASSIGNED. A compound with both an active
 and an inactive measurement against the same virus is real -- different cell

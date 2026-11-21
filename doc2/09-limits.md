@@ -244,10 +244,20 @@ of that screening and nothing else would pass all of them. There are now
 271 `IN_TRIAL_FOR` and 1 `TREATS` edges, and
 they go the other way.
 
-Within the in-vitro axis: 4,839 label edges carry a potency ChEMBL flagged as
-read **outside** its tested dose series (23 of them positives), 157 verdicts
-rest on a relation nobody stated, 169 edges carry potency fields that
-disagree, and 56.5% of positives at 10 µM are not positive at 1 µM.
+Within the in-vitro axis: 4,839 label edges carry a potency ChEMBL
+flagged as read **outside** its tested dose series
+(23 of them positives), 157 verdicts rest on a relation
+nobody stated, 169 edges carry potency fields that
+disagree, and 60.2% of positives at 10 µM are not positive
+at 1 µM (3,174 of 5,276 compound–virus pairs;
+59.3% by compound).
+
+**No AUC in this repository is recomputed at the lower cut**, so which
+results depend on the threshold is not known — `plan-v2.md` item C8. The
+157 above is the last typed figure on this line: the other four were typed
+copies of quantities the generator already computes, two of which
+`08-results.md` prints from the derived values while this page printed its
+own transcription of them.
 
 ## The circularity confound is measured, not removed
 

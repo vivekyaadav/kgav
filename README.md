@@ -56,6 +56,7 @@ Where to start:
 | [doc2/08-results.md](doc2/08-results.md) | every measured number, with its interval and its verdict |
 | [doc2/09-limits.md](doc2/09-limits.md) | what this graph cannot do, each limit with the figure behind it |
 | [doc2/paper.md](doc2/paper.md) | the manuscript: four controlled measurements |
+| [doc2/plan-v2.md](doc2/plan-v2.md) | **what v2 is for.** Ten fixes to the inference drawn from those four measurements, each with the measurement that shows it is needed and the published claim it can overturn |
 | [doc2/registrations/](doc2/registrations) | the signed pre-registrations, amended by appending and never rewritten |
 | [doc2/figures/](doc2/figures) | the architecture and the metagraph, each with an A4 PDF that prints on one page |
 

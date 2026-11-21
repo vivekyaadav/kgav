@@ -79,6 +79,7 @@ that produced it.
 | "with a measured hit rate" | sat in the shortlist's banner for weeks with no hit rate ever measured anywhere in the project. What it quoted was AUC, which is the one translation that does **not** yield a hit rate. |
 | the hand-drawn metagraph | carried thirteen stale figures and omitted two predicates entirely — the clinical axis, which is one of the published findings. A hand-drawn figure cannot acquire a predicate. |
 | `doc2/09-limits.md` | restated the hit-rate figures with its own copy, twice. A test now forbids the claim block's percentages from appearing in that section. |
+| `56.5% of positives at 10 µM are not positive at 1 µM` | typed in a docstring in `src/kgav/labels.py` and quoted into `09-limits.md` as **prose**, so the generator had nothing to compare it against. Re-derived 2026-11-22 it is {{thr_flip_pairs_pct}} by compound–virus pair and {{thr_flip_compounds_pct}} by compound. The one figure in doc2 about how much rests on the label threshold was itself the defect this folder exists to prevent — and it got in through the one gap in the design: a figure written into a template as literal prose, rather than as a placeholder the generator fills, is a figure nothing derives. Fixed by `plan-v2.md` item C8. |
 
 ---
 

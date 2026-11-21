@@ -1565,12 +1565,34 @@ def derive() -> dict[str, str]:
         return sum(len(x) for x in getattr(L, which).values())
 
     v["ds_flagged"] = n(_inc.stats["outside_dose_series_kept"])
+    v["n_contested_potency"] = n(_inc.stats["contested_potency"])
     v["ds_flagged_positive"] = n(_tot(_inc, "positives")
                                  - _tot(_exc, "positives"))
     v["ds_pos_include"] = n(_tot(_inc, "positives"))
     v["ds_pos_exclude"] = n(_tot(_exc, "positives"))
     v["ds_neg_include"] = n(_tot(_inc, "negatives"))
     v["ds_neg_exclude"] = n(_tot(_exc, "negatives"))
+    # WHAT THE LABEL THRESHOLD COSTS. The documents said 56.5% of
+    # positives at 10 uM are not positive at 1 uM; that figure was typed
+    # into a docstring and quoted as prose, and it had drifted. It is
+    # derived here because it is the ONLY figure in doc2 about how much
+    # of the positive class depends on the cut -- and the cut is the one
+    # parameter every AUC in the project rests on.
+    #
+    # One more build_labels, about two seconds. Both units are published:
+    # the pair is what a label set is keyed on, and the compound is what
+    # a reader pictures.
+    _lo = _build(RELEASE, active_below_nm=1000.0, inactive_above_nm=1000.0)
+    _pairs10 = _tot(_inc, "positives")
+    _kept = sum(len(_inc.positives[_vv] & _lo.positives.get(_vv, set()))
+                for _vv in _inc.positives)
+    _c10 = set().union(*_inc.positives.values())
+    _c1 = set().union(*_lo.positives.values())
+    v["thr_pairs_10um"] = n(_pairs10)
+    v["thr_flip_pairs"] = n(_pairs10 - _kept)
+    v["thr_flip_pairs_pct"] = f"{100 * (_pairs10 - _kept) / _pairs10:.1f}%"
+    v["thr_flip_compounds_pct"] = f"{100 * len(_c10 - _c1) / len(_c10):.1f}%"
+
     # THE OVERLAP ACROSS THE CUTOFF, counted. A compound measured on
     # both sides of the split is the thing that makes a temporal
     # protocol not temporal, and the census that decides the policy is

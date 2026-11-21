@@ -2,7 +2,7 @@
 
 ## Scripts
 
-86 scripts, 31,689 lines. Four of them exit non-zero on
+86 scripts, 31,730 lines. Four of them exit non-zero on
 `--help` **on purpose** — two print a usage block because they take positional
 directories, one needs a release, and one **refuses to run at all** because it
 is a phase-1 schema patch and would downgrade the schema from
@@ -92,8 +92,8 @@ rather than checking exit codes, for exactly that reason.
 | `validate_release.py` | 131 | Validate a KG release against the frozen schema. |
 | `verify_mondo.py` | 152 | Check every MONDO term the register declares against the ontology. |
 | `verify_polymerase_folds.py` | 220 | Verify the polymerase result, which contradicted the plan. |
-| `write_architecture_figure.py` | 557 | Generate the architecture figures from the code that defines the pipeline. |
-| `write_doc2.py` | 2158 | Generate doc2/: the whole project described from the code and the artifacts. |
+| `write_architecture_figure.py` | 576 | Generate the architecture figures from the code that defines the pipeline. |
+| `write_doc2.py` | 2180 | Generate doc2/: the whole project described from the code and the artifacts. |
 | `write_kg_report.py` | 280 | Generate doc2/kg_release_census.txt from the assembled release. |
 | `write_metagraph_figure.py` | 583 | Generate doc2/figures/meta.dot from the assembled release. |
 | `write_scorer_table.py` | 269 | Generate doc2/scorer_aucs.txt: every scorer AUC, every virus, side by side. |

@@ -196,6 +196,22 @@ def topology() -> dict:
     phase2 = [L for L in LAYERS if L.phase == 2]
     results = sorted((ROOT / "data" / "results").glob("*.json"))
     doc2 = sorted((ROOT / "doc2").glob("*.md"))
+    # THE BOX SAID "N documents, generated" OVER A COUNT OF EVERY .md IN
+    # THE FOLDER, and two of them are not generated -- the v1 plan and
+    # the v2 plan, which record decisions no artifact can derive. The
+    # count was wrong in substance before plan-v2.md and merely looked
+    # right. The generated set is the TEMPLATES, which is the only
+    # authority on what the generator produces.
+    doc2_gen = sorted((ROOT / "doc2" / "_templates").glob("*.md.in"))
+    doc2_hand = [d for d in doc2
+                 if not (ROOT / "doc2" / "_templates"
+                         / (d.name + ".in")).exists()]
+    if len(doc2_gen) + len(doc2_hand) != len(doc2):
+        raise SystemExit(
+            f"doc2 holds {len(doc2)} documents but {len(doc2_gen)} "
+            f"templates and {len(doc2_hand)} hand-maintained files do not "
+            f"partition it; a template with no document, or the reverse, "
+            f"is what tests/test_doc2.py exists to catch")
 
     def layer_node(L):
         return {
@@ -227,6 +243,8 @@ def topology() -> dict:
         "absent": [L.name for L in LAYERS if L.name not in built],
         "n_results": len(results),
         "n_doc2": len(doc2),
+        "n_doc2_generated": len(doc2_gen),
+        "n_doc2_hand": len(doc2_hand),
         "n_intents": len(guards.ROUTED_KINDS),
         "n_caveats": len(guards.CAVEAT_LABELS),
         "n_scripts": len(sorted((ROOT / "scripts").glob("*.py"))),
@@ -391,7 +409,8 @@ def _stage3(t: dict, wide: bool) -> list[str]:
         "RES", f"data/results/\n{t['n_results']} stamped JSON artifacts",
         FILL["results"], shape="folder", width=1.9, height=0.5))
     out.append("  " + _box(
-        "DOC", f"doc2/\n{t['n_doc2']} documents, generated\nfrom the artifacts",
+        "DOC", (f"doc2/\n{t['n_doc2_generated']} generated from the "
+                f"artifacts,\n{t['n_doc2_hand']} hand-maintained"),
         FILL["doc"], shape="note", width=1.9, height=0.5))
     out.append('    {rank=same; E_lab E_split}')
     out.append('    {rank=same; E_score E_stat}')

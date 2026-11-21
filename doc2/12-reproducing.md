@@ -155,7 +155,7 @@ which is worse than no check at all.
 
 | command | time | note |
 |:---|---:|:---|
-| `make test` | ~2 min | 3,032 tests, slow deselected, `-n auto --dist loadfile` |
+| `make test` | ~2 min | 3,054 tests, slow deselected, `-n auto --dist loadfile` |
 | `make lint` | seconds | ruff, pinned in the dev extra |
 | `make check-results` | ~10 s | hashes every release file once |
 | `make protocol-disagreement` | ~3 s | |

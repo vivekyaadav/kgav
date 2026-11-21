@@ -79,6 +79,10 @@ NOT_GENERATED = {
     "plan.md": "the project's plan — dated decisions and a status list, "
                "which no artifact can derive; its figures are held to the "
                "artifacts by tests/test_release_plan_figures.py",
+    "plan-v2.md": "what v2 is for — ten fixes to v1's inference, each a "
+                  "decision and a priority rather than a measurement; its "
+                  "figures, and the premises it asserts are still true, are "
+                  "held by tests/test_v2_plan_figures.py",
 }
 
 
@@ -327,13 +331,43 @@ def test_doc2_does_not_claim_a_figure_it_did_not_derive():
     # source the first version of this test did not know about.
     produced |= {m for val in write_doc2.derive().values()
                  for m in re.findall(r"\b0\.\d{4}\b", str(val))}
+    # THE HAND-MAINTAINED DOCUMENTS ARE SWEPT BY THEIR OWN TESTS INSTEAD.
+    # A critique of the published inference has to quote quantities no
+    # artifact stores -- a spread across three controls, a minimum
+    # detectable effect, a corrected bar -- because the defect it reports
+    # is precisely that nothing computes them yet. Excluding them here
+    # would be a hole, so it is paid for twice: the exemption must name a
+    # test file that EXISTS (asserted below), and that file re-derives
+    # every figure in the document from the artifacts.
+    held_elsewhere = set(NOT_GENERATED)
     stray: dict[str, list[str]] = {}
     for p in sorted(DOC2.glob("*.md")):
+        if p.name in held_elsewhere:
+            continue
         for fig in set(re.findall(r"\b0\.\d{4}\b", p.read_text())):
             if fig not in produced:
                 stray.setdefault(p.name, []).append(fig)
     assert not stray, (
         f"doc2 prints four-decimal figures no artifact produces: {stray}")
+
+
+def test_every_exempted_document_names_a_test_that_holds_its_figures():
+    """THE PRICE OF THE EXEMPTION ABOVE. A document excluded from the
+    four-decimal sweep because another test holds its figures is a hole
+    the moment that test stops existing -- which is how an exemption
+    list outlives its reason."""
+    for name, why in NOT_GENERATED.items():
+        named = re.findall(r"tests/test_[a-z0-9_]+\.py", why)
+        assert named, (
+            f"{name} is exempted from the four-decimal sweep and its "
+            f"reason names no test that holds its figures instead")
+        for t in named:
+            assert (ROOT / t).exists(), (
+                f"{name}'s exemption names {t}, which does not exist")
+        body = (DOC2 / name).read_text()
+        assert any(t in body for t in named), (
+            f"{name} does not tell its own reader which test holds its "
+            f"figures; the exemption list says {named}")
 
 
 def _floats(obj, out=None):

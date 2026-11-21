@@ -597,8 +597,16 @@ interval can be read off. Nothing about the method needs to change first.
 
 ## 5. Limitations
 
-Stated in full in [09-limits.md](09-limits.md); the ones that bear directly
-on the claims above:
+Stated in full in [09-limits.md](09-limits.md). A separate list —
+[plan-v2.md](plan-v2.md) — enumerates the known weaknesses in the
+*inference* drawn above rather than in the data beneath it: the comparisons
+reported as two marginal intervals where a paired test belongs, the
+detection floor on the population behind §3.1, the overlap between the
+cells counted in §3.3, and the control omitted from §3.3 that disagrees
+with the one shown. Each is stated there with the measurement that shows it,
+its cost, and which claim above it can overturn.
+
+The limitations that bear directly on the claims above:
 
 - **One strain stands for each flavivirus.** Seven of nine surveyed
   flaviviruses are curated under a strain taxon rather than the species.
@@ -627,9 +635,9 @@ on the claims above:
 Release `v0.1`, 78,649 nodes, 396,223 edges, schema
 `0.16.0`, fingerprints `dc6d76a2b3cfb2a1` / `873623c9a9df2049`.
 36 stamped artifacts in `data/results/`.
-36 library modules (21,669 lines),
-86 scripts (31,689 lines),
-3,032 tests in 137 files.
+36 library modules (21,673 lines),
+86 scripts (31,730 lines),
+3,054 tests in 138 files.
 
 ```
 make rebuild          # the ingest chain, in dependency order

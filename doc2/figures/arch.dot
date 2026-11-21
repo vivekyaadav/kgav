@@ -85,7 +85,7 @@ digraph kgav {
     E_score [label="scorers\n8 metapath channels,\nstructure, degree baseline", fillcolor="#f0eaf9", width=1.75, height=0.6];
     E_stat [label="statistics\nAUC with interval,\npermutation null, correction", fillcolor="#f0eaf9", width=1.75, height=0.6];
     RES [label="data/results/\n36 stamped JSON artifacts", fillcolor="#e2d8f2", shape=folder, width=1.9, height=0.5];
-    DOC [label="doc2/\n18 documents, generated\nfrom the artifacts", fillcolor="#f2f2f2", shape=note, width=1.9, height=0.5];
+    DOC [label="doc2/\n17 generated from the artifacts,\n2 hand-maintained", fillcolor="#f2f2f2", shape=note, width=1.9, height=0.5];
     {rank=same; E_lab E_split}
     {rank=same; E_score E_stat}
     {rank=same; RES DOC}
