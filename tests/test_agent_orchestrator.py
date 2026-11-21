@@ -278,6 +278,7 @@ def _orch_with_caveat(tmp_path):
                                                   "dependent.")]
         citable_edge_ids = ["E1"]
         question = "why?"
+        context, carried, carried_notice = {}, {}, ""
 
         def to_prompt(self, must_include=None):
             head = ""
@@ -286,7 +287,11 @@ def _orch_with_caveat(tmp_path):
                         + ";".join(str(w)[:20] for w in must_include) + "\n")
             return head + "PROMPT"
 
-    o.build_brief = lambda q: _Brief()
+    # THE STUB TAKES WHAT THE REAL METHOD TAKES. build_brief gained a
+    # `context` argument on 2026-11-21 (the follow-up carry) and a
+    # one-argument double turned five tests of the RETRY into a
+    # TypeError, which says nothing about retries.
+    o.build_brief = lambda q, context=None: _Brief()
     return o
 
 

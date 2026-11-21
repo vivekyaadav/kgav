@@ -47,6 +47,7 @@ import sys
 import threading
 import time
 import traceback
+from typing import Any
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -149,8 +150,15 @@ class Agent:
         }
 
     # -------------------------------------------------------------- ask
-    def answer(self, question: str, use_model: bool) -> dict:
+    def answer(self, question: str, use_model: bool,
+               context: Any = None) -> dict:
         """One question. Returns exactly the CLI's --json payload, plus timing.
+
+        `context` is the `context` block from THIS caller's previous
+        reply, echoed back unchanged. It is validated on arrival by
+        Orchestrator._prior -- the page can send anything -- and it is
+        used only when the question explicitly refers back and resolves
+        nothing of its own. The reply always says what it inherited.
 
         The model fallback is the CLI's: an unreachable model degrades to
         the unsynthesised brief, because the evidence is useful without
@@ -169,10 +177,10 @@ class Agent:
                     model_note = note
 
             try:
-                out = self.orch.answer(question, model)
+                out = self.orch.answer(question, model, context=context)
             except ModelUnavailable as exc:
                 model_note = str(exc)
-                out = self.orch.answer(question, None)
+                out = self.orch.answer(question, None, context=context)
 
             # Identical condition to the CLI's. A clarification is a system
             # message rather than a synthesised claim, and keying this on
@@ -254,9 +262,17 @@ class Handler(BaseHTTPRequestHandler):
         # Default TRUE, matching the CLI, where synthesis is on unless
         # --no-model is passed. The UI's toggle is the --no-model flag.
         use_model = bool(req.get("use_model", True))
+        # THE PREVIOUS TURN, AS THE PAGE REMEMBERS IT. Server-side
+        # session state was the alternative and is worse here: this
+        # server is single-process, shared by whoever can reach the
+        # loopback port, and holding "the last question" for all of them
+        # would make one person's follow-up resolve against another's
+        # topic. The page keeps its own, sends it back, and the
+        # orchestrator revalidates every id against the graph.
+        context = req.get("context")
 
         try:
-            self._json(200, self.agent.answer(question, use_model))
+            self._json(200, self.agent.answer(question, use_model, context))
         except Exception as exc:                    # noqa: BLE001
             # A traceback to the terminal and a short message to the page.
             # Serving the traceback would put file paths in a browser; not

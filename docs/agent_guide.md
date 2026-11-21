@@ -143,6 +143,36 @@ press Enter. Things worth knowing:
 - If you change the page itself (`web/chat.html`), just reload the browser — there is
   no build step and no restart needed.
 
+### Follow-up questions
+
+Ask "why that one?", "and for DENV-3?", "the third", "tell me more" and the
+question is resolved against the turn before it. Three things have to be true
+before anything is inherited, and the third is the point:
+
+1. the question has to **refer back** — a pronoun, a demonstrative, an
+   ordinal, or a continuation like "what about";
+2. it has to name **nothing of its own** for the slot being filled, so
+   "what is known about DENV-3?" is never answered about DENV-2 because the
+   previous question was;
+3. the reply **says what it took**, as a `CARRIED FORWARD` caveat.
+
+Nothing else travels. The previous turn contributes a virus, the compounds its
+answer named, and its intent — all as node ids, re-checked against the graph
+on arrival. If a reference is ambiguous, you are asked rather than guessed at:
+"why that one?" after a list of twelve prints the twelve and waits.
+
+The page remembers the last turn, not the server: the server is one process
+on a loopback port and may be read by more than one person, so holding "the
+last question" there would make your follow-up resolve against somebody
+else's topic. **Clear** forgets it. On the command line each run is its own
+process, so a follow-up takes the previous reply's `context` block
+explicitly:
+
+```
+python scripts/kgav_ask.py --no-model --json "what is known about DENV-2?" | jq -c .context
+python scripts/kgav_ask.py --no-model --context '{"virus":"NCBITaxon:11060","intent":"profile"}' "tell me more"
+```
+
 In "written answer" mode, every sentence the AI writes is checked against the facts.
 If any sentence is not backed by a fact, the paragraph is **withheld** and you see
 `ANSWER WITHHELD — FAILED VERIFICATION`. That is the safety check working, not a

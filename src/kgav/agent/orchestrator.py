@@ -244,6 +244,14 @@ def near_names(question: str, candidates: dict[str, str],
     return out
 
 
+def _nth(n: int) -> str:
+    """4 -> "fourth one", 9 -> "9th one". Only used to say that a
+    position does not exist, so the wording matters more than the range."""
+    words = {1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth",
+             6: "sixth"}
+    return f"{words.get(n, str(n) + 'th')} one"
+
+
 @dataclass
 class Brief:
     """Everything the model is given, and nothing else."""
@@ -257,6 +265,16 @@ class Brief:
     resolved: dict[str, str] = field(default_factory=dict)
     clarification: str = ""
     trace: list[str] = field(default_factory=list)
+    #: What this question inherited from the turn before it, as
+    #: {slot: label}, and the sentence that says so. Empty on a question
+    #: that stood on its own, which is almost all of them.
+    carried: dict[str, str] = field(default_factory=dict)
+    carried_notice: str = ""
+    #: What the NEXT question may inherit from this one. Returned to the
+    #: caller, echoed back by it, and re-validated on arrival -- see
+    #: Orchestrator._prior. Node ids only: no free text travels, so a
+    #: context cannot carry an instruction into the next brief.
+    context: dict[str, Any] = field(default_factory=dict)
 
     def to_prompt(self, must_include: list | None = None) -> str:
         """The brief as text for a language model.
@@ -465,6 +483,99 @@ class Orchestrator:
             for e in self.tools.inv.get(("CAUSES", nid), []):
                 if e["subject"] not in out:
                     out.append(e["subject"])
+        return out
+
+    #: How many compounds of a previous answer a follow-up may point
+    #: into. The shortlist tool is invoked with --top 60 and shows 6 per
+    #: tier, so this is the generous bound rather than a tight one; its
+    #: job is to stop an echoed context from being unbounded.
+    CONTEXT_MAX = 60
+
+    def _prior(self, context: Any) -> dict:
+        """The previous turn, reduced to things THIS graph holds.
+
+        A CONTEXT ARRIVES FROM THE BROWSER AND IS NOT TRUSTED. It is
+        whatever the page echoed back, so it may hold a virus curie this
+        release does not have, a compound that was never offered, ten
+        thousand of them, or a string where a list belongs. Everything
+        that survives this function is a node id present in
+        self.tools.nodes and an intent the enum knows -- which is also
+        all the rest of the agent can act on.
+
+        NO FREE TEXT SURVIVES, deliberately. A context carrying a
+        sentence would be a channel for putting words into the next
+        brief, and the brief is the one thing the model is given.
+        """
+        if not isinstance(context, dict):
+            return {}
+        out: dict[str, Any] = {}
+        virus = context.get("virus")
+        if isinstance(virus, str) and self.tools.nodes.get(
+                virus, {}).get("class") == "OrganismTaxon":
+            out["virus"] = virus
+        offered = context.get("offered")
+        if isinstance(offered, list):
+            ids = [c for c in offered[:self.CONTEXT_MAX]
+                   if isinstance(c, str) and c in self.tools.nodes]
+            if ids:
+                out["offered"] = ids
+        intent = context.get("intent")
+        if isinstance(intent, str):
+            try:
+                out["intent"] = guards.QueryKind(intent)
+            except ValueError:
+                pass
+        return out
+
+    def _pick_offered(self, question: str,
+                      offered: list[str]) -> tuple[str | None, str]:
+        """(the compound a reference points at, the question to ask).
+
+        EXACTLY ONE OF THE TWO IS SET, and they are returned as separate
+        slots rather than as one value the caller inspects. The first
+        version returned "a node id, or a clarification string" and
+        distinguished them BY TYPE -- both are `str`, so the ambiguous
+        branch was taken for a compound id and the agent reported having
+        carried a compound called "The previous answer named 4
+        compounds...". A sum type that both arms satisfy is not a sum
+        type, and the docstring claiming the caller could tell them
+        apart is what made it look safe.
+        """
+        rows = "\n  ".join(f"{i}. {self.tools._label(c)}"
+                            for i, c in enumerate(offered, 1))
+        want = guards.ordinal_in(question)
+        if want is not None:
+            if want == -1:
+                return offered[-1], ""
+            if 1 <= want <= len(offered):
+                return offered[want - 1], ""
+            return None, (
+                f"The previous answer named {len(offered)} compound(s), so "
+                f"there is no {_nth(want)}. They were, in order:\n\n  "
+                + rows
+                + "\n\nName the one you mean, or say which position.")
+        if len(offered) == 1:
+            return offered[0], ""
+        return None, (
+            f"The previous answer named {len(offered)} compounds, and this "
+            f"question points at one of them without saying which:\n\n  "
+            + rows
+            + "\n\nName it, or say \u201cthe third\u201d. Nothing is "
+              "picked for you: the compounds in that list differ by more "
+              "than their rank, and an answer about the wrong one would "
+              "read exactly like an answer about the right one.")
+
+    def _context_for(self, virus: str | None, offered: list[str] | None,
+                     intent: Any) -> dict:
+        """What the NEXT question may inherit from this one."""
+        out: dict[str, Any] = {}
+        if virus:
+            out["virus"] = virus
+        if offered:
+            out["offered"] = list(offered)[:self.CONTEXT_MAX]
+        kind = getattr(intent, "value", intent)
+        if isinstance(kind, str):
+            out["intent"] = kind
         return out
 
     def _virus_in(self, resolved: dict[str, str]) -> str | None:
@@ -757,8 +868,16 @@ class Orchestrator:
     #: the script's own constants rather than leaving them to drift.
     SHORTLIST_FLAGS = ("cytotoxic", "withdrawn")
 
-    def _shortlist(self, virus_name: str) -> list[str] | None:
-        """Named candidates for a LICENSED virus, from the one scorer.
+    def _shortlist(self, virus_name: str) -> tuple[list[str], list[str]]:
+        """Named candidates for a LICENSED virus: the lines, and the ids.
+
+        TWO RETURN VALUES BECAUSE A FOLLOW-UP POINTS INTO THE LIST. "why
+        that one?" and "the third" are answerable only if the rows have
+        identities the next turn can resolve, so the node ids travel
+        beside the text in the same order -- rendered line i is ids[i].
+        Returning the ids separately rather than parsing them back out
+        of the rendered line is the same choice as reading the artifact
+        instead of the printed table, one layer up.
 
         WHY A SUBPROCESS AND NOT AN IMPORT. The ranking, the tier
         split, the duplicate-compound drop and the "resembles" column
@@ -780,7 +899,7 @@ class Orchestrator:
         root = Path(__file__).resolve().parents[3]
         script = root / "scripts" / "repurposing_candidates.py"
         if not script.exists():
-            return None
+            return [], []
         # --out TO A THROWAWAY PATH, ALWAYS.
         #
         # The script writes data/results/repurposing_candidates.json by
@@ -797,9 +916,9 @@ class Orchestrator:
                  "--top", "60", "--exclude-labelled", "--out", str(tmp)],
                 capture_output=True, text=True, cwd=root, timeout=600)
         except Exception:                            # pragma: no cover
-            return None
+            return [], []
         if r.returncode != 0:
-            return None
+            return [], []
         # READ THE FILE IT WROTE, NOT THE TABLE IT PRINTED.
         #
         # This parsed stdout with a regex over the printed columns, which
@@ -817,8 +936,9 @@ class Orchestrator:
             cell = next(iter(
                 (json.loads(tmp.read_text()).get("viruses") or {}).values()))
         except Exception:
-            return None
+            return [], []
         out: list[str] = []
+        ids: list[str] = []
         shown = {t: 0 for t in self.SHORTLIST_TIERS}
         for row in cell.get("suggestions") or []:
             t_ = row.get("phase_tier")
@@ -846,9 +966,38 @@ class Orchestrator:
             vs = "" if bf is None else f" (>{bf:.0%} of failures)"
             out.append(f"  {t_:<9} {name:<22} Tc {row['tanimoto']:.3f}"
                        f"{vs}  resembles {like}{marks}")
-        return out or None
+            ids.append(row.get("candidate") or "")
+        return out, ids
 
-    def build_brief(self, question: str) -> Brief:
+    def build_brief(self, question: str, context: Any = None) -> Brief:
+        """One question, with the previous turn's entities if it needs them.
+
+        A WRAPPER, SO THE CARRY CANNOT BE FORGOTTEN AT A RETURN. _build_brief
+        has fourteen return points and the rule that a carry must be stated
+        in the reply would be a contract every one of them could forget --
+        this repository's own name for that defect. Attaching the notice
+        here means a branch added later cannot ship without it.
+        """
+        carry: dict[str, Any] = {}
+        brief = self._build_brief(question, context, carry)
+        brief.carried = dict(carry.get("carried") or {})
+        brief.carried_notice = carry.get("notice", "")
+        if not brief.context:
+            brief.context = dict(carry.get("context") or {})
+        # A CLARIFICATION REACHES THE USER AS brief.clarification AND
+        # NOTHING ELSE, the way a refusal reaches them as brief.refusal.
+        # The refusal and the fact-bearing paths carry the notice as a
+        # labelled caveat instead, which is the channel verification
+        # enforces; prefixing those too would print it twice.
+        if brief.carried and brief.clarification \
+                and brief.carried_notice not in brief.clarification:
+            brief.clarification = (brief.carried_notice + "\n\n"
+                                   + brief.clarification)
+        return brief
+
+    def _build_brief(self, question: str, context: Any = None,
+                     carry: dict | None = None) -> Brief:
+        carry = carry if carry is not None else {}
         trace: list[str] = []
 
         # ABOUT THE AGENT, NOT ABOUT THE GRAPH. Answered from the
@@ -920,6 +1069,110 @@ class Orchestrator:
                 trace=trace + ["ambiguous_virus"])
 
         named = self._virus_in(resolved)
+
+        # ------------------------------------------------- the follow-up
+        #
+        # THREE CONDITIONS, AND THE THIRD IS NOT OPTIONAL: an explicit
+        # reference back, nothing resolved for the slot, and a caveat
+        # that says what was taken. guards' ANAPHORA block has the
+        # reasoning; what matters here is the ORDER -- the carry happens
+        # before the "no virus named" and near-name branches, because
+        # those are exactly the replies a follow-up used to get.
+        prior = self._prior(context)
+        back = guards.anaphora_in(question)
+        carried: dict[str, str] = {}
+        if back and prior:
+            trace.append("refers_back=" + ",".join(b.strip() for b in back))
+        if named is None and back and prior.get("virus"):
+            named = prior["virus"]
+            carried["virus"] = self.tools._label(named)
+            # INTO `resolved` AS WELL, not just into `named`. Setting
+            # only `named` fixed which virus the caveats and the
+            # calibration are about and left the question having
+            # resolved NOTHING, so "tell me more" came back as "No
+            # entity in this question matches a node in the graph" with
+            # a notice above it saying DENV-2 had been carried -- the
+            # dead end the feature exists to remove, now with an
+            # explanation of what it had carried into it. The first
+            # version of the test asserted only that the notice was
+            # present, which is the shape of test this repository keeps
+            # finding: it pinned the mechanism and not the outcome.
+            resolved = dict(resolved)
+            resolved[back[0].strip()] = named
+            trace.append(f"carried_virus={named}")
+        if (back and prior.get("offered")
+                and not self._compounds_in(resolved)
+                and guards.refers_to_a_compound(question)):
+            picked, ask = self._pick_offered(question, prior["offered"])
+            if picked is not None:
+                # Keyed by the phrase the user typed, so the fact lines
+                # and the caveat name the same thing they do.
+                resolved = dict(resolved)
+                # A DISTINCT KEY. The virus carry above may already have
+                # claimed back[0] -- "why that one?" matches three
+                # phrases and carries both slots -- and writing the
+                # compound over it would silently drop the virus from
+                # the facts while the notice still named it.
+                key = next((b.strip() for b in back
+                            if b.strip() not in resolved), "that one")
+                resolved[key] = picked
+                carried["compound"] = self.tools._label(picked)
+                trace.append(f"carried_compound={picked}")
+            else:
+                # AMBIGUOUS, SO ASK. "why that one?" after a list of
+                # twelve points at one of twelve, and picking the first
+                # would answer about a compound nobody asked about --
+                # under a notice saying it had been carried, which makes
+                # it worse, not better.
+                #
+                # THE VIRUS CARRY STILL HAPPENED AND IS STILL REPORTED.
+                # This returned before `carry` was filled, so the reply
+                # said "which of the twelve?" while the payload reported
+                # having carried nothing and the trace said it had
+                # carried a virus. Two surfaces disagreeing about what
+                # the agent assumed is the same defect as a results file
+                # disagreeing with the run that wrote it.
+                carry["carried"] = carried
+                carry["notice"] = (guards.carried_caveat(carried, back)
+                                   if carried else "")
+                return Brief(
+                    question=question, intent=intent.value, allowed=True,
+                    clarification=ask, resolved=resolved,
+                    context=self._context_for(prior.get("virus"),
+                                              prior["offered"], intent),
+                    trace=trace + ["ambiguous_reference"])
+        # AND THE INTENT, WHEN THE FOLLOW-UP HAS NONE OF ITS OWN.
+        # "and for DENV-3?" resolves a virus and classifies as UNKNOWN,
+        # so it reached a node profile of the taxon -- edge counts --
+        # after a question about candidates. Only UNKNOWN is replaced:
+        # a follow-up that states its own intent keeps it.
+        if (intent is guards.QueryKind.UNKNOWN and back
+                and prior.get("intent")
+                and prior["intent"] is not guards.QueryKind.UNKNOWN):
+            intent = prior["intent"]
+            carried["intent"] = intent.value
+            trace.append(f"carried_intent={intent.value}")
+        # AND "NOTHING RESOLVED" IS NO LONGER TRUE, so the clarification
+        # that says so must go. _resolve_mentions returns `problem` =
+        # "No entity in this question matches a node in the graph" for a
+        # question that named nothing -- which is every follow-up, and
+        # is the exact reply this feature exists to stop. It is computed
+        # before the carry and short-circuits everything after it, so a
+        # carried entity that does not clear it is carried into a brief
+        # that then reports having resolved nothing.
+        if carried and resolved:
+            problem = ""
+            trace.append("problem_cleared_by_carry")
+        notice = (guards.carried_caveat(carried, back) if carried else "")
+        carry["carried"] = carried
+        carry["notice"] = notice
+        # WHAT THE NEXT TURN MAY INHERIT. Set here so that every return
+        # below carries it without naming it, and overwritten by the one
+        # branch that offers compounds of its own.
+        carry["context"] = self._context_for(
+            named or prior.get("virus"),
+            self._compounds_in(resolved) or prior.get("offered"),
+            intent)
 
         # DOES THE ANSWER DEPEND ON THE VIRUS? Computed once, and used by
         # both the suggestion below and the "name one" path after it.
@@ -1111,7 +1364,7 @@ class Orchestrator:
                 cross_tier=_t)
             cap = caps.get(named)
             if cap is not None and cap.shortlist_licensed:
-                rows = self._shortlist(cap.name)
+                rows, row_ids = self._shortlist(cap.name)
                 if rows:
                     return Brief(
                         question=question, intent="prospect_licensed",
@@ -1151,6 +1404,14 @@ class Orchestrator:
                               "compounds and the controls, is "
                             + f"`python scripts/repurposing_candidates.py "
                               f"--virus {cap.name} --exclude-labelled`."),
+                        # THE ROWS, BY IDENTITY, SO "why that one?" HAS
+                        # SOMEWHERE TO LOOK. Without this the one answer
+                        # most likely to be followed up is the one a
+                        # follow-up cannot reach.
+                        context=self._context_for(
+                            named,
+                            [i for i in row_ids if i in self.tools.nodes],
+                            intent),
                         trace=trace + ["prospect_licensed"])
 
         # This virus's own calibration, so the caveat quotes what was
@@ -1219,6 +1480,15 @@ class Orchestrator:
             verdict.warnings.append(guards.caveat(
                 "virus_assumed",
                 guards.virus_assumed_caveat(self.tools._label(virus), others)))
+        # CARRIED, NOT ASSUMED, AND SAID EITHER WAY. This is the same
+        # rule virus_assumed above it enforces for a default, in the one
+        # case where the agent now has somewhere to get the answer from:
+        # the turn before. A refusal gets it because `verdict.warnings`
+        # is prepended to the refusal text, and a fact-bearing answer
+        # gets it because verification requires every warning's label to
+        # appear in the prose.
+        if carried:
+            verdict.warnings.append(guards.caveat("carried_forward", notice))
         if omitted:
             verdict.warnings.append(guards.caveat(
                 "entities_omitted",
@@ -1243,7 +1513,8 @@ class Orchestrator:
 
         if problem:
             return Brief(question=question, intent=intent.value, allowed=True,
-                         clarification=problem, trace=trace)
+                         clarification=problem, resolved=resolved,
+                         trace=trace)
 
         compounds = self._compounds_in(resolved)
         results: list[ToolResult] = []
@@ -1361,7 +1632,7 @@ class Orchestrator:
 
     # ------------------------------------------------------------ stage 5
     def answer(self, question: str, model: Any = None,
-               max_attempts: int = 2) -> dict:
+               max_attempts: int = 2, context: Any = None) -> dict:
         """Full pipeline. `model` is any callable taking a prompt.
 
         With no model supplied the brief is returned unsynthesised, which is
@@ -1369,11 +1640,18 @@ class Orchestrator:
         what the tests exercise, since a test of the pipeline should not
         depend on a model's wording.
         """
-        brief = self.build_brief(question)
+        brief = self.build_brief(question, context)
         out: dict[str, Any] = {"question": question, "intent": brief.intent,
                                "allowed": brief.allowed, "trace": brief.trace,
                                "facts": brief.facts, "warnings": brief.warnings,
-                               "citable_edge_ids": brief.citable_edge_ids}
+                               "citable_edge_ids": brief.citable_edge_ids,
+                               # FOR THE NEXT QUESTION, and for a caller
+                               # that wants to show what was inherited.
+                               # The caller echoes `context` back
+                               # unchanged; `carried` is a report, not an
+                               # input.
+                               "context": brief.context,
+                               "carried": brief.carried}
         if not brief.allowed:
             out["answer"] = brief.refusal
             return out

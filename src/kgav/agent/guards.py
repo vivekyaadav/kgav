@@ -367,6 +367,9 @@ CAVEAT_LABELS: dict[str, str] = {
     # Entities the question named that did not fit MAX_RESOLVED. See
     # omitted_entities_caveat.
     "entities_omitted":      "NAMES OMITTED",
+    # Something this question did NOT name, taken from the turn before
+    # it. See carried_caveat and ANAPHORA.
+    "carried_forward":       "CARRIED FORWARD",
 }
 
 
@@ -538,6 +541,161 @@ def _seeks_candidates(t: str) -> bool:
         return True
     return (any(_word(t, n) for n in _CANDIDATE_NOUNS)
             and any(_word(t, s) for s in _SEEKING))
+
+
+# ------------------------------------------------------------- follow-ups
+#
+# WHAT THIS IS FOR. Every question here is resolved on its own, so a
+# follow-up resolves nothing. In the session log of 2026-11-21, three of
+# eight turns were follow-ups -- "why that one?", "explain the logic
+# behind these suggestions", "tell me more" -- and each was answered "No
+# entity in this question matches a node in the graph", which reads as
+# the agent not knowing its own previous answer.
+#
+# WHY THE RULE IS THIS NARROW. A carried entity is an assumption about
+# what somebody meant, and the standing rule here is that nothing is
+# assumed or corrected silently: the near-name path lists candidates and
+# applies NONE, because the four dengue serotypes are one character apart
+# and their conclusions are opposite. The default virus was removed on
+# 2026-11-20 for the same reason. So a carry happens only when all three
+# hold, and the third is not optional:
+#
+#   1. the question contains an explicit reference BACK -- a pronoun, a
+#      demonstrative, an ordinal, or a continuation phrase
+#   2. the question itself resolves nothing for the slot being filled
+#   3. the reply says what was carried, in a labelled caveat
+#
+# Without (1), a question that simply named nothing would inherit a virus
+# silently, which is the defect that was removed, wearing a new hat.
+
+#: References that point at a COMPOUND the previous answer named. An
+#: ordinal is handled separately by `ordinal_in`, because "the third"
+#: needs the position and not just the fact of a reference.
+COMPOUND_ANAPHORA = (
+    "that one", "this one", "that drug", "that compound", "that molecule",
+    "the top one", "the first one", "the last one", "that first one",
+    "why that one", "why this one",
+)
+
+#: References that point at the TOPIC of the previous turn -- in practice
+#: its virus. Padded with spaces where the phrase is a bare word, so
+#: "it" does not match inside "with" or "its".
+TOPIC_ANAPHORA = (
+    " it ", " it?", " it.", " its ", " them ", " them?", " those ",
+    " these ", " that virus", " this virus", " the same virus",
+    " the same", " for it", " against it", " about it",
+    " what about", " how about", " and for ", " same for ",
+    " tell me more", " more about", " go on", " the above", " why?",
+    " what else", " anything else", " and now", " continue",
+    " is that", " why is that", " and?", " so?",
+    " the previous", " that result", " that answer", " that list",
+    " the list", " these suggestions", " those suggestions",
+    " why that", " why those", " why these",
+)
+
+ANAPHORA = COMPOUND_ANAPHORA + TOPIC_ANAPHORA
+
+#: "the third" -> 3, "the last" -> -1. `top` is 1 because "the top one"
+#: and "the first" are the same request.
+_ORDINALS = {
+    "first": 1, "1st": 1, "top": 1, "second": 2, "2nd": 2, "third": 3,
+    "3rd": 3, "fourth": 4, "4th": 4, "fifth": 5, "5th": 5, "sixth": 6,
+    "6th": 6, "last": -1, "bottom": -1,
+}
+
+
+#: Words that can stand in for "the third ___" when the ___ is a row of
+#: the previous answer.
+_ROW_NOUNS = ("one", "row", "entry", "compound", "drug", "molecule",
+              "suggestion", "candidate", "ones")
+
+#: "the third", "the third one", "the third one approved?" -- but NOT
+#: "the third dengue serotype", which asks about a virus. The rule is
+#: not where the sentence ends, it is what follows the ordinal: a row
+#: reference is followed by nothing, by punctuation, or by a word for a
+#: row. Followed by any OTHER word, the ordinal belongs to that word.
+_ORDINAL_RE = re.compile(
+    r"\bthe\s+(" + "|".join(_ORDINALS) + r")\b"
+    r"(?!\s+(?!" + "|".join(n + r"\b" for n in _ROW_NOUNS) + r")[a-z])")
+
+
+def _flat(text: str) -> str:
+    """Lowercased, whitespace-collapsed and space-padded, so a bare-word
+    pattern can be matched without a regex and without matching inside a
+    longer word."""
+    return " " + " ".join((text or "").lower().split()) + " "
+
+
+def anaphora_in(text: str) -> tuple[str, ...]:
+    """Every explicit reference back that this question contains.
+
+    Returned rather than reduced to a boolean because the reply quotes
+    the phrase: "“that one” is read as MIGLUSTAT" is checkable by the
+    person who typed it, where "the previous compound was used" is not.
+    """
+    t = _flat(text)
+    found = [p for p in ANAPHORA if p in t]
+    # AN ORDINAL IS A REFERENCE BACK TOO, and it is the only one that
+    # carries a position. "tell me about the third" matches nothing in
+    # the lists above -- it is an ordinary English sentence -- so
+    # without this the gate would reject the one phrasing that says
+    # exactly which row is meant.
+    m = _ORDINAL_RE.search(" ".join((text or "").lower().split()))
+    if m:
+        found.append(m.group(0))
+    return tuple(found)
+
+
+def refers_to_a_compound(text: str) -> bool:
+    """Whether the reference points at a compound rather than the topic.
+
+    THE DISTINCTION IS LOAD-BEARING. "what about Zika?" and "why that
+    one?" are both follow-ups, and only the second is asking about one
+    of the compounds the previous answer named. Treating them alike made
+    "what about Zika?" answer "the previous answer offered 12 compounds;
+    which do you mean?", which is a clarification about a question
+    nobody asked.
+    """
+    t = _flat(text)
+    return (any(p in t for p in COMPOUND_ANAPHORA)
+            or ordinal_in(text) is not None)
+
+
+def ordinal_in(text: str) -> int | None:
+    """The position a question points at, 1-based, or -1 for the last.
+
+    Only "the Nth" and "the last/top" forms count: a bare "third" in
+    "the third dengue serotype" is about something else, and requiring
+    the article keeps this to phrases that are grammatically a reference
+    back.
+    """
+    m = _ORDINAL_RE.search(" ".join((text or "").lower().split()))
+    return _ORDINALS[m.group(1)] if m else None
+
+
+def carried_caveat(carried: dict[str, str], phrases: tuple[str, ...]) -> str:
+    """Said out loud whenever a follow-up inherited anything.
+
+    THE WHOLE POINT OF THE FEATURE IS THIS SENTENCE. Carrying an entity
+    forward is the convenience; saying which one, and that nothing else
+    came with it, is what keeps it from being the silent default this
+    agent had removed. It also tells the reader how to override it,
+    because the override is simply naming the thing.
+    """
+    quoted = ", ".join(f"“{p.strip()}”" for p in phrases[:2])
+    parts = []
+    if "compound" in carried:
+        parts.append(f"the compound as {carried['compound']}")
+    if "virus" in carried:
+        parts.append(f"the virus as {carried['virus']}")
+    if "intent" in carried:
+        parts.append(f"the question as another {carried['intent']} question")
+    return (f"{quoted} refers back, and this question names nothing of "
+            f"its own, so it is read from the turn before it: "
+            + ", ".join(parts)
+            + ". Nothing else is taken from that turn. Naming a virus or "
+              "a compound in the question overrides this, and so does "
+              "reloading the page.")
 
 
 def classify_intent(text: str) -> QueryKind:

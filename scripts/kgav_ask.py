@@ -162,6 +162,16 @@ def build_parser(root: Path) -> argparse.ArgumentParser:
     ap.add_argument("--json", action="store_true",
                     help="machine-readable output including the verification")
     ap.add_argument("--show-prompt", action="store_true")
+    ap.add_argument("--context", default=None, metavar="JSON",
+                    help="the `context` block from a previous --json "
+                         "reply, so a follow-up that refers back -- "
+                         "\"why that one?\", \"and for DENV-3?\" -- "
+                         "resolves against that turn. Every id in it is "
+                         "revalidated against the graph, it is used only "
+                         "when the question names nothing itself, and the "
+                         "reply says what it took. One process per "
+                         "question is why this is a flag rather than "
+                         "state: there is nowhere for the CLI to keep it.")
     ap.add_argument("--results", type=Path,
                     default=root / "data/results/hard_negatives.json",
                     help="evaluation run whose measured AUCs the caveats "
@@ -379,12 +389,20 @@ def main() -> int:
             print(f"note: {note} — showing evidence without synthesis\n",
                   file=sys.stderr)
 
+    context = None
+    if args.context:
+        try:
+            context = json.loads(args.context)
+        except ValueError as e:
+            print(f"--context is not JSON: {e}", file=sys.stderr)
+            return 2
+
     try:
-        out = orch.answer(question, model)
+        out = orch.answer(question, model, context=context)
     except ModelUnavailable as e:
         print(f"note: {e} — showing evidence without synthesis\n",
               file=sys.stderr)
-        out = orch.answer(question, None)
+        out = orch.answer(question, None, context=context)
 
     if args.show_prompt and out.get("prompt"):
         print("PROMPT\n" + RULE)

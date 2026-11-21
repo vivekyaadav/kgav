@@ -406,6 +406,9 @@ const SAMPLES = [
 const $ = (id) => document.getElementById(id);
 const thread = $("thread"), main = $("main"), qbox = $("q");
 let busy = false, meta = null;
+/* What the next question may inherit: the previous reply's `context`,
+   verbatim. Reset by the clear button, which reloads the page. */
+let lastContext = null;
 
 /* ----------------------------------------------------------- theme */
 (function theme() {
@@ -733,9 +736,18 @@ async function ask() {
     const r = await fetch("/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, use_model: useModel }),
+      body: JSON.stringify({ question, use_model: useModel,
+                             context: lastContext }),
     });
     payload = await r.json();
+    /* THE PREVIOUS TURN, KEPT HERE AND NOWHERE ELSE.
+       The server is one process on the loopback port and may be read by
+       more than one person, so "the last question" cannot live there:
+       one person's follow-up would resolve against another's topic.
+       This page keeps its own, sends it back, and the agent revalidates
+       every id in it before using any of them -- and uses them only
+       when the question explicitly refers back. */
+    if (payload && payload.context) lastContext = payload.context;
   } catch (e) {
     payload = { error: "could not reach the server: " + e.message };
   } finally {
