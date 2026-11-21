@@ -273,6 +273,74 @@ prints the full ladder, prospectively and on the plate cells, and labels
 itself post-hoc: precision@k was computed after the registered AUCs were
 read, so it qualifies a claim rather than being one.
 
+### A Tanimoto is not readable until you know what a failure scores
+
+Every row on a shortlist says "this resembles that, at this Tanimoto",
+and a Tanimoto has no absolute meaning. Measured on v0.1, the median
+resemblance that a virus's own SCREENED-AND-INACTIVE compounds reach
+against its known actives runs from **0.2115** on MERS-CoV to
+**0.7264** on HCoV-OC43. The same 0.52 is therefore near the top
+of one cell's failures and under the median of another's, and a flat
+display threshold — which is what a review of the 2026-11-19 shortlist
+asked for — is wrong in both directions at once.
+
+So `scripts/repurposing_candidates.py` measures that distribution per
+virus, scoring each known inactive exactly as it scores a candidate, and
+reads two things off it. Its median is a floor: a candidate below it
+resembles the known actives less than half the compounds that have
+already been screened against this virus and failed, and is not shown.
+And every row that IS shown carries its own position in the
+distribution — the `>fail` column — so "0.52" becomes "better than
+77% of this virus's failures".
+
+This is not a prediction, not a hit rate and not a second protocol: no
+score changes and the cell's registered verdict still decides whether
+any list is printed. It is the one yardstick on the page in the same
+units as the score.
+
+**The threshold was not bent until the disliked row fell out.** The
+review named TEMAZEPAM, at 0.5167 for Yellow fever, as tail noise. Yellow
+fever's failures have a median of 0.3008, so the cell's own
+standard keeps that row, and it is still on the list with
+77% beside it.
+
+### A similarity score does not know what a compound is for
+
+FLUORESCEIN — an ophthalmic dye — was printed under "APPROVED DRUGS,
+orderable now" for two flaviviruses at Tanimoto 0.5217, resembling the
+food colourant ERYTHROSINE. The ranking is max-Tanimoto and cannot tell
+a therapy from a contrast agent, so three things now travel with each
+row, and they are deliberately three different mechanisms:
+
+- **Dropped and named.** A compound every one of whose ATC classes is
+  diagnostic, contrast, radiotracer or other non-therapeutic
+  (V04/V07/V08/V09/S01J) is not a repurposing candidate in any sense.
+  42 compounds in the pool. It is *every* class and not *any*:
+  TOLBUTAMIDE is a provocation test (V04CA01) and a sulfonylurea
+  (A10BB03), as are FOLIC ACID, DEXTROSE, SORBITOL and GONADORELIN.
+- **Labelled and kept.** Antineoplastics (ATC L01) are a confound to
+  declare, not a reason to withhold a row: a cytotoxic nucleoside
+  resembles a nucleoside antiviral partly because it IS a nucleoside, and
+  in a cell-based assay it lowers the viral readout by killing the cell.
+  Withdrawal is labelled too and never filtered on — ChEMBL's
+  `withdrawn_flag` reads 1 for CODEINE and THALIDOMIDE. On an approved
+  compound, `therapeutic_flag = 0` is labelled as well, which is what
+  PHENOLPHTHALEIN and ERYTHROSINE have in common.
+- **Counted as unchecked.** 2,238 of the 25,243 molecules in
+  the release resolve to no ChEMBL record by id or by InChIKey, so their
+  role could not be checked at all. Unchecked is not clean. The InChIKey
+  route is not a nicety: 17 of the diagnostic agents carry
+  no chembl_id in the release — phenol red, indocyanine green,
+  sulfobromophthalein and most of the iodinated contrast series — so a
+  filter reading the chembl_id column alone would have missed exactly the
+  dyes it exists for.
+
+THE FIGURES ARE IN THE RUN, NOT ONLY HERE. `make repurposing-candidates`
+prints every floor with the count behind it, names every dropped compound
+and names the rows the floor displaced. The numbers above are re-derived
+from `data/results/repurposing_candidates.json` by
+`tests/test_chemistry_filter.py`.
+
 ## What the pathway null could have detected
 
 **A null result is only a finding if the reader knows what would have

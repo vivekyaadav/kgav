@@ -120,6 +120,18 @@ press Enter. Things worth knowing:
 - **Nobody else can open it.** It listens on this machine only. If you need to change
   that, somebody has to pass `BIND=0.0.0.0` on purpose, and then anyone on the network
   can read whatever you ask it.
+- **To use it from another machine, forward the port instead of binding wider.**
+  From the laptop, with the workstation reachable as `z8` in `~/.ssh/config`:
+
+  ```
+  ssh -N -L 8765:127.0.0.1:8765 z8
+  ```
+
+  Leave that running and open <http://localhost:8765> on the laptop. The server
+  still listens only on the workstation's loopback; the tunnel is what carries it,
+  so nothing is exposed to either network. `-N` means "no shell, just the
+  forward". Without an ssh-config entry the same thing spelled out is
+  `ssh -N -J <user>@<jump-host> -p <port> <user>@localhost -L 8765:127.0.0.1:8765`.
 - **The reply is in the same order as the terminal**: the facts first, then the
   caveats, then the written answer. That order is deliberate — a warning printed
   under a fluent paragraph is a warning nobody reads.

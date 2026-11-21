@@ -746,6 +746,17 @@ class Orchestrator:
     #: How many named candidates a prospective answer shows per tier.
     SHORTLIST_SHOW = 6
 
+    #: Which clinical tiers a conversational answer offers. Research
+    #: analogues are in the full list and not here: nobody can order one.
+    SHORTLIST_TIERS = ("approved", "clinical")
+
+    #: Which compound roles travel with a named suggestion. These are
+    #: `repurposing_candidates.ROLE_*` values, and the script is not
+    #: importable from src/ -- the whole reason _shortlist shells out --
+    #: so tests/test_chemistry_filter.py asserts these strings against
+    #: the script's own constants rather than leaving them to drift.
+    SHORTLIST_FLAGS = ("cytotoxic", "withdrawn")
+
     def _shortlist(self, virus_name: str) -> list[str] | None:
         """Named candidates for a LICENSED virus, from the one scorer.
 
@@ -789,26 +800,52 @@ class Orchestrator:
             return None
         if r.returncode != 0:
             return None
-        out, block = [], None
-        for line in r.stdout.splitlines():
-            if "-- APPROVED DRUGS" in line:
-                block = "approved"
+        # READ THE FILE IT WROTE, NOT THE TABLE IT PRINTED.
+        #
+        # This parsed stdout with a regex over the printed columns, which
+        # tied the agent's list to the shortlist's LAYOUT rather than to
+        # its content. Two ways that bites: the degree column prints with
+        # thousands separators, so `\d+` silently dropped every row for a
+        # compound with a thousand edges, and the chemistry markers added
+        # on 2026-11-21 landed INSIDE the captured "resembles" field, so
+        # the agent read "resembles N-HYDROXYCYTIDINE <- cytotoxic (ATC
+        # L01 antineoplastic)" as the name of a compound. The script
+        # already writes the same rows, with the roles beside them, to
+        # the throwaway path above.
+        import json
+        try:
+            cell = next(iter(
+                (json.loads(tmp.read_text()).get("viruses") or {}).values()))
+        except Exception:
+            return None
+        out: list[str] = []
+        shown = {t: 0 for t in self.SHORTLIST_TIERS}
+        for row in cell.get("suggestions") or []:
+            t_ = row.get("phase_tier")
+            if t_ not in shown or shown[t_] >= self.SHORTLIST_SHOW:
                 continue
-            if "-- IN CLINICAL" in line:
-                block = "clinical"
-                continue
-            if "-- RESEARCH" in line:
-                block = "research"
-                continue
-            m = re.match(r"\s*\d+\s+(\S+)\s+(approved|clinical|research)"
-                         r"\s+([\d.]+)\s+\d+\s+(\S.*?)\s*$", line)
-            if m and block in ("approved", "clinical"):
-                name, tier_, tc, like = m.groups()
-                if sum(1 for o in out if o.startswith(f"  {tier_}")) \
-                        >= self.SHORTLIST_SHOW:
-                    continue
-                out.append(f"  {tier_:<9} {name:<22} Tc {tc}  "
-                           f"resembles {like}")
+            shown[t_] += 1
+            name = (row.get("name") or row.get("chembl_id")
+                    or row.get("candidate", "").split(":", 1)[-1][:14])
+            like = (row.get("nearest_active_name")
+                    or row.get("nearest_active_chembl")
+                    or row.get("nearest_active", "").split(":", 1)[-1][:14])
+            # THE CONFOUND TRAVELS WITH THE NAME. A cytotoxic
+            # antimetabolite resembles a nucleoside antiviral because it
+            # IS a nucleoside, and in a cell-based assay it lowers the
+            # viral readout by killing the cell. An agent that hands over
+            # GEMCITABINE without that word has answered badly.
+            marks = "".join(f"  [{m}]" for m in (row.get("flags") or [])
+                            if m in self.SHORTLIST_FLAGS)
+            # THE TANIMOTO WITH SOMETHING TO READ IT AGAINST. 0.52 is
+            # near the top of what MERS-CoV's screened-and-failed
+            # compounds reach and under the median of HCoV-OC43's, so
+            # the bare number cannot be compared across viruses and
+            # should not be handed over alone.
+            bf = row.get("beats_failures")
+            vs = "" if bf is None else f" (>{bf:.0%} of failures)"
+            out.append(f"  {t_:<9} {name:<22} Tc {row['tanimoto']:.3f}"
+                       f"{vs}  resembles {like}{marks}")
         return out or None
 
     def build_brief(self, question: str) -> Brief:
@@ -1090,9 +1127,29 @@ class Orchestrator:
                               "evidence is that it resembles the named "
                               "known active, at that Tanimoto. It is not "
                               "a prediction of activity, not a mechanism "
-                              "and not a hit rate. The full list, with "
-                              "research compounds and the controls, is "
-                              f"`python scripts/repurposing_candidates.py "
+                              "and not a hit rate.\n\n'>n% of failures' "
+                              "is how that Tanimoto reads against this "
+                              "virus's own screened-and-INACTIVE "
+                              "compounds, which is the only yardstick in "
+                              "the same units: a bare Tanimoto cannot be "
+                              "compared across viruses. "
+                            # ONLY EXPLAIN A MARKER THE READER CAN SEE.
+                            # A paragraph about [cytotoxic] under a list
+                            # with no cytotoxic row is one more thing to
+                            # read and nothing to apply it to.
+                            + ("'[cytotoxic]' means ChEMBL classes the "
+                               "compound an antineoplastic -- it "
+                               "resembles a nucleoside antiviral partly "
+                               "because it IS a nucleoside, and in a "
+                               "cell-based assay it lowers the viral "
+                               "readout by killing the cell. "
+                               if any("[cytotoxic]" in r for r in rows)
+                               else "")
+                            + "Diagnostic agents, contrast media and "
+                              "radiotracers are excluded entirely."
+                            + "\n\nThe full list, with research "
+                              "compounds and the controls, is "
+                            + f"`python scripts/repurposing_candidates.py "
                               f"--virus {cap.name} --exclude-labelled`."),
                         trace=trace + ["prospect_licensed"])
 

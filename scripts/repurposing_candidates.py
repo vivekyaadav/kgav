@@ -30,11 +30,25 @@ MEASURED ACTIVES AND INACTIVES ARE BOTH EXCLUDED FROM THE SUGGESTIONS. An
 active is not a repurposing candidate, it is a known answer; an inactive was
 tested and failed, so suggesting it would be proposing an experiment that
 has already been done. Both counts are printed.
+
+AND SO ARE DIAGNOSTIC AGENTS, AND SO IS RESEMBLANCE WEAKER THAN RESEMBLANCE
+THAT ALREADY FAILED. A similarity score knows what a compound LOOKS like and
+nothing about what it is for, so without the two filters in the "chemistry"
+section below this list offers an ophthalmic dye as an antiviral, and offers
+compounds less like the known actives than the median compound that was
+screened against this very virus and came back negative. Both filters name
+and count what they removed, and the floor is derived per cell rather than
+set by a constant: the resemblance a failure achieves runs from 0.21 to 0.73
+across these fourteen viruses, so one typed threshold is wrong in both
+directions at once. Every row that survives carries its own position in
+that distribution, because a bare Tanimoto cannot be read across cells.
 """
 from __future__ import annotations
 
 import argparse
+import bisect
 import json
+import statistics
 import sys
 from pathlib import Path
 
@@ -219,6 +233,31 @@ def headline(vs: dict[str, dict], root: Path = ROOT) -> list[str]:
     return lines
 
 
+def _is(n: int) -> str:
+    """"1 are antineoplastics" announces that a template wrote the line,
+    and this project fixed the same defect in the agent's node summaries
+    two days ago. Verb agreement is cheap."""
+    return "is" if n == 1 else "are"
+
+
+def _does(n: int) -> str:
+    return "does" if n == 1 else "do"
+
+
+def _displaced_names(rows: list[dict], ann: dict, limit: int = 6) -> str:
+    """The rows the floor removed, by name where ChEMBL has one.
+
+    NAMED, NOT COUNTED. "the floor removed 7 rows" cannot be checked
+    against the previous list; "TEMAZEPAM 0.517, FLUORESCEIN 0.522" can.
+    """
+    shown = [
+        ((ann.get(r["candidate"]) or {}).get("name")
+         or r["chembl_id"] or r["candidate"].split(":", 1)[-1][:14])
+        + f" {r['tanimoto']:.3f}" for r in rows[:limit]]
+    more = f", and {len(rows) - limit} more" if len(rows) > limit else ""
+    return ", ".join(shown) + more
+
+
 def virus_names() -> dict[str, str]:
     doc = load_register()
     return {f"NCBITaxon:{e['taxon']}": e["name"]
@@ -226,33 +265,364 @@ def virus_names() -> dict[str, str]:
             if e.get("taxon") and e.get("name")}
 
 
-def preferred_names(chembl_ids: set[str]) -> dict[str, str]:
-    """ChEMBL id -> pref_name, for the compounds being suggested.
+# --------------------------------------------------------------- chemistry
+#
+# WHAT A MAX-TANIMOTO RANKING CANNOT KNOW. The score says "this looks like
+# that" and nothing else, so the list it produces contains, by construction,
+# every compound that looks like a known active for ANY reason. Reading the
+# committed artifact on 2026-11-21 found three kinds of row a referee
+# reaches for first:
+#
+#   A DYE MATCHED TO A DYE. FLUORESCEIN, Tanimoto 0.5217, printed under
+#   "APPROVED DRUGS -- orderable now" for West Nile and Yellow fever,
+#   resembling ERYTHROSINE. Fluorescein is an ophthalmic dye; erythrosine
+#   is a food colourant. Nobody doses either for a flavivirus, and the row
+#   says more about ECFP4 and xanthene rings than about either virus.
+#
+#   CYTOTOXIC ANTIMETABOLITES, UNMARKED. GEMCITABINE, CYTARABINE,
+#   CLOFARABINE, NELARABINE, AZACITIDINE, FLOXURIDINE, CLADRIBINE. They are
+#   nucleoside analogues, so they resemble nucleoside antivirals by
+#   construction, and in a cell-based antiviral assay a compound that kills
+#   the host cell lowers the viral readout without touching the virus. That
+#   is a confound to declare, NOT a reason to drop the row: nucleoside
+#   analogues are an antiviral family, and oncology-to-antiviral is a real
+#   repurposing direction.
+#
+#   A TANIMOTO NOBODY CAN READ. TEMAZEPAM, a benzodiazepine hypnotic, at
+#   0.5167 for Yellow fever, called tail noise on the strength of the
+#   number alone -- and a Tanimoto has no absolute meaning. 0.52 sits near
+#   the top of what MERS-CoV's screened-and-failed compounds reach and
+#   under the median of HCoV-OC43's. Measured, Yellow fever's own failures
+#   have a median of 0.3008, so its own standard KEEPS that row: it
+#   resembles the actives better than 77% of the compounds screened
+#   against Yellow fever that came back negative. The fix is therefore not
+#   a threshold that removes it but a column that reads it -- see
+#   `failed_resemblance` and `>fail`.
+#
+# THREE MECHANISMS, DELIBERATELY DIFFERENT: one drops the row and names
+# it, one labels it, one puts a number in units a reader can use. Which
+# rule got which was decided by measuring whether the field it rests on
+# means what its name says -- see NON_THERAPEUTIC_ATC and the note on
+# `withdrawn_flag` below.
 
-    THE GRAPH HOLDS NO NAME AND THAT IS WHY THIS IS HERE. A SmallMolecule
-    node carries `chembl_id`, `smiles`, `inchikey_skel` and the identity
-    flags -- nothing a person can read. A candidate list of accession
+#: ATC classes whose compounds exist to be MEASURED rather than to act:
+#: contrast media, radiotracers, provocation agents, ophthalmic dyes. A
+#: compound all of whose ATC classes fall in here is not a repurposing
+#: candidate in any sense, because it is not a therapy at all. Those are
+#: dropped from the pool and named in the output.
+#:
+#: EVERY CLASS, NOT ANY, and that is the whole rule. TOLBUTAMIDE is V04CA01,
+#: a provocation test for insulin secretion, AND A10BB03, a sulfonylurea
+#: people take daily. So are FOLIC ACID (V04CX02 + B03BB01), DEXTROSE,
+#: SORBITOL and GONADORELIN. "Any class is diagnostic" dropped all five;
+#: "every class is diagnostic" drops 25 compounds of the 19,884 annotated,
+#: and they are contrast media, F-18 tracers and fluorescein.
+NON_THERAPEUTIC_ATC = {
+    "V04": "diagnostic agents",
+    "V07": "all other non-therapeutic products",
+    "V08": "contrast media",
+    "V09": "diagnostic radiopharmaceuticals",
+    "S01J": "ophthalmological diagnostic agents",
+}
+
+#: ATC L01, antineoplastic agents. FLAGGED AND KEPT. The confound is real
+#: -- a cytotoxic nucleoside lowers a cell-based viral readout by killing
+#: the cell -- and so is the class, so the row carries the label and the
+#: reader decides.
+CYTOTOXIC_ATC = "L01"
+
+ROLE_DIAGNOSTIC = "diagnostic_agent"
+ROLE_CYTOTOXIC = "cytotoxic"
+ROLE_WITHDRAWN = "withdrawn"
+ROLE_BLACK_BOX = "black_box_warning"
+ROLE_NO_THERAPEUTIC_USE = "no_therapeutic_use"
+
+#: How a role prints beside a row. ROLE_DIAGNOSTIC has no entry because a
+#: diagnostic agent never reaches a row: it leaves the pool before anything
+#: is scored, and is named where it would have appeared.
+_MARK = {
+    ROLE_CYTOTOXIC: f"cytotoxic (ATC {CYTOTOXIC_ATC} antineoplastic)",
+    ROLE_WITHDRAWN: "withdrawn somewhere",
+    ROLE_BLACK_BOX: "black-box warning",
+    ROLE_NO_THERAPEUTIC_USE: "ChEMBL records no therapeutic use",
+}
+
+#: Fewer failures than this is not a distribution, so the cell gets no
+#: resemblance floor and the output says so rather than quietly applying
+#: a median of three numbers. Every cell in v0.1 has at least 27.
+MIN_FLOOR_INACTIVES = 10
+
+
+def annotations(chembl_ids: set[str]) -> dict[str, dict]:
+    """ChEMBL id -> name, ATC classes, withdrawal and black-box status.
+
+    THE GRAPH HOLDS NEITHER A NAME NOR A ROLE, AND THAT IS WHY THIS IS
+    HERE. A SmallMolecule node carries `chembl_id`, `smiles`,
+    `inchikey_skel` and the identity flags -- nothing a person can read,
+    and nothing about what the compound is for. A list of accession
     numbers cannot be judged by anyone, which is the difference between a
-    result and a read-out. The names are looked up from the raw ChEMBL
-    database rather than added to the release, because a display label is
-    not a fact the graph asserts.
+    result and a read-out; and a list of NAMES with no roles is judged
+    WRONGLY, because FLUORESCEIN reads like a drug. Both are looked up
+    from the raw ChEMBL database rather than added to the release,
+    because a display label and a clinical class are not facts this graph
+    asserts.
 
-    Absent database is not fatal: the rows print their ChEMBL ids.
+    ABSENT DATABASE IS NOT FATAL AND MUST NOT BE SILENT: the rows print
+    their ChEMBL ids and `main` states that no compound's role could be
+    checked. A filter that passes everything when its input is missing,
+    without saying so, is the shape of defect this project keeps finding.
     """
     if not CHEMBL_DB.exists() or not chembl_ids:
         return {}
     import sqlite3
     con = sqlite3.connect(f"file:{CHEMBL_DB}?mode=ro", uri=True)
-    out = {}
+    out: dict[str, dict] = {}
     ids = sorted(chembl_ids)
     for i in range(0, len(ids), 500):
         chunk = ids[i:i + 500]
-        q = ("SELECT chembl_id, pref_name FROM molecule_dictionary "
-             f"WHERE chembl_id IN ({','.join('?' * len(chunk))})")
-        for cid, name in con.execute(q, chunk):
-            if name:
-                out[cid] = name
+        q = ("SELECT md.chembl_id, md.pref_name, md.withdrawn_flag, "
+             "md.black_box_warning, md.therapeutic_flag, "
+             "group_concat(mac.level5) "
+             "FROM molecule_dictionary md "
+             "LEFT JOIN molecule_atc_classification mac "
+             "  ON mac.molregno = md.molregno "
+             f"WHERE md.chembl_id IN ({','.join('?' * len(chunk))}) "
+             "GROUP BY md.molregno")
+        for cid, name, withdrawn, bbw, thera, atc in con.execute(q, chunk):
+            out[cid] = {"name": name or None,
+                        "atc": sorted((atc or "").split(",")) if atc else [],
+                        "withdrawn": bool(withdrawn),
+                        "black_box": bool(bbw),
+                        "therapeutic": bool(thera)}
     con.close()
+    return out
+
+
+def preferred_names(chembl_ids: set[str]) -> dict[str, str]:
+    """Just the names, for callers that want nothing else."""
+    return {c: a["name"] for c, a in annotations(chembl_ids).items()
+            if a["name"]}
+
+
+def annotations_by_inchikey(keys: set[str]) -> dict[str, dict]:
+    """The same annotation, for compounds ChEMBL knows only by structure.
+
+    ChEMBL is keyed on the standard InChIKey, so where the release's
+    normalisation left the key intact the record comes back; where it did
+    not, the compound stays unannotated and is counted as such.
+    """
+    if not CHEMBL_DB.exists() or not keys:
+        return {}
+    import sqlite3
+    con = sqlite3.connect(f"file:{CHEMBL_DB}?mode=ro", uri=True)
+    out: dict[str, dict] = {}
+    ks = sorted(keys)
+    for i in range(0, len(ks), 500):
+        chunk = ks[i:i + 500]
+        q = ("SELECT cs.standard_inchi_key, md.chembl_id, md.pref_name, "
+             "md.withdrawn_flag, md.black_box_warning, md.therapeutic_flag, "
+             "group_concat(mac.level5) "
+             "FROM compound_structures cs "
+             "JOIN molecule_dictionary md ON md.molregno = cs.molregno "
+             "LEFT JOIN molecule_atc_classification mac "
+             "  ON mac.molregno = md.molregno "
+             f"WHERE cs.standard_inchi_key IN ({','.join('?' * len(chunk))}) "
+             "GROUP BY md.molregno")
+        for key, cid, name, withdrawn, bbw, thera, atc in con.execute(
+                q, chunk):
+            out[key] = {"name": name or None, "chembl_id": cid,
+                        "atc": sorted((atc or "").split(",")) if atc else [],
+                        "withdrawn": bool(withdrawn),
+                        "black_box": bool(bbw),
+                        "therapeutic": bool(thera)}
+    con.close()
+    return out
+
+
+def pool_annotations(props: dict) -> dict[str, dict]:
+    """node id -> what ChEMBL knows about that compound.
+
+    KEYED ON THE NODE AND NOT ON THE CHEMBL ID, and that is the whole
+    reason this function exists rather than a call to `annotations`.
+    5,359 of the 25,243 small molecules in v0.1 carry NO chembl_id --
+    they came from sources that identify a compound by structure -- so a
+    role filter reading the chembl_id column alone would have inspected
+    79% of the pool and reported itself as applied.
+
+    MEASURED, BECAUSE THE GAP IS NOT UNIFORM. Of those 5,359, ChEMBL
+    recognises 3,121 by standard InChIKey, and among THEM are 17 further
+    diagnostic agents -- PHENOLSULFONPHTHALEIN (phenol red), INDOCYANINE
+    GREEN, SULFOBROMOPHTHALEIN and most of the iodinated contrast series
+    -- and 20 further antineoplastics, including MECHLORETHAMINE and
+    THIOTEPA. The dyes this filter exists to remove were concentrated in
+    the part of the pool it could not see, which is what a filter keyed
+    on the convenient column usually looks like.
+
+    Compounds neither route resolves stay unannotated, and `main` prints
+    how many those are: unchecked is not the same as clean.
+    """
+    by_id = annotations({p.get("chembl_id") for p in props.values()
+                         if p.get("chembl_id")})
+    out: dict[str, dict] = {}
+    unresolved = []
+    for node, prop in props.items():
+        hit = by_id.get(prop.get("chembl_id") or "")
+        if hit:
+            out[node] = dict(hit, chembl_id=prop.get("chembl_id"),
+                             resolved_by="chembl_id")
+        elif node.startswith("INCHIKEY:"):
+            unresolved.append(node)
+    by_key = annotations_by_inchikey(
+        {n.split(":", 1)[1] for n in unresolved})
+    for node in unresolved:
+        hit = by_key.get(node.split(":", 1)[1])
+        if hit:
+            out[node] = dict(hit, resolved_by="inchikey")
+    return out
+
+
+def compound_flags(ann: dict | None,
+                   approved: bool = False) -> tuple[str, ...]:
+    """What ChEMBL says about this compound that changes how a row reads.
+
+    ROLE_DIAGNOSTIC is the only one this script filters on, because it is
+    the only one whose field means what its name says.
+
+    `withdrawn_flag` DOES NOT, and the check is cheap enough that it was
+    worth running before writing a filter on it: 195 of the 1,676 approved
+    compounds in this pool carry it, and the set contains CODEINE and
+    THALIDOMIDE -- withdrawn somewhere, some time, for some formulation,
+    both still prescribed today. So withdrawal is REPORTED and never
+    filtered on. "A text marker is not an enforcement mechanism" is a
+    defect this project has already named twice; a filter resting on a
+    field that does not mean what its name says is the same defect wearing
+    the other hat.
+    """
+    if not ann:
+        return ()
+    atc = ann.get("atc") or []
+    out = []
+    if atc and all(any(c.startswith(p) for p in NON_THERAPEUTIC_ATC)
+                   for c in atc):
+        out.append(ROLE_DIAGNOSTIC)
+    if any(c.startswith(CYTOTOXIC_ATC) for c in atc):
+        out.append(ROLE_CYTOTOXIC)
+    if ann.get("withdrawn"):
+        out.append(ROLE_WITHDRAWN)
+    if ann.get("black_box"):
+        out.append(ROLE_BLACK_BOX)
+    # ONLY ON AN APPROVED COMPOUND, AND THAT RESTRICTION IS THE WHOLE
+    # VALUE OF THE FIELD. `therapeutic_flag` is 0 for 18,251 of the
+    # 19,884 annotated compounds, including BALAPIRAVIR and OBELDESIVIR
+    # -- antivirals in development -- so as a general rule it means
+    # little more than "not a marketed dosed product". On a compound the
+    # release flags APPROVED it says something precise and worth saying:
+    # the product is approved and ChEMBL records no therapeutic use for
+    # it, which is what PHENOLPHTHALEIN, ERYTHROSINE and BETA CAROTENE
+    # have in common and what makes "APPROVED DRUGS -- orderable now" the
+    # wrong banner to meet them under.
+    if approved and ann.get("therapeutic") is False:
+        out.append(ROLE_NO_THERAPEUTIC_USE)
+    return tuple(out)
+
+
+def _max_tc(fp, ref_fps: list, ref_skel: list[str],
+            skel: str) -> tuple[float, int] | None:
+    """Best Tanimoto from one fingerprint to the references, and which one.
+
+    SHARED BY THE SUGGESTIONS AND BY THE FLOOR ON PURPOSE. The floor is
+    the resemblance a known INACTIVE achieves, and it is only comparable
+    to a candidate's resemblance if both are computed the same way --
+    same fingerprint, same skeleton exclusion. Two implementations of
+    "max Tanimoto to the actives" would drift, and the drift would move
+    the threshold rather than announce itself.
+    """
+    from rdkit import DataStructs
+
+    if not ref_fps:
+        return None
+    sims = DataStructs.BulkTanimotoSimilarity(fp, ref_fps)
+    best, best_i = -1.0, None
+    for i, s in enumerate(sims):
+        if skel and ref_skel[i] == skel:
+            continue
+        if s > best:
+            best, best_i = s, i
+    return None if best_i is None else (best, best_i)
+
+
+def failed_resemblance(actives: list[str], inactives: list[str], fps: dict,
+                       props: dict) -> list[float]:
+    """Sorted max-Tanimoto from each known INACTIVE to the known actives.
+
+    THE REFERENCE DISTRIBUTION THIS READ-OUT HAS AND NEVER USED. Every
+    compound in it was screened against this virus and came back
+    negative, so it is the resemblance that has already been tried and
+    failed -- the only yardstick on the page that is in the same units as
+    a candidate's score. `resemblance_floor` reads a threshold off it and
+    `suggest` reads each row's position in it; both have to be the same
+    distribution, computed with the same skeleton exclusion, or the
+    threshold and the percentile would describe different things.
+    """
+    ref_ids = [a for a in actives if a in fps]
+    ref_fps = [fps[a] for a in ref_ids]
+    ref_skel = [props.get(a, {}).get("inchikey_skel", "") for a in ref_ids]
+    vals = []
+    for c in inactives:
+        if c not in fps:
+            continue
+        hit = _max_tc(fps[c], ref_fps, ref_skel,
+                      props.get(c, {}).get("inchikey_skel", ""))
+        if hit:
+            vals.append(hit[0])
+    vals.sort()
+    return vals
+
+
+def resemblance_floor(values: list[float], n_inactives: int) -> dict:
+    """How much this virus's actives are resembled BY COMPOUNDS THAT FAILED.
+
+    A FLAT 0.55 WAS ASKED FOR AND THE DATA REFUSES A CONSTANT. Measured on
+    v0.1: the median max-Tanimoto from a screened-and-inactive compound to
+    the same virus's known actives runs from 0.212 on MERS-CoV to 0.726 on
+    HCoV-OC43, a factor of three. One typed threshold is therefore wrong
+    in both directions at once -- far above MERS-CoV's entire inactive
+    distribution, where it discards rows that do carry information, and
+    far below HCoV-OC43's median, where it keeps rows that carry none.
+
+    So the floor is the cell's own: the MEDIAN max-Tanimoto its known
+    INACTIVES reach against its known actives, under the same skeleton
+    exclusion the suggestions use. A candidate below it resembles the
+    actives less than half the compounds that were actually screened
+    against this virus and came back negative.
+
+    WHAT THAT IS AND IS NOT. It is not a prediction that the compound is
+    inactive, and it is not a second protocol -- no score changes and the
+    cell's registered verdict still decides whether any list is printed.
+    It is the statement that the row's only evidence, resemblance, is
+    weaker here than resemblance that has already been tried and failed.
+
+    The quartile and decile above the median ride along so the choice of
+    statistic is visible rather than buried: a reader who wants a sterner
+    floor can see where it would sit and how many rows it would cost.
+
+    AND THE FLOOR IS NOT THE WHOLE ANSWER, which the measurement showed
+    the moment it ran. TEMAZEPAM -- the row the review called tail noise
+    -- sits at 0.5167 for Yellow fever, whose failures have a median of
+    0.3008, so the cell's own standard KEEPS it. Rather than bend the
+    threshold until the disliked row falls out, every row now carries
+    where it sits in this distribution: `beats_failures`, printed as the
+    `>fail` column. The floor is simply the 50% line on that column.
+    """
+    out = {"n_inactives_scored": len(values),
+           "n_inactives": n_inactives,
+           "floor": None, "statistic": "median", "p75": None, "p90": None,
+           "min_inactives_required": MIN_FLOOR_INACTIVES}
+    if len(values) < MIN_FLOOR_INACTIVES:
+        return out
+    out["floor"] = round(statistics.median(values), 4)
+    out["p75"] = round(statistics.quantiles(values, n=4)[2], 4)
+    out["p90"] = round(statistics.quantiles(values, n=10)[8], 4)
     return out
 
 
@@ -338,8 +708,12 @@ def _heavy_delta(a: str | None, b: str | None) -> int | None:
 
 def suggest(candidates: list[str], actives: list[str], fps: dict,
             props: dict, top: int, degree: dict | None = None,
-            flat: bool = False) -> list[dict]:
-    """Top `top` candidates by nearest known active.
+            flat: bool = False, floor: float | None = None,
+            flags: dict[str, tuple[str, ...]] | None = None,
+            failures: list[float] | None = None,
+            ) -> tuple[list[dict], dict]:
+    """Top `top` candidates by nearest known active, and what the
+    resemblance floor cost.
 
     The two exclusions that survive from the registered protocol and mean
     something here: a candidate is never scored against itself (it is not in
@@ -373,27 +747,31 @@ def suggest(candidates: list[str], actives: list[str], fps: dict,
     under either, against 0.0033 of AUC under the publication control, by
     `scripts/diagnose_fingerprint_blindspots.py`. This read-out applies no
     k-nearest exclusion, which is why it is the thing that shows the defect.
-    """
-    from rdkit import DataStructs
 
+    `floor` drops candidates whose best resemblance is under the value
+    `resemblance_floor` measured for this cell. The second return value
+    says what that cost: the rows the floor DISPLACED -- the ones the same
+    selection would have printed without it -- plus how much of the pool
+    sits below the floor. Returned rather than printed from inside, so the
+    printout and the written file cannot disagree about it.
+
+    `flags` is the compound-role map from `compound_flags`: it labels rows
+    and never filters them, because the one role worth filtering on is
+    removed from the pool before anything is scored.
+    """
     ref_ids = [a for a in actives if a in fps]
     ref_fps = [fps[a] for a in ref_ids]
     ref_skel = [props.get(a, {}).get("inchikey_skel", "") for a in ref_ids]
-    rows = []
+    rows: list[dict] = []
     for c in candidates:
         fp = fps.get(c)
         if fp is None:
             continue
-        sims = DataStructs.BulkTanimotoSimilarity(fp, ref_fps)
-        c_skel = props.get(c, {}).get("inchikey_skel", "")
-        best, best_i = -1.0, None
-        for i, s in enumerate(sims):
-            if c_skel and ref_skel[i] == c_skel:
-                continue
-            if s > best:
-                best, best_i = s, i
-        if best_i is None:
+        hit = _max_tc(fp, ref_fps, ref_skel,
+                      props.get(c, {}).get("inchikey_skel", ""))
+        if hit is None:
             continue
+        best, best_i = hit
         rows.append({"candidate": c,
                      "chembl_id": props.get(c, {}).get("chembl_id"),
                      "is_approved": bool(props.get(c, {}).get("is_approved")),
@@ -421,6 +799,24 @@ def suggest(candidates: list[str], actives: list[str], fps: dict,
                          props.get(ref_ids[best_i], {}).get("chembl_id")})
         rows[-1]["max_phase"] = props.get(c, {}).get("max_phase")
         rows[-1]["phase_tier"] = _phase_tier(props.get(c, {}))
+        # WHAT THE COMPOUND IS FOR, beside what it looks like. A
+        # cytotoxic antimetabolite and an antiviral nucleoside are the
+        # same row to a fingerprint; this is the column that separates
+        # them, and the reference's flags are carried too because a
+        # suggestion is only as readable as the thing it resembles.
+        rows[-1]["flags"] = list((flags or {}).get(c, ()))
+        rows[-1]["nearest_active_flags"] = list(
+            (flags or {}).get(ref_ids[best_i], ()))
+        rows[-1]["below_resemblance_floor"] = bool(
+            floor is not None and best < floor)
+        # WHERE THIS ROW SITS AMONG THE COMPOUNDS THAT FAILED. A bare
+        # Tanimoto is not readable across cells -- 0.52 is near the top
+        # of MERS-CoV's failure distribution and under the median of
+        # HCoV-OC43's -- and this is the same number in units a reader
+        # can use. The floor is the 50% line on it.
+        rows[-1]["beats_failures"] = (
+            None if not failures else
+            round(bisect.bisect_left(failures, best) / len(failures), 4))
     rows.sort(key=lambda r: -r["tanimoto"])
 
     # TOP `top` WITHIN EACH TIER, NOT top overall. THE POOL IS NOT
@@ -445,13 +841,31 @@ def suggest(candidates: list[str], actives: list[str], fps: dict,
     # registration records, `--top 20`, returns SIXTY under tiering,
     # twenty from each of three tiers. Measured on DENV-2 before this
     # flag existed.
-    if flat:
-        out = sorted(rows, key=lambda r: -r["tanimoto"])[:top]
-        return out
-    for tier in TIERS:
-        out.extend([r for r in rows if r["phase_tier"] == tier][:top])
-    out.sort(key=lambda r: (TIERS.index(r["phase_tier"]), -r["tanimoto"]))
-    return out
+    def pick(rs: list[dict]) -> list[dict]:
+        if flat:
+            return sorted(rs, key=lambda r: -r["tanimoto"])[:top]
+        picked: list[dict] = []
+        for tier in TIERS:
+            picked.extend([r for r in rs if r["phase_tier"] == tier][:top])
+        picked.sort(key=lambda r: (TIERS.index(r["phase_tier"]),
+                                   -r["tanimoto"]))
+        return picked
+
+    # THE FLOOR IS APPLIED BEFORE EACH TIER'S CAP, and that ordering is
+    # the point: filtering after the cap would let a row with no evidence
+    # behind it eat one of the fifteen slots a reader actually sees, and
+    # the list would come back short with nothing to say why. Filtering
+    # first refills the slot from the next candidate that clears.
+    out = pick([r for r in rows if not r["below_resemblance_floor"]])
+    # AND WHAT IT COST, NAMED. The number of candidates under the floor is
+    # most of the pool and says little; the rows that WOULD have been
+    # printed and are not is the figure a reader of the old list wants,
+    # and it is the one that can be checked against the old list.
+    displaced = [r for r in pick(rows) if r["below_resemblance_floor"]]
+    return out, {"displaced": displaced,
+                 "n_candidates_below_floor": sum(
+                     1 for r in rows if r["below_resemblance_floor"]),
+                 "n_candidates_scored": len(rows)}
 
 
 #: Predicates that mean somebody has screened this compound against this
@@ -516,6 +930,20 @@ def main(argv=None) -> int:
                     help="the seed for --random-arm, recorded in the "
                          "artifact. Required with --random-arm so the draw "
                          "is reproducible and cannot be re-rolled.")
+    # THE OFF-SWITCHES EXIST SO THE FILTERS CAN BE MEASURED. A filter
+    # whose effect cannot be computed is a claim, and both of these change
+    # which compounds a reader is asked to order. The tests run the script
+    # both ways and assert on the difference.
+    ap.add_argument("--keep-diagnostic-agents", action="store_true",
+                    help="do NOT drop compounds all of whose ATC classes "
+                         "are diagnostic, contrast or radiotracer classes. "
+                         "Only useful for measuring what that filter "
+                         "removes.")
+    ap.add_argument("--no-resemblance-floor", action="store_true",
+                    help="do NOT drop candidates whose best Tanimoto is "
+                         "below the median a known INACTIVE of the same "
+                         "virus reaches. Only useful for measuring what "
+                         "that floor removes.")
     ap.add_argument("--out", type=Path,
                     default=ROOT / "data/results/repurposing_candidates.json")
     args = ap.parse_args(argv)
@@ -575,12 +1003,80 @@ def main(argv=None) -> int:
         print(f"restricted to {len(pool):,} approved compounds")
     print(f"candidate pool: {len(pool):,}\n")
 
+    # WHAT EACH COMPOUND IS FOR, ONCE, FOR THE WHOLE POOL. One ChEMBL
+    # pass over the 19,884 annotated ids; the roles are needed BEFORE
+    # scoring because the diagnostic filter has to remove a compound from
+    # the pool rather than from the printed window -- see `suggest`.
+    ann = pool_annotations(props)
+    flags = {i: compound_flags(ann.get(i),
+                               approved=bool(props[i].get("is_approved")))
+             for i in props}
+    # IDENTIFIED AND APPLIED ARE TWO DIFFERENT SETS. --keep-diagnostic-agents
+    # must change what is DROPPED without changing what was FOUND, or the
+    # census would report the filter's effect as the filter's input and the
+    # off switch could not be used to measure anything.
+    identified = {i for i, f in flags.items() if ROLE_DIAGNOSTIC in f}
+    diagnostic = set() if args.keep_diagnostic_agents else identified
+    if not ann:
+        # NOT SILENT. A filter that passes everything because its input is
+        # missing, and says nothing, is worse than no filter: the reader
+        # believes the list was checked.
+        print("NO CHEMISTRY ANNOTATION: the raw ChEMBL database is not on "
+              "this checkout, so\n  NO compound's clinical role could be "
+              "checked. Every row below is unfiltered\n  for role, and "
+              f"may be a dye, a contrast agent or a radiotracer.\n"
+              f"  Expected at {CHEMBL_DB}.\n")
+    else:
+        n_cyt = sum(1 for f in flags.values() if ROLE_CYTOTOXIC in f)
+        n_wdn = sum(1 for f in flags.values() if ROLE_WITHDRAWN in f)
+        n_key = sum(1 for a in ann.values()
+                    if a.get("resolved_by") == "inchikey")
+        print(f"clinical roles from ChEMBL: {len(ann):,} of "
+              f"{len(props):,} molecules annotated "
+              f"({n_key:,} of them by InChIKey, carrying no chembl_id in "
+              f"the release),\n  so {len(props) - len(ann):,} could NOT "
+              f"be role-checked at all -- unchecked, not clean.")
+        print(f"  {len(identified):,} are diagnostic, contrast or "
+              f"radiotracer agents (every ATC class in "
+              f"{'/'.join(sorted(NON_THERAPEUTIC_ATC))})")
+        print("  -- not therapies, so DROPPED from every list below and "
+              "named where they would have appeared."
+              if not args.keep_diagnostic_agents else
+              "  -- KEPT: --keep-diagnostic-agents was passed.")
+        print(f"  {n_cyt:,} are antineoplastics (ATC {CYTOTOXIC_ATC}) and "
+              f"{n_wdn:,} are withdrawn somewhere: both are LABELLED, "
+              f"never dropped.\n")
     payload = {"measured_by": "scripts/repurposing_candidates.py",
                "scorer": "max Tanimoto to known actives (ECFP4 2048/r2)",
                "registered_by":
                    "docs/prereg_structure_scorer_strength_matched.md",
                "approved_only": bool(args.approved_only),
                "top": args.top, "viruses": {}}
+    # THE CENSUS IN THE FILE, so a document quoting these numbers can be
+    # re-derived from the artifact instead of from a terminal somebody
+    # scrolled past. docs/scope_and_limits.md quotes five of them and
+    # tests/test_chemistry_filter.py checks each against this block.
+    payload["chemistry_filter"] = {
+        "atc_non_therapeutic": dict(NON_THERAPEUTIC_ATC),
+        "atc_cytotoxic": CYTOTOXIC_ATC,
+        "n_molecules": len(props),
+        "n_annotated": len(ann),
+        "n_annotated_by_inchikey": sum(
+            1 for a in ann.values() if a.get("resolved_by") == "inchikey"),
+        "n_unchecked": len(props) - len(ann),
+        "n_diagnostic_identified": len(identified),
+        "n_diagnostic_identified_by_inchikey": sum(
+            1 for i in identified
+            if (ann.get(i) or {}).get("resolved_by") == "inchikey"),
+        "n_cytotoxic": sum(1 for f in flags.values()
+                           if ROLE_CYTOTOXIC in f),
+        "n_withdrawn": sum(1 for f in flags.values()
+                           if ROLE_WITHDRAWN in f),
+        "diagnostic_agents": sorted(
+            (ann.get(i) or {}).get("name") or i for i in identified),
+        "diagnostic_filter_applied": not args.keep_diagnostic_agents,
+        "resemblance_floor_applied": not args.no_resemblance_floor,
+    }
 
     # A DRAW THAT CANNOT BE REPRODUCED IS NOT A DRAW. The registration
     # records the seed in the artifact and in the commit message, so a
@@ -631,6 +1127,7 @@ def main(argv=None) -> int:
                 if par:
                     known_parents.add(par)
         candidates, salts, screened_out = [], 0, 0
+        dropped_diagnostic: list[str] = []
         for c in pool:
             if c in known:
                 continue
@@ -638,6 +1135,16 @@ def main(argv=None) -> int:
                 # Has an activity edge to this virus that the thresholds
                 # did not classify. Known is a subset of this.
                 screened_out += 1
+                continue
+            # NOT A THERAPY AT ALL. A contrast agent or an ophthalmic dye
+            # cannot be repurposed as an antiviral, whatever it resembles,
+            # so it leaves the pool here rather than being printed with a
+            # label -- and it is named below, because a drop nobody can
+            # see is indistinguishable from a compound that never scored.
+            if c in diagnostic:
+                dropped_diagnostic.append(
+                    (ann.get(c) or {}).get("name")
+                    or props[c].get("chembl_id") or c)
                 continue
             if c in known_parents:
                 salts += 1
@@ -662,12 +1169,22 @@ def main(argv=None) -> int:
         # suggestions into the JSON under a banner saying NO LIST IS
         # PRINTED. A file disagreeing with the run that wrote it is worse
         # than either being wrong.
+        # THE FLOOR IS THIS CELL'S OWN, measured from its own failures.
+        # Computed even when no list will be printed, because "how much do
+        # this virus's inactives resemble its actives" is a property of
+        # the cell and belongs in the artifact either way.
+        failures = failed_resemblance(actives, sorted(inactives), fps,
+                                      props)
+        fl = resemblance_floor(failures, len(inactives))
+        floor = None if args.no_resemblance_floor else fl["floor"]
         if t_ in ("below", "unknown"):
-            rows = []
+            rows, cost = [], {"displaced": [], "n_candidates_below_floor": 0,
+                              "n_candidates_scored": 0}
         else:
-            rows = suggest(candidates, actives, fps, props, args.top,
-                           flat=args.flat,
-                           degree=g.degree_unlabelled)
+            rows, cost = suggest(
+                candidates, actives, fps, props, args.top,
+                flat=args.flat, floor=floor, flags=flags,
+                failures=failures, degree=g.degree_unlabelled)
         # ----------------------------------------------- the comparator arm
         #
         # DRAWN FROM THE POOL ARM A WAS RANKED FROM, AND DISJOINT FROM IT.
@@ -707,6 +1224,29 @@ def main(argv=None) -> int:
             "n_salts_of_known_compounds_dropped": salts,
             "n_screened_against_this_virus_dropped": screened_out,
             "exclude_labelled": bool(args.exclude_labelled),
+            # WHAT THE CHEMISTRY FILTERS REMOVED FROM THIS CELL, in the
+            # file and not only on the terminal. The diagnostic agents are
+            # named rather than counted: 25 compounds is a list a reader
+            # can check, and a count is a claim they cannot.
+            "chemistry_filter": {
+                "diagnostic_agents_dropped": sorted(dropped_diagnostic),
+                "n_diagnostic_agents_dropped": len(dropped_diagnostic),
+                "diagnostic_filter_applied":
+                    not args.keep_diagnostic_agents,
+                "resemblance_floor": dict(
+                    fl, applied=floor is not None,
+                    n_candidates_below_floor=cost[
+                        "n_candidates_below_floor"],
+                    n_candidates_scored=cost["n_candidates_scored"],
+                    n_rows_displaced=len(cost["displaced"]),
+                    rows_displaced=[
+                        {"chembl_id": r["chembl_id"],
+                         "candidate": r["candidate"],
+                         "tanimoto": r["tanimoto"],
+                         "phase_tier": r["phase_tier"]}
+                        for r in cost["displaced"]]),
+                "annotated": bool(ann),
+            },
             "random_arm": ({
                 "seed": args.seed,
                 "n_requested": args.random_arm,
@@ -727,6 +1267,13 @@ def main(argv=None) -> int:
               f"inactives excluded, {len(candidates):,} candidates")
         print(f"  {salts:,} dropped as the same compound as something "
               f"already known, in either direction (fix-list L27)")
+        if dropped_diagnostic:
+            head = ", ".join(sorted(dropped_diagnostic)[:6])
+            more = (f", and {len(dropped_diagnostic) - 6} more"
+                    if len(dropped_diagnostic) > 6 else "")
+            print(f"  {len(dropped_diagnostic):,} dropped as diagnostic, "
+                  f"contrast or radiotracer agents, which are not "
+                  f"therapies:\n      {head}{more}")
         if v and v.get("auc") is not None:
             others = "  ".join(
                 f"{tag.replace('_', ' ')} {v['auc_' + tag]:.4f}"
@@ -770,19 +1317,53 @@ def main(argv=None) -> int:
                        "scorer works here. NO LIST IS PRINTED.",
         }[t_]
         print(verdict_line)
+        if fl["floor"] is None:
+            print(f"  NO RESEMBLANCE FLOOR: {fl['n_inactives']:,} measured "
+                  f"inactives is under the {MIN_FLOOR_INACTIVES} this "
+                  f"needs,\n           so this cell has no "
+                  f"failed-resemblance distribution to compare a row to.")
+        elif floor is None:
+            print(f"  RESEMBLANCE FLOOR NOT APPLIED "
+                  f"(--no-resemblance-floor). It would be "
+                  f"{fl['floor']:.4f}.")
+        else:
+            print(f"  RESEMBLANCE FLOOR {fl['floor']:.4f}: the MEDIAN "
+                  f"max-Tanimoto this virus's "
+                  f"{fl['n_inactives_scored']:,}\n           "
+                  f"screened-and-INACTIVE compounds reach against its "
+                  f"known actives. A candidate\n           below it "
+                  f"resembles the actives less than half the compounds "
+                  f"that were\n           screened against this very "
+                  f"virus and came back negative.\n"
+                  + (f"\n           "
+                     f"{cost['n_candidates_below_floor']:,} of "
+                     f"{cost['n_candidates_scored']:,} candidates sit "
+                     f"below it. It cost the list "
+                     f"{len(cost['displaced'])} row(s): "
+                     f"{_displaced_names(cost['displaced'], ann) or 'none'}"
+                     if cost["n_candidates_scored"] else "")
+                  + f"\n           A sterner floor sits at "
+                    f"{fl['p75']:.4f} (upper quartile) or "
+                    f"{fl['p90']:.4f} (upper decile).")
         print(f"{'=' * 72}")
         if t_ in ("below", "unknown"):
             continue
-        wanted = {r["chembl_id"] for r in rows if r["chembl_id"]}
-        wanted |= {r["nearest_active_chembl"] for r in rows
-                   if r["nearest_active_chembl"]}
-        pref = preferred_names(wanted)
+        # NAMED FROM THE SAME MAP THE ROLES CAME FROM. 15 rows in the
+        # committed artifact read "resembles NMDYYWFGPIMTKO", because that
+        # reference node carried no chembl_id -- and a reference nobody
+        # can look up defeats the one audit this read-out offers. The
+        # InChIKey route that fixed the role gap fixes the naming gap with
+        # it, on both sides of the row.
         for r in rows:
-            r["name"] = pref.get(r["chembl_id"] or "")
-            r["nearest_active_name"] = pref.get(
-                r["nearest_active_chembl"] or "")
+            r["name"] = (ann.get(r["candidate"]) or {}).get("name")
+            r["nearest_active_name"] = (
+                (ann.get(r["nearest_active"]) or {}).get("name"))
         print(f"  {'#':>2}  {'compound':<30} {'tier':<9} {'Tc':>6} "
-              f"{'deg':>5}  resembles")
+              f"{'>fail':>6} {'deg':>5}  resembles")
+        print("      >fail = the share of this virus's screened-and-INACTIVE "
+              "compounds whose own\n      best resemblance to the known "
+              "actives is WEAKER than this row's. The floor is the 50% "
+              "line.")
         last_tier = None
         for n, r in enumerate(rows, 1):
             if r["phase_tier"] != last_tier:
@@ -795,17 +1376,36 @@ def main(argv=None) -> int:
             # A 1.0 IS MARKED, WITH WHAT ACTUALLY DIFFERS. Unmarked it
             # reads as an identity, and 14 of these are a ring homolog or a
             # peptide variant that ECFP4 at radius 2 cannot resolve.
-            flag = ""
+            notes = []
             if r.get("fingerprint_identical"):
                 d = r.get("heavy_atom_delta")
-                flag = ("  <- SAME BITS, "
-                        + (f"{abs(d)} heavy atom(s) apart"
-                           if d else "same atom count: a permutation")
-                        + "; NOT the same compound")
+                notes.append(
+                    "SAME BITS, "
+                    + (f"{abs(d)} heavy atom(s) apart"
+                       if d else "same atom count: a permutation")
+                    + "; NOT the same compound")
+            # WHAT IT IS FOR, BESIDE WHAT IT LOOKS LIKE. An unmarked
+            # GEMCITABINE under "orderable now" is the row a referee
+            # quotes: it resembles a nucleoside antiviral because it IS a
+            # nucleoside, and it lowers a cell-based viral readout by
+            # killing the cell.
+            notes += [_MARK[m] for m in r.get("flags") or () if m in _MARK]
+            # ONLY THE CONFOUND TRAVELS FROM THE REFERENCE. A black-box
+            # warning on the compound a suggestion RESEMBLES says nothing
+            # about the suggestion, and printing it on every
+            # prochlorperazine analogue buried the one marker that does
+            # matter: that the thing it resembles is a cytotoxic.
+            nearnote = "".join(
+                f" [{_MARK[m]}]" for m in r.get("nearest_active_flags") or ()
+                if m == ROLE_CYTOTOXIC)
+            bf = r.get("beats_failures")
             print(f"  {n:>2}  {shown[:30]:<30} "
                   f"{r['phase_tier']:<9}"
-                  f" {r['tanimoto']:>6.3f} {r['graph_degree']:>5,}  "
-                  f"{near[:28]}{flag}")
+                  f" {r['tanimoto']:>6.3f} "
+                  f"{'—' if bf is None else format(bf, '.0%'):>6} "
+                  f"{r['graph_degree']:>5,}  "
+                  f"{near[:28]}{nearnote}"
+                  + (f"  <- {'; '.join(notes)}" if notes else ""))
         if rows:
             n_appr = sum(1 for r in rows if r["is_approved"])
             n_reach = sum(1 for r in rows if r["graph_degree"])
@@ -820,6 +1420,16 @@ def main(argv=None) -> int:
             # chemistry alone and the graph has nothing to add about it.
             print(f"  {n_appr} are approved drugs; {n_reach} of {len(rows)} "
                   f"carry any non-label graph edge at all.")
+            n_cy = sum(1 for r in rows if ROLE_CYTOTOXIC in (r["flags"] or []))
+            n_wd = sum(1 for r in rows if ROLE_WITHDRAWN in (r["flags"] or []))
+            if n_cy or n_wd:
+                print(f"  {n_cy} {_is(n_cy)} antineoplastic(s) (ATC "
+                      f"{CYTOTOXIC_ATC}) and {n_wd} {_is(n_wd)} withdrawn "
+                      f"in some jurisdiction.\n  Both are shown on "
+                      f"purpose: the first is an antiviral class as well "
+                      f"as a cytotoxic\n  one, and the second flag reads "
+                      f"1 for CODEINE and THALIDOMIDE, so it cannot be a "
+                      f"filter.")
             n_same = sum(1 for r in rows if r.get("fingerprint_identical"))
             # PER TIER. rows is now sorted by (tier, -Tc), so rows[0]
             # and rows[-1] are the top of the first tier and the bottom
@@ -831,9 +1441,10 @@ def main(argv=None) -> int:
                 if tc:
                     print(f"  {t:<9} Tc {max(tc):.3f} down to {min(tc):.3f}")
             if n_same:
-                print(f"  {n_same} of them share the active's ECFP4 bits "
-                      f"EXACTLY while being a different structure -- read "
-                      f"those as analogs, not identities.")
+                print(f"  {n_same} of them {_does(n_same)} share the "
+                      f"active's ECFP4 bits EXACTLY while being a "
+                      f"different structure -- read those as analogs, not "
+                      f"identities.")
 
     # THE CENSUS, so the run's own shape is readable without scrolling.
     seen = [(r["name"] or k, r["scorer_verdict"]["tier"], len(r["suggestions"]))

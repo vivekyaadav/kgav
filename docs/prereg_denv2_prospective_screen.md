@@ -408,6 +408,58 @@ seen.
 
 ---
 
+## Amendment, 2026-11-21 — the pool the draw happens in, after the chemistry filter
+
+The same day's chemistry filter changed the **pool** this screen draws
+both arms from, and the figure section 11's first amendment published —
+"Pool after every exclusion: **21,081** of 25,243" — was hand-typed and
+is now stale. Nothing above is edited. What follows is measured by the
+recorded draw command itself.
+
+### Arm A is unchanged, and that was checked rather than assumed
+
+    python scripts/repurposing_candidates.py --virus NCBITaxon:11060 \
+        --exclude-labelled --flat --top 20
+
+run with the filters and again with `--keep-diagnostic-agents
+--no-resemblance-floor` returns **the same twenty compounds in the same
+order**. Neither filter touches the head of DENV-2's ranking: no
+diagnostic agent was ranked near it, and the resemblance floor for this
+cell is **0.4267** while the twentieth compound sits far above that, so
+the floor displaces **0 rows** here.
+
+That is a property of this cell and not a general one. The floor costs
+other cells rows — 25 on TBEV, 20 on HCoV-229E — because their failures
+resemble their actives much more closely.
+
+### Arm B changes, because the pool it is drawn from is smaller
+
+Pool after every exclusion, including the chemistry filter: **21,039** of
+25,243 — **42** fewer than the 21,081 the previous amendment recorded.
+The 42 are compounds every one of whose ATC classes is diagnostic,
+contrast, radiotracer or otherwise non-therapeutic, so they are not
+therapies and cannot be repurposing candidates: the iodinated contrast
+series, the F-18 tracers, fluorescein, phenol red, indocyanine green.
+
+Arm B is `rng.sample` over the eligible pool, so a 42-compound change to
+that pool changes the draw. **This costs nothing, because nothing has
+been drawn**: the verdict section below is still unsigned. A comparator
+arm that can contain a contrast agent is also the wrong comparator for a
+screen whose arm A is being judged on orderability, so both arms drawing
+from the filtered pool is the coherent reading — recorded here as a
+choice, like the disjointness clause above it.
+
+### What section 4's orderability filter now has less to do
+
+Section 4 makes orderability a manual filter on the pool, applied before
+either arm is drawn and by somebody who has not seen the ranking. That
+step still stands and is still manual. The 42 compounds above would all
+have failed it, so the filter removes part of its work mechanically and
+names what it removed; the rest — formulation, cost, availability — it
+cannot do and does not pretend to.
+
+---
+
 ## Verdict
 
 *Unsigned. Nothing has been drawn and nothing has been screened.*
