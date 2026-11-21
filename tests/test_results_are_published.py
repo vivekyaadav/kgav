@@ -1,9 +1,9 @@
-"""The results directory is the evidence behind docs/evaluation.md, so what
+"""The results directory is the evidence behind doc2/08-results.md, so what
 is IN the repository has to be the set that gets audited.
 
 data/results is tracked deliberately -- data/raw and data/releases are
 gitignored, this is not -- and its last commit says so: "Diagnostics and
-results behind the six causes in docs/evaluation.md".
+results behind the six causes in doc2/08-results.md".
 
 `make check-results` audits the WORKING COPY. It passed on the workstation
 with fourteen files while eleven were in git, so three results existed on
@@ -117,4 +117,4 @@ def test_every_committed_result_carries_provenance():
         f"{len(unstamped)} committed results carry no provenance block:\n  "
         + "\n  ".join(unstamped)
         + "\n\nThey cannot be shown to describe any release, and they are "
-          "what docs/evaluation.md\ncites. Regenerate and commit them.")
+          "what doc2/08-results.md\ncites. Regenerate and commit them.")

@@ -75,7 +75,7 @@ LABEL_PREDICATES = ("HAS_ANTIVIRAL_ACTIVITY_AGAINST", "MEASURED_INACTIVE_AGAINST
 #: reachable by a metapath, so its population is the in-vitro label
 #: above -- the one build_labels builds and every baseline cell is
 #: measured on. The clinical labels are a different population with its
-#: own registration (docs/prereg_clinical_labels.md), its own cell and
+#: own registration (doc2/registrations/prereg_clinical_labels.md), its own cell and
 #: its own control, and folding them in would silently restate section
 #: B's three figures over a population no baseline uses.
 #:

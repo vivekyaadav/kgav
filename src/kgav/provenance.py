@@ -278,7 +278,7 @@ def check_dir(results_dir: Path, release: Path) -> list[tuple[str, str, str]]:
 #
 # The derived release now carries a results-shaped stamp of its own, written
 # and checked through the same two functions as everything else rather than a
-# second fingerprint implementation. docs/evaluation.md calls that the fifth
+# second fingerprint implementation. doc2/08-results.md calls that the fifth
 # time one calculation lived in two files; it is not becoming the sixth.
 DERIVED_STAMP_NAME = "DERIVED_FROM.json"
 

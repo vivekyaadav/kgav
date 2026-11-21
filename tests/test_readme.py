@@ -107,8 +107,8 @@ def test_it_does_not_restate_a_release_count(text):
 def test_it_points_at_the_live_figures(flat):
     for cmd in ("make audit", "make kg-report", "make check-results"):
         assert cmd in flat, f"the README does not mention {cmd}"
-    assert "docs/kg_audit_report.txt" in flat
-    assert "docs/evaluation.md" in flat
+    assert "doc2/kg_audit_report.txt" in flat
+    assert "doc2/08-results.md" in flat
 
 
 def test_it_does_not_credit_a_source_the_graph_never_ingested(flat):
@@ -182,7 +182,7 @@ def test_the_empty_label_predicates_are_named_if_they_are_empty():
         return
     # Filled. The README must say so -- and the superseded sentence is
     # kept in quotation marks as the record, the same convention
-    # docs/scope_and_limits.md uses, so the scan that forbids the old
+    # doc2/09-limits.md uses, so the scan that forbids the old
     # claim runs over the prose with quoted material removed.
     assert "All three evaluation label predicates carry edges" in flat_readme, (
         "every label predicate carries edges and the README still reads as "

@@ -21,7 +21,7 @@ repurposing screen is the opposite shape -- one library across many targets
 virus". If the chemistry source curates the first and not the second, then
 the arm structure phase 4 measured is a property of the database rather than
 of the biology, and so is some part of why degree beats every mechanistic
-channel in docs/evaluation.md.
+channel in doc2/08-results.md.
 
 WHAT IS MEASURED HERE, and what is NOT. This script prints the journal
 profile and the year profile. It does not classify journals into kinds:

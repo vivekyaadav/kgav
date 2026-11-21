@@ -1,0 +1,212 @@
+# 14 — The defect ledger
+
+The most reusable thing in this repository is not the graph. It is a short
+list of defect **shapes** that recur, each named after the instance that
+named it, with the instances that followed. Every one of them was found by
+measuring something that had been asserted.
+
+They are collected here because the names are used in the code: a comment
+reading *"a check that cannot fail is worse than no check"* is a pointer to
+this list, and the next instance is recognised faster for having one.
+
+---
+
+## 1. A check that cannot fail is worse than no check
+
+A check that passes for the wrong reason is worse than its absence, because it
+converts "unverified" into "verified".
+
+| instance | what it did |
+|:---|:---|
+| `make gate` | was *"if the validator fails, OK"* — an `ImportError`, a missing directory or an unloadable schema all counted as proof the four planted violations were caught. It now asserts the codes **and** the counts. |
+| the temporal calibration's refusal branch | checked `doc["refused"]`, while `write_refusal` writes `refused_by`. The branch could not fire under any circumstance, and a refusal record reported "holds no prospective cell" instead of the reasons. |
+| `make release-validate` | expanded to `data/releases/` and exited 2 on every invocation since it was written. The schema check was real — it runs inside `make rebuild` — so nothing was unvalidated; what was broken was the one command a reader is told to use. |
+| a regression test for the shortlist | grepped the source for a string and passed with the logic replaced by `if False: pass`, because a dead assignment above still matched. |
+| `provenance.dirty` | was computed from `git status` over the whole tree, and the results files are tracked — so the first file a run wrote dirtied the tree and the flag said `dirty: True` whatever happened. One directory over it was **always** true by construction. Counted below. |
+
+---
+
+## 2. A contract a caller can forget is not a contract
+
+If correctness depends on every call site remembering something, it will be
+forgotten.
+
+| instance | what it did |
+|:---|:---|
+| `release_dir()` | the assembled release's path was a literal in 28 files and 37 argument defaults, because every new script copied it from the one beside it. Now one function owns it and a test fails if the literal reappears. |
+| `write_results` | every results writer goes through one function, so a new one cannot forget the provenance stamp. |
+| `_shortlist` without `--out` | invoked the read-out script per virus with no output path, so it **overwrote a registered run covering every virus** on every prospective question the agent answered. |
+| the follow-up notice | `build_brief` has fourteen return points; attaching the "carried forward" notice at each would be a contract every one of them could forget, so a wrapper attaches it in one place. |
+| `to_nm` | existed three times with three different coverages and two opposite failure modes, under the one calculation every potency threshold in the project runs through. |
+
+---
+
+## 3. A filter that lists what it excludes goes stale when the thing it filters grows a sibling
+
+| instance | what it did |
+|:---|:---|
+| the agent's JSON surface | excluded `prompt` by name, and the orchestrator sets **two** prompt keys — so every reply to a question that needed a retry carried ~2,900 characters of prompt in the surface whose author had deliberately removed the other one. Now excluded by shape, `"prompt" not in key`. |
+| `channels.layer_predicates` | globbed `v0.1-*` and counted four **temporal training splits** as layers, so a dry run named four things that supply nothing. |
+| the chemistry role filter | keyed on `chembl_id`, which covers 79% of the pool — and the dyes it exists to remove are concentrated in the other 21%. |
+| `GENERATED_PREFIXES` | excluded `data/results` and stopped there, while `data/releases/v0.1/MANIFEST.json` is the one tracked file one directory over. |
+
+---
+
+## 4. A text marker is not an enforcement mechanism
+
+Marking a fact and enforcing a fact are different things, and the first reads
+like the second.
+
+| instance | what it did |
+|:---|:---|
+| direction markers on edge rows | `<- BELONGS_TO` taught the model nothing about arrows: it wrote "Zika belongs to the gene". The fix was finished English written in code from the edge tuple. It took **two** predicates to establish, because the first fix appeared to work on the predicate that also carries a loud warning paragraph. |
+| the `held_out_label` caveat | would have been satisfied by a model copying a marked fact line, if its label matched the per-line marker. Two distinct strings make the explanation independently required. |
+| `unquantified` | was asserted by three modules from three local views, and precedence picked a winner. 12,756 edges claimed it and **not one** lacked a measured value. It is now derived after merging and may never be ingested. |
+| `outside_dose_series` | was settled by layer precedence, so on 652 edges the published flag was `false` while a contributing row was flagged — a reader filtering on `false` would have kept exactly the edges the flag exists to expose. |
+
+---
+
+## 5. A figure with no path back to the data
+
+A number in prose, a comment or a constant, with nothing linking it to the run
+that produced it.
+
+| instance | what it did |
+|:---|:---|
+| `TEMPORAL_AUC = 0.500` | a measured figure hardcoded into user-facing prose. It was still **correct**, which is precisely why it was dangerous. |
+| `ABSENT_FRACTION = 0.77` | worse than stale — the wrong **shape**. The quantity is 85.3% for SARS-CoV-2 and 99.0% for Zika; one global value was a per-virus quantity in disguise. |
+| `CROSS_SECTIONAL_AUC = 0.826` | defined, never read, while the number users saw was a **separate literal** in another module. The figure has since fallen to 0.726, 0.660 and 0.499 as controls were added. |
+| "with a measured hit rate" | sat in the shortlist's banner for weeks with no hit rate ever measured anywhere in the project. What it quoted was AUC, which is the one translation that does **not** yield a hit rate. |
+| the hand-drawn metagraph | carried thirteen stale figures and omitted two predicates entirely — the clinical axis, which is one of the published findings. A hand-drawn figure cannot acquire a predicate. |
+| `doc2/09-limits.md` | restated the hit-rate figures with its own copy, twice. A test now forbids the claim block's percentages from appearing in that section. |
+
+---
+
+## 6. Two surfaces that disagree about one thing
+
+| instance | what it did |
+|:---|:---|
+| `render` and `--json` | the terminal withheld an answer that failed verification; the machine surface printed the payload whole, so `jq -r .answer` returned unverified model text with the failure in a sibling key. |
+| the shortlist's printout and its file | `rows = []` was set for `below` and printing was skipped for `below` **or** `unknown`, so an unknown cell wrote fifteen suggestions into the JSON under a banner saying no list is printed. |
+| the follow-up's payload and its trace | the ambiguous-reference branch returned before the carry was recorded, so the payload said nothing had been carried while the trace said a virus had. |
+| `_potency` and `POTENCY_PREFERENCE` | the label module reads the **first** field present; the agent took a **minimum** across fields, which lets a binding constant stand in for functional inhibition because binding constants read lower. |
+
+---
+
+## 7. An empty result read as a negative result
+
+The distinction between *finding nothing* and *being unable to look*.
+
+| instance | what it did |
+|:---|:---|
+| 36 self-loops | `FOLD_SIMILAR_TO` from a class node to itself validated perfectly and M8 produced zero paths for every run since, because the walker discards a neighbour already visited. Nothing rejected them and nothing reported the consequence. |
+| the no-route viruses | would have received an **empty ranking**, which reads as "no compound looks promising". The agent now refuses and names the three absent route kinds. |
+| `measured_reach` | returned `None` for "cannot be known" and the caller passed a file where a directory was wanted, so the miswiring was indistinguishable from an honest absence and every virus's reach was reported as unmeasured. |
+| five viruses in the audit | were ranked with a caveat saying their reliability was "unknown", when it is known and is **zero** — the fact lived in a script the agent does not import. |
+
+---
+
+## 8. Order decided a result
+
+| instance | what it did |
+|:---|:---|
+| `POTENCY_FIELDS` | the declaration order of a module-level tuple decided 169 label verdicts, 110 of them becoming positives. |
+| `primary_knowledge_source` | merging was neither associative nor idempotent, so a fact's source list depended on arrival order and grew quadratically; the release held 30 "sources" that were permutations of six. |
+| `direction` folding | three witnesses could fold to `dependency`, `restriction` or `unknown` depending purely on merge order — "the same release built twice could state opposite directions on one edge". |
+| `Assembly.write` | wrote dict values in insertion order, so four builds of one graph produced four `edges_sha` values and no tool could say whether the graph had changed. |
+| the hub cut | was calibrated against the host layer alone, before compounds and activity edges shifted the distribution. |
+
+---
+
+## 9. A denominator that rewards its own gaps
+
+The single most interesting measurement in the project.
+
+DWPC divides by node degree, so rank is inversely monotone in target degree.
+A **parent accession's** degree is low *because* resolution succeeded for
+everything else — it measures how few activities failed to resolve, not how
+studied the target is. So every improvement to `resolve_nsp` lowered the
+parent's degree and **raised** the score of whatever still failed. Measured on
+the three drugs reaching SARS-CoV-2 by exactly one channel, rank was predicted
+by `(deg_nsp5/deg_target)^0.4` to within 0.04%.
+
+The fix was to constrain M1/M7/M8 to resolved targets, and **the cost is
+stated rather than hidden**: a genuine Mpro inhibitor leaves M1 entirely,
+because the graph does not know it hits Mpro.
+
+---
+
+## 10. The correct code looked like the bug
+
+Worth recording because it is the reverse case, and it is how a mutation test
+earns its place.
+
+`evaluate_against_negatives` passes the **counts actually ranked** to
+`auc_ceiling`, not the class sizes. A mutant changing it to `len(pos)` /
+`len(neg)` survived — and turned out to be wrong: under imputation the two are
+identical, but **without** imputation the unreached compounds leave the
+evaluation entirely, so passing the class sizes would impose an imputation
+ceiling on a cell that has no imputation. The surviving mutant was the correct
+code; the test was strengthened instead.
+
+---
+
+## 11. A table that is almost complete
+
+The named failure is a table of the first group alone. A table of *most*
+groups is the same failure wearing a disguise, because the thing a reader
+checks is whether the rows add up to the family — and they do, to a family
+nobody declared.
+
+| instance | what it did |
+|:---|:---|
+| the pathway landscape | printed the `taxa` channel alone — 8 rows — under a paragraph saying 44 tests. 44 is 22 rows tested in two directions, and the 14 missing rows were the whole interactome channel: the softer, larger half, holding the smallest p in the analysis. |
+| the scorer family | the first draft of the four-group block printed three groups while its own comment claimed the table was the whole family, leaving out the group that does not clear at all. |
+| the uncovered list | `pathway_landscape.json` records `uncovered` for the taxa channel and `interactome_uncovered` separately. Reading the first as "could not be tested at all" was wrong for six of its eight viruses; **2** are missing from both. |
+
+## 12. A defence stated more widely than it holds
+
+A claim that is true of the cells a result rests on, restated over every
+cell, is false — and it reads stronger, which is why it gets written.
+
+| instance | what it did |
+|:---|:---|
+| "identical under both controls" | written over the whole 17-cell family and false: the symmetric and strength-matched controls disagree on 1 cell (MERS-CoV (plate entry)). They agree on every cell the claim rests on, and the disagreeing one has a clearing degree baseline above the scorer under both readings. Found by `tests/test_doc2_claims.py` within an hour of the sentence being written, which is the argument for writing the test beside the claim. |
+| "no temporal cell clears chance" | true of the metapath table it sat under and read as a statement about the project; the structure scorer finds 6 prospective cells that do. |
+| "the temporal protocol removes the confound" | true of one virus and false of another, stated without the qualifier. |
+
+## How these were found
+
+Not by review. Every entry above was found by one of four activities, and the
+proportions are worth knowing:
+
+- **running the thing** — the `--help` sweep, `make release-validate`,
+  `tier-check`, a first run of a diagnostic printing every shared class
+  instead of the first two;
+- **counting what was asserted** — the 12,756 self-contradicting edges, the
+  652 flags lost to precedence, the 37 copies of one path, the 544 orphaned
+  potency ranges;
+- **mutating the code and watching the test not fail**;
+- **reading the output as a reader** — which is how a dye matched to a dye,
+  an unmarked cytotoxic nucleoside and a salt of a known active were all
+  found, and why the read-out prints compound **names** at all.
+
+## A field that reported on its own output
+
+<!-- FIGURE: dirty_flag_releases -->
+Of the **7** manifest versions committed before the fix, **7** say
+`dirty: true`. That is the whole population and the whole answer: a flag
+meant to say whether the CODE differed from the commit beside it was
+reading a tree that the run itself had just modified, because
+`data/results/*.json` and `data/releases/` are tracked and
+`GENERATED_PREFIXES` did not yet exclude them.
+
+The two figures are a closed set — the population is "manifest versions
+committed before the fix" and cannot grow — and
+`tests/test_provenance.py::test_the_documents_dirty_flag_count_is_gits`
+re-derives both from git history, walking each commit's own
+`provenance.py` to decide whether it belongs to the pre-fix population.
+An earlier version of that test cut the population at a commit *subject*
+and named the commit that documented the finding rather than the one that
+fixed it, silently dropping a seventh manifest version and making the
+figure one too small while the test agreed with it.

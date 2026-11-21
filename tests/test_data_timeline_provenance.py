@@ -8,7 +8,7 @@ newest input was therefore a sidecar, written the day provenance was
 recorded, and a sidecar has no sidecar of its own.
 
 The report whose job is to say whether provenance exists was pushed from
-"sidecar" to "mtime only" BY RECORDING PROVENANCE. docs/v1_release_plan.md
+"sidecar" to "mtime only" BY RECORDING PROVENANCE. doc2/plan.md
 item A2 quotes the correct figures -- five files, 328,846,356 bytes -- and
 was written before the sidecars existed; it is the report that moved.
 

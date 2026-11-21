@@ -1,0 +1,146 @@
+// GENERATED FILE. Do not edit.
+//   make arch-figure         regenerate and re-render
+//   make arch-figure-check   fail if stale, write nothing
+//
+// The topology is derived: the layers, their scripts, their raw
+// inputs, which side of the merge each runs on, and every count.
+// release v0.1  nodes_sha dc6d76a2b3cfb2a1  edges_sha 873623c9a9df2049
+digraph kgav {
+  rankdir=TB;
+  size="7.9,11.3"; margin=0.1;
+  graph [label=<<font point-size="18"><b>kgav — how the graph is built, measured and queried</b></font><br/><font point-size="10">release v0.1 · schema 0.16.0 · 78,649 nodes · 396,223 edges · 7 node classes · 16 predicates</font><br/><font point-size="9" color="#555555">GENERATED from kgav.pipeline.LAYERS, kgav.assemble.LAYER_PRECEDENCE and MANIFEST.json — nodes_sha dc6d76a2b3cfb2a1</font>>,
+         labelloc=t, labeljust=c, fontname="Helvetica", fontsize=11, bgcolor=white,
+         nodesep=0.3, ranksep=0.35, pad=0.3, outputorder=edgesfirst];
+  node [fontname="Helvetica", fontsize=8.5, shape=box, style="rounded,filled", fillcolor=white,
+        penwidth=0.8, margin="0.07,0.045"];
+  edge [fontname="Helvetica", fontsize=7.5, color="#666666", arrowsize=0.55, penwidth=0.9];
+  subgraph cluster_1 {
+    label=<<b>1 · INGEST</b>  <font point-size="8">one script per layer · scripts/ingest_*.py · each writes a standalone sub-release</font>>;
+    style="rounded"; color="#9db3d6"; fontname="Helvetica"; fontsize=10; margin=8;
+    S_host [label="UniProt · STRING\nReactome · GO", fillcolor="#e8eef8", width=1.45, height=0.4];
+    S_proteomes [label="UniProt\nreference proteomes", fillcolor="#e8eef8", width=1.45, height=0.4];
+    S_orcs [label="BioGRID ORCS\nCRISPR screens", fillcolor="#e8eef8", width=1.45, height=0.4];
+    S_vhppi [label="VirHostNet\nIntAct · MINT · DIP", fillcolor="#e8eef8", width=1.45, height=0.4];
+    S_chembl [label="ChEMBL 37\nSQLite dump", fillcolor="#e8eef8", width=1.45, height=0.4];
+    S_curated_screens [label="curated screens\n(hand-entered)", fillcolor="#e8eef8", width=1.45, height=0.4];
+    S_ncats [label="NCATS OpenData\nSARS-CoV-2 plates", fillcolor="#e8eef8", width=1.45, height=0.4];
+    S_folds [label="UniProt · InterPro\ncatalytic chains", fillcolor="#e8eef8", width=1.45, height=0.4];
+    L_spine [label="spine\nviruses, viral proteins,\nthe taxonomy spine", fillcolor="#e9f5e1", width=1.55, height=0.55, style="rounded,filled"];
+    L_host [label="host\nhuman proteins, genes,\npathways, host–host PPI", fillcolor="#e9f5e1", width=1.55, height=0.55, style="rounded,filled"];
+    L_vhppi [label="vhppi\nvirus–host PPI", fillcolor="#e9f5e1", width=1.55, height=0.55, style="rounded,filled"];
+    L_orcs [label="orcs\nhost dependency factors", fillcolor="#e9f5e1", width=1.55, height=0.55, style="rounded,filled"];
+    L_curated [label="curated\nhost factors from\nhand-entered screens\n(declared, not in this release)", fillcolor="#f4f4f4", width=1.55, height=0.55, style="rounded,filled,dashed"];
+    L_chembl [label="chembl\ncompound activity,\nviral-protein inhibition", fillcolor="#e9f5e1", width=1.55, height=0.55, style="rounded,filled"];
+    L_hosttargets [label="hosttargets\ncompound → human target", fillcolor="#e9f5e1", width=1.55, height=0.55, style="rounded,filled"];
+    L_ncats [label="ncats\nplate activity and\ncytotoxicity", fillcolor="#e9f5e1", width=1.55, height=0.55, style="rounded,filled"];
+    L_folds [label="folds\nprotein classes,\nfold similarity", fillcolor="#e9f5e1", width=1.55, height=0.55, style="rounded,filled"];
+    {rank=same; S_host S_proteomes}
+    {rank=same; L_spine L_host}
+    L_spine -> S_orcs [style=invis, weight=20];
+    {rank=same; S_orcs S_vhppi}
+    {rank=same; L_vhppi L_orcs}
+    L_vhppi -> S_chembl [style=invis, weight=20];
+    {rank=same; S_chembl S_curated_screens}
+    {rank=same; L_curated L_chembl}
+    L_curated -> S_ncats [style=invis, weight=20];
+    {rank=same; S_ncats}
+    {rank=same; L_hosttargets L_ncats}
+    L_hosttargets -> S_folds [style=invis, weight=20];
+    {rank=same; S_folds}
+    {rank=same; L_folds}
+    S_proteomes -> L_spine [arrowsize=0.45];
+    S_host -> L_host [arrowsize=0.45];
+    S_vhppi -> L_vhppi [arrowsize=0.45];
+    S_orcs -> L_orcs [arrowsize=0.45];
+    S_curated_screens -> L_curated [arrowsize=0.45];
+    S_chembl -> L_chembl [arrowsize=0.45];
+    S_chembl -> L_hosttargets [arrowsize=0.45];
+    S_ncats -> L_ncats [arrowsize=0.45];
+    S_folds -> L_folds [arrowsize=0.45];
+  }
+  subgraph cluster_2 {
+    label=<<b>2 · ASSEMBLE</b>  <font point-size="8">scripts/assemble_release.py, run twice · 30,904 edges merged from more than one layer</font>>;
+    style="rounded"; color="#d6b656"; fontname="Helvetica"; fontsize=10; margin=8;
+    M1 [label="merge · pass 1\nphase-1 layers", fillcolor="#fff2cc", width=1.7, height=0.5];
+    REL [label="data/releases/v0.1\n78,649 nodes · 396,223 edges\nnodes.jsonl · edges.jsonl · MANIFEST.json", fillcolor="#ffe599", shape=cylinder, style=filled, width=2.4, height=0.7, penwidth=1.2];
+    L_selectivity [label="selectivity\nCC50/EC50 selectivity", fillcolor="#fdebd9", width=1.7, height=0.5];
+    L_gtop [label="gtop\ndrug → target,\nwith direction", fillcolor="#fdebd9", width=1.7, height=0.5];
+    L_similarity [label="similarity\nECFP4 Tanimoto\nneighbours", fillcolor="#fdebd9", width=1.7, height=0.5];
+    L_indications [label="indications\ntrials and approvals,\ndiseases", fillcolor="#fdebd9", width=1.7, height=0.5];
+    M2 [label="merge · pass 2\nwrites the final release", fillcolor="#fff2cc", width=1.7, height=0.5];
+    {rank=same; L_selectivity L_gtop}
+    L_selectivity -> L_similarity [style=invis, weight=20];
+    {rank=same; L_similarity L_indications}
+    M1 -> REL [label=" first pass"];
+    REL -> L_selectivity [color="#c55a11", label=" reads the\n merged graph"];
+    L_selectivity -> M2;
+    REL -> L_gtop [color="#c55a11"];
+    L_gtop -> M2;
+    REL -> L_similarity [color="#c55a11"];
+    L_similarity -> M2;
+    REL -> L_indications [color="#c55a11"];
+    L_indications -> M2;
+  }
+  M2 -> REL [constraint=false, weight=0, color="#c55a11", style=dashed, label=" second pass"];
+  L_spine -> M1 [arrowsize=0.45];
+  L_host -> M1 [arrowsize=0.45];
+  L_vhppi -> M1 [arrowsize=0.45];
+  L_orcs -> M1 [arrowsize=0.45];
+  L_curated -> M1 [arrowsize=0.45];
+  L_chembl -> M1 [arrowsize=0.45];
+  L_hosttargets -> M1 [arrowsize=0.45];
+  L_ncats -> M1 [arrowsize=0.45];
+  L_folds -> M1 [arrowsize=0.45];
+  subgraph cluster_3 {
+    label=<<b>3 · MEASURE</b>  <font point-size="8">src/kgav/{labels,baselines,temporal,similarity,landscape}.py · every run stamped with the release it read</font>>;
+    style="rounded"; color="#b9a6d9"; fontname="Helvetica"; fontsize=10; margin=8;
+    E_lab [label="labels\nactive / measured-inactive,\nheld out of every scorer", fillcolor="#f0eaf9", width=1.75, height=0.6];
+    E_split [label="splits\npublication-disjoint,\nnear-neighbour, temporal 2021", fillcolor="#f0eaf9", width=1.75, height=0.6];
+    E_score [label="scorers\n8 metapath channels,\nstructure, degree baseline", fillcolor="#f0eaf9", width=1.75, height=0.6];
+    E_stat [label="statistics\nAUC with interval,\npermutation null, correction", fillcolor="#f0eaf9", width=1.75, height=0.6];
+    RES [label="data/results/\n36 stamped JSON artifacts", fillcolor="#e2d8f2", shape=folder, width=1.9, height=0.5];
+    DOC [label="doc2/\n18 documents, generated\nfrom the artifacts", fillcolor="#f2f2f2", shape=note, width=1.9, height=0.5];
+    {rank=same; E_lab E_split}
+    {rank=same; E_score E_stat}
+    {rank=same; RES DOC}
+    E_lab -> E_stat [label=" held-out\n truth"];
+    E_split -> E_score [label=" training\n graph"];
+    E_score -> E_stat;
+    E_stat -> RES;
+    RES -> DOC [style=dashed, label=" make doc2"];
+  }
+  REL -> E_lab [constraint=false, weight=0];
+  REL -> E_split [constraint=false, weight=0];
+  M2 -> E_split [style=invis, weight=20];
+  subgraph cluster_4 {
+    label=<<b>4 · ANSWER</b>  <font point-size="8">scripts/kgav_ask.py · src/kgav/agent/ · 3 question kinds · 20 caveat labels</font>>;
+    style="rounded"; color="#8cc5c5"; fontname="Helvetica"; fontsize=10; margin=8;
+    A_q [label="a question,\nin English", fillcolor="#e3f4f4", width=1.7, height=0.55];
+    A_o [label="orchestrator\nintent · entities · guards", fillcolor="#e3f4f4", width=1.7, height=0.55];
+    A_t [label="graph tools\nexplain · evidence · profile\npathways · shortlist", fillcolor="#e3f4f4", width=1.7, height=0.55];
+    A_m [label="local model\nOllama, no network", fillcolor="#c9eaea", width=1.7, height=0.55];
+    A_v [label="verifier\nevery sentence against\na retrieved fact", fillcolor="#e3f4f4", width=1.7, height=0.55];
+    A_a [label="answer\nevidence → caveats → prose", fillcolor="#e3f4f4", width=1.7, height=0.55];
+    {rank=same; A_q A_o A_t}
+    {rank=same; A_a A_v A_m}
+    A_q -> A_o -> A_t;
+    A_t -> A_m [label=" retrieved\n facts"];
+    A_m -> A_v;
+    A_v -> A_a [label=" or WITHHELD"];
+  }
+  REL -> A_t [constraint=false, weight=0, color="#2a7f7f", label=" the graph"];
+  RES -> A_o [constraint=false, weight=0, color="#2a7f7f", label=" which viruses\n are validated"];
+  DOC -> A_q [style=invis, weight=20];
+  key [shape=plaintext, style="", label=<
+    <table border="1" color="#999999" cellborder="0" cellspacing="0" cellpadding="3" bgcolor="#fcfcfc">
+      <tr><td colspan="3" align="left"><font point-size="10"><b>How to read this</b></font></td></tr>
+      <tr><td bgcolor="#e8eef8" width="14"> </td><td align="left"><b>raw input</b></td><td align="left">a public database, as downloaded</td></tr>
+      <tr><td bgcolor="#e9f5e1" width="14"> </td><td align="left"><b>phase-1 layer</b></td><td align="left">reads raw files only — can run in any order</td></tr>
+      <tr><td bgcolor="#fdebd9" width="14"> </td><td align="left"><b>phase-2 layer</b></td><td align="left">reads the merged graph, so it runs after pass 1</td></tr>
+      <tr><td bgcolor="#ffe599" width="14"> </td><td align="left"><b>the release</b></td><td align="left">nodes.jsonl, edges.jsonl and a MANIFEST that fingerprints both</td></tr>
+      <tr><td bgcolor="#f0eaf9" width="14"> </td><td align="left"><b>measurement</b></td><td align="left">writes a stamped artifact, never a claim</td></tr>
+      <tr><td bgcolor="#e3f4f4" width="14"> </td><td align="left"><b>agent</b></td><td align="left">answers from the release, refuses past it</td></tr>
+      <tr><td colspan="3" align="left"><font point-size="7.5" color="#555555">12 of 13 declared layers are in this release (absent: curated). Merge order is LAYER_PRECEDENCE: spine → host → vhppi → orcs → curated → chembl → selectivity → gtop → hosttargets → similarity → ncats → indications → folds.</font></td></tr>
+    </table>>];
+  A_a -> key [style=invis, weight=10];
+}

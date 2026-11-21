@@ -1,4 +1,4 @@
-"""docs/kg_audit_report.txt, checked against the code it describes.
+"""doc2/kg_audit_report.txt, checked against the code it describes.
 
 A narrative report is the worst kind of figure holder: it reads as
 authoritative, it is the file someone outside the project is handed
@@ -41,7 +41,7 @@ sys.path.insert(0, str(ROOT / "src"))
 # reason it states. Found 2026-11-10 while verifying an unrelated change.
 sys.path.insert(0, str(ROOT))
 
-REPORT = ROOT / "docs" / "kg_audit_report.txt"
+REPORT = ROOT / "doc2" / "kg_audit_report.txt"
 REGISTER = ROOT / "config" / "viruses.yaml"
 
 
@@ -535,7 +535,7 @@ def test_section_8_quotes_the_landscape_run_it_names(flat):
     2026-11-02 every figure in it was stale: the run date, the
     uncorrected count, and both DENV naive/matched pairs.
 
-    docs/evaluation.md holds the same four figures and has been guarded
+    doc2/08-results.md holds the same four figures and has been guarded
     against the results file since the landscape table was written.
     THIS copy was not -- the same split that let section 1's channel
     counts drift while the identical claim in evaluation.md was
@@ -818,7 +818,7 @@ def test_section_1_counts_the_channels_against_the_results(flat):
     significant". On 2026-10-30 raising the path cap completed M4's
     traversal and DENV-2's M4 arrived at p=0.019, making two -- and no
     test anywhere noticed, because the figure was typed. The same
-    claim in docs/evaluation.md HAS been guarded since it was written;
+    claim in doc2/08-results.md HAS been guarded since it was written;
     this copy of it was not.
 
     Both numbers are read off metapath_comparison.json, so the next
@@ -1050,7 +1050,7 @@ def test_a_built_layer_is_not_described_as_not_built(text):
     """gtop. The census -- generated from the release and stamped with
     its content hashes -- lists it among the assembled layers with 6,765
     edges, and three documents said it was not built."""
-    census = (ROOT / "docs" / "kg_release_census.txt")
+    census = (ROOT / "doc2" / "kg_release_census.txt")
     if not census.exists():
         pytest.skip("census absent")
     body = census.read_text()
@@ -1069,8 +1069,8 @@ def test_a_built_layer_is_not_described_as_not_built(text):
         assert layer not in built, (
             f"the layer table marks {layer} NOT BUILT and the census "
             f"lists it among the assembled layers: {line.strip()}")
-    for doc in ("docs/kg_audit_report.txt", "README.md",
-                "docs/v1_release_plan.md"):
+    for doc in ("doc2/kg_audit_report.txt", "README.md",
+                "doc2/plan.md"):
         d = (ROOT / doc).read_text()
         for layer in sorted(built):
             # The claim shape, not the word: a retraction may say a layer
@@ -1093,7 +1093,7 @@ def test_a_built_layer_is_not_described_as_not_built(text):
 # On the assembled v0.1: 10,395 of 17,982 unstated (57.8%), directed
 # 2,226 -> 7,587. Both halves of that moved, so quoting either one
 # without its release is ambiguous.
-CENSUS = ROOT / "docs" / "kg_release_census.txt"
+CENSUS = ROOT / "doc2" / "kg_release_census.txt"
 RELEASE = ROOT / "data" / "releases" / "v0.1"
 
 #: Files that quote a TARGETS total. Kept as a list so a new quote in a
@@ -1103,8 +1103,8 @@ QUOTING_FILES = (
     "src/kgav/assemble.py",
     "src/kgav/agent/guards.py",
     "scripts/ingest_gtop.py",
-    "docs/v1_release_plan.md",
-    "docs/scope_and_limits.md",
+    "doc2/plan.md",
+    "doc2/09-limits.md",
 )
 
 
@@ -1168,7 +1168,7 @@ def test_the_direction_split_matches_the_release_when_one_is_present():
     assert total == _census_targets(), (
         f"the release holds {total:,} TARGETS and the census says "
         f"{_census_targets():,}; run make kg-report")
-    scope = (ROOT / "docs" / "scope_and_limits.md").read_text()
+    scope = (ROOT / "doc2" / "09-limits.md").read_text()
     assert f"{unknown:,} of {total:,}" in " ".join(scope.split()), (
         f"scope_and_limits.md does not state {unknown:,} of {total:,}")
     pct = f"{unknown / total:.1%}"

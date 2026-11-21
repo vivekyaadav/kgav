@@ -1,6 +1,6 @@
 """The structure-scorer verdict, re-derived from the result it describes.
 
-WHY. docs/prereg_structure_scorer.md's verdict states six prediction
+WHY. doc2/registrations/prereg_structure_scorer.md's verdict states six prediction
 outcomes, a 14-row table and two rank correlations. Every one of those is a
 function of data/results/structure_scorer.json, and this project has twice
 had to go back and fix a figure that was maintained by hand in prose -- the
@@ -28,7 +28,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-PREREG = ROOT / "docs/prereg_structure_scorer.md"
+PREREG = ROOT / "doc2/registrations/prereg_structure_scorer.md"
 RESULTS = ROOT / "data/results/structure_scorer.json"
 
 pytestmark = pytest.mark.skipif(
@@ -221,7 +221,7 @@ def test_the_below_chance_cells_are_named_as_unresolved(doc, res):
 def test_the_asymmetry_table_is_whole_and_its_claim_is_true(doc, res):
     """THE SAME CHERRY-PICK, IN A SECOND PLACE, CAUGHT A DAY LATE.
 
-    docs/prereg_structure_scorer_symmetric.md's copy of this table was
+    doc2/registrations/prereg_structure_scorer_symmetric.md's copy of this table was
     corrected on 2026-11-11 after its test was rewritten three times: the
     first draft required only the rows supporting the hypothesis, the second
     was satisfied by the prose describing the defect, and only the third

@@ -4,7 +4,7 @@ WHAT THIS IS FOR. "89.3% of labelled compounds share a publication between
 the evidence edge and the label it was supposed to predict" -- 787 of 881 on
 the release of 2026-11-09, and derived below rather than typed here, which is
 the only reason this docstring may state it at all -- is the single
-most load-bearing figure in docs/evaluation.md: it is the reason that
+most load-bearing figure in doc2/08-results.md: it is the reason that
 document calls its own M1 result partly self-scoring, and the reason
 kg_audit_report.txt splits its two questions the way it does.
 
@@ -31,8 +31,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "docs" / "evaluation.md"
-REPORT = ROOT / "docs" / "kg_audit_report.txt"
+DOC = ROOT / "doc2" / "08-results.md"
+REPORT = ROOT / "doc2" / "kg_audit_report.txt"
 RESULTS = ROOT / "data" / "results" / "label_overlap.json"
 sys.path.insert(0, str(ROOT / "src"))
 

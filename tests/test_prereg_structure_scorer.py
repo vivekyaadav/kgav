@@ -1,6 +1,6 @@
 """The structure-scorer registration, checked against the release it names.
 
-WHY THIS FILE EXISTS. docs/prereg_structure_scorer.md fixes a protocol
+WHY THIS FILE EXISTS. doc2/registrations/prereg_structure_scorer.md fixes a protocol
 before the measurement, and every number in it is a property of the release
 or of the labels -- class sizes, SMILES coverage, which cells are readable,
 the corrected alpha. A registration whose figures were typed by hand drifts,
@@ -36,7 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-PREREG = ROOT / "docs/prereg_structure_scorer.md"
+PREREG = ROOT / "doc2/registrations/prereg_structure_scorer.md"
 
 
 @pytest.fixture(scope="module")
@@ -90,7 +90,7 @@ def test_the_quoted_release_is_the_one_on_disk(prereg):
     exists because a hand-typed release identification went stale, and the
     first draft of THIS document named 392,363 edges when the release has
     392,375."""
-    census = ROOT / "docs/kg_release_census.txt"
+    census = ROOT / "doc2/kg_release_census.txt"
     if not census.exists():
         pytest.skip("census absent")
     body = census.read_text()

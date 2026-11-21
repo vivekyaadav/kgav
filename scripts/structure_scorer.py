@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The structure-derived scorer, exactly as registered.
 
-PROTOCOL: docs/prereg_structure_scorer.md, signed 2026-11-11 before this
+PROTOCOL: doc2/registrations/prereg_structure_scorer.md, signed 2026-11-11 before this
 file existed. Nothing here is a choice -- every parameter was fixed in that
 document, and `tests/test_prereg_structure_scorer.py` re-derives each one
 from the release so this script cannot quietly use a different value.
@@ -80,7 +80,7 @@ SECONDARY_SOURCE = "infores:ncats-opendata"
 #: makes each one single-screen -- see run_population. The CPE population
 #: yields one cell (SARS-CoV-2) and the entry population three (SARS-CoV-2,
 #: SARS-CoV, MERS-CoV), which are the four cells
-#: docs/prereg_ncats_entry_assays.md fixes at alpha = 0.05/4.
+#: doc2/registrations/prereg_ncats_entry_assays.md fixes at alpha = 0.05/4.
 #:
 #: `secondary_ncats` KEEPS ITS NAME for the CPE population, because that is
 #: the key prereg_structure_scorer.md's registered cell is recorded under
@@ -96,7 +96,7 @@ FAMILY = 14                 # the readable ChEMBL cells
 ALPHA = 0.05 / FAMILY
 Z_CORRECTED = 2.9137        # two-sided, for ALPHA
 
-# docs/prereg_ncats_entry_assays.md, second amendment 2026-11-17. The
+# doc2/registrations/prereg_ncats_entry_assays.md, second amendment 2026-11-17. The
 # registration was signed for FOUR plate cells; one of them cannot exist,
 # because edge identity excludes `assay_type` and the SARS-CoV-2 entry
 # measurements merged into the CPE edges. THREE is the family that was
@@ -107,7 +107,7 @@ PLATE_ALPHA = 0.05 / PLATE_FAMILY
 PLATE_Z_CORRECTED = 2.3940  # two-sided, for PLATE_ALPHA
 TOP_K = 3                   # the one registered alternative statistic
 
-# docs/prereg_structure_scorer_symmetric.md, signed 2026-11-11.
+# doc2/registrations/prereg_structure_scorer_symmetric.md, signed 2026-11-11.
 # K_PRIMARY is derived, not chosen: JEV holds 18 references after
 # self-exclusion, the smallest in the family, and k must leave every cell
 # non-empty or the study repeats the prior run's P5 -- a cell that printed
@@ -121,7 +121,7 @@ CONTROLS = ("publication", "knn", "strength")
 def k_cells_from_prior(prior: dict) -> dict[str, int]:
     """virus -> k_cell, from the publication run's own counters.
 
-    docs/prereg_structure_scorer_strength_matched.md:
+    doc2/registrations/prereg_structure_scorer_strength_matched.md:
 
         k_cell = ceil(max(pub_per_positive, pub_per_negative))
 
@@ -199,7 +199,7 @@ def score_cell(candidates: list[str], references: list[str],
         "excluded_publication_neg": 0,
         "candidates_pos": 0,
         "candidates_neg": 0,
-        # EXCLUSION (3'), docs/prereg_structure_scorer_symmetric.md. P2 is
+        # EXCLUSION (3'), doc2/registrations/prereg_structure_scorer_symmetric.md. P2 is
         # an invariant over these: every candidate must lose exactly `knn`
         # references, so excluded_knn == knn * candidates in every cell. If
         # it does not, the control is not symmetric and nothing else in the
@@ -285,7 +285,7 @@ def corrected(metrics: dict, z: float = Z_CORRECTED,
     THE LEVEL IS AN ARGUMENT BECAUSE TWO FAMILIES ARE REGISTERED, and
     until 2026-11-17 this function applied the ChEMBL family's z to every
     cell it was handed. The plate-matched cells are registered as their
-    own family of three (docs/prereg_ncats_entry_assays.md, second
+    own family of three (doc2/registrations/prereg_ncats_entry_assays.md, second
     amendment): alpha 0.05/3, z 2.3940, not 0.05/14 and 2.9137. Declaring
     PLATE_Z_CORRECTED and then never passing it is the same shape as a
     counter that cannot be printed -- the constant documents an intention
@@ -406,7 +406,7 @@ def run_population(release: Path, g: Graph, props: dict, source: str,
     # publishes two protocols against SARS-CoV-2 -- a cytopathic-effect
     # screen and a pseudotyped-particle entry screen -- and grouped by
     # virus alone they merged into ONE cell of 149 positives. The merge is
-    # exactly what docs/prereg_ncats_entry_assays.md registers against: a
+    # exactly what doc2/registrations/prereg_ncats_entry_assays.md registers against: a
     # plate-matched cell is worth having because one protocol over one
     # concentration range produced both classes, and two protocols pooled
     # destroy that while every count still looks reasonable.
@@ -502,8 +502,8 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--release", type=Path, default=release_dir(ROOT))
     # TWO REGISTRATIONS, TWO FILES, AND THE DEFAULT IS THE OLDER ONE.
-    # docs/prereg_structure_scorer.md's run is the comparator for
-    # docs/prereg_structure_scorer_symmetric.md and its figures are quoted
+    # doc2/registrations/prereg_structure_scorer.md's run is the comparator for
+    # doc2/registrations/prereg_structure_scorer_symmetric.md and its figures are quoted
     # in a verdict and pinned by tests, so `--control knn` writes its own
     # file and the default branch must stay byte-identical.
     ap.add_argument("--control", choices=CONTROLS, default="publication",
@@ -523,9 +523,9 @@ def main(argv=None) -> int:
         return 2
 
     doc = {
-        "publication": "docs/prereg_structure_scorer.md",
-        "knn": "docs/prereg_structure_scorer_symmetric.md",
-        "strength": "docs/prereg_structure_scorer_strength_matched.md",
+        "publication": "doc2/registrations/prereg_structure_scorer.md",
+        "knn": "doc2/registrations/prereg_structure_scorer_symmetric.md",
+        "strength": "doc2/registrations/prereg_structure_scorer_strength_matched.md",
     }[args.control]
     # The publication-disjoint run, for the side-by-side column P1 and P3
     # are about. Absent is not fatal: the column reads `--`, which is what
@@ -677,7 +677,7 @@ def main(argv=None) -> int:
     if n_plate != PLATE_FAMILY:
         print(f"! THE REGISTERED PLATE FAMILY IS {PLATE_FAMILY} AND THIS "
               f"RELEASE GIVES {n_plate}.")
-        print("  docs/prereg_ncats_entry_assays.md, second amendment. The "
+        print("  doc2/registrations/prereg_ncats_entry_assays.md, second amendment. The "
               "family was fixed before")
         print("  the run; this line is the finding, not a new alpha.")
 

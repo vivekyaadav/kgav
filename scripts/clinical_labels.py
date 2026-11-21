@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The registered clinical-label analysis: docs/prereg_clinical_labels.md.
+"""The registered clinical-label analysis: doc2/registrations/prereg_clinical_labels.md.
 
 ONE CELL. COVID-19 against SARS-CoV-2, family of one, alpha = 0.05
 two-sided, z = 1.9600. The registration fixed all of that on 2026-11-17
@@ -18,7 +18,7 @@ that were screened and did not?
 
 THE STATISTIC IS NOT REIMPLEMENTED. `score_cell` and `corrected` are
 imported from `scripts/structure_scorer.py`, so this run uses the exact
-exclusion ladder registered by docs/prereg_structure_scorer_symmetric.md
+exclusion ladder registered by doc2/registrations/prereg_structure_scorer_symmetric.md
 -- self, skeleton, then the k = 10 nearest references from every
 candidate alike. A second copy of a scoring loop is how two protocols
 come to differ without anyone deciding they should, which this
@@ -153,7 +153,7 @@ def main(argv=None) -> int:
             print(f"  - {r}")
         write_results(args.out, {
             "measured_by": "scripts/clinical_labels.py",
-            "registered_by": "docs/prereg_clinical_labels.md",
+            "registered_by": "doc2/registrations/prereg_clinical_labels.md",
             "refused": refused,
         }, args.release, schema.version)
         return 1
@@ -224,7 +224,7 @@ def main(argv=None) -> int:
 
     payload = {
         "measured_by": "scripts/clinical_labels.py",
-        "registered_by": "docs/prereg_clinical_labels.md",
+        "registered_by": "doc2/registrations/prereg_clinical_labels.md",
         "disease": DISEASE,
         "virus": VIRUS,
         "family_size": FAMILY,

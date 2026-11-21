@@ -1129,7 +1129,7 @@ def test_jobs_one_and_jobs_many_produce_identical_rows():
     from `(seed, channel, virus)` alone, so a row's draws depend on its own
     key and on nothing else -- not on which rows ran first, not on how many
     ran at once. That was written to repair the shared-generator defect
-    docs/prereg_pathway_overlap.md registers, where adding a taxon BEFORE
+    doc2/registrations/prereg_pathway_overlap.md registers, where adding a taxon BEFORE
     another changed the other's null total from 1209 to 1165. The three
     sorts inside `matched_null` close the rest: bin pools, bin sequence and
     Counter insertion order.

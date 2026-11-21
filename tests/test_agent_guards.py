@@ -254,7 +254,7 @@ def test_the_calibrated_virus_is_not_exempt_from_the_caveat_by_name():
 
 def test_a_measured_discriminating_channel_is_reported_not_implied():
     """The other half: the good case gets a label of its own rather than
-    being signalled by the absence of a bad one. docs/evaluation.md, on
+    being signalled by the absence of a bad one. doc2/08-results.md, on
     the identical mistake in its verdict column: "printed only as an
     absence of warning, the one condition every real result here depends
     on was left for the reader to notice."
@@ -907,7 +907,7 @@ def test_a_seeking_word_inside_a_longer_word_is_not_a_seeking_word(q):
 
 
 # ------------------------------------- the route that reaches no label
-# THE THIRD STATE, added 2026-11-02. docs/kg_audit_report.txt section 9
+# THE THIRD STATE, added 2026-11-02. doc2/kg_audit_report.txt section 9
 # prints four per-virus tiers and says "THE AGENT ENFORCES THIS". It
 # enforced three: a virus with routes that reach NONE of its held-out
 # positives was answered exactly like one whose routes reach plenty,

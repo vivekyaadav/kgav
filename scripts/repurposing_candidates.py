@@ -4,7 +4,7 @@
 THIS IS THE READ-OUT, NOT A HYPOTHESIS TEST. Everything upstream of it has
 been about whether the structure-derived scorer measures anything: three
 pre-registrations, their verdicts, and the controls in
-docs/prereg_structure_scorer_strength_matched.md. This script does not add a
+doc2/registrations/prereg_structure_scorer_strength_matched.md. This script does not add a
 protocol. It points the scorer that survived those tests at the question the
 graph exists for and prints compound names.
 
@@ -162,7 +162,7 @@ def headline(vs: dict[str, dict], root: Path = ROOT) -> list[str]:
                      f"{clears} of {len(vs)} viruses,")
         lines.append(f"  with {len(weak)} above chance but not clearing and "
                      f"{len(below)} BELOW chance -- see")
-        lines.append("  docs/prereg_structure_scorer_strength_matched.md.")
+        lines.append("  doc2/registrations/prereg_structure_scorer_strength_matched.md.")
     path = root / "data/results/structure_scorer_strength_matched.json"
     if path.exists():
         doc = json.loads(path.read_text())
@@ -836,7 +836,7 @@ def suggest(candidates: list[str], actives: list[str], fps: dict,
     #
     # The tiers exist so a browsing reader sees approved drugs without
     # the pool being restricted to them. A SCREEN is a different use:
-    # docs/prereg_denv2_prospective_screen.md section 3 fixes arm A as
+    # doc2/registrations/prereg_denv2_prospective_screen.md section 3 fixes arm A as
     # "the top 20 by max-Tanimoto", one ranking -- and the command the
     # registration records, `--top 20`, returns SIXTY under tiering,
     # twenty from each of three tiers. Measured on DENV-2 before this
@@ -911,7 +911,7 @@ def main(argv=None) -> int:
                     help="drop every candidate carrying ANY activity edge "
                          "to this virus, in either direction -- not only "
                          "those the potency thresholds classified. "
-                         "docs/prereg_denv2_prospective_screen.md section 4 "
+                         "doc2/registrations/prereg_denv2_prospective_screen.md section 4 "
                          "requires 'never screened against DENV-2 in either "
                          "direction', which is stricter than the label sets: "
                          "a measurement the thresholds could not classify "
@@ -1049,12 +1049,12 @@ def main(argv=None) -> int:
     payload = {"measured_by": "scripts/repurposing_candidates.py",
                "scorer": "max Tanimoto to known actives (ECFP4 2048/r2)",
                "registered_by":
-                   "docs/prereg_structure_scorer_strength_matched.md",
+                   "doc2/registrations/prereg_structure_scorer_strength_matched.md",
                "approved_only": bool(args.approved_only),
                "top": args.top, "viruses": {}}
     # THE CENSUS IN THE FILE, so a document quoting these numbers can be
     # re-derived from the artifact instead of from a terminal somebody
-    # scrolled past. docs/scope_and_limits.md quotes five of them and
+    # scrolled past. doc2/09-limits.md quotes five of them and
     # tests/test_chemistry_filter.py checks each against this block.
     payload["chemistry_filter"] = {
         "atc_non_therapeutic": dict(NON_THERAPEUTIC_ATC),
@@ -1189,7 +1189,7 @@ def main(argv=None) -> int:
         #
         # DRAWN FROM THE POOL ARM A WAS RANKED FROM, AND DISJOINT FROM IT.
         #
-        # docs/prereg_denv2_prospective_screen.md section 3 says "k drawn
+        # doc2/registrations/prereg_denv2_prospective_screen.md section 3 says "k drawn
         # at random from the same pool". Read strictly that admits a
         # compound into BOTH arms, which makes the 2x2 incoherent -- the
         # same well would be a hit in both columns. Disjoint is the only

@@ -12,7 +12,7 @@ sat there looking like they cooperated.
 
 WHAT THAT COSTS. MANIFEST.json is the only artifact recording a release's
 LAYER hashes, its per-class node counts, its per-predicate edge counts, its
-merge census and the code that built it. docs/kg_release_census.txt is
+merge census and the code that built it. doc2/kg_release_census.txt is
 committed and holds the top-level nodes_sha and edges_sha and nothing per
 layer -- so a question like "which layer changed between these two
 releases" had no answer in the repository at all, while every commit

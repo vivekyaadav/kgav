@@ -1,7 +1,7 @@
 {
   "measured_by": "scripts/repurposing_candidates.py",
   "scorer": "max Tanimoto to known actives (ECFP4 2048/r2)",
-  "registered_by": "docs/prereg_structure_scorer_strength_matched.md",
+  "registered_by": "doc2/registrations/prereg_structure_scorer_strength_matched.md",
   "approved_only": false,
   "top": 15,
   "viruses": {

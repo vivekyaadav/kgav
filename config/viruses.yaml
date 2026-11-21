@@ -150,7 +150,7 @@ viruses:
     # NEITHER CARRIES CHEMBL ACTIVITY. Checked before declaring them, because
     # declared_taxa feeds ingest_chembl and ingest_selectivity as well as
     # ingest_vhppi, and a label-set change would have moved every evaluation
-    # figure in docs/evaluation.md. Both return zero rows for
+    # figure in doc2/08-results.md. Both return zero rows for
     # IC50/EC50/Ki/Kd, so this is a PPI-only change.
     isolate_taxa: ["227984", "698419"]
     curation_note: "isolates present in VirHostNet; INERT and expected to stay so -- all 73 rows are viral-viral and would be dropped at that gate even once their identifiers resolve. No ChEMBL activity under either."
@@ -800,7 +800,7 @@ provenance:
   # --publication-disjoint, the control that moved cross-sectional M1 from
   # 0.660 to 0.499, cannot withhold 68% of DENV-2's evidence. The same
   # measurement on the coronaviruses reads 4.7%, which is why row 4 of
-  # docs/evaluation.md stands and DENV-2 would not have.
+  # doc2/08-results.md stands and DENV-2 would not have.
   #
   # It was also not buildable: ingest_spine reads a local proteome cache and
   # neither file was present, so both viruses built an OrganismTaxon with

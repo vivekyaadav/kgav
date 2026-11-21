@@ -54,9 +54,9 @@ def test_it_takes_the_block_under_the_right_heading():
 
 def test_the_real_document_still_parses():
     """Pinned against the document that ships, not only a fixture.
-    A heading renamed in docs/evaluation.md would break `make
+    A heading renamed in doc2/12-reproducing.md would break `make
     reproduce` and nothing else would notice."""
-    body = RB.block((ROOT / "docs" / "evaluation.md").read_text())
+    body = RB.block((ROOT / "doc2" / "12-reproducing.md").read_text())
     cmds = [ln for ln in body.splitlines()
             if ln.strip() and not ln.strip().startswith("#")]
     assert len(cmds) > 10, cmds

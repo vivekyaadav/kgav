@@ -2,7 +2,7 @@
 """The druggable host-factor landscape, without a scorer.
 
 WHY THIS IS A DIFFERENT QUESTION FROM THE ONE THAT FAILED. Every protocol in
-docs/evaluation.md asked which drug works against a virus. That needs the
+doc2/08-results.md asked which drug works against a virus. That needs the
 antiviral labels, most of which share a publication with the evidence edge
 that was supposed to predict them, and no channel survived the control.
 
@@ -81,7 +81,7 @@ PHYSICALLY_INTERACTS_WITH = "PHYSICALLY_INTERACTS_WITH"
 DEPENDENCY = "dependency"
 DEGREE_BINS = 10
 MIN_PATHWAY_TARGETS = 5
-#: FIXED BY docs/prereg_pathway_overlap.md, which declares 100,000 under
+#: FIXED BY doc2/registrations/prereg_pathway_overlap.md, which declares 100,000 under
 #: "Fixed in advance" and flags it **DECISION**. This was 2000 for as long
 #: as the registration has existed, so the document fixed a number and the
 #: run used another one -- which reads, to anyone checking, as a prereg that
@@ -515,7 +515,7 @@ def _row_task(job: tuple[str, str, set[str]]) -> tuple[str, str, dict, float]:
     generator from `(seed, channel, virus)` alone, so a row's draws depend
     on its own key and on nothing else -- not on which rows ran before it,
     not on how many ran at once. That was written to fix the shared-generator
-    defect `docs/prereg_pathway_overlap.md` registers, where adding a taxon
+    defect `doc2/registrations/prereg_pathway_overlap.md` registers, where adding a taxon
     BEFORE another changed the other's null total from 1209 to 1165, and the
     three sorts inside `matched_null` close the remaining order dependencies
     (bin pools, bin sequence, Counter insertion order).
@@ -587,7 +587,7 @@ def _operand(members: set[str], role: str, derivation: str,
 
     FIX-LIST L26. `pathway_landscape.json` recorded the permutation count,
     the seed, the seed scheme, the degree basis and the family size -- and
-    NOT the drugged proteome, although `docs/prereg_pathway_overlap.md`
+    NOT the drugged proteome, although `doc2/registrations/prereg_pathway_overlap.md`
     states in its own words that the verdict depends on it: 0 of 22 rows
     clear Bonferroni under `floor`, 3 under `relaxed`. A reader holding the
     result file could not tell which policy produced it.

@@ -180,7 +180,7 @@ The panel reports what did **not** work — 9,848 of 10,633 rows are curve class
 generated independently of ChEMBL target annotation, so
 `--publication-disjoint` withholds nothing when scoring against it. Its CPE
 and pseudotyped-entry assays are kept as **separate** `assay_type` values,
-registered in `docs/prereg_ncats_entry_assays.md`: a pseudotyped particle
+registered in `doc2/registrations/prereg_ncats_entry_assays.md`: a pseudotyped particle
 carries the named virus's spike on another viral core, so inhibiting its entry
 is evidence about entry and not about replication of the authentic virus.
 Pooling them would destroy the only thing a plate-matched cell is worth.

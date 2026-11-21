@@ -1,4 +1,4 @@
-.PHONY: doc2 doc2-check agent-ui agent-ask auc-contribution hit-rate screen-power protocol-disagreement prospective-analogy metagraph-figure metagraph-figure-check arch-figures results-doc results-doc-check identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
+.PHONY: arch-figure arch-figure-check doc2 doc2-check agent-ui agent-ask auc-contribution hit-rate screen-power protocol-disagreement prospective-analogy metagraph-figure metagraph-figure-check identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
 
 install:
 	pip install -e ".[dev]"
@@ -142,7 +142,7 @@ diagnose-tautomer-conflation:
 diagnose-label-reachability:
 	python scripts/diagnose_label_reachability.py $(if $(DB),--db $(DB),)
 
-# The design facts docs/prereg_structure_scorer.md is registered against.
+# The design facts doc2/registrations/prereg_structure_scorer.md is registered against.
 # SOURCES defaults to the registered population, ChEMBL only; pass
 # SOURCES=infores:ncats-opendata for the matched secondary cell, or
 # SOURCES=- for the pooled task the registration deliberately excludes.
@@ -155,7 +155,7 @@ diagnose-label-reachability:
 structure-scorer:
 	python scripts/structure_scorer.py $(ARGS)
 
-# The symmetric-control follow-up, docs/prereg_structure_scorer_symmetric.md.
+# The symmetric-control follow-up, doc2/registrations/prereg_structure_scorer_symmetric.md.
 # A SEPARATE TARGET AND A SEPARATE FILE: the publication-disjoint run is its
 # comparator, its figures are quoted in a verdict and pinned by tests, and
 # overwriting it would destroy the only thing it is being compared against.
@@ -163,7 +163,7 @@ structure-scorer-symmetric:
 	python scripts/structure_scorer.py --control knn $(ARGS)
 
 # The strength-matched follow-up,
-# docs/prereg_structure_scorer_strength_matched.md. It DERIVES every k from
+# doc2/registrations/prereg_structure_scorer_strength_matched.md. It DERIVES every k from
 # data/results/structure_scorer.json and refuses if that file is absent,
 # because there is then no strength to match.
 structure-scorer-strength:
@@ -299,7 +299,7 @@ hit-rate:
 # ten prospective cells cannot reach 80% power at any arm size up to 120,
 # and two of those six have among the highest AUCs in the study: the
 # binding constraint is enrichment headroom, not AUC. Registered for
-# DENV-2 only, by docs/prereg_denv2_prospective_screen.md.
+# DENV-2 only, by doc2/registrations/prereg_denv2_prospective_screen.md.
 #
 # ~2 minutes: the power is enumerated exactly rather than approximated,
 # because at these arm sizes the normal approximation errs in the
@@ -307,7 +307,7 @@ hit-rate:
 screen-power:
 	python scripts/screen_power.py
 
-# THE METAGRAPH FIGURE, GENERATED FROM THE RELEASE. docs/figures/meta.dot
+# THE METAGRAPH FIGURE, GENERATED FROM THE RELEASE. doc2/figures/meta.dot
 # was hand-written on 2026-11-03 and nothing checked it: by 2026-11-20 it
 # carried thirteen stale figures AND omitted two predicates entirely --
 # IN_TRIAL_FOR and TREATS, the clinical axis, which is one of the four
@@ -326,47 +326,28 @@ metagraph-figure:
 metagraph-figure-check:
 	python scripts/write_metagraph_figure.py --check
 
-# RE-RENDER THE ARCHITECTURE FIGURES from the hand-drawn .dot sources.
-#
-# UNLIKE meta.dot THESE ARE NOT GENERATED, and should not be: the
-# grouping, the ordering and the choice of what to draw are editorial.
-# What IS checked is every claim in them that is a fact about this
-# repository -- tests/test_architecture_figure.py, after twelve wrong
-# items sat in them for seventeen days, including three defects drawn in
-# red that were fixed or false and a box describing a directory that had
-# been deleted.
+# THE ARCHITECTURE FIGURES, GENERATED. They were hand-drawn until
+# 2026-11-21, defended here on the grounds that "the grouping, the
+# ordering and the choice of what to draw are editorial". The grouping
+# is; the layer list, each layer's ingest script, each layer's raw
+# inputs, which side of the merge it runs on and every count are
+# kgav.pipeline.LAYERS, kgav.assemble.LAYER_PRECEDENCE and
+# MANIFEST.json. Drawn by hand, all of that went stale: twelve wrong
+# items sat in those two files for seventeen days.
 #
 # THE SIZE FLAGS ARE LOAD-BEARING AND WERE TRIBAL KNOWLEDGE. graphviz
 # adds about 0.2in of margin on top of -Gsize, so asking for A4 exactly
-# produces a page 11.89in tall that does not fit A4 -- which is what
-# docs/agent_guide.md promises of the PDF. 8.07x11.49 lands at 11.68.
-# 300 dpi because the previous PNG was 2480x3508 and a careless
-# re-render dropped it to 930x1726.
-arch-figures:
-	dot -Tpng docs/figures/arch.dot    -o docs/figures/kgav_architecture.png
-	dot -Tsvg docs/figures/arch.dot    -o docs/figures/kgav_architecture.svg
-	dot -Tpdf -Gsize=8.07,11.49            docs/figures/arch_a4.dot \
-		-o docs/figures/kgav_architecture_a4.pdf
-	dot -Tpng -Gsize=8.07,11.49 -Gdpi=300  docs/figures/arch_a4.dot \
-		-o docs/figures/kgav_architecture_a4.png
+# produces a page 11.89in tall that does not fit A4. They are inside
+# the generator now (size="7.9,11.3") rather than on this line, so the
+# .dot a reader renders by hand is the one this target renders.
+# 300 dpi because a careless re-render once dropped the PNG from
+# 2480x3508 to 930x1726.
+arch-figure:
+	python scripts/write_architecture_figure.py --render
 
-# THE RESULTS DOCUMENT: methodology and every measured result, with the
-# positive findings stated first and their qualifications attached.
-#
-# docs/evaluation.md is the working record -- how each result was arrived
-# at, including the versions that were wrong. That is the right shape for
-# the people who built it and the wrong shape for anyone else, because
-# the strongest finding sits four sections deep behind two negatives.
-# docs/results.md is the other half.
-#
-# GENERATED, like every other figure-bearing document here. ~15s: it
-# re-runs scripts/hit_rate_at_k.py so the qualification beside the AUCs
-# is the measured one rather than a copy.
-results-doc:
-	python scripts/write_results_doc.py
+arch-figure-check:
+	python scripts/write_architecture_figure.py --check
 
-results-doc-check:
-	python scripts/write_results_doc.py --check
 
 # WHY DENV-4 ANTI-RANKS CROSS-SECTIONALLY AND CLEARS PROSPECTIVELY.
 # The two read as a contradiction and are not one: they use different
@@ -376,7 +357,7 @@ results-doc-check:
 #
 # Computes no new claim and amends no verdict; both registered results
 # stand. ~2s. Recorded in the amendment to
-# docs/prereg_temporal_structure_scorer.md.
+# doc2/registrations/prereg_temporal_structure_scorer.md.
 protocol-disagreement:
 	python scripts/diagnose_protocol_disagreement.py
 
@@ -388,7 +369,7 @@ protocol-disagreement:
 #
 # A cell that stops clearing at small k was ranking by one near
 # neighbour; one still clearing at k=40 is not. Closes H3, which
-# docs/prereg_temporal_structure_scorer.md left open as "a pointer, not
+# doc2/registrations/prereg_temporal_structure_scorer.md left open as "a pointer, not
 # a finding". ~10s. Computes no new claim; not written to data/results.
 prospective-analogy:
 	python scripts/diagnose_prospective_analogy.py
@@ -417,7 +398,7 @@ doc2-check:
 	python scripts/write_doc2.py --check
 
 # WHAT HAS BEEN INGESTED, BUILT, AND IS STILL MISSING, per layer and per
-# virus. docs/kg_audit_report.txt has cited this as `make audit` in three
+# virus. doc2/kg_audit_report.txt has cited this as `make audit` in three
 # places since it was written, and there was no such target: the script
 # existed, the name did not, so the one line telling a reader how to
 # check the per-virus tiers named a command that would not run. Found on
@@ -432,7 +413,7 @@ audit:
 # degree-matched null. Re-run this whenever the release changes --
 # src/kgav/landscape.py refuses a file measured on a different one rather
 # than quoting it.
-# THE REPORT'S RELEASE CENSUS. Section 4 of docs/kg_audit_report.txt is
+# THE REPORT'S RELEASE CENSUS. Section 4 of doc2/kg_audit_report.txt is
 # generated from the assembled release and stamped with its content
 # hashes, so a rebuild without a regenerate is detectable rather than
 # merely wrong. kg-report-check is the read-only half, for the gate.
@@ -452,7 +433,7 @@ kg-report-check:
 # `make reproduce`, so the numbers are printed every time they move.
 # DOES THE DWPC WEIGHTING READ THE ANSWER SHEET. Three arms over every
 # channel: as published, with the held-out labels out of the step weight
-# only, and out of the hub cut as well. docs/evaluation.md's claim
+# only, and out of the hub cut as well. doc2/08-results.md's claim
 # section quotes the middle arm beside its own M7 figure, so this ships
 # as a stamped artifact rather than a terminal printout -- a figure in
 # that document has to be derivable by a test. It REGISTERS NOTHING:
@@ -469,7 +450,7 @@ degree-sensitivity:
 	  --out data/results/degree_weighting_sensitivity.json $(ARGS)
 
 # WHY TWO LANDSCAPE CELLS MOVED, closing the question left open in
-# docs/prereg_pathway_overlap.md's note of 2026-11-17. MEASURED 6.7s: it
+# doc2/registrations/prereg_pathway_overlap.md's note of 2026-11-17. MEASURED 6.7s: it
 # reads two recorded artifacts and builds the factor sets once. It needs
 # GIT, not a rebuild -- the earlier artifact comes from a revision, which
 # is the whole reason the controlled `ncats` re-run that note named is
@@ -493,12 +474,12 @@ landscape-count-move:
 	  --out data/results/landscape_count_move.json $(ARGS)
 
 # THE ONE INDEPENDENT LABEL AXIS, registered in advance by
-# docs/prereg_clinical_labels.md. One cell, family of one, alpha 0.05.
+# doc2/registrations/prereg_clinical_labels.md. One cell, family of one, alpha 0.05.
 # It reads the release and the three scorer files read nothing from it;
 # it is in the reproduce block before scorer-table because
 # check-results audits data/results and nothing else regenerates this.
 # DOES THE SCORER PREDICT FORWARD. Registered in advance by
-# docs/prereg_temporal_structure_scorer.md, signed 2026-11-19 before any
+# doc2/registrations/prereg_temporal_structure_scorer.md, signed 2026-11-19 before any
 # AUC against a post-2021 label existed. Pre-2021 actives are the
 # reference set, post-2021 labels the evaluated population; the
 # statistic, fingerprint and interval are imported from
@@ -523,20 +504,12 @@ scorer-table:
 scorer-table-check:
 	python scripts/write_scorer_table.py --check
 
-# FIX-LIST P10: the marked tables, written from the derivations their own
-# tests already compute. --check reports drift and exits 1 without writing.
-rewrite-tables:
-	python scripts/rewrite_derived_tables.py $(ARGS)
-
-rewrite-tables-check:
-	python scripts/rewrite_derived_tables.py --check
-
 pathway-landscape:
 	python scripts/pathway_landscape.py \
 	  --out data/results/pathway_landscape.json
 
 # THE SHARED-PMID CONFOUND, AS AN ARTIFACT RATHER THAN CONSOLE OUTPUT. The
-# 92.2% figure is why docs/evaluation.md calls its own M1 result partly
+# 92.2% figure is why doc2/08-results.md calls its own M1 result partly
 # self-scoring, and it lived only in this script's stdout while being
 # quoted in seven places across two documents. Written here, it is stamped
 # against the release and audited by check-results like everything else.
@@ -553,7 +526,7 @@ label-overlap:
 tier-check:
 	bash scripts/tier_spotcheck.sh
 
-# REGENERATE EVERY RESULTS FILE, from the block in docs/evaluation.md
+# REGENERATE EVERY RESULTS FILE, from the block in doc2/08-results.md
 # rather than from a copy of it. The order is load bearing and was
 # being transcribed by hand after each rebuild, where a dropped flag
 # changes a protocol without failing.

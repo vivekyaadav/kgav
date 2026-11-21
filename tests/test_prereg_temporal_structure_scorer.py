@@ -1,4 +1,4 @@
-"""docs/prereg_temporal_structure_scorer.md holds only operands, derived.
+"""doc2/registrations/prereg_temporal_structure_scorer.md holds only operands, derived.
 
 A REGISTRATION IS WORTH WHAT ITS NUMBERS ARE WORTH. This one was signed
 before any AUC against a post-2021 label existed, so everything in it is
@@ -25,7 +25,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-DOC = ROOT / "docs" / "prereg_temporal_structure_scorer.md"
+DOC = ROOT / "doc2" / "registrations" / "prereg_temporal_structure_scorer.md"
 SPLIT = ROOT / "data" / "releases" / "v0.1-train2021"
 RESULTS = ROOT / "data" / "results" / "temporal_structure_scorer.json"
 MIN_CLASS = 10

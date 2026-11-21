@@ -61,8 +61,9 @@ compound reached a trial is how well studied it is.
 
 **The host-factor overlap is a null with its power stated.** Over
 {{pl_n_tests}} tests at {{pl_permutations}} degree-matched permutations,
-nothing survives correction, and {{pl_n_uncovered}} viruses have no cell at
-all ({{pl_uncovered}}).
+nothing survives correction over {{pl_n_rows}} rows, and
+{{pl_n_uncovered_both}} viruses have no cell in either channel
+({{pl_uncovered_both}}).
 
 ## What follows from that
 

@@ -1,6 +1,6 @@
 """The release plan's temporal note, re-derived rather than read.
 
-WHY THIS FILE EXISTS. Section D of docs/v1_release_plan.md carried this
+WHY THIS FILE EXISTS. Section D of doc2/plan.md carried this
 sentence from 2026-10-24 to 2026-11-11:
 
     all 150,432 PHYSICALLY_INTERACTS_WITH edges are dropped from any
@@ -35,7 +35,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-PLAN = ROOT / "docs/v1_release_plan.md"
+PLAN = ROOT / "doc2/plan.md"
 TEMPORAL = ROOT / "data/results/temporal_2021_include.json"
 PREDICATE = "PHYSICALLY_INTERACTS_WITH"
 
@@ -58,7 +58,7 @@ def live_claims(plan: str) -> str:
     the absence tests failed on text whose presence is the point.
 
     scripts/diagnose_doc_figures.py says the same thing about
-    docs/evaluation.md at length: "This document records superseded figures
+    doc2/08-results.md at length: "This document records superseded figures
     deliberately -- the value that was wrong, and why -- and those SHOULD
     be absent from the current results."
 

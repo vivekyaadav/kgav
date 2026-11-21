@@ -1,6 +1,6 @@
 {
   "measured_by": "scripts/clinical_labels.py",
-  "registered_by": "docs/prereg_clinical_labels.md",
+  "registered_by": "doc2/registrations/prereg_clinical_labels.md",
   "disease": "MONDO:0100096",
   "virus": "NCBITaxon:2697049",
   "family_size": 1,

@@ -54,7 +54,7 @@ def _auc(m: dict) -> str:
 
     A channel reaching fewer than MIN_REACHED_POSITIVES measured actives has
     an AUC describing the imputed floor rather than the channel, which is
-    the same rule docs/evaluation.md applies cross-sectionally. Printed as
+    the same rule doc2/08-results.md applies cross-sectionally. Printed as
     "not evaluable (n)" rather than blank, because an empty cell reads as a
     missing value instead of a refusal.
     """
@@ -362,7 +362,7 @@ def main() -> int:
                    # helper as the cross-sectional run, so the two
                    # protocols cannot drift to different family
                    # definitions -- which they would, since this one's
-                   # paragraph in docs/evaluation.md has quoted 28, 51 and
+                   # paragraph in doc2/08-results.md has quoted 28, 51 and
                    # 23 rows on three successive releases.
                    "correction": correction,
                    "already_known": split.violations,

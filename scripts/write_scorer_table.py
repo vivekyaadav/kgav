@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate docs/scorer_aucs.txt: every scorer AUC, every virus, side by side.
+"""Generate doc2/scorer_aucs.txt: every scorer AUC, every virus, side by side.
 
 WHY THIS FILE EXISTS. The three scorer studies write three results files
 with different shapes -- the publication-disjoint run keys its channels
@@ -46,7 +46,7 @@ from kgav.pipeline import release_dir
 from kgav.provenance import release_fingerprint
 from kgav import virus_register as vr
 
-TABLE = ROOT / "docs" / "scorer_aucs.txt"
+TABLE = ROOT / "doc2" / "scorer_aucs.txt"
 RESULTS = ROOT / "data" / "results"
 
 #: (column heading, results file, channel key). ORDER IS THE PRINTED
@@ -65,11 +65,11 @@ COLUMNS = (
 #: skipped -- an entry cell that stops being produced is a change.
 POPULATIONS = (
     ("primary_chembl", "ChEMBL, all assay types",
-     "docs/prereg_structure_scorer.md", 14, 2.9137),
+     "doc2/registrations/prereg_structure_scorer.md", 14, 2.9137),
     ("secondary_ncats", "NCATS plate, cell_based_antiviral",
-     "docs/prereg_ncats_entry_assays.md", 3, 2.3940),
+     "doc2/registrations/prereg_ncats_entry_assays.md", 3, 2.3940),
     ("secondary_ncats_entry", "NCATS plate, pseudotyped_entry",
-     "docs/prereg_ncats_entry_assays.md", 3, 2.3940),
+     "doc2/registrations/prereg_ncats_entry_assays.md", 3, 2.3940),
 )
 
 HEADER = (

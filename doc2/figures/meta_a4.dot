@@ -1,0 +1,61 @@
+// GENERATED FILE. Do not edit.
+//   make metagraph-figure         regenerate and re-render
+//   make metagraph-figure-check   fail if stale, write nothing
+//
+// A4 PORTRAIT. Same census as meta.dot, drawn so it can be
+// printed: the arrows carry a number and the numbers are a
+// table, because this figure's arrow labels are eighty
+// characters wide and at A4 width that is 3pt type.
+// release v0.1  nodes_sha dc6d76a2b3cfb2a1  edges_sha 873623c9a9df2049
+digraph meta_a4 {
+  size="7.9,11.3"; margin=0.1; rankdir=TB;
+  graph [fontname="Helvetica", label=<<font point-size="16"><b>kgav v0.1 — the metagraph</b></font><br/><font point-size="9">every node class and every edge block in the release · 78,649 nodes · 393,927 unique directed pairs · density 6.4e-05</font><br/><font point-size="8" color="#555555">A ∈ {0,1}^(78,649 × 78,649) — dense float32 would be 24.7 GB, CSR is 3.5 MB · edges.jsonl holds 396,223 lines · edges_sha 873623c9a9df2049</font>>, labelloc=t, fontsize=11, nodesep=0.45, ranksep=0.55, pad=0.3];
+  node [fontname="Helvetica", shape=ellipse, style=filled, fontsize=9];
+  edge [fontname="Helvetica", fontsize=9, arrowsize=0.7, color="#555555"];
+  SM  [label="SmallMolecule  (SM)\n25,243\nmean deg 2.3\n73 isolated", fillcolor="#fbe5d6"];
+  P   [label="Protein  (P)\n20,888\nmean deg 24.7\n632 isolated", fillcolor="#deebf7"];
+  G   [label="Gene  (G)\n19,190\nmean deg 1.0", fillcolor="#e2f0d9"];
+  PW  [label="Pathway (GO+Reactome)  (PW)\n13,236\nmean deg 11.9", fillcolor="#fff2cc"];
+  TC  [label="TargetClass  (TC)\n66\nmean deg 2.4", fillcolor="#eeeeee"];
+  T   [label="OrganismTaxon  (T)\n16\nmean deg 2,247.9 (SARS-CoV-2: 17,342)", fillcolor="#f8cbad"];
+  D   [label="Disease  (D)\n10\nmean deg 59.3", fillcolor="#eeeeee"];
+  P   -> PW  [label="  1  ", fontname="Helvetica-Bold", penwidth=3];
+  P   -> P   [label="  2  ", fontname="Helvetica-Bold", penwidth=3];
+  SM  -> T   [label="  3  ", fontname="Helvetica-Bold", color="#c00000", fontcolor="#c00000", penwidth=2.5];
+  P   -> G   [label="  4  ", fontname="Helvetica-Bold", penwidth=2];
+  SM  -> P   [label="  5  ", fontname="Helvetica-Bold", penwidth=2];
+  P   -> T   [label="  6  ", fontname="Helvetica-Bold"];
+  SM  -> P   [label="  7  ", fontname="Helvetica-Bold"];
+  SM  -> SM  [label="  8  ", fontname="Helvetica-Bold"];
+  SM  -> P   [label="  9  ", fontname="Helvetica-Bold", color="#c00000", fontcolor="#c00000", style=dashed];
+  SM  -> D   [label="  10  ", fontname="Helvetica-Bold", color="#c00000", fontcolor="#c00000", style=dashed];
+  P   -> TC  [label="  11  ", fontname="Helvetica-Bold"];
+  P   -> P   [label="  12  ", fontname="Helvetica-Bold"];
+  G   -> T   [label="  13  ", fontname="Helvetica-Bold"];
+  P   -> P   [label="  14  ", fontname="Helvetica-Bold"];
+  T   -> D   [label="  15  ", fontname="Helvetica-Bold"];
+  SM  -> D   [label="  16  ", fontname="Helvetica-Bold", color="#c00000", fontcolor="#c00000", style=dashed];
+  key [shape=plaintext, style="", label=<
+    <table border="1" color="#999999" cellborder="0" cellspacing="0" cellpadding="2" bgcolor="#fcfcfc">
+      <tr><td colspan="7" align="left"><font point-size="11"><b>Every block in the release, largest first</b></font></td></tr>
+      <tr><td align="center"><b>#</b></td><td align="left"><b>predicate</b></td><td align="left"><b>from → to</b></td><td align="right"><b>rows×cols</b></td><td align="right"><b>nnz</b></td><td align="right"><b>density</b></td><td align="left"><b>what it reaches</b></td></tr>
+      <tr><td align="center"><font><b>1</b></font></td><td align="left"><font>PARTICIPATES_IN</font></td><td align="left"><font>P → PW</font></td><td align="right"><font>20,888×13,236</font></td><td align="right"><font>157,211</font></td><td align="right"><font>5.7e-04</font></td><td align="left"><font>17,598 proteins → 13,236 pathways</font></td></tr>
+      <tr><td align="center"><font><b>2</b></font></td><td align="left"><font>PHYSICALLY_INTERACTS_WITH</font></td><td align="left"><font>P → P</font></td><td align="right"><font>—</font></td><td align="right"><font>153,533</font></td><td align="right"><font>3.5e-04</font></td><td align="left"><font>11,873 proteins → 11,807 proteins, 130 viral</font></td></tr>
+      <tr><td align="center"><font color="#c00000"><b>3</b></font></td><td align="left"><font color="#c00000">HAS_ANTIVIRAL_ACTIVITY_AGAINST (HELD OUT)</font></td><td align="left"><font color="#c00000">SM → T</font></td><td align="right"><font color="#c00000">25,243×16</font></td><td align="right"><font color="#c00000">27,928</font></td><td align="right"><font color="#c00000">6.9e-02</font></td><td align="left"><font color="#c00000">19,353 compounds → 15 of 16 taxa</font></td></tr>
+      <tr><td align="center"><font><b>4</b></font></td><td align="left"><font>ENCODED_BY</font></td><td align="left"><font>P → G</font></td><td align="right"><font>20,888×19,190</font></td><td align="right"><font>19,498</font></td><td align="right"><font>4.9e-05</font></td><td align="left"><font>19,498 proteins → 19,190 genes</font></td></tr>
+      <tr><td align="center"><font><b>5</b></font></td><td align="left"><font>TARGETS</font></td><td align="left"><font>SM → P</font></td><td align="right"><font>25,243×20,888</font></td><td align="right"><font>17,635</font></td><td align="right"><font>3.3e-05</font></td><td align="left"><font>3,977 compounds → 1,944 proteins</font></td></tr>
+      <tr><td align="center"><font><b>6</b></font></td><td align="left"><font>HOST_FACTOR_FOR</font></td><td align="left"><font>P → T</font></td><td align="right"><font>20,888×16</font></td><td align="right"><font>7,943</font></td><td align="right"><font>2.4e-02</font></td><td align="left"><font>6,676 proteins → 8 of 16 taxa</font></td></tr>
+      <tr><td align="center"><font><b>7</b></font></td><td align="left"><font>INHIBITS</font></td><td align="left"><font>SM → P</font></td><td align="right"><font>25,243×20,888</font></td><td align="right"><font>3,874</font></td><td align="right"><font>7.3e-06</font></td><td align="left"><font>3,668 compounds → 22 proteins, all viral</font></td></tr>
+      <tr><td align="center"><font><b>8</b></font></td><td align="left"><font>CHEMICALLY_SIMILAR_TO</font></td><td align="left"><font>SM → SM</font></td><td align="right"><font>—</font></td><td align="right"><font>3,035</font></td><td align="right"><font>4.8e-06</font></td><td align="left"><font>1,479 compounds → 1,132 compounds</font></td></tr>
+      <tr><td align="center"><font color="#c00000"><b>9</b></font></td><td align="left"><font color="#c00000">MEASURED_INACTIVE_AGAINST (HELD OUT)</font></td><td align="left"><font color="#c00000">SM → P</font></td><td align="right"><font color="#c00000">25,243×20,888</font></td><td align="right"><font color="#c00000">2,420</font></td><td align="right"><font color="#c00000">4.6e-06</font></td><td align="left"><font color="#c00000">2,328 compounds → 22 proteins, all viral</font></td></tr>
+      <tr><td align="center"><font color="#c00000"><b>10</b></font></td><td align="left"><font color="#c00000">IN_TRIAL_FOR (HELD OUT)</font></td><td align="left"><font color="#c00000">SM → D</font></td><td align="right"><font color="#c00000">25,243×10</font></td><td align="right"><font color="#c00000">568</font></td><td align="right"><font color="#c00000">2.3e-03</font></td><td align="left"><font color="#c00000">288 compounds → 6 of 10 diseases</font></td></tr>
+      <tr><td align="center"><font><b>11</b></font></td><td align="left"><font>MEMBER_OF_CLASS</font></td><td align="left"><font>P → TC</font></td><td align="right"><font>20,888×66</font></td><td align="right"><font>158</font></td><td align="right"><font>1.1e-04</font></td><td align="left"><font>15 proteins → 66 of 66 classes</font></td></tr>
+      <tr><td align="center"><font><b>12</b></font></td><td align="left"><font>SAME_AS</font></td><td align="left"><font>P → P</font></td><td align="right"><font>—</font></td><td align="right"><font>119</font></td><td align="right"><font>2.7e-07</font></td><td align="left"><font>119 proteins → 119 proteins, all viral</font></td></tr>
+      <tr><td align="center"><font><b>13</b></font></td><td align="left"><font>BELONGS_TO</font></td><td align="left"><font>G → T</font></td><td align="right"><font>19,190×16</font></td><td align="right"><font>79</font></td><td align="right"><font>2.6e-04</font></td><td align="left"><font>79 genes → 16 of 16 taxa</font></td></tr>
+      <tr><td align="center"><font><b>14</b></font></td><td align="left"><font>FOLD_SIMILAR_TO</font></td><td align="left"><font>P → P</font></td><td align="right"><font>—</font></td><td align="right"><font>24</font></td><td align="right"><font>5.5e-08</font></td><td align="left"><font>11 proteins → 10 proteins, all viral</font></td></tr>
+      <tr><td align="center"><font><b>15</b></font></td><td align="left"><font>CAUSES</font></td><td align="left"><font>T → D</font></td><td align="right"><font>16×10</font></td><td align="right"><font>16</font></td><td align="right"><font>1.0e-01</font></td><td align="left"><font>16 taxa → 10 of 10 diseases</font></td></tr>
+      <tr><td align="center"><font color="#c00000"><b>16</b></font></td><td align="left"><font color="#c00000">TREATS (HELD OUT)</font></td><td align="left"><font color="#c00000">SM → D</font></td><td align="right"><font color="#c00000">25,243×10</font></td><td align="right"><font color="#c00000">9</font></td><td align="right"><font color="#c00000">3.6e-05</font></td><td align="left"><font color="#c00000">8 compounds → 3 of 10 diseases</font></td></tr>
+      <tr><td colspan="7" align="left"><font point-size="7.5" color="#555555">4 predicates are HELD OUT (red): they are the answer the scorers are graded against and no scorer may read them. nnz counts DISTINCT (subject, predicate, object).</font></td></tr>
+    </table>>];
+  D -> key [style=invis, weight=20];
+}

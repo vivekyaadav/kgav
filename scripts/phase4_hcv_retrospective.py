@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 4: the broad set, measured exactly as docs/prereg_phase4_hcv.md
+"""Phase 4: the broad set, measured exactly as doc2/registrations/prereg_phase4_hcv.md
 registered it.
 
 THE PREREG IS THE SPECIFICATION AND THIS SCRIPT HAS NO FREEDOM. Every
@@ -26,7 +26,7 @@ roughly a three-fold enrichment and nothing finer.
     python scripts/phase4_hcv_retrospective.py
 
 Read-only. Writes nothing: the verdict belongs beneath the prereg, in the
-shape docs/prereg_temporal_auc.md uses, not in a results file stamped
+shape doc2/registrations/prereg_temporal_auc.md uses, not in a results file stamped
 against a release this measurement does not read.
 
 EXIT CODES
@@ -200,7 +200,7 @@ def main() -> int:
     con.close()
     by_tid = {t["tid"]: t for t in targets}
     print(f"{args.db}\n")
-    print("Protocol: docs/prereg_phase4_hcv.md, registered 2026-10-16 before "
+    print("Protocol: doc2/registrations/prereg_phase4_hcv.md, registered 2026-10-16 before "
           "this script\nexisted. Nothing below departs from it.\n")
 
     verdict_rows: list[tuple] = []

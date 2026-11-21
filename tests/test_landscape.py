@@ -994,11 +994,11 @@ def test_the_protocol_states_the_resolution_when_it_is_the_limit(tmp_path):
 # ----------------------- the minimum-detectable-effect table (S2, S4)
 # The table did not exist anywhere in the project, and "nothing survived
 # correction" was being published without it. Every row of the one now in
-# docs/scope_and_limits.md is re-derived here from the results file, so a
+# doc2/09-limits.md is re-derived here from the results file, so a
 # re-run with more permutations or another taxon fails until the document
 # is regenerated.
 _ROOT = Path(__file__).resolve().parents[1]
-SCOPE = _ROOT / "docs" / "scope_and_limits.md"
+SCOPE = _ROOT / "doc2" / "09-limits.md"
 RESULTS = _ROOT / "data" / "results" / "pathway_landscape.json"
 
 
@@ -1094,7 +1094,7 @@ KEEP_COLUMNS = 2        #: channel and virus lead each row
 def derive() -> dict[str, list[str]]:
     """The power table scope_and_limits.md publishes, as rendered cells.
 
-    FOR scripts/rewrite_derived_tables.py (fix-list P10). Every column is
+    A SECOND DERIVATION, independent of write_doc2.py's. Every column is
     a function of pathway_landscape.json: the degree-matched expectation,
     the observed count, the minimum detectable effect, and the verdict --
     "**no rejection region**" exactly when the row is in
@@ -1232,7 +1232,7 @@ def test_the_committed_results_file_predates_the_fix():
 # the code ignores is exactly the defect test_prereg_is_obeyed.py exists
 # for. All four registered values are pinned there, and the signature's own
 # ordering claim is pinned below.
-PREREG = _ROOT / "docs" / "prereg_pathway_overlap.md"
+PREREG = _ROOT / "doc2" / "registrations" / "prereg_pathway_overlap.md"
 
 
 @pytest.fixture(scope="module")
@@ -1298,7 +1298,7 @@ def test_the_quoted_release_matches_the_census(prereg):
     and audited by `make kg-report-check`, so it is the right source.
     """
     import re
-    census = _ROOT / "docs" / "kg_release_census.txt"
+    census = _ROOT / "doc2" / "kg_release_census.txt"
     if not census.exists():
         pytest.skip("census absent")
     body = census.read_text()

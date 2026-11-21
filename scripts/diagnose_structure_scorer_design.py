@@ -270,7 +270,7 @@ def main() -> int:
     print("  which cells could show that it does, what the labels would")
     print("  leak into it, and which splits are buildable. The scorer, the")
     print("  reference set, the split and the correction family are")
-    print("  decisions, and they belong in docs/prereg_structure_scorer.md")
+    print("  decisions, and they belong in doc2/registrations/prereg_structure_scorer.md")
     print("  BEFORE the first score is computed.")
     return 0
 

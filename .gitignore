@@ -5,7 +5,7 @@ data/interim/*
 # never descends into an ignored directory, so the MANIFEST.json rule under
 # it could never re-include anything. Zero manifests were tracked, which is
 # the one artifact recording a release's LAYER hashes and per-class counts;
-# docs/kg_release_census.txt is committed but holds only the top-level
+# doc2/kg_release_census.txt is committed but holds only the top-level
 # nodes_sha and edges_sha. Verified with `git check-ignore -v` rather than
 # by reading the pattern, because reading the pattern is what produced the
 # broken one.
@@ -45,7 +45,7 @@ credentials.json
 # What used to be ignored: web/node_modules/ (472MB), web/dist/,
 # web/.vite/, web/patches/, web/.manus-logs/. Those belonged to a
 # scaffolded React/Vite template that drew a hand-written graph and made
-# no network call -- docs/data_audit_2026-11-07.md listed it as "unused
+# no network call -- doc2/records/data_audit_2026-11-07.md listed it as "unused
 # Manus template (fix list P11)". Deleted 2026-11-20.
 
 # Review patches dropped in the worktree ROOT only. A bare *.patch glob

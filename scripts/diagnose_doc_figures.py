@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Which figures in docs/evaluation.md still appear in the results files.
+"""Which figures in doc2/08-results.md still appear in the results files.
 
     python scripts/diagnose_doc_figures.py
-    python scripts/diagnose_doc_figures.py --doc docs/evaluation.md
+    python scripts/diagnose_doc_figures.py --doc doc2/08-results.md
 
 ADVISORY, NOT A GATE, and deliberately not a test. The doc records what was
 measured AND what it used to say -- "the superseded run read M1 at lift
@@ -178,7 +178,7 @@ def main() -> int:
   That table is a record of five separate runs, not of one file.
 
   A PRE-REGISTRATION IS HISTORICAL BY DEFINITION. Run this against
-  docs/prereg_*.md and its figures will read absent, correctly: a prereg
+  doc2/registrations/prereg_*.md and its figures will read absent, correctly: a prereg
   states what was known when the prediction was declared, and editing
   one to match a later release destroys the only thing it is for. Fix
   the live document; leave the prereg alone.""")

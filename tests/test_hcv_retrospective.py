@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-PREREG = ROOT / "docs" / "prereg_phase4_hcv.md"
+PREREG = ROOT / "doc2" / "registrations" / "prereg_phase4_hcv.md"
 
 
 def _mod(name):
@@ -179,7 +179,7 @@ def test_it_runs_and_names_the_protocol(tmp_path, monkeypatch, capsys):
     code = R.main()
     out = capsys.readouterr().out
     assert code in (0, 1)
-    assert "docs/prereg_phase4_hcv.md" in out
+    assert "doc2/registrations/prereg_phase4_hcv.md" in out
     assert "Nothing below departs from it." in out
 
 
@@ -223,7 +223,7 @@ def test_it_writes_no_results_file():
 # ------------------------------------------------------------- the verdict
 def test_the_verdict_is_recorded_beneath_the_prereg():
     """The house shape: the body stays as written and the verdict goes
-    under it, as docs/prereg_temporal_auc.md does."""
+    under it, as doc2/registrations/prereg_temporal_auc.md does."""
     heads = [l for l in PREREG.read_text().splitlines() if l.startswith("# ")]
     assert heads[0].startswith("# Pre-registration")
     assert heads[-1].startswith("# Verdict")

@@ -1,0 +1,66 @@
+# 15 — Appendix: every script, and every artifact
+
+## Scripts
+
+{{n_scripts}} scripts, {{n_script_lines}} lines. Four of them exit non-zero on
+`--help` **on purpose** — two print a usage block because they take positional
+directories, one needs a release, and one **refuses to run at all** because it
+is a phase-1 schema patch and would downgrade the schema from
+{{schema_version}}. The test that covers the sweep greps for a traceback
+rather than checking exit codes, for exactly that reason.
+
+{{script_table}}
+
+## Artifacts
+
+{{n_results_files}} files in `data/results/`, every one stamped with the
+content hashes of the graph it was computed from and the commit that computed
+it. {{n_refused_results}} is a recorded refusal.
+
+{{results_table}}
+
+## The constants, and where each one is decided
+
+| constant | value | decided by |
+|:---|---:|:---|
+| `inactive_above_nm` | {{inactive_above_nm}} nM | **measured** from the censored-bound census |
+| `active_below_nm` | {{active_below_nm}} nM | a decision about the task, not derived |
+| `dose_series_policy` | `{{dose_series_default}}` | fix-list L10, recorded with both branches runnable |
+| ECFP4 | radius {{fp_radius}}, {{fp_bits}} bits | `kgav.similarity`, one definition |
+| `CHANCE` | {{chance}} | `kgav.calibration` — imported by the agent, never respelled |
+| `MIN_REACHED_POSITIVES` | {{min_reached_positives}} | matches the minimum class size the hard-negative script requires |
+| landscape `ALPHA` | {{landscape_alpha}} | `kgav.landscape`, imported by the agent so one answer cannot carry two alphas |
+| `hub_degree_cut` | {{hub_cut_degree}} | the `Protein` p99.9 on this release |
+| `THIN_ROUTE` | {{agent_thin_route}} | not a cutoff: the route is used either way and the number is stated |
+| `SI_THRESHOLD` | {{agent_si_threshold}} | the conventional selectivity floor, applied as a report rather than a filter |
+
+## Correction families, and the labelled populations
+
+| run | fingerprinted | family | corrected alpha |
+|:---|---:|---:|---:|
+| publication-disjoint | {{pub_n_labelled}} | {{pub_family}} | {{pub_alpha}} |
+| symmetric k={{sym_k}} | {{sym_n_labelled}} | {{sym_family}} | {{sym_alpha}} |
+| strength-matched | {{str_n_labelled}} | {{str_family}} | {{str_alpha}} |
+| prospective | — | {{temporal_family}} | {{temporal_alpha}} |
+| clinical labels | — | {{clinical_family}} | {{clinical_alpha}} |
+| pathway landscape | — | {{pl_n_tests}} | {{landscape_alpha}} (uncorrected; Bonferroni applied per table) |
+
+## The floors that make an imputed AUC readable
+
+For the plate-matched cell, the degree baseline reaches
+{{hn_degree_cov}} of the positives so its floor is {{hn_degree_floor}} —
+exactly chance — and its skill is {{hn_degree_skill}}. The ensemble reaches
+{{hn_combined_cov}}, so its floor is {{hn_combined_floor}} and its skill is
+{{hn_combined_skill}}. Those two floors are the whole difference between the
+two AUCs, which sit {{hn_combined_auc}} and {{hn_degree_auc}}.
+
+## Every registration
+
+{{n_registrations}} documents in `registrations/`, each signed before the
+result it governs existed, each amended by appending. The subject is read out
+of each file's own title line, so a registration added to the directory
+appears here without anyone editing this table — the predecessor of this
+index was hand-written, and a registration added without an edit to it was
+simply absent.
+
+{{registration_table}}

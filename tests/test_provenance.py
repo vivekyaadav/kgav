@@ -379,7 +379,7 @@ def test_only_all_viruses_or_a_named_taxon_counts_as_covered(repro, expected):
 
 
 def test_the_reproducing_block_regenerates_every_audited_results_file():
-    """docs/evaluation.md's Reproducing block named four of the fourteen
+    """The Reproducing block named four of the fourteen
     files make check-results audits. The other ten -- eight per-virus
     baselines, metapath_comparison.json and the --undated exclude protocol --
     had no command anywhere, so following the documented procedure after a
@@ -391,7 +391,7 @@ def test_the_reproducing_block_regenerates_every_audited_results_file():
     """
     from kgav import virus_register
 
-    block = (ROOT / "docs" / "evaluation.md").read_text()
+    block = (ROOT / "doc2" / "12-reproducing.md").read_text()
     m = re.search(r"## Reproducing\n(.*?)\n```\n", block, re.S)
     assert m, "could not find the Reproducing block"
     repro = m.group(1)
@@ -427,7 +427,7 @@ def test_the_reproducing_block_cuts_the_split_before_reading_it():
     temporal column came from the PREVIOUS release's split -- and the result
     was then stamped against the current one.
     """
-    block = (ROOT / "docs" / "evaluation.md").read_text()
+    block = (ROOT / "doc2" / "12-reproducing.md").read_text()
     m = re.search(r"## Reproducing\n(.*?)\n```\n", block, re.S)
     assert m
     repro = m.group(1)
@@ -751,7 +751,7 @@ def test_the_documents_dirty_flag_count_is_gits():
     figure."""
     import re
 
-    doc = (ROOT / "docs" / "evaluation.md").read_text()
+    doc = (ROOT / "doc2" / "14-defect-ledger.md").read_text()
     assert DIRTY_FIGURE in doc, "the dirty-flag paragraph lost its marker"
     para = " ".join(doc.split(DIRTY_FIGURE, 1)[1].split("\n\n")[0].split())
     m = re.search(r"Of the \*\*(\d+)\*\* manifest versions committed before "

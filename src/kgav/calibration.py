@@ -60,7 +60,7 @@ MIN_REACHED_POSITIVES = 10
 
 # Protocols whose numbers must never become weights, with the reason. Checked
 # by name so a results file produced under one is refused rather than silently
-# trusted -- the whole sequence in docs/evaluation.md is numbers that looked
+# trusted -- the whole sequence in doc2/08-results.md is numbers that looked
 # usable until the next control ran.
 REFUSED_PROTOCOLS: dict[str, str] = {
     "selectivity-positives-only":
@@ -395,7 +395,7 @@ def _temporal_channel(name: str, row: dict, n_pos: int, n_neg: int
 
     THE CORRECTED ONE, NOT THE 95% ONE. `discriminates` tests
     `ci_lo > CHANCE`, and the registration
-    (docs/prereg_temporal_structure_scorer.md) decides whether a cell
+    (doc2/registrations/prereg_temporal_structure_scorer.md) decides whether a cell
     clears at alpha = 0.05/10 with z = 2.8070, not at z = 1.96. Handing
     it `auc_ci_lo` would let the agent announce cells as clearing chance
     that the registered family size says do not -- the agent claiming

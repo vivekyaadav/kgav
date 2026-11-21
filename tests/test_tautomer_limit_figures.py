@@ -1,6 +1,6 @@
 """The nine conflated nodes, and how far into the evaluation they reach.
 
-docs/scope_and_limits.md states this limit, and the first draft of that
+doc2/09-limits.md states this limit, and the first draft of that
 section asserted the nine were unreachable by any evaluated channel and so
 could not affect a published figure. MEASURED, 8 of 9 carry an evaluation
 label and 5 carry a traversable edge; one holds 16 TARGETS edges. The claim
@@ -21,7 +21,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 RELEASE = ROOT / "data/releases/v0.1"
-DOC = ROOT / "docs/scope_and_limits.md"
+DOC = ROOT / "doc2/09-limits.md"
 LABELS = {"HAS_ANTIVIRAL_ACTIVITY_AGAINST", "MEASURED_INACTIVE_AGAINST"}
 
 

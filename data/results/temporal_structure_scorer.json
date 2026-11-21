@@ -1,6 +1,6 @@
 {
   "measured_by": "scripts/temporal_structure_scorer.py",
-  "registered_by": "docs/prereg_temporal_structure_scorer.md",
+  "registered_by": "doc2/registrations/prereg_temporal_structure_scorer.md",
   "split": "v0.1-train2021",
   "cutoff": 2021,
   "undated_policy": "include",

@@ -1,6 +1,6 @@
 """Every figure in the clinical-label verdict is the run's.
 
-The verdict in docs/prereg_clinical_labels.md turns on three numbers --
+The verdict in doc2/registrations/prereg_clinical_labels.md turns on three numbers --
 0.4087, 0.7751 and the direction of the first -- and on four control
 counters that are the only evidence the exclusion behaved as registered.
 All of them are derived here from data/results/clinical_labels.json, so
@@ -18,7 +18,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-PREREG = ROOT / "docs" / "prereg_clinical_labels.md"
+PREREG = ROOT / "doc2" / "registrations" / "prereg_clinical_labels.md"
 RESULTS = ROOT / "data" / "results" / "clinical_labels.json"
 
 

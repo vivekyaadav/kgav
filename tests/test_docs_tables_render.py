@@ -1,6 +1,6 @@
 """A table cell past the header's column count is not displayed at all.
 
-WHAT WAS WRONG. `docs/audit_2026-11-03_fixes.md` declares its section
+WHAT WAS WRONG. `doc2/records/audit_2026-11-03_fixes.md` declares its section
 tables as three or four columns and its rows carried five and six, because
 the Status column was appended to the rows and never to the header. GFM's
 rule is explicit -- "if a row has greater [cells than the header], the
@@ -25,7 +25,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXES = ROOT / "docs" / "audit_2026-11-03_fixes.md"
+FIXES = ROOT / "doc2" / "records" / "audit_2026-11-03_fixes.md"
 
 # A renderer splits on every unescaped pipe. It does not know about code
 # spans, which is exactly how E4 lost half a sentence, so neither does this.

@@ -612,7 +612,7 @@ def test_a_control_run_does_not_overwrite_the_result_it_controls():
 
 # ------------------------------- the temporal protocol reports a tie-safe AUC
 def test_the_temporal_protocol_reports_an_auc_gated_on_reached_positives():
-    """docs/prereg_temporal_auc.md P2 and P3. The protocol held both halves
+    """doc2/registrations/prereg_temporal_auc.md P2 and P3. The protocol held both halves
     and used neither: split.test_negatives is populated and only test_pos
     was passed to lift_row, so a tie-SENSITIVE lift was computed against
     positives alone while the measured negatives sat unused.

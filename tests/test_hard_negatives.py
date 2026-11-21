@@ -103,7 +103,7 @@ def test_cross_sectional_reach_is_not_discarded_before_it_is_written():
 
 # --------------------------------------------------------- the no-op control
 #
-# docs/evaluation.md states that `--selectivity all --selectivity-applies
+# doc2/08-results.md states that `--selectivity all --selectivity-applies
 # both` "reproduces the row-2 figure, so the flag does nothing it should
 # not." The Reproducing block ran it and NOTHING COMPARED THE RESULT. Every
 # hard_negatives.py variant writes to one hard_negatives.json, so by the
@@ -291,7 +291,7 @@ def test_the_fixture_can_tell_the_two_settings_apart(arms):
 
 
 def test_selectivity_applies_is_a_no_op_when_the_filter_is_all(arms):
-    """The claim docs/evaluation.md makes. `all` short-circuits the filter
+    """The claim doc2/08-results.md makes. `all` short-circuits the filter
     block entirely, so the flag is recorded in the output and otherwise
     unread."""
     a, b = arms[("all", "positives")], arms[("all", "both")]
@@ -557,7 +557,7 @@ def test_run_still_computes_its_own_when_given_none(world):
 #   AN EMPTY LABEL SET printed NOTHING -- the per-virus loop never ran. Row
 #   5's temporal column is this: NCATS-only labels carry no post-cutoff
 #   dates, so `temporal: {}` beside `temporal_skipped: null` read as a
-#   column that computed fine, while docs/evaluation.md quoted temporal
+#   column that computed fine, while doc2/08-results.md quoted temporal
 #   AUCs for that protocol.
 def test_a_virus_below_the_class_floor_is_recorded_with_its_reason(world):
     """The reason names WHICH class was short and by how much. "needs 10

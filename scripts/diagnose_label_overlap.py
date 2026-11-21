@@ -23,7 +23,7 @@ rather than a wrong working directory.
 WHY IT NOW WRITES A FILE. The shared-PMID figure -- 89.3% on the release of
 2026-11-09, and quoted here with a date because this docstring has now been
 one release stale twice -- is the single most
-load-bearing number in docs/evaluation.md -- it is why that document calls
+load-bearing number in doc2/08-results.md -- it is why that document calls
 its own M1 result partly self-scoring -- and until 2026-11-02 it existed
 nowhere but this script's console output. It had been copied into six
 places in evaluation.md and one in kg_audit_report.txt, and nothing could

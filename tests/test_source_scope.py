@@ -186,7 +186,7 @@ def test_the_top_flag_caps_only_the_journal_profile(tmp_path, capsys,
 
 
 # ----------------------------------- the causes table names its own sources
-EVAL = ROOT / "docs" / "evaluation.md"
+EVAL = ROOT / "doc2" / "08-results.md"
 
 
 def _causes_table() -> list[str]:

@@ -1488,7 +1488,7 @@ def test_the_documents_m8_paragraph_is_the_measurement():
     20 strong, 16 weak, 0 strong reaching the release and 4 hops M8 can
     walk; all five come from the cache and the release here."""
     import re
-    doc = (ROOT / "docs" / "evaluation.md").read_text()
+    doc = (ROOT / "doc2" / "08-results.md").read_text()
     assert M8_FIGURE in doc, (
         "the M8 paragraph lost its marker, so nothing re-derives it")
     para = " ".join(doc.split(M8_FIGURE, 1)[1].split("\n\n")[0].split())

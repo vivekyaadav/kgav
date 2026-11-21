@@ -1,9 +1,9 @@
 """The two moved landscape cells have a named cause, and the documents say it.
 
-WHAT WAS OPEN. docs/prereg_pathway_overlap.md's note of 2026-11-17
+WHAT WAS OPEN. doc2/registrations/prereg_pathway_overlap.md's note of 2026-11-17
 records two cells whose `n_observed` moved, names a cause for one, and
 leaves the other open with a controlled `ncats` re-run as the way to
-close it. docs/v1_release_plan.md carried it as remaining work.
+close it. doc2/plan.md carried it as remaining work.
 
 WHAT CLOSED IT. `n_observed = len(targets & factors)`, so a cell moves
 when a protein ALREADY INSIDE its factor set joins the drugged proteome
@@ -32,8 +32,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 RESULTS = ROOT / "data" / "results" / "landscape_count_move.json"
-PREREG = ROOT / "docs" / "prereg_pathway_overlap.md"
-PLAN = ROOT / "docs" / "v1_release_plan.md"
+PREREG = ROOT / "doc2" / "registrations" / "prereg_pathway_overlap.md"
+PLAN = ROOT / "doc2" / "plan.md"
 LANDSCAPE = ROOT / "data" / "results" / "pathway_landscape.json"
 
 

@@ -26,7 +26,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import diagnose_label_reachability as D  # noqa: E402
 
-DOC = ROOT / "docs/audit_2026-11-03_fixes.md"
+DOC = ROOT / "doc2/records/audit_2026-11-03_fixes.md"
 FIGURE = "<!-- FIGURE: label_reachability -->"
 RELEASE = ROOT / "data/releases/v0.1"
 

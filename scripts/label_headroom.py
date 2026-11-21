@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """How many more labels would it take, and are there compounds to label.
 
-docs/prereg_partial_degree.md returned NO RESULT and its verdict names one
+doc2/registrations/prereg_partial_degree.md returned NO RESULT and its verdict names one
 actionable cell -- SARS-CoV-2 M4, b_c +0.401 / +0.403 under the two
 scorings, significant uncorrected and not after Bonferroni -- and says the
 action is more labels rather than more modelling. That is a quantity, so

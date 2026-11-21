@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate docs/figures/meta.dot from the assembled release.
+"""Generate doc2/figures/meta.dot from the assembled release.
 
     make metagraph-figure         # regenerate the .dot and re-render
     make metagraph-figure-check   # fail if it is stale, write nothing
@@ -70,7 +70,8 @@ from kgav.pipeline import release_dir
 from kgav.provenance import release_fingerprint
 from kgav.schema import load_schema, print_capped
 
-DOT = ROOT / "docs" / "figures" / "meta.dot"
+DOT = ROOT / "doc2" / "figures" / "meta.dot"
+A4_DOT = ROOT / "doc2" / "figures" / "meta_a4.dot"
 
 #: Short node ids in the .dot, and the fill each class gets. A class not
 #: listed here still draws -- with a generated id and the default fill --
@@ -250,6 +251,158 @@ def annotation(c: Census, pred: str, sc: str, oc: str) -> str:
     return note
 
 
+def blocks_in_order(c: Census, ids: dict[str, str]) -> list[tuple]:
+    """Every drawn block, descending nnz, ties broken by predicate.
+
+    ONE ORDERING FOR BOTH FIGURES. The wide figure writes each block's
+    counts onto its arrow and the A4 figure writes them into a numbered
+    table, and the two have to agree about which block is number 7.
+    """
+    return [k for k, _ in sorted(c.block.items(),
+                                 key=lambda kv: (-len(kv[1]), kv[0][1]))
+            if k[0] in ids and k[2] in ids]
+
+
+def _a4_table(c: Census, ids: dict[str, str], held_out: set) -> list[str]:
+    """The block table the A4 figure carries instead of arrow labels.
+
+    WHY THE A4 FIGURE IS A DIFFERENT DRAWING AND NOT A SCALED ONE. The
+    wide figure's arrow labels run to two lines of eighty characters;
+    at A4 width they are 3pt and unreadable, and that is how a figure
+    comes to be printed that nobody can check. Here the arrows carry a
+    number and the numbers are a table, which is also the form a reader
+    can scan down -- the wide figure gives no way to compare two blocks
+    without hunting for both arrows.
+    """
+    def esc(s: str) -> str:
+        """`annotation()` writes `->`, and in a graphviz HTML-like label
+        a bare `>` closes a tag: the first render of this table failed
+        with "syntax error near ','" pointing at a row whose only fault
+        was the arrow in its reach column."""
+        return (s.replace("&", "&amp;").replace("<", "&lt;")
+                 .replace(">", "&gt;").replace("-&gt;", "→"))
+
+    rows = ['      <tr>'
+            '<td align="center"><b>#</b></td>'
+            '<td align="left"><b>predicate</b></td>'
+            '<td align="left"><b>from → to</b></td>'
+            '<td align="right"><b>rows×cols</b></td>'
+            '<td align="right"><b>nnz</b></td>'
+            '<td align="right"><b>density</b></td>'
+            '<td align="left"><b>what it reaches</b></td></tr>']
+    for i, (sc, pred, oc) in enumerate(blocks_in_order(c, ids), 1):
+        nnz = len(c.block[(sc, pred, oc)])
+        r, co = c.count(sc), c.count(oc)
+        shape = "—" if sc == oc else f"{r:,}×{co:,}"
+        reach = esc(annotation(c, pred, sc, oc).strip("()"))
+        colour = f' color="{HELD_OUT_COLOUR}"' if pred in held_out else ""
+        name = pred + (" (HELD OUT)" if pred in held_out else "")
+        rows.append(
+            f'      <tr>'
+            f'<td align="center"><font{colour}><b>{i}</b></font></td>'
+            f'<td align="left"><font{colour}>{esc(name)}</font></td>'
+            f'<td align="left"><font{colour}>{ids[sc]} → {ids[oc]}</font></td>'
+            f'<td align="right"><font{colour}>{shape}</font></td>'
+            f'<td align="right"><font{colour}>{nnz:,}</font></td>'
+            f'<td align="right"><font{colour}>'
+            f'{_fmt_density(nnz, r, co)}</font></td>'
+            f'<td align="left"><font{colour}>{reach}</font></td></tr>')
+    n_held = len(held_out & {p for _, p, _ in c.block})
+    legend = (f'{n_held} predicates are '
+              f'HELD OUT (red): they are the answer the scorers are graded '
+              f'against and no scorer may read them. '
+              f'nnz counts DISTINCT (subject, predicate, object).')
+    return ['  key [shape=plaintext, style="", label=<',
+            '    <table border="1" color="#999999" cellborder="0" '
+            'cellspacing="0" cellpadding="2" bgcolor="#fcfcfc">',
+            '      <tr><td colspan="7" align="left"><font point-size="11">'
+            '<b>Every block in the release, largest first</b></font>'
+            '</td></tr>',
+            *rows,
+            f'      <tr><td colspan="7" align="left">'
+            f'<font point-size="7.5" color="#555555">{legend}</font>'
+            f'</td></tr>',
+            '    </table>>];']
+
+
+def render_a4(c: Census) -> str:
+    """A4 portrait: a numbered metagraph over a table of its blocks."""
+    fp = release_fingerprint(c.release)
+    schema = load_schema()
+    held_out = set(schema.held_out_predicates())
+    classes = sorted((cl for cl in c.by_class if cl),
+                     key=lambda cl: -c.count(cl))
+    ids = {cl: STYLE.get(cl, (f"N{i}", "#eeeeee"))[0]
+           for i, cl in enumerate(classes)}
+
+    lines = [
+        "// GENERATED FILE. Do not edit.",
+        "//   make metagraph-figure         regenerate and re-render",
+        "//   make metagraph-figure-check   fail if stale, write nothing",
+        "//",
+        "// A4 PORTRAIT. Same census as meta.dot, drawn so it can be",
+        "// printed: the arrows carry a number and the numbers are a",
+        "// table, because this figure's arrow labels are eighty",
+        "// characters wide and at A4 width that is 3pt type.",
+        f"// release {fp['id']}  nodes_sha {fp['nodes_sha']}  "
+        f"edges_sha {fp['edges_sha']}",
+        "digraph meta_a4 {",
+        '  size="7.9,11.3"; margin=0.1; rankdir=TB;',
+        f'  graph [fontname="Helvetica", label=<'
+        f'<font point-size="16"><b>kgav {fp["id"]} — the metagraph</b>'
+        f'</font><br/>'
+        f'<font point-size="9">every node class and every edge block in '
+        f'the release · {c.n_nodes:,} nodes · {c.n_pairs:,} unique directed '
+        f'pairs · density {c.density:.1e}</font><br/>'
+        f'<font point-size="8" color="#555555">A ∈ {{0,1}}'
+        f'^({c.n_nodes:,} × {c.n_nodes:,}) — dense float32 would be '
+        f'{c.dense_gb:.1f} GB, CSR is {c.csr_mb:.1f} MB · '
+        f'edges.jsonl holds {c.lines:,} lines · '
+        f'edges_sha {fp["edges_sha"]}</font>>,'
+        f' labelloc=t, fontsize=11, nodesep=0.45, ranksep=0.55, pad=0.3];',
+        '  node [fontname="Helvetica", shape=ellipse, style=filled, '
+        'fontsize=9];',
+        '  edge [fontname="Helvetica", fontsize=9, arrowsize=0.7, '
+        'color="#555555"];',
+    ]
+    for cls in classes:
+        short, fill = STYLE.get(cls, (ids[cls], "#eeeeee"))
+        # THE SHORT CODE IS ON THE NODE. The table below says
+        # "SM → T", and the first render left the reader no way to
+        # learn what SM is -- a key that cannot be read from the page
+        # it is on.
+        bits = [f"{DISPLAY.get(cls, cls)}  ({short})", f"{c.count(cls):,}"]
+        if c.count(cls) > 1:
+            bits.append(f"mean deg {c.mean_degree(cls):,.1f}")
+        if c.isolated(cls):
+            bits.append(f"{c.isolated(cls):,} isolated")
+        if cls == "OrganismTaxon" and HEADLINE_TAXON in c.degree:
+            bits[-1] = bits[-1] + (f" (SARS-CoV-2: "
+                                   f"{c.degree[HEADLINE_TAXON]:,})")
+        lines.append(f'  {short:<3} [label="' + "\\n".join(bits)
+                     + f'", fillcolor="{fill}"];')
+    for i, (sc, pred, oc) in enumerate(blocks_in_order(c, ids), 1):
+        nnz = len(c.block[(sc, pred, oc)])
+        attrs = [f'label="  {i}  "', 'fontname="Helvetica-Bold"']
+        if pred in held_out:
+            attrs += [f'color="{HELD_OUT_COLOUR}"',
+                      f'fontcolor="{HELD_OUT_COLOUR}"',
+                      "style=dashed" if nnz < 10_000 else "penwidth=2.5"]
+        elif nnz >= 100_000:
+            attrs.append("penwidth=3")
+        elif nnz >= 10_000:
+            attrs.append("penwidth=2")
+        lines.append(f'  {ids[sc]:<3} -> {ids[oc]:<3} '
+                     f'[{", ".join(attrs)}];')
+    lines += _a4_table(c, ids, held_out)
+    # The table hangs BELOW the graph rather than beside it; without a
+    # constraint graphviz puts a disconnected node wherever it fits and
+    # the page came out landscape.
+    lines.append(f'  {ids[classes[-1]]} -> key [style=invis, weight=20];')
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
 def render_dot(c: Census) -> str:
     """The .dot text. Deterministic: blocks sorted by descending nnz."""
     fp = release_fingerprint(c.release)
@@ -358,7 +511,10 @@ def main(argv=None) -> int:
         print(f"release not found at {args.release}", file=sys.stderr)
         return 2
 
-    text = render_dot(Census(args.release))
+    census = Census(args.release)
+    text = render_dot(census)
+    a4_out = args.out.with_name("meta_a4.dot")
+    a4_text = render_a4(census)
 
     # ONE STREAM. These three messages used to go to stderr while
     # print_capped writes to stdout, so the footer appeared ABOVE the
@@ -387,18 +543,32 @@ def main(argv=None) -> int:
             print_capped(diff, DIFF_LINES, indent="  ", unit="more diff line(s)")
             print("\n  `make metagraph-figure` regenerates it.")
             return 1
-        print(f"{args.out.name} is current for {args.release.name}")
+        if not a4_out.exists() or a4_out.read_text() != a4_text:
+            print(f"{a4_out.name} is STALE. It does not describe "
+                  f"{args.release.name}; `make metagraph-figure` "
+                  f"regenerates it.")
+            return 1
+        print(f"{args.out.name} and {a4_out.name} are current for "
+              f"{args.release.name}")
         return 0
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(text)
     print(f"wrote {args.out}")
+    a4_out.write_text(a4_text)
+    print(f"wrote {a4_out}")
 
     if args.render:
         stem = args.out.parent / "kgav_metagraph"
-        for fmt, dest in (("png", stem.with_suffix(".png")),
-                          ("svg", stem.with_suffix(".svg"))):
-            r = subprocess.run(["dot", f"-T{fmt}", str(args.out),
+        a4_stem = args.out.parent / "kgav_metagraph_a4"
+        for src, fmt, dest in (
+                (args.out, "png", stem.with_suffix(".png")),
+                (args.out, "svg", stem.with_suffix(".svg")),
+                (a4_out, "pdf", a4_stem.with_suffix(".pdf")),
+                (a4_out, "png", a4_stem.with_suffix(".png")),
+                (a4_out, "svg", a4_stem.with_suffix(".svg"))):
+            extra = ["-Gdpi=300"] if dest.suffix == ".png" else []
+            r = subprocess.run(["dot", f"-T{fmt}", *extra, str(src),
                                 "-o", str(dest)], capture_output=True,
                                text=True)
             if r.returncode != 0:

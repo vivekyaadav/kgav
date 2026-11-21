@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the agent against ONE VIRUS FROM EACH TIER in section 9 of
-# docs/kg_audit_report.txt, and print what it says.
+# doc2/kg_audit_report.txt, and print what it says.
 #
 # WHY THIS EXISTS. Every hand-check of this agent up to 2026-10-29
 # used SARS-CoV-2, which sits in the EVALUABLE tier -- labels, routes

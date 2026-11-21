@@ -1,4 +1,4 @@
-"""docs/figures/meta.dot describes the release it names.
+"""doc2/figures/meta.dot describes the release it names.
 
 WHY THIS FILE EXISTS. meta.dot was hand-written on 2026-11-03 and nothing
 checked it. By 2026-11-20 it carried thirteen stale figures and omitted
@@ -38,7 +38,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-DOT = ROOT / "docs" / "figures" / "meta.dot"
+DOT = ROOT / "doc2" / "figures" / "meta.dot"
 RELEASE = ROOT / "data" / "releases" / "v0.1"
 SCRIPT = ROOT / "scripts" / "write_metagraph_figure.py"
 

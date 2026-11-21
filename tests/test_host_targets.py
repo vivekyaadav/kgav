@@ -725,7 +725,7 @@ def test_the_documents_analysable_set_is_the_releases():
     import re
 
     rel = ROOT / "data/releases/v0.1"
-    doc = (ROOT / "docs" / "scope_and_limits.md").read_text()
+    doc = (ROOT / "doc2" / "09-limits.md").read_text()
     assert ANALYSABLE_FIGURE in doc, "the analysable-set paragraph lost its marker"
     body = doc.split(ANALYSABLE_FIGURE, 1)[1]
     para = " ".join(body.split("\n\n")[0].split())

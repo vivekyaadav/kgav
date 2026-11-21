@@ -14,7 +14,7 @@ itself used to assert).
     python scripts/dryrun_promote.py --promote DENV-2 Zika "West Nile"
 
 WHY A DRY RUN AT ALL. Promotion rebuilds the release, which restates every
-figure in docs/evaluation.md and changes what the agent answers. A wrong
+figure in doc2/08-results.md and changes what the agent answers. A wrong
 assumption should cost a read, not a rebuild.
 """
 from __future__ import annotations

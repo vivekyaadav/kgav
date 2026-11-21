@@ -19,7 +19,7 @@ It admits two readings, and they license different things:
               withheld, so it is about a broader resemblance than one
               series.
 
-docs/prereg_temporal_structure_scorer.md left this open in as many
+doc2/registrations/prereg_temporal_structure_scorer.md left this open in as many
 words: H3's analogue question is "a pointer, not a finding". The DENV-4
 amendment of 2026-11-21 answered it for ONE cell, where median 100% of
 the neighbours its cross-sectional control strips are its own era-mates.

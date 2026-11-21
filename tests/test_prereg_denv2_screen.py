@@ -1,4 +1,4 @@
-"""docs/prereg_denv2_prospective_screen.md, re-derived.
+"""doc2/registrations/prereg_denv2_prospective_screen.md, re-derived.
 
 A PRE-REGISTRATION IS THE ONE DOCUMENT HERE THAT MUST NOT BE EDITED TO
 MATCH A LATER RELEASE. Its whole value is that it says what was believed
@@ -36,7 +36,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "docs" / "prereg_denv2_prospective_screen.md"
+DOC = ROOT / "doc2" / "registrations" / "prereg_denv2_prospective_screen.md"
 SPLIT = ROOT / "data" / "releases" / "v0.1-train2021"
 
 needs_split = pytest.mark.skipif(

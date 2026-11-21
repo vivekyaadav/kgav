@@ -7,7 +7,7 @@ prospective one cannot, because that series is not in the pre-cutoff
 reference set at all.
 
 WHY IT NEEDED RECORDING. A reader of
-docs/prereg_temporal_structure_scorer.md alone sees DENV-4 at 0.7896,
+doc2/registrations/prereg_temporal_structure_scorer.md alone sees DENV-4 at 0.7896,
 clearing, and would reasonably take that to license a shortlist. It does
 not: the shortlist ranks never-screened compounds against ALL known
 actives, which is the cross-sectional setting -- the one where DENV-4 is
@@ -30,7 +30,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "docs" / "prereg_temporal_structure_scorer.md"
+DOC = ROOT / "doc2" / "registrations" / "prereg_temporal_structure_scorer.md"
 SCRIPT = ROOT / "scripts" / "diagnose_protocol_disagreement.py"
 RESULTS = ROOT / "data" / "results"
 SPLIT = ROOT / "data" / "releases" / "v0.1-train2021"

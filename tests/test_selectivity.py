@@ -297,7 +297,7 @@ def test_no_comment_in_this_module_still_claims_the_worst_is_kept():
 
     It was not harmless. baselines.potency_tiebreak took "keep the worst"
     from it as an inherited rule, citing it verbatim, and fix 3 of
-    docs/prereg_m1_potency.md was designed on that citation.
+    doc2/registrations/prereg_m1_potency.md was designed on that citation.
     """
     src = (Path(__file__).resolve().parents[1]
            / "src/kgav/selectivity.py").read_text()

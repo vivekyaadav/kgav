@@ -4,7 +4,7 @@
     python scripts/temporal_structure_scorer.py
     make temporal-structure-scorer
 
-REGISTERED IN ADVANCE by docs/prereg_temporal_structure_scorer.md,
+REGISTERED IN ADVANCE by doc2/registrations/prereg_temporal_structure_scorer.md,
 signed 2026-11-19 before any AUC against a post-2021 label existed.
 Every threshold, the family size, the alpha, the refusal conditions and
 the 20% comparator rule are read from that document's decisions and are
@@ -66,7 +66,7 @@ from structure_scorer import (                              # noqa: E402
 CUTOFF = 2021
 UNDATED = "include"
 
-#: docs/prereg_temporal_structure_scorer.md: ten evaluable cells, so
+#: doc2/registrations/prereg_temporal_structure_scorer.md: ten evaluable cells, so
 #: alpha = 0.05/10. Written down so a run that finds a different count
 #: REFUSES rather than dividing by whatever it found.
 FAMILY = 10
@@ -131,7 +131,7 @@ def _auc(m: dict) -> str:
 
     A cell with no comparator must not format as 0.0000: that reads as a
     measured failure of the baseline rather than the absence of one, and
-    it is the same mistake docs/scorer_aucs.txt's `_cell()` was written
+    it is the same mistake doc2/scorer_aucs.txt's `_cell()` was written
     to avoid.
     """
     v = m.get("auc")
@@ -150,7 +150,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     s = load_schema()
-    doc = "docs/prereg_temporal_structure_scorer.md"
+    doc = "doc2/registrations/prereg_temporal_structure_scorer.md"
     refusals: list[str] = []
 
     derived = json.loads((args.split / "DERIVED_FROM.json").read_text())
@@ -247,7 +247,7 @@ def main(argv=None) -> int:
         # bare taxon ids because an OrganismTaxon node carries no
         # `name` property -- and a taxon id read as a virus name is the
         # error that left a landscape cell open for two days
-        # (docs/prereg_pathway_overlap.md, amendment 2026-11-18).
+        # (doc2/registrations/prereg_pathway_overlap.md, amendment 2026-11-18).
         name = names.get(t, t)
         cand = list(pos) + list(neg)
         prim, c1 = score_cell(cand, refs, fps, props, nopubs,
@@ -308,7 +308,7 @@ def main(argv=None) -> int:
               "exists to prevent.")
     else:
         print("  P1 FAILS. The scorer does not predict forward on this "
-              "data, and\n  docs/evaluation.md's claim section must say so "
+              "data, and\n  doc2/08-results.md's claim section must say so "
               "beside its 8 cells.")
 
     if args.out:

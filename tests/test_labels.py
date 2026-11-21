@@ -704,7 +704,7 @@ def test_the_documents_dose_series_cost_is_the_releases():
     import re
 
     from kgav.labels import build_labels
-    doc = (REAL_RELEASE.parents[2] / "docs" / "evaluation.md").read_text()
+    doc = (REAL_RELEASE.parents[2] / "doc2" / "08-results.md").read_text()
     assert DOSE_FIGURE in doc, "the dose-series paragraph lost its marker"
     para = " ".join(doc.split(DOSE_FIGURE, 1)[1].split("\n\n")[0].split())
     m = re.search(r"\*\*([\d,]+)\*\* label edges carry it.*?"

@@ -1,4 +1,4 @@
-"""The one table in docs/evaluation.md that is checked rather than sourced.
+"""The one table in doc2/08-results.md that is checked rather than sourced.
 
 That document's rule is "treat a figure with no named source as unverified",
 which leaves the reader to re-run the script. It is not enough. Every one of
@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "docs" / "evaluation.md"
+DOC = ROOT / "doc2" / "08-results.md"
 RESULTS = ROOT / "data" / "results" / "metapath_comparison.json"
 
 MARKER = "<!-- TABLE: metapath_comparison"

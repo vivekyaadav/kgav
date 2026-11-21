@@ -2,7 +2,7 @@
 
 THE TWO PREDICATES THIS FILLS WERE DECLARED AND EMPTY. The schema marks
 `TREATS` and `IN_TRIAL_FOR` `evaluation_label: true`, and
-docs/kg_release_census.txt printed the consequence on every release:
+doc2/kg_release_census.txt printed the consequence on every release:
 
     2 of 3 evaluation label predicate(s) carry no edges, so every
     evaluation rests on HAS_ANTIVIRAL_ACTIVITY_AGAINST alone.
@@ -12,7 +12,7 @@ concentration-response measurements at one threshold. A scorer that
 recovered the idiosyncrasies of that screening and nothing else would
 pass all of them. This layer adds a label of a different KIND -- did a
 compound reach a clinical trial, or an approval, for the disease this
-virus causes -- registered in advance by docs/prereg_clinical_labels.md.
+virus causes -- registered in advance by doc2/registrations/prereg_clinical_labels.md.
 
 NO NEW COMPOUNDS, AND THAT IS A REGISTERED REFUSAL rather than a
 convenience. The registration forbids this layer from adding a

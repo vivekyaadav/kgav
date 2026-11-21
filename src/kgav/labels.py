@@ -400,7 +400,7 @@ def build_labels(release: Path, year_from: int | None = None,
     2026-11-17 `infores:ncats-opendata` carries both a cytopathic-effect
     screen and a pseudotyped-particle entry screen for SARS-CoV-2. Grouped
     by virus alone those merge into one cell of 149 positives, which is
-    precisely the pooling `docs/prereg_ncats_entry_assays.md` registers
+    precisely the pooling `doc2/registrations/prereg_ncats_entry_assays.md` registers
     against: the value of a plate-matched cell is that ONE protocol over
     ONE concentration range produced both classes, and two protocols
     merged destroy it while the counts still look fine.

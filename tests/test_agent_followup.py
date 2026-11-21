@@ -456,7 +456,7 @@ def test_the_guide_documents_the_three_conditions():
     """A FEATURE NOBODY KNOWS ABOUT IS NOT A FEATURE, and the three
     conditions are the part a user has to know: a follow-up works, a
     new question is never overridden, and the reply says what it took."""
-    guide = " ".join((ROOT / "docs" / "agent_guide.md").read_text().split())
+    guide = " ".join((ROOT / "doc2" / "11-user-guide.md").read_text().split())
     assert "Follow-up questions" in guide
     assert "refer back" in guide
     assert "nothing of its own" in guide

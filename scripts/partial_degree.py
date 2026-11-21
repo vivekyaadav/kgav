@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 """Does any channel carry signal beyond degree.
 
-THE PROTOCOL IS docs/prereg_partial_degree.md, written and committed before
+THE PROTOCOL IS doc2/registrations/prereg_partial_degree.md, written and committed before
 this file. Nothing below departs from it except where marked GAP, and each
 GAP names what the registration failed to say and which reading was taken.
 
-Every verdict in docs/evaluation.md compares a channel against a degree
+Every verdict in doc2/08-results.md compares a channel against a degree
 baseline. diagnose_scorer.py measured that both scorings of a channel are
 degree with a sign -- legacy correlates +0.3 to +0.7 with the compound's
 degree, pdp correlates negatively on 25 of 36 cells, and four cells read
@@ -54,7 +54,7 @@ from kgav.labels import build_labels  # noqa: E402
 from kgav.schema import load_schema  # noqa: E402
 from kgav.pipeline import release_dir
 
-PREREG = "docs/prereg_partial_degree.md"
+PREREG = "doc2/registrations/prereg_partial_degree.md"
 
 # Registered in that document, before this file existed.
 LAMBDA = 1.0

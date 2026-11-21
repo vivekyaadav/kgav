@@ -3,7 +3,7 @@
     SmallMolecule -HAS_ANTIVIRAL_ACTIVITY_AGAINST-> OrganismTaxon
 
 WHY THIS LAYER EXISTS. Four evaluation protocols have now scored at chance or
-below once their confounds were controlled (docs/evaluation.md). Two of the six
+below once their confounds were controlled (doc2/08-results.md). Two of the six
 measured causes are properties of the LABEL SET, not of the graph:
 
   * Negatives cannot reach the host-directed metapaths. 1.5% of
@@ -121,7 +121,7 @@ LOSS_OF_SIGNAL = -1
 #: core, so inhibiting its entry is evidence about ENTRY and not about
 #: replication of the authentic virus. It is weaker evidence than a
 #: cytopathic-effect assay and carries its own assay_type so a consumer can
-#: separate the two. Registered in docs/prereg_ncats_entry_assays.md.
+#: separate the two. Registered in doc2/registrations/prereg_ncats_entry_assays.md.
 CELL_BASED_ANTIVIRAL = "cell_based_antiviral"
 CELL_BASED_PSEUDOTYPE_ENTRY = "cell_based_pseudotype_entry"
 
@@ -691,7 +691,7 @@ def classify_row(row: dict, cols: dict, *, ac50_units: str,
     # The refusal is NEITHER class, counted and named -- not "active"
     # (above the threshold the project uses everywhere) and not "inactive"
     # (the assay fitted a curve). Decided 2026-11-17 and recorded in
-    # docs/prereg_ncats_entry_assays.md as the amendment that followed P1
+    # doc2/registrations/prereg_ncats_entry_assays.md as the amendment that followed P1
     # failing.
     #
     # SCOPE, STATED: this is the NCATS layer only. The same question exists
@@ -724,7 +724,7 @@ def classify_row(row: dict, cols: dict, *, ac50_units: str,
             # test here would be redundant -- which is why the CPE cell
             # registered in prereg_structure_scorer.md does not move.
             #
-            # Registered in docs/prereg_ncats_entry_assays.md before this
+            # Registered in doc2/registrations/prereg_ncats_entry_assays.md before this
             # code: "a compound whose counterscreen AC50 is at or below its
             # antiviral AC50 is killing cells at the concentration where it
             # works, and is REFUSED rather than called active."

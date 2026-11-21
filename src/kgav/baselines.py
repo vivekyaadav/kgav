@@ -298,7 +298,7 @@ class Graph:
             #
             # MEASURED IN THE PROTOCOL THAT SHIPS -- single-screen,
             # publication-disjoint, 89 positives against 7,343 negatives,
-            # which is the cell docs/evaluation.md quotes -- the baseline
+            # which is the cell doc2/08-results.md quotes -- the baseline
             # got WEAKER: 0.616 [0.553, 0.678] -> 0.577 [0.514, 0.639],
             # with every reasoning channel and the COMBINED ensemble
             # unchanged to three decimals. Hits@k lifts collapsed across
@@ -430,7 +430,7 @@ def _oversized_pathways(g: Graph, limits: dict) -> set[str]:
 # adding the correct implementation.
 #
 # SCORING_LEGACY is what this repository has always computed: each node that
-# the walk ENTERS contributes `global_degree ** -w`. docs/prereg_m1_potency.md
+# the walk ENTERS contributes `global_degree ** -w`. doc2/registrations/prereg_m1_potency.md
 # already records one consequence -- "nothing drug-specific ever enters", so
 # M1 resolves 12 distinct values across 3,020 drugs. Two more follow from the
 # same two lines, and are not recorded anywhere:
@@ -457,7 +457,7 @@ def _oversized_pathways(g: Graph, limits: dict) -> set[str]:
 # NEITHER form breaks the M1 tie block. Two compounds with one edge each to
 # the same protein have equal per-metaedge degrees, so they score identically
 # under both. The degeneracy is a separate defect and potency weighting
-# (docs/prereg_m1_potency.md) remains its remedy.
+# (doc2/registrations/prereg_m1_potency.md) remains its remedy.
 SCORING_LEGACY = "entered-node-global"
 SCORING_PDP = "path-degree-product"
 SCORINGS = (SCORING_LEGACY, SCORING_PDP)
@@ -1024,8 +1024,8 @@ def degree_relative(per: dict[str, dict], degree_key: str = DEGREE_KEY) -> None:
 
     THIS DOCSTRING CARRIED THE D2 MISCOUNT. It said "in every
     cross-sectional virus where a channel cleared 0.05, degree cleared it
-    too; there is not one exception", and so did docs/evaluation.md and
-    docs/prereg_temporal_auc.md. Re-measured 2026-11-08: five
+    too; there is not one exception", and so did doc2/08-results.md and
+    doc2/registrations/prereg_temporal_auc.md. Re-measured 2026-11-08: five
     cross-sectional viruses have a channel at p<0.05 -- SARS-CoV-2 (M7),
     DENV-2 (M1, M4, M5), Zika (M5), West Nile (M4), MERS-CoV (M4, M5) --
     and degree clears it in ONE of them, MERS-CoV. The sentence had
@@ -1736,7 +1736,7 @@ def mrr_range(ranked: list[tuple[str, float]], positives: set[str]
 
 
 # ------------------------------------------------- multiple-testing (E1)
-#: The families `docs/evaluation.md` reports a sensitivity over, smallest
+#: The families `doc2/08-results.md` reports a sensitivity over, smallest
 #: first. NAMES AND DEFINITIONS LIVE HERE, not in the document, because
 #: the four numbers beside them were typed by hand and three releases went
 #: by without anything able to recompute one of them.

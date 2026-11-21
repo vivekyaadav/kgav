@@ -1,6 +1,6 @@
 """The strength-matched registration, checked against the runs it derives from.
 
-Every number in docs/prereg_structure_scorer_strength_matched.md is a
+Every number in doc2/registrations/prereg_structure_scorer_strength_matched.md is a
 function of the two prior runs: the fourteen k_cell values, their
 feasibility, the three cells where the new control is weaker, P1's
 threshold, the cell counts the predictions are calibrated between, and the
@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-PREREG = ROOT / "docs/prereg_structure_scorer_strength_matched.md"
+PREREG = ROOT / "doc2/registrations/prereg_structure_scorer_strength_matched.md"
 PUB = ROOT / "data/results/structure_scorer.json"
 KNN = ROOT / "data/results/structure_scorer_symmetric.json"
 

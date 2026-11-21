@@ -227,7 +227,7 @@ def known_inchikeys(releases: Path, layer_names: Iterable[str]) -> set[str]:
     degradation and it is recorded rather than repaired here for one
     reason: `relaxed` is fix-list B1, which was DECLINED after measurement,
     and `floor` is the registered policy of
-    `docs/prereg_pathway_overlap.md`. So nothing in the release depends on
+    `doc2/registrations/prereg_pathway_overlap.md`. So nothing in the release depends on
     it. Anyone re-opening B1 has to map node ids back to source keys first,
     which needs the source key stored on the node and is a schema change.
 

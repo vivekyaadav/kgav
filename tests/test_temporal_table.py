@@ -1,4 +1,4 @@
-"""The temporal AUC table in docs/evaluation.md, re-derived cell by cell.
+"""The temporal AUC table in doc2/08-results.md, re-derived cell by cell.
 
 THIS TABLE HAD NO TEST FOR THREE WEEKS AND EVERY CELL IN IT WENT STALE.
 It read M1 2.49/0.0033, M4 4.16/0.081, M7 0.85, COMBINED 3.36/0.0154 with
@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "docs" / "evaluation.md"
+DOC = ROOT / "doc2" / "08-results.md"
 RESULTS = ROOT / "data" / "results" / "temporal_2021_include.json"
 
 MARKER = "<!-- TABLE: temporal_include_auc"
@@ -136,7 +136,7 @@ def test_the_table_is_marked_as_machine_checked():
 def test_the_auc_sample_size_is_the_test_set_and_the_document_says_so():
     """THE DEFECT THAT PUT A WRONG BAR IN A PRE-REGISTRATION.
 
-    `docs/prereg_temporal_auc.md` computed the AUC bar at "COMBINED's 48
+    `doc2/registrations/prereg_temporal_auc.md` computed the AUC bar at "COMBINED's 48
     reached positives", but `evaluate_against_negatives` ranks the whole
     labelled test set and imputes the floor to everything a scorer cannot
     reach, so the n is the same for every scorer and is far larger. The

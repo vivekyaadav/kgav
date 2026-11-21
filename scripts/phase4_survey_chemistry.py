@@ -32,7 +32,7 @@ THIS SCRIPT DOES NOT RUN THAT TEST. It asks the prior question -- does
 ChEMBL hold enough compounds measured on BOTH ends of either arm for the
 answer to mean anything -- and exits non-zero if it does not. A protocol
 written after the counts are known, and committed before the code that
-measures it, is what docs/prereg_m1_potency.md means by "a prediction made
+measures it, is what doc2/registrations/prereg_m1_potency.md means by "a prediction made
 afterwards is a description". The counts come first; the prediction second;
 the measurement third.
 
@@ -600,7 +600,7 @@ def independent_units(pair: set[str], left: str, right: str,
     own -- that is the kind of observation the premise is actually about.
 
     This project already separates evidence by publication:
-    hard_negatives ships --publication-disjoint, and docs/evaluation.md
+    hard_negatives ships --publication-disjoint, and doc2/08-results.md
     records why.
     """
     docs: set = set()
@@ -1085,7 +1085,7 @@ def main() -> int:
     for label in clears:
         print(f"  {label}  n={len(clears[label])} compounds, "
               f"{units.get(label, 0)} independent observation(s)")
-    print("\nNext: docs/prereg_phase4_hcv.md, written against these counts "
+    print("\nNext: doc2/registrations/prereg_phase4_hcv.md, written against these counts "
           "and committed\nBEFORE the code that measures the arms. The "
           "prediction the premise makes is\nthat arm A relates and arm B "
           "does not; writing it afterwards would make it a\ndescription.")

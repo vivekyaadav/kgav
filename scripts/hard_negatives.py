@@ -250,7 +250,7 @@ def build_parser(root: Path) -> argparse.ArgumentParser:
                     help="THE FILENAME THIS PROTOCOL WRITES. Every protocol "
                          "wrote hard_negatives.json, so only the last one "
                          "survived and the four before it left no record -- "
-                         "which is how the table in docs/evaluation.md came "
+                         "which is how the table in doc2/08-results.md came "
                          "to report four rows the graph had stopped "
                          "producing with nothing able to notice. Giving each "
                          "row its own file puts all five under "
@@ -314,7 +314,7 @@ def build_parser(root: Path) -> argparse.ArgumentParser:
                          # "TypeError: %o format: an integer is
                          # required, not dict" for as long as this
                          # sentence has been here -- the flag is
-                         # documented in docs/evaluation.md's
+                         # documented in doc2/08-results.md's
                          # reproduce block and its help never printed.
                          
                          "edge and an antiviral-activity label cite the same "

@@ -1,6 +1,6 @@
 {
   "measured_by": "scripts/structure_scorer.py",
-  "registered_by": "docs/prereg_structure_scorer_symmetric.md",
+  "registered_by": "doc2/registrations/prereg_structure_scorer_symmetric.md",
   "control": "knn",
   "fingerprint": "ECFP4 radius 2, 2048 bits (kgav.similarity)",
   "statistic": "max Tanimoto to admissible known actives",

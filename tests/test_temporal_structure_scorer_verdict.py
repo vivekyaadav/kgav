@@ -25,7 +25,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-DOC = ROOT / "docs" / "prereg_temporal_structure_scorer.md"
+DOC = ROOT / "doc2" / "registrations" / "prereg_temporal_structure_scorer.md"
 RESULTS = ROOT / "data" / "results" / "temporal_structure_scorer.json"
 CROSS = ROOT / "data" / "results" / "structure_scorer_strength_matched.json"
 

@@ -1,6 +1,6 @@
 """The symmetric-control verdict, re-derived from the run it describes.
 
-Every figure in docs/prereg_structure_scorer_symmetric.md's verdict is a
+Every figure in doc2/registrations/prereg_structure_scorer_symmetric.md's verdict is a
 function of data/results/structure_scorer_symmetric.json and its
 comparator data/results/structure_scorer.json: the 14-row curve table, the
 six prediction outcomes, the four P3 movements, the two correlations, and
@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-PREREG = ROOT / "docs/prereg_structure_scorer_symmetric.md"
+PREREG = ROOT / "doc2/registrations/prereg_structure_scorer_symmetric.md"
 NEW = ROOT / "data/results/structure_scorer_symmetric.json"
 PRIOR = ROOT / "data/results/structure_scorer.json"
 CRITICAL_RHO_N14 = 0.544

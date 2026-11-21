@@ -109,7 +109,7 @@ def test_the_amendment_states_the_invariant_and_the_invariant_holds():
         p.name for p in (ROOT / "scripts").glob("*.py")
         if "held_out_predicates()" in p.read_text()
         and _re.search(r"Graph\.load\(", p.read_text(), _re.S))
-    prereg = (ROOT / "docs" / "prereg_structure_scorer.md").read_text()
+    prereg = (ROOT / "doc2" / "registrations" / "prereg_structure_scorer.md").read_text()
     marker = "# Amendment, 2026-11-17: the comparator was reading"
     assert marker in prereg, "the comparator amendment is gone"
     amendment = " ".join(prereg.split(marker)[1].split())

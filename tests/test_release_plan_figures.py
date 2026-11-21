@@ -1,4 +1,4 @@
-"""The figures in docs/v1_release_plan.md, re-derived (fix-list D4).
+"""The figures in doc2/plan.md, re-derived (fix-list D4).
 
 THAT DOCUMENT ASSERTED A FINDING THE RESULTS DO NOT SUPPORT. It read
 "drugged human proteins overlap CRISPR dependency factors at 0.86-0.94 times
@@ -31,7 +31,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-DOC = ROOT / "docs" / "v1_release_plan.md"
+DOC = ROOT / "doc2" / "plan.md"
 RESULTS = ROOT / "data" / "results" / "pathway_landscape.json"
 RELEASE = ROOT / "data" / "releases" / "v0.1"
 MARKER = "<!-- TABLE: landscape_by_taxon"
@@ -263,7 +263,7 @@ def test_the_scorer_row_counts_the_cells_the_runs_hold():
     So the count is derived. Both halves of it: how many cells clear their
     own registered alpha, and how many of those do it above a degree
     baseline that does not clear -- which is the claim
-    docs/evaluation.md's claim block makes, and the only one of the two
+    doc2/08-results.md's claim block makes, and the only one of the two
     that is evidence about chemistry.
     """
     import json

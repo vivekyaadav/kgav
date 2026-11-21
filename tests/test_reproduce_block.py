@@ -2,7 +2,7 @@
 
 THE HOLE THIS CLOSES. `make check-results` globs data/results/*.json and
 fails any file whose release stamp no longer matches the graph on disk.
-The "Reproducing" block in docs/evaluation.md is what a reader runs to
+The "Reproducing" block in doc2/12-reproducing.md is what a reader runs to
 clear that failure. Nothing connected the two, so a results file could
 be -- and one was -- audited by check-results while no step in the block
 rebuilt it: data/results/pathway_landscape.json, from the day it was
@@ -28,7 +28,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "docs" / "evaluation.md"
+DOC = ROOT / "doc2" / "12-reproducing.md"
 RESULTS = ROOT / "data" / "results"
 
 #: filename pattern -> the text that must appear in the reproduce block for
@@ -306,13 +306,18 @@ def test_the_protocol_that_stays_on_disk_is_the_one_the_document_quotes():
 
 
 #: The heading above the table of protocols the document reports.
-SEQUENCE_HEADING = "## The sequence"
+#: THE TABLE IS FOUND BY ITS MARKER, not by a heading. It lived
+#: under "## The sequence" in docs/evaluation.md; in doc2 it is a
+#: generated table in 06-methodology.md, and the marker is the
+#: thing that does not move when the prose around it is rewritten.
+SEQUENCE_DOC = ROOT / "doc2" / "06-methodology.md"
+SEQUENCE_HEADING = "<!-- TABLE: hard_negatives_sequence"
 
 
 def sequence_rows() -> list[tuple[str, str]]:
-    """(row number, Protocol cell) from the table under '## The sequence'."""
-    text = DOC.read_text()
-    assert SEQUENCE_HEADING in text, "the protocol table was renamed"
+    """(row number, protocol cell) from the marked sequence table."""
+    text = SEQUENCE_DOC.read_text()
+    assert SEQUENCE_HEADING in text, "the protocol table lost its marker"
     tail = text.split(SEQUENCE_HEADING, 1)[1].split("\n## ", 1)[0]
     rows = []
     for line in tail.splitlines():
@@ -408,48 +413,55 @@ def test_check_results_is_the_last_command():
     assert sum(c == "make check-results" for c in cmds) == 1
 
 
-def test_every_marked_table_agrees_with_its_own_derivation():
-    """FIX-LIST P10. Five tables in docs/ carry a machine-readable marker
-    and a test that derives them cell by cell; scripts/
-    rewrite_derived_tables.py writes that derivation back, so the figures
-    stop being maintained by hand.
+def test_the_generated_documents_agree_with_the_code():
+    """WHAT REPLACED FIX-LIST P10, AND WHY IT IS STRONGER.
 
-    This is the standing check that they have not drifted -- and the reason
-    it exists is that hand maintenance measurably failed: the 2026-11-11
-    rebuild left 111 figure assertions failing, and three figures typed by
-    hand in that same session were wrong (a pooled count of 18,914 for
+    Five tables in `docs/` used to carry a machine-readable marker and a
+    test that derived them cell by cell, and
+    `scripts/rewrite_derived_tables.py` wrote those derivations back so
+    the figures stopped being maintained by hand. The reason it existed
+    is that hand maintenance measurably failed: the 2026-11-11 rebuild
+    left 111 figure assertions failing, and three figures typed by hand
+    in that same session were wrong -- a pooled count of 18,914 for
     18,900, a delta subtracted from displayed four-decimal values, and an
-    AUC literal from memory). Every derived figure was right.
+    AUC literal from memory. Every derived figure was right.
+
+    On 2026-11-21 `docs/` was retired and every document became
+    generated, so the rewriter had nothing left to write into: a table it
+    wrote would be overwritten by the next `make doc2`. It is gone, and
+    `make doc2-check` is the standing gate in its place -- over EVERY
+    figure in every document rather than the five that carried a marker.
+
+    The markers stayed. They are how the cell-by-cell tests still find
+    their tables, so each of those five tables now has two independent
+    derivations that must agree: the generator's and its test's.
     """
     import hashlib
     import subprocess
     import sys
 
-    # --check MUST NOT TOUCH THE DOCUMENTS, and until 2026-11-12 it did:
-    # it saved each file, called rewrite() for the count, then wrote the
-    # original back. Under `pytest -n auto` another worker reads the same
-    # evaluation.md, and test_the_claim_block_enumerates_every_cell_that_
-    # clears_chance failed with IndexError on a split marker that is
-    # plainly in the committed file -- it had read the document mid-write.
-    # Hashed before and after, because the race is invisible to a test
-    # that only checks the exit code, and an interrupted read-only gate
-    # could leave a tracked file rewritten.
-    docs = sorted({mod_doc for mod_doc in (
-        ROOT / "docs" / "evaluation.md",
-        ROOT / "docs" / "scope_and_limits.md",
-        ROOT / "docs" / "v1_release_plan.md") if mod_doc.exists()})
+    # --check MUST NOT TOUCH THE DOCUMENTS, and the rewriter's did until
+    # 2026-11-12: it saved each file, called rewrite() for the count,
+    # then wrote the original back. Under `pytest -n auto` another worker
+    # reads the same document and fails on a split marker that is plainly
+    # in the committed file -- it had read the file mid-write. Hashed
+    # before and after, because the race is invisible to a test that only
+    # checks the exit code.
+    docs = sorted((ROOT / "doc2").glob("*.md"))
+    assert docs, "doc2 holds no documents"
     before = {d: hashlib.sha256(d.read_bytes()).hexdigest() for d in docs}
     out = subprocess.run(
-        [sys.executable, "scripts/rewrite_derived_tables.py", "--check"],
+        [sys.executable, "scripts/write_doc2.py", "--check"],
         cwd=ROOT, capture_output=True, text=True, timeout=600)
     after = {d: hashlib.sha256(d.read_bytes()).hexdigest() for d in docs}
     moved = sorted(d.name for d in docs if before[d] != after[d])
     assert not moved, (
-        f"--check rewrote {moved}; it is the read-only half of the gate and "
-        f"every other test in this suite reads those files concurrently")
+        f"--check rewrote {moved}; it is the read-only half of the gate "
+        f"and every other test in this suite reads those files "
+        f"concurrently")
     assert out.returncode == 0, (
-        "a marked table disagrees with its own derivation; run "
-        "`make rewrite-tables`.\n" + out.stdout[-1500:])
+        "a generated document no longer matches the code; run "
+        "`make doc2`.\n" + out.stdout[-1500:])
 
 
 def test_the_overlap_control_comment_names_the_refusal_it_describes():

@@ -1,6 +1,6 @@
 """The registration is binding only if something reads it.
 
-docs/prereg_partial_degree.md fixes six parameters before the code exists.
+doc2/registrations/prereg_partial_degree.md fixes six parameters before the code exists.
 A registration nobody checks is a description written early, so these pin
 the numbers now and bind the implementation to them when it lands -- the
 cross-check runs against the script the moment the file appears, and
@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-PREREG = ROOT / "docs" / "prereg_partial_degree.md"
+PREREG = ROOT / "doc2" / "registrations" / "prereg_partial_degree.md"
 SCRIPT = ROOT / "scripts" / "partial_degree.py"
 
 
@@ -96,7 +96,7 @@ def test_the_implementation_uses_the_registered_constants():
         "the floor is calibration's constant, not a literal 10"
     assert "channel_percentiles" in src, \
         "the registration forbids a second copy of the percentile arithmetic"
-    assert "docs/prereg_partial_degree.md" in src, \
+    assert "doc2/registrations/prereg_partial_degree.md" in src, \
         "the script must name the protocol it is executing"
 
 

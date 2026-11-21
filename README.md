@@ -30,19 +30,48 @@ history finding in its own documents. The live figures live in two places:
 
 ```bash
 make audit           # per-layer, per-virus, what is built and what is missing
-make kg-report       # regenerates the release census in docs/kg_release_census.txt
+make kg-report       # regenerates the release census in doc2/kg_release_census.txt
 make check-results   # every results file against the graph on disk
 ```
 
-`docs/kg_audit_report.txt` is the full specification: schema, architecture,
+## The documentation
+
+**`doc2/` is the documentation, and it is generated.** The prose lives in
+`doc2/_templates/*.md.in`; every figure in it is derived at render time from
+the schema, the register, the release MANIFEST, the artifacts in
+`data/results/` and the constants imported from `src/kgav/`.
+
+```bash
+make doc2          # regenerate
+make doc2-check    # fail if any document no longer matches the code
+```
+
+Where to start:
+
+| | |
+|:---|:---|
+| [doc2/00-README.md](doc2/00-README.md) | the index |
+| [doc2/06-methodology.md](doc2/06-methodology.md) | **if you are not a programmer, start here.** Every idea the results rest on, from first principles |
+| [doc2/11-user-guide.md](doc2/11-user-guide.md) | how to drive the question-answering agent |
+| [doc2/08-results.md](doc2/08-results.md) | every measured number, with its interval and its verdict |
+| [doc2/09-limits.md](doc2/09-limits.md) | what this graph cannot do, each limit with the figure behind it |
+| [doc2/paper.md](doc2/paper.md) | the manuscript: four controlled measurements |
+| [doc2/registrations/](doc2/registrations) | the signed pre-registrations, amended by appending and never rewritten |
+| [doc2/figures/](doc2/figures) | the architecture and the metagraph, each with an A4 PDF that prints on one page |
+
+`doc2/kg_audit_report.txt` is the full specification: schema, architecture,
 every data source and how it was used, the build pipeline, the metapaths,
 how the graph supports pathway analysis, and the per-virus state. Its
 release census is generated from the assembled graph and stamped with its
 content hashes, so a stale block is detectable rather than merely
 regrettable.
 
-`docs/evaluation.md` is what the metapath scores actually separate, and is
-mostly a record of things that did not hold up.
+**`docs/` was retired on 2026-11-21** and everything in it moved into
+`doc2/`: the registrations and the dated audit records verbatim, the
+generated text files unchanged, the figures regenerated, and the five
+hand-written documents superseded by generated ones.
+`doc2/registrations/README.md` carries the full mapping, because a path
+written inside a signed registration is not edited to follow a move.
 
 ## What the build actually taught us
 
@@ -86,7 +115,7 @@ project-specific quirk.
 **A document is a figure holder, and figures drift.** Six degree lifts moved
 across releases while the table quoting them sat unchanged; a summary column
 named four rows the code refuses to read; two reports quoted a figure from a
-graph that no longer existed. Every number in `docs/` that a rebuild could
+graph that no longer existed. Every number in `doc2/` that a rebuild could
 move is now re-derived from the results files by a test, and the release
 census is generated rather than typed.
 
@@ -94,7 +123,7 @@ census is generated rather than typed.
 
 These are the structural ones. The measured ones — which viruses can be
 scored, which channels clear chance, what the pathway test found — are in
-`docs/evaluation.md` and section 9 of the audit report.
+`doc2/08-results.md` and section 9 of the audit report.
 
 - **All three evaluation label predicates carry edges since 2026-11-17,
   and only one has been measured against.** This said "`TREATS` and
@@ -102,7 +131,7 @@ scored, which channels clear chance, what the pathway test found — are in
   `HAS_ANTIVIRAL_ACTIVITY_AGAINST` alone". The `indications` layer filled
   them — 568 `IN_TRIAL_FOR`, 9 `TREATS` — from ChEMBL's
   `drug_indication`, registered in advance by
-  `docs/prereg_clinical_labels.md`. **The one independent label has now
+  `doc2/registrations/prereg_clinical_labels.md`. **The one independent label has now
   been measured against, and it is a null for the chemistry:** the
   structure statistic reads 0.4087 [0.3734, 0.4440] — below chance — on
   the registered COVID-19 cell, while the `degree` control reads 0.7751
@@ -113,7 +142,7 @@ scored, which channels clear chance, what the pathway test found — are in
 - **One of thirteen layers is not built.** `curated` needs published-screen
   TSVs whose provenance has to be established first, and it is what would
   give DENV-1, DENV-3, DENV-4, JEV and TBEV their first dependency factors.
-  `gtop` WAS in this sentence and is built: `docs/kg_release_census.txt`
+  `gtop` WAS in this sentence and is built: `doc2/kg_release_census.txt`
   lists it among the 12 assembled layers with 6,765 edges from
   `infores:guidetopharmacology`. The prose said "not built" for months
   after the edges landed, which is the drift this release's figures were
@@ -145,4 +174,4 @@ scored, which channels clear chance, what the pathway test found — are in
 
 Code is MIT. Data is not — see DATA_LICENSES.md. DrugBank is excluded by
 default (CC BY-NC). The chemistry is ChEMBL; the full source list, with what
-each contributed, is section 5 of `docs/kg_audit_report.txt`.
+each contributed, is section 5 of `doc2/kg_audit_report.txt`.

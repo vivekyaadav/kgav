@@ -219,7 +219,7 @@ LAYERS: tuple[Layer, ...] = (
     Layer("similarity", "ingest_similarity.py", 2, reads_peers=True),
     # TREATS / IN_TRIAL_FOR, the two declared evaluation labels that
     # carried 0 edges on every release until now. It reads peers for one
-    # reason: docs/prereg_clinical_labels.md REFUSES it permission to add
+    # reason: doc2/registrations/prereg_clinical_labels.md REFUSES it permission to add
     # a SmallMolecule, so it has to know which compounds the graph
     # already holds, and the Disease nodes it attaches to are built by
     # spine from the register. Its position within phase 2 is free -- no
@@ -314,7 +314,7 @@ def train_dir(root: Path, year: int = 2021) -> Path:
     temporal_split.py writes it; hard_negatives.py and check_results.py
     read it, and check_results additionally names it in its `--train` help
     text. Keeping the year a parameter rather than baking 2021 in is not
-    speculative generality: `docs/prereg_temporal_auc.md` states the cutoff
+    speculative generality: `doc2/registrations/prereg_temporal_auc.md` states the cutoff
     as a protocol choice, and a second cut is the obvious next request.
     """
     return root / "data" / "releases" / f"v0.1-train{year}"

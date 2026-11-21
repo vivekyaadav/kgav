@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate docs/kg_release_census.txt from the assembled release.
+"""Generate doc2/kg_release_census.txt from the assembled release.
 
 WHY GENERATED RATHER THAN WRITTEN. The audit report first carried no
 node or edge totals at all, on the reasoning that a hardcoded count goes
@@ -9,7 +9,7 @@ useless to a reader and protects nothing. The protection is to generate
 the numbers and stamp them with the content hashes they were computed
 from, so a stale figure is detectable rather than merely regrettable.
 
-WHY ITS OWN FILE. The census lived inside docs/kg_audit_report.txt
+WHY ITS OWN FILE. The census lived inside doc2/kg_audit_report.txt
 between two markers, and the generated block and the hand-written prose
 around it have different lifecycles: one changes on every rebuild, the
 other on every correction. Sharing a file guaranteed they collided --
@@ -36,7 +36,7 @@ from kgav.provenance import release_fingerprint
 from kgav.schema import load_schema
 from kgav.pipeline import release_dir
 
-CENSUS = ROOT / "docs" / "kg_release_census.txt"
+CENSUS = ROOT / "doc2" / "kg_release_census.txt"
 
 #: Printed at the top of the generated file. A reader who opens it
 #: without context has to learn it is not hand-maintained before they
@@ -48,7 +48,7 @@ HEADER = (
     "GENERATED FILE. Do not edit: `make kg-report` overwrites it, and",
     "`make kg-report-check` fails if it does not describe the assembled",
     "release. The prose that interprets these figures is section 4 of",
-    "docs/kg_audit_report.txt.",
+    "doc2/kg_audit_report.txt.",
     "=" * 78,
     "",
 )
@@ -164,7 +164,7 @@ def block(release: Path) -> list[str]:
     # the news. For every release until 2026-11-17 this block printed
     # "2 of 3 evaluation label predicate(s) carry no edges, so every
     # evaluation rests on HAS_ANTIVIRAL_ACTIVITY_AGAINST alone", which
-    # docs/scope_and_limits.md and docs/prereg_clinical_labels.md both
+    # doc2/09-limits.md and doc2/registrations/prereg_clinical_labels.md both
     # quote. When the indications layer filled the other two, the line
     # simply vanished -- so a reader who had learned to look for it
     # found nothing and could not tell a fixed gap from a dropped

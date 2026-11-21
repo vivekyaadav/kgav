@@ -1,6 +1,6 @@
 """The symmetric-control registration, checked against the run it responds to.
 
-WHY. docs/prereg_structure_scorer_symmetric.md fixes a protocol before the
+WHY. doc2/registrations/prereg_structure_scorer_symmetric.md fixes a protocol before the
 measurement, and every number in it is a function of either the release or
 data/results/structure_scorer.json -- the asymmetry ratios it exists to
 fix, the class sizes that decide k, the threshold in P1, and the four
@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-PREREG = ROOT / "docs/prereg_structure_scorer_symmetric.md"
+PREREG = ROOT / "doc2/registrations/prereg_structure_scorer_symmetric.md"
 PRIOR = ROOT / "data/results/structure_scorer.json"
 
 

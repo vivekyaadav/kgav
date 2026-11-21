@@ -8,7 +8,7 @@ READ-ONLY, AND NOT A PROTOCOL CHANGE. It re-reads two recorded
 artifacts and the release on disk. It changes no registered figure and
 decides nothing; it closes an open question by measuring it.
 
-THE OPEN QUESTION. docs/prereg_pathway_overlap.md's note of 2026-11-17
+THE OPEN QUESTION. doc2/registrations/prereg_pathway_overlap.md's note of 2026-11-17
 records that `n_observed` moved in two cells between the pre-entry-assay
 release and the one on disk, names a cause for one of them, and leaves
 the other open -- "it is open against the entry-assay ingest rather
@@ -32,7 +32,7 @@ TWO ERRORS IN THAT NOTE, both of which this script's output contradicts
 rather than asserts:
 
   * `NCBITaxon:31631` is **HCoV-OC43**, not SARS-CoV (config/viruses.yaml).
-    docs/v1_release_plan.md's open-work table named the wrong virus.
+    doc2/plan.md's open-work table named the wrong virus.
   * the cell is in the **dependency** channel, not the interactome one.
     OC43's interactome cell is 28 and did not move. So the note's search
     through PPI partners was looking in a channel the cell never used,
@@ -301,7 +301,7 @@ def main(argv=None) -> int:
         payload = dict(r)
         payload |= {
             "measured_by": "scripts/diagnose_landscape_count_move.py",
-            "question_from": "docs/prereg_pathway_overlap.md",
+            "question_from": "doc2/registrations/prereg_pathway_overlap.md",
             "before_artifact": before_from,
             "after_artifact": str(args.artifact),
             "before_measured_on": before.get("measured_on"),

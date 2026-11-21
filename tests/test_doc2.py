@@ -29,7 +29,7 @@ WHAT THESE TESTS PIN, which is not "the documents exist":
   --check compares the file against the generator, and both would move
   together if a figure were hardcoded in a TEMPLATE).
 
-  THE SIGNED REGISTRATIONS ARE NOT REPRODUCED. docs/prereg_*.md are amended
+  THE SIGNED REGISTRATIONS ARE NOT REPRODUCED. doc2/registrations/prereg_*.md are amended
   by appending and never rewritten; doc2 describes and links them. A copy
   would destroy the one property that makes a registration one.
 """
@@ -49,6 +49,7 @@ TEMPLATES = DOC2 / "_templates"
 RESULTS = ROOT / "data" / "results"
 SCRIPT = ROOT / "scripts" / "write_doc2.py"
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "scripts"))
 
 needs_artifacts = pytest.mark.skipif(
     not (ROOT / "data" / "releases" / "v0.1" / "MANIFEST.json").exists(),
@@ -70,14 +71,40 @@ def _all_text() -> str:
 
 
 # -------------------------------------------------- the folder is generated
+#: The documents in doc2/ that are NOT generated, each with the reason.
+#: Declared rather than globbed: a generated document that lost its
+#: template would otherwise look like a deliberate exception, which is
+#: the failure mode this file is mostly about.
+NOT_GENERATED = {
+    "plan.md": "the project's plan — dated decisions and a status list, "
+               "which no artifact can derive; its figures are held to the "
+               "artifacts by tests/test_release_plan_figures.py",
+}
+
+
 def test_every_template_has_a_rendered_document():
     tpls = sorted(p.name[:-3] for p in TEMPLATES.glob("*.md.in"))
-    docs = sorted(p.name for p in DOC2.glob("*.md"))
+    docs = sorted(p.name for p in DOC2.glob("*.md")
+                  if p.name not in NOT_GENERATED)
     assert tpls, "no templates"
     assert tpls == docs, (
         f"templates and documents disagree: only a template "
         f"{sorted(set(tpls) - set(docs))}, only a document "
         f"{sorted(set(docs) - set(tpls))}")
+
+
+def test_every_declared_exception_exists_and_says_why():
+    """AN EXEMPTION LIST THAT OUTLIVES ITS ENTRY is how a generated
+    document comes to be hand-edited with nothing objecting."""
+    for name, why in NOT_GENERATED.items():
+        assert (DOC2 / name).exists(), (
+            f"{name} is exempted from generation and does not exist")
+        assert not (TEMPLATES / (name + ".in")).exists(), (
+            f"{name} has a template and is also on the exemption list")
+        assert len(why) > 40, f"{name}'s exemption states no reason"
+        head = " ".join((DOC2 / name).read_text().split()[:60])
+        assert "Not generated" in head, (
+            f"{name} does not tell its reader it is hand-maintained")
 
 
 @needs_artifacts
@@ -111,23 +138,34 @@ def test_an_unknown_placeholder_is_an_error_and_not_a_blank(tmp_path):
 
 
 @needs_artifacts
-def test_the_check_reports_a_stale_document():
+def test_the_check_reports_a_stale_document(tmp_path):
     """THE SECOND WAY, and the one this repository names most often: a
     check that cannot fail is worse than no check. One line is mutated
-    and restored."""
-    target = DOC2 / "01-overview.md"
-    original = target.read_text()
-    try:
-        target.write_text(original.replace("# 01 — Overview",
-                                           "# 01 — Overview (edited)", 1))
-        r = _check()
-        assert r.returncode == 1, (
-            "--check passed on a document that had been edited")
-        assert "01-overview.md" in r.stdout
-        assert "line " in r.stdout, "it does not say which line moved"
-    finally:
-        target.write_text(original)
-    assert _check().returncode == 0, "the mutation was not restored"
+    and the check must report it, by name and by line number.
+
+    MUTATED IN A COPY, NOT IN doc2/. This edited the tracked file and
+    restored it in a `finally`, which under `pytest -n auto` means
+    another worker reads doc2/01-overview.md mid-edit -- and `make
+    doc2-check` run by hand at the wrong moment reported the mutation
+    as a stale document. It is the same race the retired rewrite-tables
+    gate had, and the same repair: the thing under test gets its own
+    copy.
+    """
+    import shutil
+
+    copy = tmp_path / "doc2"
+    shutil.copytree(DOC2, copy)
+    assert _check("--out", str(copy)).returncode == 0, (
+        "the copy is already stale, so the mutation below proves nothing")
+    target = copy / "01-overview.md"
+    target.write_text(target.read_text().replace(
+        "# 01 — Overview", "# 01 — Overview (edited)", 1))
+    r = _check("--out", str(copy))
+    assert r.returncode == 1, "--check passed on a document that had been edited"
+    assert "01-overview.md" in r.stdout
+    assert "line " in r.stdout, "it does not say which line moved"
+    # AND doc2/ ITSELF IS UNTOUCHED, which is the property the copy buys.
+    assert _check().returncode == 0, "the tracked documents were modified"
 
 
 # ------------------------------------------- the figures are the artifacts'
@@ -151,7 +189,7 @@ def test_the_release_census_is_the_manifests():
 def test_every_structure_scorer_auc_is_in_the_results_document():
     """THE CLAIM-BEARING TABLE. Each of the three controls publishes one
     AUC per readable cell, and all three tables are in 07-results."""
-    doc = _text("07-results.md")
+    doc = _text("08-results.md")
     seen = 0
     for name in ("structure_scorer.json", "structure_scorer_symmetric.json",
                  "structure_scorer_strength_matched.json"):
@@ -173,7 +211,7 @@ def test_the_prospective_verdicts_are_the_runs_own():
     anti-ranking rather than a null. A document that rendered both as
     "below chance" would disagree with its own count."""
     d = json.loads((RESULTS / "temporal_structure_scorer.json").read_text())
-    doc = _text("07-results.md")
+    doc = _text("08-results.md")
     clears = set(d["clears"])
     below = [c for c in d["cells"].values()
              if (c.get("primary") or {}).get("direction") == "below"
@@ -201,7 +239,7 @@ def test_the_capability_verdict_is_the_shared_predicate():
     caps = capabilities(RESULTS, cross_tier=tier)
     licensed = sorted(c.name for c in caps.values() if c.shortlist_licensed)
     contradicted = sorted(c.name for c in caps.values() if c.contradicted)
-    for doc in ("01-overview.md", "07-results.md"):
+    for doc in ("01-overview.md", "08-results.md"):
         text = " ".join(_text(doc).split())
         assert f"**{len(licensed)} viruses**" in text \
             or f"**{len(licensed)} viruses are licensed" in text, doc
@@ -232,7 +270,7 @@ def test_the_channel_claim_names_the_two_scorers_that_do_clear():
 def test_the_refusals_are_quoted_rather_than_summarised():
     """A refused protocol is not a protocol that scored 0.5, and the
     reasons are the artifact."""
-    doc = _text("06-protocols.md")
+    doc = _text("07-protocols.md")
     refused = [p for p in sorted(RESULTS.glob("*.json"))
                if "refused_by" in json.loads(p.read_text())]
     assert refused, "no refusal on disk, so this test proves nothing"
@@ -248,8 +286,8 @@ def test_the_signed_registrations_are_linked_and_not_copied():
     doc2 copy would be a second, editable version of a signed record --
     which destroys the only property that makes it one."""
     all_text = _all_text()
-    assert "docs/prereg_" in all_text, "doc2 does not link the registrations"
-    for prereg in sorted((ROOT / "docs").glob("prereg_*.md")):
+    assert "doc2/registrations/prereg_" in all_text, "doc2 does not link the registrations"
+    for prereg in sorted((ROOT / "doc2" / "registrations").glob("prereg_*.md")):
         body = prereg.read_text()
         # A long verbatim run from a registration is a copy, not a quote.
         for para in body.split("\n\n"):
@@ -268,6 +306,27 @@ def test_doc2_does_not_claim_a_figure_it_did_not_derive():
     produced = set()
     for p in sorted(RESULTS.glob("*.json")):
         produced |= {f"{m:.4f}" for m in _floats(json.loads(p.read_text()))}
+    # AND THE POST-HOC DIAGNOSTICS THE GENERATOR RUNS. The near-neighbour
+    # exclusion ladder is deliberately NOT in data/results -- it is a
+    # diagnostic on a registered run, not a registered claim -- so its
+    # figures would read here as typed-in. Running it is what keeps the
+    # check honest in both directions: a figure that no artifact AND no
+    # diagnostic produces is still a figure somebody typed.
+    import write_doc2
+    produced |= {f"{m:.4f}" for m in _floats(write_doc2._analogy())}
+    # AND THE FIGURES THE GENERATOR COMPUTES FROM ARTIFACT VALUES. An
+    # imputation floor, a ceiling, a skill and a margin are not stored
+    # anywhere -- `kgav.labels.auc_floor` derives them from coverages
+    # the artifact does record -- so they would read here as typed-in.
+    #
+    # THIS DOES NOT WEAKEN THE CHECK. A figure typed into a TEMPLATE is
+    # still caught, because derive() returns the generator's values and
+    # a hardcoded template figure is not one of them; and
+    # test_the_templates_hold_the_prose_and_the_script_holds_the_figures
+    # forbids it independently. What this adds is the one legitimate
+    # source the first version of this test did not know about.
+    produced |= {m for val in write_doc2.derive().values()
+                 for m in re.findall(r"\b0\.\d{4}\b", str(val))}
     stray: dict[str, list[str]] = {}
     for p in sorted(DOC2.glob("*.md")):
         for fig in set(re.findall(r"\b0\.\d{4}\b", p.read_text())):
@@ -330,7 +389,7 @@ def test_the_four_scripts_that_refuse_their_own_help_are_still_four():
             deliberate.append(script.name)
     words = {1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five",
              6: "Six"}.get(len(deliberate), str(len(deliberate)))
-    text = _text("13-appendix.md")
+    text = _text("15-appendix.md")
     assert f"{words} of them exit non-zero" in text, (
         f"{len(deliberate)} scripts exit non-zero on --help "
         f"({', '.join(deliberate)}) and 13-appendix says otherwise")

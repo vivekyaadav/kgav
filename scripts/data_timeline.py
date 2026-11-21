@@ -95,7 +95,7 @@ def inputs_for(layer, root: Path) -> list[Path]:
     # sidecar -- they were written that day, the data files are dated 2023
     # and September -- and a sidecar has no sidecar of its own, so `acquired`
     # read host as "10 files ... mtime only" for THE LAYER THAT HAD JUST
-    # GAINED FULL CHECKSUM PROVENANCE. docs/v1_release_plan.md's A2 item,
+    # GAINED FULL CHECKSUM PROVENANCE. doc2/plan.md's A2 item,
     # which calls the host layer's provenance missing and quotes "five
     # files, 328,846,356 bytes, mtime only", was correct when written and
     # the figures it quotes are still the right ones; this report was the

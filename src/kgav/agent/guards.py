@@ -264,7 +264,7 @@ class VirusRoutes:
     def unreachable(self) -> bool:
         """Routes exist, labels exist, and the routes reach NONE of them.
 
-        The ROUTES REACH NO LABEL tier of docs/kg_audit_report.txt
+        The ROUTES REACH NO LABEL tier of doc2/kg_audit_report.txt
         section 9, which the report claims the agent enforces. It did
         not: the agent saw a virus with routes and said its reliability
         was "unknown", where it is known and it is zero. Five viruses on
@@ -337,7 +337,7 @@ CAVEAT_LABELS: dict[str, str] = {
     "evidence_tier":         "EVIDENCE",
     "virus_not_validated":   "VIRUS NOT VALIDATED",
     # The GOOD case, labelled separately so it is reported rather than
-    # implied by silence. docs/evaluation.md on the same mistake in the
+    # implied by silence. doc2/08-results.md on the same mistake in the
     # verdict column: "printed only as an absence of warning, the one
     # condition every real result here depends on was left for the
     # reader to notice."

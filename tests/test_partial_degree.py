@@ -166,7 +166,7 @@ def test_the_floor_is_calibrations_constant_on_both_classes():
 def test_the_registered_constants_are_the_documents():
     assert P.LAMBDA == 1.0
     assert P.ALPHA == 0.05
-    assert P.PREREG == "docs/prereg_partial_degree.md"
+    assert P.PREREG == "doc2/registrations/prereg_partial_degree.md"
 
 
 # ------------------------------------------------------------------ the gap
@@ -231,7 +231,7 @@ def test_it_names_the_protocol_and_reports_every_cell(tmp_path, capsys):
     code = P.main(["--release", str(rel)])
     out = capsys.readouterr().out
     assert code in (0, 1)
-    assert "docs/prereg_partial_degree.md" in out
+    assert "doc2/registrations/prereg_partial_degree.md" in out
     assert "Nothing below departs from it except where marked GAP." in out
     assert "lambda = 1.0" in out and "alpha = 0.05" in out
     assert "P1 " in out and "P2 " in out

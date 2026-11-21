@@ -1,4 +1,4 @@
-"""The AUC decomposition table in docs/evaluation.md, re-derived.
+"""The AUC decomposition table in doc2/08-results.md, re-derived.
 
 WHY THIS TABLE EXISTS AT ALL. The claim block prints degree at 0.5767 and
 the COMBINED ensemble at 0.5726 and called them indistinguishable, four
@@ -30,11 +30,15 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from kgav.labels import auc_ceiling, auc_floor, auc_skill  # noqa: E402
 
-DOC = ROOT / "docs" / "evaluation.md"
+DOC = ROOT / "doc2" / "06-methodology.md"
 RESULTS = ROOT / "data" / "results" / "hard_negatives.json"
 MARKER = "<!-- TABLE: auc_decomposition"
 VIRUS = "SARS-CoV-2"
-HEADER = ["scorer", "cov_pos", "cov_neg", "floor", "AUC", "ceiling", "skill"]
+# THE HEADER IS doc2's, not this file's invention. "reaches +" is
+# what the generated table calls coverage_pos; the names moved when
+# the table moved out of a document written for its authors.
+HEADER = ["scorer", "reaches +", "reaches −", "floor", "AUC",
+          "ceiling", "skill"]
 
 
 def reached(m: dict) -> tuple[int, int, int, int]:
@@ -397,7 +401,7 @@ def test_the_empty_temporal_table_says_which_temporal_study_it_is_about():
     "No temporal cell has an AUC interval excluding 0.5 on this release"
     describes `temporal_split.py`'s metapath scorers, which is what this
     table holds. From 2026-11-19 the structure scorer registered in
-    docs/prereg_temporal_structure_scorer.md has six prospective cells
+    doc2/registrations/prereg_temporal_structure_scorer.md has six prospective cells
     whose corrected intervals exclude chance and two that exclude it
     below -- so a reader taking that sentence at face value concludes the
     project has no forward-looking result, which is wrong.

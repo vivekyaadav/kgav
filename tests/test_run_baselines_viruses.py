@@ -40,7 +40,7 @@ def test_the_register_is_the_source_of_the_virus_list():
 
 def test_a_promoted_virus_needs_no_document_edit(tmp_path):
     """The point of reading the register. A seventeenth virus must
-    appear without anyone touching docs/evaluation.md."""
+    appear without anyone touching doc2/08-results.md."""
     doc = yaml.safe_load((ROOT / "config" / "viruses.yaml").read_text())
     doc["viruses"].append({"taxon": "999999", "name": "Test virus"})
     fake = tmp_path / "config"

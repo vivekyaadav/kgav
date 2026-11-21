@@ -1,6 +1,6 @@
 """The strength-matched verdict, re-derived from the three runs it compares.
 
-Everything in docs/prereg_structure_scorer_strength_matched.md's verdict is
+Everything in doc2/registrations/prereg_structure_scorer_strength_matched.md's verdict is
 a function of the three results files: the 14-row table, the six prediction
 outcomes, the six cells that broke P3 and which of them were named in
 advance, the +0.912 ordering correlation, and the plate-matched cell that
@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-PREREG = ROOT / "docs/prereg_structure_scorer_strength_matched.md"
+PREREG = ROOT / "doc2/registrations/prereg_structure_scorer_strength_matched.md"
 PUB = ROOT / "data/results/structure_scorer.json"
 KNN = ROOT / "data/results/structure_scorer_symmetric.json"
 SM = ROOT / "data/results/structure_scorer_strength_matched.json"
@@ -225,7 +225,7 @@ def test_the_plate_cells_verdict_names_the_family_it_was_judged_in(doc, runs):
 
     The cause was not the data. `structure_scorer.py` applied the ChEMBL
     family's z = 2.9137 to a cell registered in a family of three
-    (docs/prereg_ncats_entry_assays.md, second amendment, alpha 0.05/3,
+    (doc2/registrations/prereg_ncats_entry_assays.md, second amendment, alpha 0.05/3,
     z = 2.3940) -- PLATE_Z_CORRECTED was declared and never passed. At the
     registered level the cell clears; at the ChEMBL level it does not.
 

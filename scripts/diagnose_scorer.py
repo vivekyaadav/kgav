@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 """How much of each channel's score is the compound's own degree.
 
-WHY THIS EXISTS. Every table in docs/evaluation.md compares a channel against
+WHY THIS EXISTS. Every table in doc2/08-results.md compares a channel against
 a degree baseline, and the verdict of the whole document is that degree wins.
 That comparison assumed the two were different quantities. They are not
 entirely: `walk_metapath`'s default scoring never divides out the START
 node's degree, so a compound with more edges accumulates more score, and the
 channel partly IS the baseline it is being compared against.
 
-docs/prereg_m1_potency.md already records the half of this that was noticed:
+doc2/registrations/prereg_m1_potency.md already records the half of this that was noticed:
 "nothing drug-specific ever enters", hence 12 distinct M1 values across 3,020
 drugs. Two consequences were not recorded, and both are measured here:
 
@@ -36,7 +36,7 @@ WHAT TO READ
                        global degree. Both are needed. The global column
                        answers "is the channel restating the baseline it is
                        compared against", which is the question
-                       docs/evaluation.md asks. The layer column answers
+                       doc2/08-results.md asks. The layer column answers
                        "is the channel restating the degree pdp actually
                        divides by" -- and without it a NEGATIVE global rho
                        cannot be read, because a compound can be globally

@@ -1,4 +1,4 @@
-"""docs/prereg_clinical_labels.md holds only operands, and they are real.
+"""doc2/registrations/prereg_clinical_labels.md holds only operands, and they are real.
 
 A registration signed before the measurement is worth exactly what its
 operands are worth. This document counts compounds, diseases and class
@@ -29,7 +29,7 @@ from kgav import virus_register as vr  # noqa: E402
 from kgav.labels import build_labels  # noqa: E402
 from kgav.pipeline import release_dir  # noqa: E402
 
-PREREG = ROOT / "docs" / "prereg_clinical_labels.md"
+PREREG = ROOT / "doc2" / "registrations" / "prereg_clinical_labels.md"
 CHEMBL = (ROOT / "data" / "raw" / "chembl" / "chembl_37" / "chembl_37_sqlite"
           / "chembl_37.db")
 MONDO = ROOT / "data" / "raw" / "mondo" / "mondo.json"
@@ -224,7 +224,7 @@ def test_the_document_states_whichever_is_true_of_the_two_predicates(prereg):
     counts the release actually holds, and still requires the signature
     above it to say the registration preceded the ingest.
     """
-    census = (ROOT / "docs" / "kg_release_census.txt").read_text()
+    census = (ROOT / "doc2" / "kg_release_census.txt").read_text()
     trial = re.search(r"IN_TRIAL_FOR\s+L\s+([\d,]+)", census)
     treats = re.search(r"TREATS\s+L\s+([\d,]+)", census)
     assert trial and treats, "the census no longer reports both predicates"

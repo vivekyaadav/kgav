@@ -345,7 +345,7 @@ def build_split(release: Path, cutoff: int, held_out: set[str],
             s.stats["undated_kept_computed" if computed else "undated_kept"] += 1
             # WHICH EDGES THE POLICY IS DECIDING FOR, by predicate and
             # source (fix-list C3/C6). `include` is the default and the
-            # policy docs/evaluation.md reports, and under it 5,306
+            # policy doc2/08-results.md reports, and under it 5,306
             # unknown-date TARGETS edges enter the 2021 training graph --
             # 3,601 of them the whole Guide to PHARMACOLOGY layer, which
             # is what doubled M4 and M5's reach. That was inferable only

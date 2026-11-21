@@ -1,4 +1,4 @@
-"""The sequence table in docs/evaluation.md, re-derived rather than trusted.
+"""The sequence table in doc2/08-results.md, re-derived rather than trusted.
 
 WHAT THIS IS FOR. That table is the document's argument: M1 falls as each
 control is applied, and every later section reasons from those five rows. On
@@ -30,7 +30,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "docs" / "evaluation.md"
+DOC = ROOT / "doc2" / "06-methodology.md"
 RESULTS = ROOT / "data" / "results"
 sys.path.insert(0, str(ROOT / "src"))
 
@@ -57,8 +57,11 @@ SEQUENCE_FILES = {
     "5": "hard_negatives.json",
 }
 
-HEADER = ["#", "Protocol", "pos", "neg", "cov_pos", "cov_neg", "reached",
-          "**M1**"]
+# THE HEADER IS doc2's. The table moved out of a document written for
+# its authors, where the columns carried the results file's own field
+# names, into one written for a reader.
+HEADER = ["#", "protocol", "+", "−", "reaches +", "reaches −",
+          "actives reached", "M1"]
 
 
 # ----------------------------------------------------------------- the rules
@@ -71,7 +74,7 @@ def m1_cell(auc: float, n_pos: int, n_neg: int, reached: int) -> str:
     if reached < MIN_REACHED_POSITIVES:
         return NOT_EVALUABLE
     lo, hi = auc_interval(auc, n_pos, n_neg)
-    return f"{auc:.3f} [{lo:.3f}, {hi:.3f}]"
+    return f"{auc:.4f} [{lo:.4f}, {hi:.4f}]"
 
 
 def derive_row(doc: dict, virus: str = VIRUS, channel: str = CHANNEL
@@ -106,7 +109,7 @@ KEEP_COLUMNS = 2        #: '#' and the protocol prose are the document's
 def derive() -> dict[str, list[str]]:
     """The table the five results files imply: row number -> pos..M1 cells.
 
-    FOR scripts/rewrite_derived_tables.py, so this table is written from
+    A SECOND DERIVATION, independent of write_doc2.py's, so this table is written from
     its own derivation rather than by hand against `mismatches()`. The
     keys are row numbers; the protocol column beside them is prose no
     results file produces, which is why this module declares
@@ -262,7 +265,7 @@ def test_a_channel_below_the_floor_is_not_given_an_auc():
 def test_the_interval_is_the_one_the_codebase_computes():
     """Not a second Hanley-McNeil implementation living in a test."""
     lo, hi = auc_interval(0.7, 100, 200)
-    assert derive_row(_doc())[-1] == f"0.700 [{lo:.3f}, {hi:.3f}]"
+    assert derive_row(_doc())[-1] == f"0.7000 [{lo:.4f}, {hi:.4f}]"
 
 
 def test_reached_is_derived_from_the_coverage_and_not_read_separately():

@@ -4,7 +4,7 @@
     python scripts/ingest_indications.py --inspect   # counts, no write
     python scripts/ingest_indications.py             # build the layer
 
-REGISTERED IN ADVANCE by docs/prereg_clinical_labels.md, signed
+REGISTERED IN ADVANCE by doc2/registrations/prereg_clinical_labels.md, signed
 2026-11-17 before this script existed. The registration counted the
 operands -- 578 placeable (compound, disease) pairs over 294 compounds
 already in the graph -- and fixed the analysis that will read them: one

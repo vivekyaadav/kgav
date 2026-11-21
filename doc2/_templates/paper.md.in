@@ -1,0 +1,490 @@
+# What a knowledge graph contributes to antiviral drug repurposing: four controlled measurements on {{n_viruses_built}} viruses
+
+**Release `{{release_id}}`** — {{n_nodes}} nodes, {{n_edges}} edges, schema
+`{{schema_version}}`, built at commit `{{build_commit}}`
+(nodes `{{nodes_sha}}`, edges `{{edges_sha}}`).
+
+*This manuscript is generated. Every figure in it is read out of
+`data/results/` at the moment of writing, and `make doc2-check` fails if any
+of them has moved. Methods are given in full in
+[06-methodology.md](06-methodology.md) and
+[07-protocols.md](07-protocols.md); the pre-registrations that fixed each
+protocol in advance are in `registrations/`.*
+
+---
+
+## Abstract
+
+Knowledge-graph methods are widely proposed for drug repurposing on the
+argument that the literature already contains the evidence in pieces and
+that assembling it will rank candidate compounds. That argument is rarely
+tested against the controls it requires: the graph's own measure of how
+much attention a compound has received, the fact that the evidence and the
+answer are frequently the same observation reported twice, and the
+difference between separating actives from inactives in a corpus and
+predicting them in advance.
+
+We built a knowledge graph of {{n_nodes}} nodes and {{n_edges}} edges over
+{{n_viruses_built}} coronaviruses and flaviviruses from
+{{n_layers_built}} ingest layers, held out
+{{held_out_predicates}} as the answer, and ran four pre-registered
+evaluations.
+
+**First**, of the {{n_metapaths}} graph-reasoning channels the schema
+declares, **{{hn_n_channels_clearing}}** has a confidence interval excluding
+chance on the one assay-matched population, under a publication-disjoint
+control. An ensemble of all channels does clear, at {{hn_combined_auc}}
+{{hn_combined_ci}}, but {{hn_combined_margin_share}} of its margin above
+chance is the asymmetry of what it reaches rather than how it ranks; a
+degree baseline — the compound's edge count — reads {{hn_degree_auc}}
+{{hn_degree_ci}} with no such asymmetry at all.
+
+**Second**, the host proteins each virus depends on show no enrichment in
+Reactome pathways against a degree-matched null: 0 of
+{{pl_n_tests}} tests survive correction at {{pl_permutations}}
+permutations over {{pl_n_rows}} virus–channel rows, and
+{{pl_n_uncovered_both}} of the {{n_viruses_built}} viruses could not be
+tested in either channel.
+
+**Third**, a scorer that uses no graph structure — the maximum ECFP4
+Tanimoto a candidate reaches against that virus's known actives — clears
+its corrected threshold in **{{n_cells_group1}} of {{n_scorer_cells}}**
+registered cells *above a degree baseline that does not clear*, and the
+membership of those cells is identical under both registered
+near-neighbour controls. On the one cell matched by assay rather than by
+source, the precision of the head of its ranking nevertheless falls to
+zero once each candidate's nearest known actives are withheld.
+
+**Fourth**, trained only on activity published at or before
+{{temporal_cutoff}} and tested on activity published after it, the same
+chemical scorer clears in {{temporal_n_clears}} of
+{{temporal_n_evaluable}} cells and clears **below** chance in
+{{temporal_n_below}} ({{temporal_below}}) — a measured anti-ranking.
+**{{temporal_comparator_usable}} of {{temporal_n_evaluable}}** cells have a
+usable degree comparator, so none of the prospective results is shown to
+beat a baseline.
+
+The contribution of the graph's own reasoning, measured against the
+attention baseline on every protocol here, is zero or negative. What
+survives is chemistry, it is reported as a resemblance claim rather than an
+expected hit rate, and it is licensed for **{{n_licensed}} of
+{{n_viruses_built}}** viruses.
+
+---
+
+## 1. Introduction
+
+A virus with no licensed therapy and a pharmacopoeia of compounds already
+dosed in humans is the standing case for repurposing. Screening everything
+against everything is expensive, so a ranking is worth a great deal — and a
+knowledge graph offers one for free, by assembling published facts into
+chains: *this compound inhibits that protein; that protein is required by
+this virus.*
+
+The difficulty is not building the graph. It is that almost everything in it
+is also a measure of how much attention its subject has already received,
+and attention predicts activity without any biology in it. A compound that
+has been measured against a virus was measured for a reason; a protein in
+many pathways is a protein in many screens. A method that learns attention
+will look excellent on retrospective data and will rank nothing useful in
+advance.
+
+This paper reports four measurements designed so that failure is visible.
+Each has a pre-registration fixing its statistic, population, correction
+family and decision rule before the numbers existed; each publishes a
+degree baseline beside the thing being tested; each writes a machine-checked
+artifact stamped with the graph it was computed from. Two of the four are
+negative results and are reported with the effect size they had the power to
+detect. Two are positive, and the stronger of the two is positive about
+chemistry rather than about the graph.
+
+---
+
+## 2. Methods
+
+### 2.1 The graph
+
+Nodes are drawn from public vocabularies — NCBI Taxonomy, UniProt, ChEMBL,
+Reactome, GO, MONDO — so that two sources naming the same entity produce one
+node. The release holds:
+
+{{nodes_by_class_table}}
+
+Edges are typed, directed and carry qualifiers: potency, units, assay type,
+cell line, publication, year, source. Two sources asserting the same
+subject–predicate–object produce one edge whose qualifiers merge under a
+declared precedence ({{n_edges_merged}} such merges in this release,
+{{n_precedence_decided}} of them resolved by an explicit precedence rule).
+
+{{edges_by_predicate_table}}
+
+Assembly runs in two passes: {{n_layers_built}} ingest layers of the
+{{n_layers}} declared, nine of which read raw files only and four of which
+read the merged graph and are merged back. The absent layer is
+{{layers_absent_why}}. The full pipeline, derived from the code that defines
+it, is Figure 1.
+
+**Figure 1 — architecture.** `figures/kgav_architecture_a4.pdf` (one A4
+page), `figures/kgav_architecture.svg`.
+
+![architecture](figures/kgav_architecture.png)
+
+**Figure 2 — the metagraph.** Every node class and every edge block in the
+release, with its sparsity. `figures/kgav_metagraph_a4.pdf` (one A4 page).
+
+![metagraph](figures/kgav_metagraph.png)
+
+### 2.2 Labels, and what is held out
+
+Antiviral activity is thresholded from concentration–response:
+{{threshold_shape}}. A potency whose *relation* does not settle the
+question — a censored bound below the cut, a relation nobody stated, an edge
+whose merged rows disagree — is assigned to neither class rather than being
+pushed into one. {{label_inactive_share}} of
+labelled compound–virus pairs are measured-inactive, which is what allows
+negatives to be drawn from measurement rather than from silence — the
+distinction that separates predicting activity from predicting whether
+anybody looked.
+
+{{held_out_predicates}} are **held out**: no scorer traverses them, and an
+agent that quotes one labels it as the answer sheet.
+
+### 2.3 Scorers
+
+Eight metapath channels are declared, each a sequence of node classes and
+predicates:
+
+{{metapath_table}}
+
+Each is scored by a degree-weighted path count. Two departures from the
+published form are recorded rather than repaired — the source compound's own
+degree is not divided out, and damping uses global rather than
+within-metaedge degree — because both are measurable and tuning the damping
+until the degree correlation vanishes would be fitting the scorer to the
+confound it is being tested for.
+
+The **degree baseline** is the compound's edge count, excluding its own
+held-out label edges. It is not an alternative method; it is the null
+hypothesis, because on this graph degree *is* study volume.
+
+The **structure scorer** is the maximum ECFP4 Tanimoto (radius
+{{fp_radius}}, {{fp_bits}} bits) that a candidate reaches against any known
+active for that virus. It uses no graph structure at all and exists to
+establish whether there is any separable signal in the problem.
+
+### 2.4 Controls
+
+| confound | control | cost |
+|:---|:---|:---|
+| attention | degree baseline reported on every cell | — |
+| evidence and answer co-reported | withhold evidence edges sharing a publication with the label | reach collapses below evaluability |
+| populations differ by provenance | restrict to one screen, both classes off the same plates | positives fall to {{hn_n_pos}} |
+| candidate's nearest active is its own analogue | three registered exclusions (below) | top-of-list precision falls to zero |
+| retrospective ordering ≠ prospective prediction | temporal split at {{temporal_cutoff}} | {{temporal_comparator_usable}} usable comparators |
+
+On the co-reporting confound: of {{lo_both}} compounds carrying both an
+`INHIBITS` edge and an antiviral label, {{lo_share_pct}} share a publication
+identifier between the two. A further **{{lo_unwithholdable}} carry no
+publication on the evidence side at all** and are therefore outside the
+control rather than cleared by it — an edge with no publication can never be
+selected for withholding, so a virus can appear clean by having nothing to
+be disjoint from.
+
+The three near-neighbour controls are: publication-disjoint exclusion;
+symmetric exclusion of each candidate's k = {{sym_k}} nearest known actives;
+and strength-matched exclusion, where k is set per cell to that cell's own
+near-neighbour density:
+
+{{k_cell_table}}
+
+### 2.5 Statistics
+
+Every AUC is reported with a 95% Hanley–McNeil interval, and *clears* always
+means the interval excludes {{chance}} — never that the point estimate is
+above it. Ties contribute one half, because several channels assign one
+value to hundreds of compounds and a tie-breaking metric would report
+insertion order.
+
+Compounds a channel cannot reach are imputed at the floor rather than
+dropped, since a scorer evaluated only on what it reaches selects its own
+test set. The arithmetic cost of that choice is reported explicitly: a
+scorer's **floor** is `0.5 + (coverage₊ − coverage₋)/2`, the AUC its coverage
+asymmetry earns with no ranking; its **ceiling** is the best that coverage
+could reach; and its **skill** is the fraction of that span the ranking used.
+A channel reaching fewer than {{min_reached_positives}} measured actives is
+reported *not evaluable* rather than with a number.
+
+Correction families are fixed in the registration and checked against the
+running code by a test:
+
+{{correction_table}}
+
+{{correction_note}}
+
+### 2.6 Pre-registration and provenance
+
+Registrations are amended by appending, never rewritten; a test reads each
+one and asserts the code obeys its permutation count, alpha, family size and
+exclusion rule. Where a protocol refused to run, the refusal is the artifact
+— {{n_refused_results}} of the {{n_results_files}} artifacts is a recorded
+refusal. Every artifact is stamped with the release fingerprint and the code
+commit, and `make check-results` fails on one whose release has moved.
+
+---
+
+## 3. Results
+
+### 3.1 The graph's reasoning channels are at chance
+
+On the assay-matched population (`{{hn_label_source}}`, assay type
+`{{hn_assay_type}}`, publication-disjoint), with {{hn_n_pos}} actives:
+
+{{auc_decomposition_table}}
+
+**{{hn_n_channels_clearing}} of the {{hn_n_channels}} channels has an
+interval excluding chance** ({{hn_channels_clearing}}). Two scorers do: the
+ensemble and the degree baseline, {{hn_combined_auc}} against
+{{hn_degree_auc}} — three thousandths apart, and not measuring the same
+thing. Degree reaches every compound in both classes, so its floor is
+exactly {{chance}} and all of its margin is ranking. The ensemble's floor is
+{{hn_combined_floor}} of its {{hn_combined_auc}}:
+{{hn_combined_margin_share}} of its margin is coverage asymmetry.
+
+Normalised for reach, the ensemble used {{hn_combined_skill}} of the span
+available to it and degree used {{hn_degree_skill}}; the four evaluable
+channels fall in the same band. **Every scorer on this graph, the null
+hypothesis included, extracts a similar and uniformly small fraction of the
+separation its own coverage allows.** That is a sharper statement than
+either "degree wins" or "they tie".
+
+{{hn_n_on_ceiling}} channels ({{hn_on_ceiling}}) equal their own ceiling to
+four decimal places: their entire score is coverage, and no ranking inside
+the reached set could move them.
+
+**Each control costs reach, and the sequence is the result:**
+
+{{sequence_table}}
+
+The collapse at step 4 is the finding. Withholding evidence that shares a
+publication with the label it predicts takes the direct-acting channel below
+the evaluability gate — nearly everything that looked like direct-acting
+evidence was the answer, re-reported from the same table of the same paper.
+
+### 3.2 No pathway-level enrichment survives a degree-matched null
+
+{{pl_table}}
+
+0 of {{pl_n_tests}} tests clear the corrected threshold
+{{landscape_alpha}}, in either direction, at {{pl_permutations}}
+permutations with the null binned on `{{pl_degree_basis}}` connectivity.
+The {{pl_n_tests}} tests are {{pl_n_rows}} rows — {{pl_n_taxa_rows}} in the
+host-factor channel and {{pl_n_interactome_rows}} in the interactome
+channel — each tested for enrichment and for depletion.
+
+**The gap between the two p-value columns is the finding.** Overlaps
+significant at a few parts in a thousand against a uniform null are nothing
+against a degree-matched one. Binning against the whole graph rather than
+the studied set — which includes the proteins under test in their own
+background — produced a uniform, confident-looking depletion across every
+virus in an earlier run; that result was an artifact and is retracted.
+
+**{{pl_n_uncovered}} of {{n_viruses_built}} viruses have no host-factor
+cell** ({{pl_uncovered}}) and {{pl_n_uncovered_both}} have none in either
+channel ({{pl_uncovered_both}}). A negative result over part of a register is a weaker
+statement than a negative result over a register, and each tested cell
+publishes the minimum effect it had the power to detect, because "we found
+no enrichment" is uninformative without it.
+
+### 3.3 Chemistry separates, above a baseline that does not
+
+The structure scorer, under the strength-matched control, on every
+registered cell with its own degree comparator:
+
+{{scorer_vs_degree_table}}
+
+**{{n_cells_group1}} of {{n_scorer_cells}} cells clear above a degree
+baseline that does not clear.** {{n_cells_group2}} clear while their
+baseline clears too and are therefore not evidence about chemistry;
+{{n_cells_group3}} do not clear, and in {{n_cells_degree_above}} of those
+the degree baseline is both above the structure statistic and clearing.
+
+{{controls_agreement}} That is the result's main defence: the clearing set
+is not an artifact of one exclusion rule.
+
+**And the top of the list does not survive.** On the one population matched
+by assay rather than by source, the head of the ranking holds **no actives
+at all** once each candidate's nearest known actives are withheld, under
+either control, while that cell's AUC still clears its corrected alpha. An
+AUC describes a whole ordering; a screen only ever sees the top of a list,
+and here the two disagree completely. A precision that vanishes under the
+near-neighbour control was never a hit rate — it was analogue retrieval.
+
+This measurement was made after the registered AUCs were read and is
+reported as a post-hoc qualification, not as a registered claim.
+
+### 3.4 Prospectively: six cells forward, two backwards, no comparator
+
+Training on evidence published at or before {{temporal_cutoff}} and testing
+on activity measured after it, with undated edges handled by the declared
+policy `{{temporal_undated}}` and overlap by `{{temporal_overlap}}`:
+
+{{temporal_table}}
+
+**{{temporal_n_clears}} of {{temporal_n_evaluable}} cells clear above
+chance** ({{temporal_clears}}). **{{temporal_n_below}} clear below it**
+({{temporal_below}}): their corrected intervals exclude chance on the wrong
+side, which is not the same as failing to clear. Those cells rank
+post-cutoff actives reliably last. Nothing here establishes that inverting
+them would hold forward either.
+
+**{{temporal_comparator_usable}} of {{temporal_n_evaluable}} cells have a
+usable degree comparator.** The requirement — that the pre-cutoff graph
+reach at least {{temporal_min_comparator_reach}} of the compounds being
+ranked — is met by none, so the baseline column is empty by measurement and
+not by omission, and the clearing cells are **not shown to beat a
+baseline**. The registration anticipated this outcome and named it:
+*measurable, not comparable*.
+
+**The six clearing cells are not one result.** Recomputing each cell's AUC
+with its *k* nearest pre-cutoff actives withheld (k = {{analogy_ks}}):
+
+{{analogy_table}}
+
+`\*` marks clearing the corrected alpha at that exclusion strength.
+{{analogy_n_survivors}} of the {{analogy_n_cells}} survive to
+k={{analogy_k_max}} ({{analogy_survivors}}) — a chemotype signal.
+{{analogy_n_fragile}} stop clearing before k=10 ({{analogy_fragile}}):
+retrieval of a known series, which is a narrower claim than the headline
+number sounds. The two orderings are close to inverted —
+
+    by published AUC (k=0): {{analogy_by_primary}}
+    by robustness (k={{analogy_k_max}}): {{analogy_by_robust}}
+
+— so **a cell's headline AUC does not say which kind of result it is.**
+{{analogy_top_name}} has the highest primary of the six and falls
+{{analogy_top_drop}}. This diagnostic is post-hoc on a registered run and is
+reported as one.
+
+A note on what this protocol is not. It is publication-disjoint by
+construction, so the co-reporting confound of §3.1 cannot occur. But it is
+still retrospective in the only sense that matters for a prediction: it
+simulates prospective use on data that already exists.
+
+### 3.5 The one independent label axis contradicts the chemistry
+
+Every figure above rests on one predicate derived from in-vitro
+concentration–response at one threshold. The indications layer supplies
+{{clinical_trials}} `IN_TRIAL_FOR` and {{clinical_treats}} `TREATS` edges —
+an axis with no in-vitro content at all. On the registered cell
+({{clinical_virus}} / {{clinical_disease}}):
+
+{{clinical_pop_table}}
+
+The structure scorer reads **{{clinical_structure_auc}}
+{{clinical_structure_ci}}**, clearing **{{clinical_structure_dir}}** chance,
+while degree reads **{{clinical_degree_auc}} {{clinical_degree_ci}}**.
+Whether a compound reached a trial is predicted by how much it has been
+studied, not by its resemblance to the compounds active in vitro.
+
+So the independent axis **measures something else** rather than confirming
+this one. It cannot be used to validate the structure scorer, and it cannot
+license a predictive claim of its own: `drug_indication` carries no usable
+per-row date, so no temporal split exists for it.
+
+---
+
+## 4. Discussion
+
+**The graph's own contribution, measured on every protocol here, is zero or
+negative against a baseline that counts edges.** That is not a statement
+about knowledge-graph repurposing in general. It is a statement about eight
+specific channels on one release, four of which were never evaluable because
+they reach too few measured actives, and four of which reach 11 to 30 of
+{{hn_n_pos}} actives — thin evidence either way. What the result does
+establish is the shape of the obstacle: the channels that reach the most
+compounds are the channels most correlated with degree, and the controls
+that remove the correlation also remove the reach.
+
+**The positive result is chemical, and it is a resemblance claim.** The
+structure scorer uses nothing the graph provides beyond the label set, and
+it clears in {{n_cells_group1}} cells where degree does not. That is a real
+finding about separability. It is not a hit rate, and the near-neighbour
+measurement in §3.3 is the reason: the same cell that clears its AUC returns
+no actives at the head of its list once analogues are withheld. A system
+built on this should therefore report *"this compound resembles that known
+active, at this Tanimoto, and here is where that sits among the compounds
+this virus has already failed"* — which is what the read-out in this
+repository does — and should not report an expected success rate.
+
+**Two cells rank backwards prospectively and that is worth as much as the
+six that rank forwards.** An anti-ranking is information: it says something
+systematic changed between the training period and the test period for those
+viruses. It also means a cross-sectional verdict alone cannot license a
+shortlist, since a shortlist is a prospective act. On this release the
+intersection — clears cross-sectionally, does not contradict prospectively —
+is **{{n_licensed}} of {{n_viruses_built}}** viruses: {{licensed_viruses}}.
+
+{{capability_table}}
+
+**On negative results.** Two of the four measurements here are nulls. Both
+publish what they could have detected, because a null without a power
+statement is unfalsifiable. The pathway analysis in particular would have
+reported **{{pl_n_naive_discoveries}} significant rows** under the uniform
+null that convention would have accepted, and **{{pl_n_powerless}} of its
+{{pl_n_family_rows}} downward tests have no rejection region at all** — no
+observation whatsoever could clear the corrected bar on them.
+
+**What would change the answer.** More measured actives reachable by the
+host-directed channels. The one assay-matched screen in this release supplies
+{{hn_n_pos}} actives; a second independent panel would take the two
+best-reached channels from a dozen or so reached actives to a number an
+interval can be read off. Nothing about the method needs to change first.
+
+---
+
+## 5. Limitations
+
+Stated in full in [09-limits.md](09-limits.md); the ones that bear directly
+on the claims above:
+
+- **One strain stands for each flavivirus.** Seven of nine surveyed
+  flaviviruses are curated under a strain taxon rather than the species.
+- **Most drug–target edges carry no direction**, so "this drug targets a
+  dependency factor" cannot always become "inhibiting it should block
+  infection".
+- **{{n_taxa_without_host_factors}} of {{n_viruses_built}} viruses carry no
+  `HOST_FACTOR_FOR` edge** ({{taxa_without_host_factors}}), so every
+  host-directed channel is empty for them by construction.
+- **{{rc_n_unchecked}} of {{rc_n_molecules}} molecules resolve to no ChEMBL
+  record** by identifier or structure, so their therapeutic role could not
+  be checked — and unchecked is not clean.
+- **A Tanimoto of 1.0 is not identity**: {{fp_bits}} folded bits cannot see
+  a saturated ring's size or a peptide's length.
+- **{{lo_unwithholdable}} compounds are outside the publication-disjoint
+  control** rather than cleared by it.
+- **Labels are one measurement at one threshold.** Within the in-vitro axis,
+  edges carrying a potency the curator flagged as read outside the tested
+  dose series are kept by policy `{{dose_series_default}}` and counted
+  rather than deleted.
+
+---
+
+## 6. Data, code and reproduction
+
+Release `{{release_id}}`, {{n_nodes}} nodes, {{n_edges}} edges, schema
+`{{schema_version}}`, fingerprints `{{nodes_sha}}` / `{{edges_sha}}`.
+{{n_results_files}} stamped artifacts in `data/results/`.
+{{n_src_modules}} library modules ({{n_src_lines}} lines),
+{{n_scripts}} scripts ({{n_script_lines}} lines),
+{{n_test_functions}} tests in {{n_test_files}} files.
+
+```
+make rebuild          # the ingest chain, in dependency order
+make reproduce-print  # every command that regenerates a published figure
+make check-results    # which artifacts describe a graph that has moved
+make doc2-check       # fail if any document no longer matches the code
+```
+
+Pre-registrations: `registrations/`. Every figure in this manuscript is
+derived at render time by `scripts/write_doc2.py`; the prose is
+`doc2/_templates/paper.md.in`.

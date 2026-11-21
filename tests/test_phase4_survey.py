@@ -822,7 +822,7 @@ def test_the_coronavirus_end_of_the_broad_set_includes_roleless_rows(tmp_path):
 
 
 # ------------------------------------- the prereg cites the code's own rules
-PREREG = ROOT / "docs" / "prereg_phase4_hcv.md"
+PREREG = ROOT / "doc2" / "registrations" / "prereg_phase4_hcv.md"
 
 
 def test_the_prereg_exists_and_states_the_outcome_is_unmeasured():

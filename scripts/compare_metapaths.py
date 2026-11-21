@@ -184,7 +184,7 @@ def main() -> int:
             print(f"    {name:<10} {why}")
 
     args.out.mkdir(parents=True, exist_ok=True)
-    # MULTIPLE TESTING, DERIVED (fix-list E1). docs/evaluation.md reports a
+    # MULTIPLE TESTING, DERIVED (fix-list E1). doc2/08-results.md reports a
     # sensitivity over four candidate families and all four sizes were typed
     # by hand; nothing could recompute one. The family is reported rather
     # than chosen -- see baselines.correction_families.

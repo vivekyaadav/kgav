@@ -324,7 +324,7 @@
   "cells_with_changed_factor_set": [],
   "factor_sets_unchanged": true,
   "measured_by": "scripts/diagnose_landscape_count_move.py",
-  "question_from": "docs/prereg_pathway_overlap.md",
+  "question_from": "doc2/registrations/prereg_pathway_overlap.md",
   "before_artifact": "57602d9:data/results/pathway_landscape.json",
   "after_artifact": "/home/vikas/projects/kgav/data/results/pathway_landscape.json",
   "before_measured_on": "2026-11-17",

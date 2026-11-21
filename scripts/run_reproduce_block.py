@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the Reproducing block in docs/evaluation.md, from the document.
+"""Run the Reproducing block in doc2/12-reproducing.md, from the document.
 
 ONE SOURCE OF TRUTH. The block is 21 commands whose ORDER is load
 bearing -- three temporal_split.py runs write to one directory so the
@@ -48,7 +48,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "docs" / "evaluation.md"
+DOC = ROOT / "doc2" / "12-reproducing.md"
 HEADING = "## Reproducing"
 
 LOCK = ROOT / ".reproduce.lock"
@@ -59,7 +59,7 @@ SCRIPT = ROOT / ".reproduce.sh"
 
 PREAMBLE = (
     "#!/usr/bin/env bash\n"
-    "# EXTRACTED FROM docs/evaluation.md -- edit the document, not this.\n"
+    "# EXTRACTED FROM doc2/12-reproducing.md -- edit the document, not this.\n"
     "# Not set -e: the --overlap-policy keep control is REQUIRED to exit\n"
     "# non-zero, and aborting there would skip the rest of the block.\n"
     "set -u\n"

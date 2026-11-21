@@ -282,7 +282,7 @@ def resolve_nsp(description: str,
 #: normalised column, so their presence here is itself odd.
 #:
 #: DELIBERATELY NOT CONVERTED. 10 rows is 0.037% of the query and cannot
-#: move any figure in docs/evaluation.md, while adding them means a guessed
+#: move any figure in doc2/08-results.md, while adding them means a guessed
 #: exponent convention on real potencies plus a full regeneration. The
 #: question is closed with an answer, not left open: if someone reopens it,
 #: the thing to check first is the raw `units`/`value` columns for those 10

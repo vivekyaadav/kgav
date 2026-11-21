@@ -24,7 +24,7 @@ banner quoted AUC and called it a hit rate, which is the one translation
 AUC does not support.
 
 THIS IS A POST-HOC STATISTIC AND IS LABELLED AS ONE. The registration
-docs/prereg_temporal_structure_scorer.md fixed AUC as the statistic
+doc2/registrations/prereg_temporal_structure_scorer.md fixed AUC as the statistic
 before any AUC existed. Precision@k is computed here AFTER those AUCs
 were read, on the same held-out labels, so it is a DESCRIPTIVE re-reading
 of an already-measured result and not a new test. The hypergeometric

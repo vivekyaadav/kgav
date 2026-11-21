@@ -7,7 +7,7 @@ WHY. `scripts/hard_negatives.py --help` raised
 because a help string contained the literal "94.9% of compounds" and
 argparse %-formats help text, so `% o` was read as a format spec. The flag
 it documents, `--publication-disjoint`, is the one that defines the
-headline protocol in docs/evaluation.md's reproduce block, and its help had
+headline protocol in doc2/08-results.md's reproduce block, and its help had
 never once printed. Found 2026-11-11 by the --help sweep run while
 converting fix-list L14, not by a test.
 

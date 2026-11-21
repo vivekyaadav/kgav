@@ -1,6 +1,6 @@
 """Three of the six prospective cells are analogy, and three are not.
 
-WHAT THIS CLOSES. docs/prereg_temporal_structure_scorer.md left H3 open
+WHAT THIS CLOSES. doc2/registrations/prereg_temporal_structure_scorer.md left H3 open
 in as many words -- "a pointer, not a finding" -- and the pointer was
 right and understated. The registered AUC recomputed with the k nearest
 pre-cutoff actives withheld splits the six clearing cells in two:
@@ -33,8 +33,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "diagnose_prospective_analogy.py"
-PREREG = ROOT / "docs" / "prereg_temporal_structure_scorer.md"
-RESULTS_DOC = ROOT / "docs" / "results.md"
+PREREG = ROOT / "doc2" / "registrations" / "prereg_temporal_structure_scorer.md"
+RESULTS_DOC = ROOT / "doc2" / "08-results.md"
 TEMPORAL = ROOT / "data" / "results" / "temporal_structure_scorer.json"
 SPLIT = ROOT / "data" / "releases" / "v0.1-train2021"
 

@@ -1,6 +1,6 @@
 """A registered decision must be what the code actually does.
 
-WHY THIS FILE EXISTS. docs/prereg_pathway_overlap.md declares, under
+WHY THIS FILE EXISTS. doc2/registrations/prereg_pathway_overlap.md declares, under
 "Fixed in advance" and flagged **DECISION**:
 
     Permutations: 100,000. The hard floor is one attainable value below
@@ -37,8 +37,18 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-PREREG = ROOT / "docs/prereg_pathway_overlap.md"
+PREREG = ROOT / "doc2/registrations/prereg_pathway_overlap.md"
 RESULTS = ROOT / "data/results/pathway_landscape.json"
+
+#: BOTH PATHS, BECAUSE THE HISTORY PREDATES THE MOVE. The registrations
+#: moved from docs/ to doc2/registrations/ on 2026-11-21, and the commits
+#: these tests read are older than that: a `git show <sha> -- <new path>`
+#: returns an EMPTY diff rather than an error, so the two tests below
+#: silently stopped reading anything and one of them started failing with
+#: "that commit's diff removes []". Naming both paths is what a rename
+#: costs a test that reads history.
+PREREG_PATHS = ["doc2/registrations/prereg_pathway_overlap.md",
+                "docs/prereg_pathway_overlap.md"]
 
 
 def declared_permutations() -> int:
@@ -262,7 +272,7 @@ def _identification_commits() -> list[tuple[str, str]]:
          # discusses it; checked to return the same thirteen commits as the
          # correct `-L 14,15` invocation.
          "-G", "nodes_sha. [0-9a-f]{16}",
-         "--", "docs/prereg_pathway_overlap.md"],
+         "--", *PREREG_PATHS],
         cwd=ROOT, capture_output=True, text=True, timeout=60)
     if out.returncode != 0:
         pytest.skip(f"git unavailable: {out.stderr.strip()[:80]}")
@@ -298,8 +308,7 @@ def test_the_quoted_post_run_edit_is_the_diff_git_shows():
                "and a pair of edges_sha values, in the form this test reads")
     sha, old, new = m.group(1), m.group(2), m.group(3)
 
-    out = subprocess.run(["git", "show", sha, "--", PREREG.name and
-                          "docs/prereg_pathway_overlap.md"],
+    out = subprocess.run(["git", "show", sha, "--", *PREREG_PATHS],
                          cwd=ROOT, capture_output=True, text=True, timeout=60)
     if out.returncode != 0:
         pytest.skip(f"git unavailable: {out.stderr.strip()[:80]}")

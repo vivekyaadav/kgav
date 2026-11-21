@@ -528,8 +528,8 @@ def test_the_therapeutic_flag_is_unusable_outside_the_approved_tier(ann):
 
 
 # ---------------------------------------- the documents, against the run
-SCOPE = ROOT / "docs" / "scope_and_limits.md"
-DENV2_PREREG = ROOT / "docs" / "prereg_denv2_prospective_screen.md"
+SCOPE = ROOT / "doc2" / "09-limits.md"
+DENV2_PREREG = ROOT / "doc2" / "registrations" / "prereg_denv2_prospective_screen.md"
 
 
 def _cells_by_name(artifact: dict) -> dict:

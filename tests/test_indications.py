@@ -111,7 +111,7 @@ def test_the_layer_adds_no_nodes():
     if not nodes.exists():
         pytest.skip("layer absent")
     assert nodes.read_text().strip() == "", (
-        "the indications layer emitted a node; docs/prereg_clinical_labels.md "
+        "the indications layer emitted a node; doc2/registrations/prereg_clinical_labels.md "
         "forbids it")
 
 

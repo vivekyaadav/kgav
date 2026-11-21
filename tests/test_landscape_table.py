@@ -1,4 +1,4 @@
-"""The pathway-landscape table in docs/evaluation.md, checked not sourced.
+"""The pathway-landscape table in doc2/08-results.md, checked not sourced.
 
 The sibling of tests/test_evaluation_table.py, and for the same reason.
 Every one of the six degree lifts in the cross-sectional table drifted
@@ -22,7 +22,7 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "docs" / "evaluation.md"
+DOC = ROOT / "doc2" / "08-results.md"
 RESULTS = ROOT / "data" / "results" / "pathway_landscape.json"
 REGISTER = ROOT / "config" / "viruses.yaml"
 
@@ -60,7 +60,8 @@ def derive() -> dict[str, list[str]]:
                        "DEPLETED" if lo < alpha else DASH)
             rows[f"{channel} | {label.get(curie, curie)}"] = [
                 f"{r['n_dependency']:,}", f"{r['n_observed']:,}",
-                f"{r['expected']:.2f}", f"{hi:.4f}", f"{lo:.4f}", verdict]
+                f"{r['expected']:.2f}", f"{r['p_naive']:.4f}",
+                f"{hi:.4f}", f"{lo:.4f}", verdict]
     return rows
 
 
@@ -76,7 +77,7 @@ def parse() -> dict[str, list[str]]:
         if not line.startswith("|"):
             break
         cells = [c.strip() for c in line.strip("|").split("|")]
-        assert len(cells) == 8, f"expected 8 columns, got {len(cells)}: {line}"
+        assert len(cells) == 9, f"expected 9 columns, got {len(cells)}: {line}"
         rows[f"{cells[0]} | {cells[1]}"] = cells[2:]
     return rows
 

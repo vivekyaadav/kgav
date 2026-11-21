@@ -1,4 +1,4 @@
-"""docs/kg_release_census.txt, checked against the release it describes.
+"""doc2/kg_release_census.txt, checked against the release it describes.
 
 The census is the only place this project states how big the graph is.
 It is generated rather than written, because a typed count is stale the
@@ -204,7 +204,7 @@ def test_each_file_names_the_other():
     old header until someone regenerated -- the stale-artifact problem
     this whole split exists to avoid, reappearing inside its own test.
     """
-    report = (ROOT / "docs" / "kg_audit_report.txt").read_text()
+    report = (ROOT / "doc2" / "kg_audit_report.txt").read_text()
     assert "kg_release_census.txt" in report
-    assert "docs/kg_audit_report.txt" in "\n".join(W.HEADER)
-    assert "docs/kg_audit_report.txt" in W.CENSUS.read_text()
+    assert "doc2/kg_audit_report.txt" in "\n".join(W.HEADER)
+    assert "doc2/kg_audit_report.txt" in W.CENSUS.read_text()

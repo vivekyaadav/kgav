@@ -1,4 +1,4 @@
-"""docs/evaluation.md's M7 claim states its own weighting sensitivity.
+"""doc2/08-results.md's M7 claim states its own weighting sensitivity.
 
 THE CLAIM SECTION RESTS ON ONE CELL. Of thirteen readable cells, exactly
 one clears the corrected alpha -- SARS-CoV-2 M7 -- and its DWPC step
@@ -23,7 +23,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-DOC = ROOT / "docs" / "evaluation.md"
+DOC = ROOT / "doc2" / "08-results.md"
 RESULTS = ROOT / "data" / "results" / "degree_weighting_sensitivity.json"
 
 
@@ -70,7 +70,7 @@ def test_both_p_values_for_the_claim_cell_are_in_the_document(run, doc):
         assert p is not None, f"the artifact carries no {key}"
         assert f"{p:.6f}" in doc, (
             f"the claim cell's {key} = {p:.6f} is not stated in "
-            f"docs/evaluation.md")
+            f"doc2/08-results.md")
 
 
 def test_the_document_states_which_side_of_the_threshold_arm_b_falls_on(

@@ -1,7 +1,7 @@
 """The committed results must describe the release on disk.
 
 THE GAP THIS CLOSES. data/results holds 28 files, all committed to git and
-quoted throughout docs/evaluation.md. The release they were computed from
+quoted throughout doc2/08-results.md. The release they were computed from
 is NOT committed -- data/releases carries only .gitkeep and the smoke
 fixture. So the repository ships figures whose graph no reader has, and
 until 2026-11-07 nothing in the test suite checked that those figures still
@@ -69,7 +69,7 @@ def test_every_committed_result_describes_the_release_on_disk():
         f"release:\n" + "\n".join(f"  {n:<44} {s}\n      {m}"
                                   for n, s, m in bad)
         + "\n\nRegenerate with `make reproduce`. Every figure in "
-          "docs/evaluation.md is derived from these files, and the five "
+          "doc2/08-results.md is derived from these files, and the five "
           "test files that pin that document compare it against THEM -- "
           "so they stay green while the whole set goes stale.")
 

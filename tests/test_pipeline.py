@@ -106,7 +106,7 @@ def test_a_peer_reading_layer_declares_it_and_comes_after_its_dependencies():
     # indications reads peers for a DIFFERENT reason from the other three,
     # and that reason is why its own position is free: it needs to know
     # which compounds and diseases the graph already holds, because
-    # docs/prereg_clinical_labels.md refuses it permission to add either.
+    # doc2/registrations/prereg_clinical_labels.md refuses it permission to add either.
     # It emits two predicates no other layer emits and reads no other
     # layer's output, so nothing depends on it and it depends on nothing
     # within its phase.

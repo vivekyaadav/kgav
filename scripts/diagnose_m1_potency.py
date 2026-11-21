@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Is there enough measured potency to break M1's tie, or is there not?
 
-THE PRECONDITION in docs/prereg_m1_potency.md, and nothing else. That file
+THE PRECONDITION in doc2/registrations/prereg_m1_potency.md, and nothing else. That file
 states the defect -- M1 resolves 12 distinct values across 3,020 drugs, with
 80.8% of the pool sharing one, because walk_metapath's weight is a product of
 node degrees and nothing drug-specific ever enters it -- and makes letting
@@ -221,7 +221,7 @@ def main(argv=None) -> int:
 
     # ---------------------------------------- the predictions, scored
     print("\n" + "=" * 70)
-    print("THE PREDICTIONS (docs/prereg_m1_potency.md, Amendment 1)")
+    print("THE PREDICTIONS (doc2/registrations/prereg_m1_potency.md, Amendment 1)")
     print("=" * 70)
     keys, fields = potency_tiebreak(g, args.virus, m1["path"], constraints)
     before = channel_percentiles(pool)
@@ -298,7 +298,7 @@ def main(argv=None) -> int:
     print("\n" + "=" * 70)
     print(f"P1 {'HOLDS' if p1 else 'FAILS'} | P2' {'HOLDS' if p2 else 'FAILS'}"
           f" | P3 {'HOLDS' if p3 else 'TRIPS'}")
-    print("The decision rule is in docs/prereg_m1_potency.md: keep only if P1")
+    print("The decision rule is in doc2/registrations/prereg_m1_potency.md: keep only if P1")
     print("and P2' both hold and P3 does not trip. This script does not")
     print("decide, and claims nothing about AUC -- M1 reaches 3 of 89")
     print("measured actives before this change and 3 after.")

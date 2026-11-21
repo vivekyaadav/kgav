@@ -14,7 +14,7 @@ by `g.degree ** -w`, and `Graph.degree` counts edges of EVERY predicate
 including the held-out labels. That is deliberate -- baselines.py says
 so, for hub exclusion and degree-matched binning -- and it is the same
 property that made the degree COMPARATOR in the three scorer studies
-defective (docs/prereg_structure_scorer.md, amendment 2026-11-17). The
+defective (doc2/registrations/prereg_structure_scorer.md, amendment 2026-11-17). The
 comparator was a bug because `degree_ranking` promised otherwise. This
 is not a bug: nothing promised otherwise. It is an open question with a
 measurable answer.
@@ -35,7 +35,7 @@ are the channels at risk, and the rest are a control that should not
 move at all.
 
 **M7 IS WHY THIS IS WORTH THE RUN.** It is the only readable cell that
-clears the corrected alpha in docs/evaluation.md -- SARS-CoV-2 M7 at
+clears the corrected alpha in doc2/08-results.md -- SARS-CoV-2 M7 at
 p=0.000841 against 0.05/13 -- and its path enters a borrowed compound
 whose degree is mostly label edges.
 
@@ -81,7 +81,7 @@ from kgav.schema import load_schema, print_capped  # noqa: E402
 
 ARMS = ("A_as_published", "B_weight_only", "C_weight_and_hubs")
 
-#: THE CELL docs/evaluation.md's claim section rests on: the only
+#: THE CELL doc2/08-results.md's claim section rests on: the only
 #: readable cell that clears the corrected alpha. Named here so the
 #: artifact carries it under a stable key instead of a reader picking it
 #: out of sixty-three rows.
@@ -128,7 +128,7 @@ def main(argv=None) -> int:
     ap.add_argument("-k", type=int, default=100)
     ap.add_argument("--out", type=Path, default=None,
                     help="write the three arms as a STAMPED results file. "
-                         "docs/evaluation.md quotes this run beside its own "
+                         "doc2/08-results.md quotes this run beside its own "
                          "M7 claim, and a figure in that document has to be "
                          "derivable by a test rather than typed, so the "
                          "sensitivity ships as an audited artifact")
@@ -237,7 +237,7 @@ def main(argv=None) -> int:
 
     if args.out:
         # THE HEADLINE IS NAMED, not left to a reader to find among 63
-        # cells: docs/evaluation.md's claim section rests on one cell and
+        # cells: doc2/08-results.md's claim section rests on one cell and
         # tests/test_degree_sensitivity.py reads it from here.
         head = a.get((CLAIM_VIRUS, CLAIM_CHANNEL))
         head_b = b.get((CLAIM_VIRUS, CLAIM_CHANNEL))

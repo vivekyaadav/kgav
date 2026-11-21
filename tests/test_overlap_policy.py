@@ -251,7 +251,7 @@ def test_the_false_justification_is_not_reinstated():
         "the comment should record what it used to assert")
 
 
-DOC = ROOT / "docs" / "evaluation.md"
+DOC = ROOT / "doc2" / "08-results.md"
 MARKER = "<!-- FIGURE: overlap_census -->"
 
 

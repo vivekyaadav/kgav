@@ -1,4 +1,4 @@
-"""The scope table in docs/scope_and_limits.md, re-derived cell by cell.
+"""The scope table in doc2/09-limits.md, re-derived cell by cell.
 
 Following tests/test_evaluation_table.py, whose docstring records why:
 "a markdown table has nothing to fail". Six degree lifts drifted across
@@ -21,12 +21,16 @@ import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC = ROOT / "docs" / "scope_and_limits.md"
+DOC = ROOT / "doc2" / "09-limits.md"
 RELEASE = ROOT / "data" / "releases" / "v0.1"
 CONFIG = ROOT / "config" / "viruses.yaml"
 
 START = "<!-- TABLE: scope_by_virus"
-END = "<!-- END TABLE: scope_by_virus"
+#: NO END MARKER SINCE THE TABLE MOVED INTO doc2. The generated
+#: document has one table under the marker and the parser stops at the
+#: first line that is not a row, which the hand-written predecessor
+#: could not rely on.
+END = None
 
 needs_release = pytest.mark.skipif(
     not (RELEASE / "edges.jsonl").exists(),
@@ -36,10 +40,15 @@ needs_release = pytest.mark.skipif(
 def _rows_in_doc() -> dict[str, dict]:
     """The table as the document states it, keyed by taxon."""
     src = DOC.read_text()
-    block = src[src.index(START):src.index(END)]
+    assert START in src, "the scope table lost its marker"
     out = {}
-    for line in block.splitlines():
-        if not line.startswith("|") or line.startswith("|---"):
+    for line in src.split(START, 1)[1].splitlines():
+        line = line.strip()
+        if not line.startswith("|"):
+            if out:
+                break
+            continue
+        if line.startswith("|:") or line.startswith("|---"):
             continue
         cells = [c.strip() for c in line.strip("|").split("|")]
         if len(cells) != 8 or cells[1] == "taxon":
@@ -52,7 +61,7 @@ def _rows_in_doc() -> dict[str, dict]:
             "chain_source": cells[6],
             "in_overlap": cells[7].replace("*", ""),
         }
-    assert out, "found the table markers but parsed no rows"
+    assert out, "found the table marker but parsed no rows"
     return out
 
 
@@ -92,14 +101,15 @@ def _derive() -> dict[str, dict]:
 
 
 # ------------------------------- the derivation the writer reads (P10)
-MARKER = START          #: scripts/rewrite_derived_tables.py reads this
+MARKER = START          #: how the cell-by-cell parser finds the table
 KEEP_COLUMNS = 2        #: name and taxon lead each row
 
 
 def derive() -> dict[str, list[str]]:
     """The table the release implies: "name | taxon" -> the six cells.
 
-    FOR scripts/rewrite_derived_tables.py. This table's header has said
+    A SECOND DERIVATION, independent of the generator's. This table's
+    header has said
     "generated" since it was written and NOTHING GENERATED IT -- the rows
     were maintained by hand against `test_each_column_matches_the_release`,
     which is the state fix-list P10 is about. Two leading columns are the
@@ -187,9 +197,34 @@ def test_the_underpowered_rows_are_marked_as_such():
     assert "Poisson" in src
 
 
+@needs_release
 def test_the_direction_limit_is_stated_with_its_share():
+    """DERIVED, not pinned. This asserted the literal "84.5%" and
+    "12,155 of 14,381" -- the pre-GtoPdb split -- which stayed true as
+    a sentence about history while the live figure moved to a different
+    pair. The live pair is counted here and the historical one is left
+    to the document to record as history.
+    """
+    import json as _json
+    total = undirected = 0
+    with open(RELEASE / "edges.jsonl") as fh:
+        for line in fh:
+            if '"TARGETS"' not in line:
+                continue
+            e = _json.loads(line)
+            if e["predicate"] != "TARGETS":
+                continue
+            total += 1
+            if (e.get("qualifiers") or {}).get("direction") in (
+                    None, "", "unknown"):
+                undirected += 1
     src = DOC.read_text()
-    assert "84.5%" in src and "12,155 of 14,381" in src
+    assert f"{undirected:,} of {total:,}" in src, (
+        f"{undirected:,} of {total:,} TARGETS edges state no direction and "
+        f"the document states a different pair")
+    assert f"{100 * undirected / total:.1f}%" in src, (
+        f"that is {100 * undirected / total:.1f}% and the document says "
+        f"otherwise")
 
 
 def test_the_evaluation_label_gap_is_stated():
@@ -206,7 +241,7 @@ def test_the_stated_cause_of_the_label_gap_is_the_current_one():
     document says every evaluation "rests on" one label. Both stayed
     true while the sentence beneath them went stale: it attributed the
     empty labels to 13 of 16 viruses lacking a MONDO id, which
-    docs/data_audit_2026-11-07.md recorded as already false. The names
+    doc2/records/data_audit_2026-11-07.md recorded as already false. The names
     were present, the claim was wrong, and nothing could fail.
 
     So this derives both figures from the register and the release.

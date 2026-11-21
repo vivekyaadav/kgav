@@ -71,7 +71,7 @@ def main() -> int:
 
     # Reported separately and counted separately: a derived release is not a
     # result, and folding it into the results tally would change a number
-    # that docs/evaluation.md quotes.
+    # that doc2/08-results.md quotes.
     derived_rows = [(Path(d).name, *check_derived(d, args.release))
                     for d in derived]
     if derived_rows:

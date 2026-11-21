@@ -61,8 +61,9 @@ compound reached a trial is how well studied it is.
 
 **The host-factor overlap is a null with its power stated.** Over
 44 tests at 100,000 degree-matched permutations,
-nothing survives correction, and 8 viruses have no cell at
-all (DENV-1, DENV-3, DENV-4, HCoV-HKU1, JEV, SARS-CoV, TBEV, Yellow fever).
+nothing survives correction over 22 rows, and
+2 viruses have no cell in either channel
+(DENV-4, Yellow fever).
 
 ## What follows from that
 

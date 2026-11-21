@@ -1,6 +1,6 @@
 """The entry-assay registration and its two amendments, against the release.
 
-WHY THIS FILE EXISTS. docs/prereg_ncats_entry_assays.md was signed before
+WHY THIS FILE EXISTS. doc2/registrations/prereg_ncats_entry_assays.md was signed before
 the ingest code existed, and both of its amendments record a prediction
 that FAILED. A registration whose failures are recorded by hand is a
 registration that can be quietly improved later, and the whole point of
@@ -29,10 +29,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-PREREG = ROOT / "docs/prereg_ncats_entry_assays.md"
+PREREG = ROOT / "doc2/registrations/prereg_ncats_entry_assays.md"
 SOURCE = "infores:ncats-opendata"
 ARCHIVE = ROOT / "data/archive/v0.1-pre-entry-assays-2026-11-17/release"
-SNAPSHOT = ROOT / "docs/release_operands_2026-11-17_pre_entry_assays.json"
+SNAPSHOT = ROOT / "doc2/records/release_operands_2026-11-17_pre_entry_assays.json"
 
 
 @pytest.fixture(scope="module")

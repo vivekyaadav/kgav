@@ -398,7 +398,7 @@ def test_a_determined_baseline_still_yields_a_ratio():
 
 # --------------------------------- the expected value under random tie-breaking
 def test_a_determined_cut_leaves_the_expected_value_equal_to_the_figure():
-    """Prediction P4 of docs/prereg_temporal_auc.md. Where the cut lands in
+    """Prediction P4 of doc2/registrations/prereg_temporal_auc.md. Where the cut lands in
     no tie there is nothing to average over, so every determined figure in
     every results file keeps its value. A change that moved determined
     numbers would be changing the measurement rather than the handling of
@@ -517,7 +517,7 @@ def _blocky():
 
 
 def test_nothing_outside_a_tie_block_moves():
-    """The design's central promise, per docs/prereg_m1_potency.md Amendment
+    """The design's central promise, per doc2/registrations/prereg_m1_potency.md Amendment
     1: block boundaries come from the untouched raw DWPC sort, so every
     cross-target ordering -- remdesivir above the nsp5 group included -- is
     preserved exactly, and COMBINED does not change."""
@@ -1531,7 +1531,7 @@ def test_neither_evaluation_script_formats_lift_or_p_itself():
 # The scorer is not DWPC as published, and now both forms exist
 # ====================================================================
 #
-# docs/prereg_m1_potency.md already records that "nothing drug-specific ever
+# doc2/registrations/prereg_m1_potency.md already records that "nothing drug-specific ever
 # enters" the walk. These cover the two consequences that were not recorded:
 # the start node's degree is never divided out, and `g.degree` counts edges of
 # every predicate so an unrelated layer shifts the score.

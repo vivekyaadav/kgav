@@ -22,12 +22,12 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import write_scorer_table as W  # noqa: E402
 
-TABLE = ROOT / "docs" / "scorer_aucs.txt"
+TABLE = ROOT / "doc2" / "scorer_aucs.txt"
 
 
 @pytest.fixture(scope="module")
 def table() -> str:
-    assert TABLE.exists(), "docs/scorer_aucs.txt is missing; run `make scorer-table`"
+    assert TABLE.exists(), "doc2/scorer_aucs.txt is missing; run `make scorer-table`"
     return TABLE.read_text()
 
 
@@ -39,7 +39,7 @@ def test_the_file_on_disk_is_what_the_results_files_produce(table):
     """The whole point of generating it. `make scorer-table-check` is this
     assertion as a gate; this is it on every commit."""
     assert table == W.build(), (
-        "docs/scorer_aucs.txt is stale. Run `make scorer-table`.")
+        "doc2/scorer_aucs.txt is stale. Run `make scorer-table`.")
 
 
 def test_every_evaluable_cell_in_every_results_file_appears(table):

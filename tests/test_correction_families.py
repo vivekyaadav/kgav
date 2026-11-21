@@ -1,4 +1,4 @@
-"""The multiple-testing sensitivity table in docs/evaluation.md (fix-list E1).
+"""The multiple-testing sensitivity table in doc2/08-results.md (fix-list E1).
 
 FOUR NUMBERS TYPED BY HAND. The table read `10 / 61 / 120 / 150` with an
 alpha beside each, and nothing in the repository could recompute one of
@@ -35,7 +35,7 @@ from kgav.baselines import (  # noqa: E402
     correction_families,
 )
 
-DOC = ROOT / "docs" / "evaluation.md"
+DOC = ROOT / "doc2" / "08-results.md"
 CROSS = ROOT / "data" / "results" / "metapath_comparison.json"
 TEMPORAL = ROOT / "data" / "results" / "temporal_2021_include.json"
 
@@ -65,7 +65,10 @@ def parse_table() -> dict[str, tuple[int, str]]:
         if not line.startswith("|"):
             break
         cells = [c.strip() for c in line.strip("|").split("|")]
-        assert len(cells) == 4, f"expected 4 columns: {line}"
+        # SIX COLUMNS SINCE THE TABLE MOVED INTO doc2: the verdict
+        # and the family-size arithmetic are printed beside the
+        # alpha rather than left to a reader.
+        assert len(cells) == 6, f"expected 6 columns: {line}"
         n = int(cells[1].replace(",", ""))
         rows[cells[0]] = (n, cells[2])
     return rows
