@@ -56,7 +56,7 @@ only property that makes it one.
 | [10-agent.md](10-agent.md) | the agent: guards, tools, verification, the frontend, follow-ups |
 | [11-user-guide.md](11-user-guide.md) | **how to drive it.** Starting the agent, the three ways to ask, follow-ups, how to name a virus, how to read the output, what to do when it breaks |
 | [12-reproducing.md](12-reproducing.md) | 57 make targets, what each writes, and what checks it |
-| [13-tests.md](13-tests.md) | 3,054 tests in 138 files, and the classes of property they enforce |
+| [13-tests.md](13-tests.md) | 3,058 tests in 138 files, and the classes of property they enforce |
 | [14-defect-ledger.md](14-defect-ledger.md) | the recurring defect patterns, named, with the instances that named them |
 | [15-appendix.md](15-appendix.md) | every script, every artifact, and what each one writes |
 | [paper.md](paper.md) | **the manuscript.** Four controlled measurements, written for a reader outside the project |
@@ -78,7 +78,7 @@ only property that makes it one.
 |:---|---:|
 | library modules (`src/kgav/`) | 36 files, 21,673 lines |
 | scripts (`scripts/`) | 86 files, 31,730 lines |
-| tests (`tests/`) | 138 files, 56,965 lines, 3,054 test functions |
+| tests (`tests/`) | 138 files, 57,099 lines, 3,058 test functions |
 | viruses built | 16 (Coronaviridae and Flaviviridae) |
 | viruses surveyed, not built | 0 |
 | registered results | 36 artifacts, 1 of them a recorded refusal |

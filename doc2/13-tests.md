@@ -1,7 +1,7 @@
 # 13 — The tests
 
-3,054 test functions in 138 files,
-56,965 lines — against 21,673 lines of library and
+3,058 test functions in 138 files,
+57,099 lines — against 21,673 lines of library and
 31,730 lines of scripts. 26 are marked `slow` and
 deselected by `make test`.
 

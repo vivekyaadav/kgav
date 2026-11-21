@@ -1,18 +1,58 @@
 # kgav — antiviral drug repurposing knowledge graph
 
-16 viruses across two families.
+A knowledge graph over the 16 viruses in `config/viruses.yaml` — seven
+coronaviruses and nine flaviviruses — built to test one claim: that
+assembling published facts into chains — *this compound inhibits that
+protein; that protein is required by this virus* — will rank candidate
+compounds for repurposing.
+
+**It was tested against the controls that claim requires, and it did not
+survive them.** That is the result this repository exists to report.
+
+## What was measured, and what came out
+
+Four pre-registered evaluations. Two are negative, and both publish the
+effect size they had the power to detect.
+
+| | finding |
+|:---|:---|
+| **the graph's own reasoning** | none of the declared metapath channels separates actives from measured-inactives on the assay-matched population once evidence sharing a publication with the label is withheld. The ensemble that does clear is matched by a baseline that counts a compound's edges, and most of its margin above chance is the asymmetry of what it reaches rather than how it ranks |
+| **the pathway route** | no enrichment of a virus's dependency factors in Reactome pathways survives a degree-matched null, in either direction. Against a *uniform* null, several rows would have looked significant |
+| **chemistry** | a scorer using no graph structure at all — the maximum ECFP4 Tanimoto a candidate reaches against that virus's known actives — does separate, in most registered cells, above a degree baseline that does not. It is a **resemblance** claim and not a hit rate: on the one assay-matched population the head of its ranking holds no actives once each candidate's nearest known actives are withheld |
+| **prospectively** | trained before 2021 and tested after it, the chemical scorer clears for most evaluable viruses, **clears below chance for two**, and has no usable degree comparator anywhere — so none of it is shown to beat a baseline |
+
+The one independent label axis — whether a compound reached a trial — is
+**anti**-predicted by in-vitro resemblance and well predicted by how much
+the compound has been studied. It measures something else, so it cannot
+validate the chemistry.
+
+Every figure behind those sentences, with its interval and its verdict, is
+in [doc2/08-results.md](doc2/08-results.md); the argument is
+[doc2/paper.md](doc2/paper.md); the weaknesses still in the *inference* are
+[doc2/plan-v2.md](doc2/plan-v2.md).
+
+## The register
+
+16 viruses across two families, and the list below is checked against
+`config/viruses.yaml` on every run — nine of them were once missing from
+the front page of their own repository.
 
 - **Coronaviridae (7)** — SARS-CoV-2, SARS-CoV, MERS-CoV, HCoV-229E,
   HCoV-OC43, HCoV-NL63, HCoV-HKU1
 - **Flaviviridae (9)** — Zika, DENV-1, DENV-2, DENV-3, DENV-4, West Nile,
   JEV, Yellow fever, TBEV
 
-Layout: `schema/kg_schema.yaml` holds the frozen schema (11 node classes, 24 edge
-classes, 8 metapaths); `config/viruses.yaml` is the virus register;
-`src/kgav/` holds the validator, alias resolution and per-source ingest
-logic; `scripts/ingest_*.py` is one driver per layer; `data/releases/` holds
-nodes.jsonl and edges.jsonl per layer; `data/results/` holds every measured
-figure, tracked on purpose.
+## Layout
+
+| | |
+|:---|:---|
+| `schema/kg_schema.yaml` | the frozen schema: 11 node classes, 24 edge classes, 8 metapaths |
+| `config/viruses.yaml` | the virus register — taxa, aliases, proteomes, MONDO terms |
+| `src/kgav/` | the validator, alias resolution, label construction, per-source ingest logic |
+| `scripts/ingest_*.py` | one driver per layer |
+| `data/releases/` | `nodes.jsonl` and `edges.jsonl` per layer, with a stamped MANIFEST |
+| `data/results/` | every measured figure, tracked on purpose |
+| `doc2/` | the documentation, generated |
 
 ## Run
 
@@ -22,11 +62,16 @@ pytest -q
 make gate     # planted-error release; the validator MUST reject it
 ```
 
-## What the graph holds
+## Why there is no count in this file
 
-**Not restated here.** A count in a README is pinned to one release and goes
-stale silently, which is the defect this project has spent most of its
-history finding in its own documents. The live figures live in two places:
+**A count in a README is pinned to one release and goes stale silently**,
+which is the defect this project has spent most of its history finding in
+its own documents — thirteen stale figures in one hand-drawn figure, a scope
+statement wrong twice, a claim enumerating seven cells that described no run
+that had ever happened. So the descriptive half of this file carries no
+release figure at all, and `tests/test_readme.py` fails if one appears.
+
+The live figures are one command away:
 
 ```bash
 make audit           # per-layer, per-virus, what is built and what is missing
@@ -57,6 +102,7 @@ Where to start:
 | [doc2/09-limits.md](doc2/09-limits.md) | what this graph cannot do, each limit with the figure behind it |
 | [doc2/paper.md](doc2/paper.md) | the manuscript: four controlled measurements |
 | [doc2/plan-v2.md](doc2/plan-v2.md) | **what v2 is for.** Ten fixes to the inference drawn from those four measurements, each with the measurement that shows it is needed and the published claim it can overturn |
+| [doc2/14-defect-ledger.md](doc2/14-defect-ledger.md) | the recurring defect shapes, named, with the instances that named them — the most reusable thing here |
 | [doc2/registrations/](doc2/registrations) | the signed pre-registrations, amended by appending and never rewritten |
 | [doc2/figures/](doc2/figures) | the architecture and the metagraph, each with an A4 PDF that prints on one page |
 
@@ -75,6 +121,12 @@ hand-written documents superseded by generated ones.
 written inside a signed registration is not edited to follow a move.
 
 ## What the build actually taught us
+
+**A DATED RECORD, NOT A DESCRIPTION OF THE RELEASE.** Every figure below is
+as measured when the defect it describes was found, and is deliberately not
+re-derived — the same convention `doc2/records/` follows, and the reason the
+no-counts rule above stops at this heading. These are the five lessons that
+generalise beyond this project.
 
 **The dominant bug class is a discarded identifier.** Four times: pp1a chain
 ids, single-chain ORF chain ids, MERS filed under an isolate taxon, STRING's
@@ -122,54 +174,62 @@ census is generated rather than typed.
 
 ## Known limitations
 
-These are the structural ones. The measured ones — which viruses can be
-scored, which channels clear chance, what the pathway test found — are in
-`doc2/08-results.md` and section 9 of the audit report.
+These are the structural ones, stated without figures for the reason given
+above. The measured ones — which viruses can be scored, which channels clear
+chance, what the pathway test found, and what each null could have detected
+— are in [doc2/09-limits.md](doc2/09-limits.md) and section 9 of the audit
+report.
 
-- **All three evaluation label predicates carry edges since 2026-11-17,
-  and only one has been measured against.** This said "`TREATS` and
+- **All three evaluation label predicates carry edges, and the newest of
+  them contradicts the chemistry.** This file previously said "`TREATS` and
   `IN_TRIAL_FOR` are declared and empty, so every evaluation rests on
   `HAS_ANTIVIRAL_ACTIVITY_AGAINST` alone". The `indications` layer filled
-  them — 568 `IN_TRIAL_FOR`, 9 `TREATS` — from ChEMBL's
-  `drug_indication`, registered in advance by
-  `doc2/registrations/prereg_clinical_labels.md`. **The one independent label has now
-  been measured against, and it is a null for the chemistry:** the
-  structure statistic reads 0.4087 [0.3734, 0.4440] — below chance — on
-  the registered COVID-19 cell, while the `degree` control reads 0.7751
-  [0.7385, 0.8116]. Reaching a COVID-19 trial is well predicted by how
-  much a compound has been studied and anti-predicted by its similarity
-  to the compounds active in vitro, so this axis cannot be used to
-  validate a structure scorer.
-- **One of thirteen layers is not built.** `curated` needs published-screen
-  TSVs whose provenance has to be established first, and it is what would
-  give DENV-1, DENV-3, DENV-4, JEV and TBEV their first dependency factors.
-  `gtop` WAS in this sentence and is built: `doc2/kg_release_census.txt`
-  lists it among the 12 assembled layers with 6,765 edges from
-  `infores:guidetopharmacology`. The prose said "not built" for months
-  after the edges landed, which is the drift this release's figures were
-  re-derived to find.
+  them from ChEMBL's `drug_indication`, registered in advance by
+  `doc2/registrations/prereg_clinical_labels.md`. Measured on the registered
+  COVID-19 cell, the structure statistic reads **below** chance while the
+  degree control reads well above it: reaching a trial is predicted by how
+  much a compound has been studied and anti-predicted by its resemblance to
+  the compounds active in vitro. The axis is independent and it measures
+  something else, so it cannot validate a structure scorer.
+- **One of thirteen declared layers is not built.** `curated` needs
+  published-screen TSVs whose provenance has to be established first, and it
+  is what would give DENV-1, DENV-3, DENV-4, JEV and TBEV their first
+  dependency factors. `gtop` WAS in this sentence and is built;
+  `doc2/kg_release_census.txt` lists it among the assembled layers. The prose
+  said "not built" for months after the edges landed, which is the drift this
+  release's figures were re-derived to find.
 - **Four of eleven node classes are empty** — `CellLine`, `Publication`,
   `Variant`, `VirusStrain` — so resistance and variant modelling have
   nothing to attach to, and assay context and publications exist only as
   edge qualifiers.
+- **Half the register has no dependency factor at all**, so every
+  host-directed channel is empty for those viruses by construction, and the
+  pathway null is a negative result over part of a register rather than over
+  a register.
 - **Restriction-factor findings are NOT supported.** Screen-level
-  calibration cannot separate the two tails within a screen;
-  interferon-pathway genes stay contested (IFNAR1 2:3, IRF9 2:2). The
-  dependency side is validated against non-anchor controls: LY6E 1:7
-  restriction, NPC1 8:0, TMEM106B 7:0, PIK3C3 4:0, SCAP 6:1, SREBF2 3:0
-  dependency.
+  calibration cannot separate the two tails within a screen, and
+  interferon-pathway genes stay contested. The dependency side is validated
+  against non-anchor controls; the per-gene tallies are in the audit report.
 - **The virus-host bridge is mostly proximity and co-purification
   evidence**, not binary assays. Paths through it mean "same complex
   neighbourhood as a viral protein", not "binds", and every edge carries its
   detection method so the distinction survives into an answer.
 - **Coverage is heavily skewed by study bias.** SARS-CoV-2 holds an order of
-  magnitude more of everything than any other virus in the register, and
-  DENV-4 and Yellow fever have no curated virus-host interaction in any of
-  the ten sources surveyed.
-- **The four endemic human coronaviruses share one MONDO term**
-  (MONDO:0005709), as do the four dengue serotypes (MONDO:0005502). That is
-  correct — the disease is one entity and the viruses are four — but it
-  means disease-level joins cannot separate them.
+  magnitude more of everything than any other virus in the register, and two
+  viruses have no curated virus-host interaction in any of the ten sources
+  surveyed. On this graph, a compound's degree *is* study volume, which is
+  why degree is the null hypothesis on every protocol and not a rival method.
+- **Most drug–target edges carry no direction**, so "this drug targets a
+  dependency factor" cannot always become "inhibiting it should block
+  infection".
+- **Labels are one measurement at one threshold.** A single cut on in-vitro
+  concentration–response decides active from measured-inactive, and the
+  majority of positives at that cut are not positive at a cut ten times
+  lower. No result in this repository has been recomputed at the lower cut —
+  [doc2/plan-v2.md](doc2/plan-v2.md) item C8.
+- **The four endemic human coronaviruses share one MONDO term**, as do the
+  four dengue serotypes. That is correct — the disease is one entity and the
+  viruses are four — but it means disease-level joins cannot separate them.
 
 ## Data licences
 

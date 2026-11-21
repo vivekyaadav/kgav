@@ -637,7 +637,7 @@ Release `v0.1`, 78,649 nodes, 396,223 edges, schema
 36 stamped artifacts in `data/results/`.
 36 library modules (21,673 lines),
 86 scripts (31,730 lines),
-3,054 tests in 138 files.
+3,058 tests in 138 files.
 
 ```
 make rebuild          # the ingest chain, in dependency order
