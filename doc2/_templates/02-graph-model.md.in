@@ -1,0 +1,172 @@
+# 02 — The graph model
+
+`schema/kg_schema.yaml`, version **{{schema_version}}**, loaded by
+`src/kgav/schema.py`. The schema's single job: *make it impossible for a
+triple that is not declared to enter the graph, and impossible for an edge to
+enter without provenance and a date.*
+
+{{n_prefixes}} CURIE prefixes, {{n_enums}} controlled vocabularies,
+{{n_node_classes_declared}} node classes, {{n_predicates_declared}} declared
+predicates, {{n_metapaths}} whitelisted metapaths. Nothing validates by
+convention: every `validate_*` function returns a list of `Violation` and
+raises on nothing, so a caller decides whether to drop the row or fail the
+batch.
+
+## Node classes
+
+{{n_node_classes_built}} of {{n_node_classes_declared}} declared classes carry
+nodes on this release.
+
+{{nodes_by_class_table}}
+
+A `SmallMolecule` id is an InChIKey, and three required properties record
+**which key the id is** rather than anything about the compound:
+`salt_collapsed`, `stereo_collapsed`, `tautomer_collapsed`. They are constant
+across the graph, every layer must declare the same values, and
+`tests/test_identity_policy.py` derives them from what `normalize_chemical`
+actually does — because a policy stated in a property and a policy implemented
+in a function are two things that can disagree.
+
+`smiles_as_supplied` keeps the source's own structure string **only where
+normalisation changed the substance** — a counterion stripped, a charge
+neutralised, a proton moved — and not where it merely changed the spelling.
+The first version of that rule compared against RDKit's canonical form and so
+set the property on 98% of a layer, which says nothing.
+
+## Edge classes
+
+{{n_predicates_built}} of {{n_predicates_declared}} declared predicates carry
+edges.
+
+{{edges_by_predicate_table}}
+
+### Two flags that are not the same flag
+
+- `held_out` is about **traversal**: the edge must be stripped from the
+  training graph. {{held_out_predicates}}
+- `evaluation_label` is about **measurement**: the edge *is* a label, a
+  measurement about a (compound, virus) or (compound, disease) pair.
+  {{label_predicates}}
+
+Reading one as the other was a live bug. `MEASURED_INACTIVE_AGAINST` is held
+out and is **not** a label: it terminates on a protein. A split that read
+`held_out` as "this is a label" bucketed it by `e["object"]` and put viral
+protein nodes where viruses belong — the reported negative counts rose
+5,164 → 6,789 while positives did not move. So a label now declares itself,
+`Schema.validate_labels()` requires every label to terminate on an
+`OrganismTaxon` or a `Disease` **and** to be held out, and no predicate is
+promoted to a label by being held out.
+
+### The predicate whose name is wrong on purpose
+
+`HAS_ANTIVIRAL_ACTIVITY_AGAINST` means *"this compound was measured against
+this virus"*, active **or** inactive. Counted over the
+{{n_label_edges}} edges carrying it on this release:
+
+{{label_verdict_table}}
+
+So **{{label_inactive_share}} of this predicate is evidence of inactivity**
+and any consumer reading the name as a claim of activity is reading the
+opposite of the measurement. The name is kept and the schema says so in
+its own `doc:` field, because the alternative — routing inactives to a
+different predicate at ingest — would bake an evaluation threshold into the
+graph's topology, and the predicate would stop matching the verdict the moment
+the threshold moved. `kgav.labels.classify` decides; the predicate name never
+does.
+
+### Identity: when two edges are one fact
+
+`assemble.edge_key` keys a fact on `(subject, predicate, object)` plus:
+
+- **identity qualifiers.** `HOST_FACTOR_FOR.direction` is identity-defining: a
+  dependency edge and a restriction edge for one (protein, virus) are
+  different facts, not two witnesses to one. 320 pairs are contested across
+  screens — ACE2 is 34 dependency to 5 restriction — so the arbitrary winner
+  was not a rare edge case.
+- **the source**, where `identity_includes_source` is set. An NCATS panel
+  inactive and a ChEMBL active for one compound must not collapse into one
+  edge, or one real measurement is discarded before `build_labels` can see
+  that the two disagree and drop the compound as ambiguous. Keying on
+  `cell_line` would have split the merge the selectivity layer depends on;
+  keying on the source keeps that merge and separates only the panel.
+
+### Derived qualifiers
+
+A qualifier declared `derived_from_absence_of: [...]` is **recomputed at
+assembly and may never be ingested**. `unquantified` once had three
+definitions in three modules; assembly merges by layer precedence, and
+`chembl`'s "no CC50 exists" overwrote the selectivity layer's CC50 on 1,264
+edges — the losing layer was the one holding the evidence. Measured on v0.1 at
+the time: 12,756 edges claimed `unquantified: true` and **not one** of them
+lacked a measured value. `validate_edge` now rejects an edge whose derived
+qualifier contradicts its own evidence.
+
+### Symmetry is declared, never inferred
+
+`symmetric` is required on every class a metapath traverses, and
+`validate_metapaths()` rejects a hop over a predicate that left it unset.
+The walker used to guess: follow outgoing edges, fall back to incoming ones
+only when a node had none. That works for a node with edges in one direction
+and silently truncates every node with both — 9,016 host proteins carry
+`PHYSICALLY_INTERACTS_WITH` in both directions and lost their inbound half,
+costing M5 113 drugs and a third of its path mass.
+
+A reverse marker (`<PREDICATE`) on a **symmetric** predicate is itself a
+schema error: symmetric predicates are walked both ways by definition, so the
+marker signals a misunderstanding rather than an intent.
+
+## Metapaths
+
+{{metapath_table}}
+
+Two constraints are load-bearing rather than cosmetic:
+
+- **`INHIBITS.target_resolution = chain_from_assay_description`** on M1, M7
+  and M8. ChEMBL has no chain-level coronavirus targets: every activity maps
+  to the whole replicase polyprotein, and `chembl.py` recovers the specific
+  nsp from the assay *description* where it can. Without the constraint, DWPC
+  did not merely tolerate unresolved edges, it **preferred** them: rank is
+  inversely monotone in target degree, and a parent accession's degree is low
+  *because* resolution succeeded for everything else. Every improvement to
+  resolution lowered the parent's degree and raised the score of whatever
+  still failed — a denominator that rewards its own gaps.
+- **`FOLD_SIMILAR_TO.catalytic_type_match = true`** on M8. Coronavirus,
+  picornavirus and flavivirus proteases share SSF50494 and
+  G3DSA:2.40.10.10 — by fold they are indistinguishable, and only the
+  nucleophile separates them. Without the gate, M8 walks from SARS-CoV-2 Mpro
+  to HCV NS3 and recommends nirmatrelvir for hepatitis C.
+
+`fold_strength: strong` is deliberately **not** a constraint: of 36 allowed
+cross-family pairs, the 20 strong ones are protease pairs whose chains the
+spine does not build, so all four hops M8 can actually walk are motif/weak.
+Adding the line would not tighten M8, it would delete it.
+
+## Retrieval limits
+
+| limit | value | why |
+|:---|---:|:---|
+| `hub_exclude_classes` | {{hub_exclude_classes}} | compounds top out at degree 9 and need no cut; viral proteins are destinations, never hubs |
+| `hub_degree_cut` | {{hub_cut_degree}} | the `Protein` p99.9 on this release |
+| `max_pathway_members` | {{max_pathway_members}} | a GO term with 1,389 members generates ~1.9M protein pairs in M4 |
+| `max_neighbors_per_node` | {{max_neighbors_per_node}} | an unbounded expansion from a well-connected protein fills a context window with ubiquitin |
+| `max_subgraph_edges` | {{max_subgraph_edges}} | the same, for a retrieved subgraph |
+
+Degree on this release: median {{degree_median}}, p99 {{degree_p99}},
+p99.9 {{degree_p99_9}}, max {{degree_max}}. A **global** degree cut would have
+excluded the virus nodes and the viral replicase, which is where M1–M6 *end*.
+The real connectors are the ubiquitin/ribosomal cluster.
+
+## The viruses
+
+{{virus_table}}
+
+The register (`config/viruses.yaml`, validated by
+`src/kgav/virus_register.py`) currently reports
+**{{n_register_violations}} violations**. Its central rule: *a virus whose
+mature-peptide chains live under a descendant taxon must declare that taxon.*
+UniProt's `taxonomy_id:` search includes descendants, so querying a species
+silently returns whatever strain happens to be curated underneath it — MERS
+lost Mpro and RdRp that way, HKU1 the same. Seven of nine surveyed
+flaviviruses are curated under a strain taxon, so a lineage-walking lookup
+would have "worked" for all of them and left no record of which strain it
+picked.

@@ -1,0 +1,199 @@
+# 03 — Data sources
+
+No raw source data is committed. `data/` is gitignored; a release is
+reproduced by running the ingest against locally downloaded sources, which
+keeps redistribution questions out of the repository entirely.
+
+Every edge carries `primary_knowledge_source` as an infores CURIE, so
+attribution is queryable **per fact** rather than stated in aggregate. Any
+publication derived from this graph should cite
+`SELECT DISTINCT primary_knowledge_source` over the subgraph it used, not the
+whole register.
+
+## What each layer read, and what version
+
+{{layer_table}}
+
+**{{layers_no_version}}** declare no source version. That is the gap, not a
+formatting detail: `kgav.provenance.write_source` exists and those layers do
+not call it, so no figure derived from them can be traced to a database
+release. Guide to PHARMACOLOGY is the one source that states its release
+inside the file, and its `published` date is the only release date in this
+project that is not a download timestamp.
+
+## The licence position
+
+The code is MIT. The data is not, the terms differ materially, and one of them
+prohibits commercial use outright.
+
+**DrugBank is excluded by decision, not by oversight.** Its academic download
+is CC BY-NC. Once its identifiers are baked into a release, removing them
+later means rebuilding rather than patching. The `drugbank_id` property exists
+in the schema so the field is there if a licence is ever obtained; it stays
+null. ChEMBL (CC BY-SA 3.0) constrains how derived releases may be
+*redistributed*, not whether they may be used.
+
+`DATA_LICENSES.md` holds the register, with a `verified` column to be filled
+from each download page at download time — not from the table, and not from a
+paper citing the source. Two questions are open and belong at the download
+page: Guide to PHARMACOLOGY required registration when checked, and the same
+page stated that commercial organisations pay an access fee. Whether that
+constrains *use* or only *access* is exactly the distinction the DrugBank
+decision turned on.
+
+## The sources, and what each one is for
+
+### UniProt — the spine
+Reviewed proteomes give `Protein` and `Gene` nodes; UniProt's own Reactome and
+GO cross-references give `Pathway` nodes and `PARTICIPATES_IN`. The register
+names, per virus, the exact accession and taxon whose `PRO_` chains are used,
+because UniProt's taxonomy search includes descendants and a lineage-walking
+lookup leaves no record of which strain it picked.
+
+### STRING v12.0 — the host interactome
+The filter is **`experimental >= 400`**, not the conventional
+`combined_score >= 700`, and the reason changes every downstream path count.
+On the v12.0 human file the conventional cut keeps 474k edges of which 284k
+(60%) have `experimental < 400` — they clear the bar on text-mining and
+coexpression — while 120k edges with strong experimental support fall below it
+and would be discarded. Text-mining co-occurrence measures how often two
+proteins are written about together, which tracks study bias, not binding; for
+a network-proximity baseline, where the whole quantity of interest is distance
+through the interactome, that inflates closeness around well-studied proteins.
+Every channel score is kept as an edge qualifier, so the `combined >= 700`
+variant is reconstructible by query rather than re-ingest.
+
+### VirHostNet and IntAct — the virus-host bridge
+The only bridge between the viral spine and the host interactome, so M3 exists
+entirely because of it. The SARS-CoV-2 detection-method histogram is dominated
+by proximity-dependent biotin identification and affinity capture — roughly
+6,600 of ~7,000 rows. BioID labels anything within about 10 nm, so those edges
+mean *in the same complex neighbourhood*, not *binds*. The distinction is
+preserved rather than averaged: `detection_method`, `interaction_type`
+(MI:0407 direct vs MI:0915 co-complex) and `source_score` all travel on the
+edge. All of them are evidence tier 1, because tier records **how a fact was
+established**, not how good the assay was.
+
+### BioGRID ORCS — CRISPR host factors
+The densest repurposing signal in the graph, and the only layer where getting
+a sign backwards produces a *confidently wrong* recommendation rather than a
+missing one:
+
+```
+dependency factor knocked out  -> virus cannot replicate -> cell survives
+restriction factor knocked out -> virus replicates better -> cell dies
+```
+
+Both register as "hit". Topologically identical, biologically opposite.
+Direction is determined in order of confidence: a one-sided
+`SCREEN_RATIONALE` (41 of 96 coronavirus screens); otherwise the sign of a
+signed per-gene effect, calibrated per screen because ORCS screens do not
+agree on a sign convention — 21 use one and 11 the other. `effect_size` on the
+edge is **signed under one convention** (positive means dependency); the
+number the source published travels separately as `source_score`. Before that
+calibration, 1,653 of 11,112 edges had a direction contradicting the sign of
+their own effect size.
+
+### Curated screens — the flavivirus gap
+
+**This layer is declared and is not in this release.**
+{{layers_absent_why}}, so the flavivirus host factors it exists to supply are
+absent from the graph described here. **{{n_taxa_without_host_factors}} of the
+{{n_viruses_built}} viruses carry no `HOST_FACTOR_FOR` edge at all**
+({{taxa_without_host_factors}}) and therefore have no dependency-factor set
+for the pathway landscape to overlap — five of those are exactly the
+flaviviruses this layer was written for, and the other three are uncovered for
+reasons of their own. The rest of this section describes what the layer does
+when its table is populated.
+
+{{host_factor_table}}
+
+ORCS carries nothing for DENV-1, DENV-3, DENV-4, JEV or TBEV. Surveying the
+literature returns screens for DENV, ZIKV, WNV and YFV and **none** for JEV or
+TBEV, so for two of nine surveyed flaviviruses the data does not exist at
+genome scale anywhere. For the rest it exists in supplementary tables, which
+is a curation problem rather than an engineering one — so this layer reads a
+table a human filled in, one row per hit, and emits the same
+`HOST_FACTOR_FOR` edges. A row with no direction is **refused**, never
+defaulted.
+
+### ChEMBL 37 — chemistry
+Four edge types: `INHIBITS` and `MEASURED_INACTIVE_AGAINST` against viral
+proteins, `TARGETS` against host proteins, and
+`HAS_ANTIVIRAL_ACTIVITY_AGAINST` against the organism. **A viral-protein row
+becomes `INHIBITS` or `MEASURED_INACTIVE_AGAINST` according to
+`labels.classify`** — the same function that decides the labels, so the
+features and the labels cannot disagree about what "acts on" means.
+
+Censored values are preserved: a row reading `IC50 > 10000 nM` is a negative
+result, and coercing it to a number inverts its meaning. 10,766 of 17,366
+coronavirus IC50 records are censored, so this is not an edge case.
+
+### The selectivity layer — correcting an earlier error
+This project previously recorded that ChEMBL contains almost no cytotoxicity
+data for coronaviruses: 2 CC50 records across 21,900 activities. **That was
+wrong, and the error was in the query rather than the database** —
+cytotoxicity assays are filed against the *cell line*, not the virus. ChEMBL 37
+holds 74,450 CC50 records under cell-line targets.
+
+Pairing is **same-document only**, because CC50/EC50 is interpretable only if
+both numbers come from one experimental context. A CC50 in HeLa and an EC50 in
+Calu-3 produce a number with the right units and no meaning. Compounds without
+a same-document pair are marked `selectivity_verified: false` rather than
+given a fabricated ratio.
+
+### NCATS OpenData — the plate-matched population
+The layer that exists because two of the measured confounds are properties of
+the **label set**, not of the graph: ChEMBL negatives are antiviral research
+compounds that carry viral-target annotations and almost no host ones (1.5% of
+measured-inactive compounds reach a dependency factor against 12.1%
+expected), and {{lo_share_pct}} of compounds carrying both an `INHIBITS` edge
+and an antiviral label cite the same PMID on both — {{lo_share_a_pub}} of
+{{lo_both}} — because one paper reports the target IC50 and the cell-based
+EC50 together.
+
+The panel reports what did **not** work — 9,848 of 10,633 rows are curve class
+4, tested and inactive — from approved and annotated libraries, and is
+generated independently of ChEMBL target annotation, so
+`--publication-disjoint` withholds nothing when scoring against it. Its CPE
+and pseudotyped-entry assays are kept as **separate** `assay_type` values,
+registered in `docs/prereg_ncats_entry_assays.md`: a pseudotyped particle
+carries the named virus's spike on another viral core, so inhibiting its entry
+is evidence about entry and not about replication of the authentic virus.
+Pooling them would destroy the only thing a plate-matched cell is worth.
+
+### Guide to PHARMACOLOGY — direction
+Before this layer, 12,155 of 14,381 `TARGETS` edges stated no direction
+(84.5%). On the assembled release, which contains it, 10,177 of 17,635 state
+none — 57.8% — and the directed count rose 2,226 → 7,587 by two routes: new
+directed edges, and existing ChEMBL edges gaining an action through the
+qualifier ladder.
+
+### ChEMBL indications — the second label axis
+`TREATS` and `IN_TRIAL_FOR` are declared evaluation labels and carried **zero
+edges on every release** until this layer, so every AUC in the repository
+rested on one predicate derived from in-vitro concentration-response at one
+threshold. This layer is forbidden by its own registration from adding a
+`SmallMolecule`: a new node would change every other population in the
+repository and make `make auc-delta` uninterpretable for the release that
+introduced the label meant to be an independent check.
+
+### Chemical similarity — the cold start
+953 of 1,846 SARS-CoV-2 positives have no metapath at all, and 947 of those
+have no target edges whatsoever. `CHEMICALLY_SIMILAR_TO` is the only route
+that can reach them, by letting a compound borrow a structural neighbour's
+annotations. Scope is **bipartite on purpose** — only (path-less → annotated)
+pairs — because all-pairs over 12,821 compounds is 82M comparisons and most of
+the resulting edges would add degree without adding reach. What it cannot fix:
+similarity inherits a neighbour's artifacts wholesale, so an analogue of
+chloroquine inherits the SIGMAR1 route.
+
+### InterPro / folds — the cross-family route
+Phase 0 measured, at chain level, that all three protease families share a
+fold and that **the plan's assumption that they differ was wrong**. What
+separates them is the nucleophile, read from the sequence at UniProt's
+annotated active site. The table that used to be here was wrong and it was the
+project's foundational measurement: printing every shared class instead of the
+first two showed SSF50494 on MERS-CoV and HCoV-229E 3CLpro and on all five 3Cs
+and all six NS3pros — but **not** on SARS-CoV-2 or SARS-CoV 3CLpro, the two
+chains the project exists to serve.

@@ -1,0 +1,121 @@
+# 10 — Reproducing everything
+
+```
+make install       # pip install -e ".[dev]"
+make test          # the gate: lint subset + the suite, slow tests deselected
+make lint          # the full declared ruff set
+make gate          # the validator's NEGATIVE CONTROL
+make check-results # is every artifact current for the release on disk
+make reproduce     # regenerate every results file, in order
+```
+
+## The order is read from the document, not transcribed
+
+`make reproduce` runs the Reproducing block in `docs/evaluation.md` **as the
+document holds it**. The order is load-bearing and was being transcribed by
+hand after each rebuild, where a dropped flag changes a protocol without
+failing. `make reproduce-print` prints the steps without running them, and
+`tests/test_reproduce_block.py` fails if an audited results file has no step
+that regenerates it — because anything under `data/results` is globbed by
+`check-results` and would be reported stale with nothing able to refresh it.
+
+## Every target, and the command it runs
+
+{{n_make_targets}} targets. The **recipe** is shown rather than a
+description, because a Makefile comment block is not delimited per target and
+the first version of this table put a sentence about one target beside
+another.
+
+{{make_table}}
+
+## What each artifact is, and what regenerates it
+
+{{results_table}}
+
+{{n_refused_results}} of {{n_results_files}} is a **recorded refusal** rather
+than a result. A run that refuses still has to leave a record: the protocol
+aborts, writes a stamped file carrying the audit failures and **no results
+block**, and `check_results` reports it as `refused` rather than `stale`.
+Before that, a refusal left the previous run's numbers on disk — computed from
+a graph three revisions old — with nothing saying the protocol now refuses to
+run, and `check_results` advised "regenerate it", which was impossible.
+
+## The four statuses, and why they are four
+
+| status | meaning | what to do |
+|:---|:---|:---|
+| `ok` | the stamp matches the release on disk | nothing |
+| `stale` | computed from a graph that has since moved | re-run it |
+| `unstamped` | no provenance block at all | its numbers cannot be attributed to any graph |
+| `refused` | the protocol declined to run, and said why | resolve the audit failure |
+| `absent` | (derived releases and layers only) never built | build it |
+
+A **missing** release is not a match. `_sha256` returns `None` for a file that
+does not exist, and two `None`s compare equal — so checking against a typo'd
+or deleted release path reported every file as current. That is a false
+"current" from the one tool whose job is to catch false "current" readings,
+which is worse than no check at all.
+
+## Timings, measured on this workstation
+
+| command | time | note |
+|:---|---:|:---|
+| `make test` | ~2 min | {{n_test_functions}} tests, slow deselected, `-n auto --dist loadfile` |
+| `make lint` | seconds | ruff, pinned in the dev extra |
+| `make check-results` | ~10 s | hashes every release file once |
+| `make results-doc-check` | ~25 s | re-runs the hit-rate script so the qualification is measured, not copied |
+| `make protocol-disagreement` | ~3 s | |
+| `make prospective-analogy` | ~10 s | |
+| `make hit-rate` | ~12 s | |
+| `make screen-power` | ~2 min | power enumerated exactly, not approximated |
+| `make degree-sensitivity` | ~5 min | nearly all of it M4 walking ~3,950 drugs three times |
+| `make repurposing-candidates` | ~8 min | all cells; one virus is ~100 s |
+| `make rebuild` | ~25 min | ChEMBL and NCATS are the bulk of it |
+
+`--dist loadfile` keeps a file's tests on one worker, which matters because
+the release fixtures are session-scoped **per worker**: the default per-test
+distribution lands the real-graph tests on several workers and parses the
+102 MB `edges.jsonl` repeatedly.
+
+## The gates that are not tests
+
+| gate | what it would catch |
+|:---|:---|
+| `make gate` | the validator failing to find four planted violations, **by code and by count** |
+| `make auc-delta` | a rebuild dropping any claim-carrying AUC by more than one point |
+| `make check-results` | a figure quoted from a graph that has moved |
+| `make check-raw` | a raw input that disagrees with the register, or was placed by hand with no checksum |
+| `make kg-report-check` | the release census drifting from the release |
+| `make scorer-table-check` | the published AUC table drifting from the results files |
+| `make results-doc-check` | `docs/results.md` drifting from the artifacts |
+| `make rewrite-tables-check` | any marked table in a document drifting from the test that derives it |
+| `make metagraph-figure-check` | the metagraph figure losing or inventing a predicate |
+| `make doc2-check` | **this folder** drifting from the code |
+
+`make auc-delta` defaults to the previous commit and to a floor of one AUC
+point, on cells both releases **report** — the scorer's own
+`trustworthy` / `hits_determined` / `readable` flags decide that, because the
+material falls a rebuild produces are in cells with six negatives, which the
+project already refuses.
+
+## Rebuilding the graph
+
+```
+make check-raw      # audit what is on disk, no network
+make fetch-raw      # fetch the proteomes
+make rebuild-plan   # what would run, with each step's verdict
+make rebuild        # run it
+```
+
+A layer whose raw inputs are absent is **skipped and named**. A layer whose
+inputs are present and which then fails **stops the run**, because the next
+assemble would write a release missing it while every count still read
+correctly. `rebuild-plan` reports a third state — a skipped layer whose
+directory already exists is **reused**, not absent, and that is the more
+dangerous of the two.
+
+One environment variable is required by one layer: `ORCS_KEY`, exactly 32
+characters, for BioGRID ORCS. It lives in `.env`, is never committed, and
+`ingest_orcs` exits before any request without it — so a run without the key
+looks like a layer that produced nothing, which is why `pipeline.availability`
+reports the reason by name.

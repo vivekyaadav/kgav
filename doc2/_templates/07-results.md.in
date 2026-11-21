@@ -1,0 +1,230 @@
+# 07 — Every measured result
+
+Each table is read out of the artifact named above it. A verdict is the run's
+own `clears_corrected_alpha` **and** its `direction`, never a comparison a
+reader is asked to make: an interval that excludes chance **below** it is a
+measured anti-ranking, which is a different finding from a null.
+
+---
+
+## The structure scorer, cross-sectionally
+
+The same statistic — max Tanimoto to the known actives, ECFP4 at
+radius {{fp_radius}} folded to {{fp_bits}} bits — under three controls of increasing severity. Read
+them left to right: a cell that survives the third has had its own chemical
+series taken away.
+
+### Control 1 — publication-disjoint (`structure_scorer.json`)
+
+{{pub_n_labelled}} fingerprinted compounds, family {{pub_family}}, corrected
+z {{pub_z}}. **{{pub_n_clears}} of {{pub_n_cells}} clear above chance**
+({{pub_clears}}); **{{pub_n_below}} clear below** ({{pub_below}}).
+
+{{pub_table}}
+
+### Control 2 — symmetric k={{sym_k}} (`structure_scorer_symmetric.json`)
+
+**{{sym_n_clears}} of {{sym_n_cells}} clear above chance**
+({{sym_clears}}); {{sym_n_below}} below ({{sym_below}}).
+
+{{sym_table}}
+
+### Control 3 — strength-matched (`structure_scorer_strength_matched.json`)
+
+The sternest run and the one every downstream decision quotes: each
+candidate's `k_cell` nearest known actives withheld, with `k_cell` derived
+from control 1. **{{str_n_clears}} of {{str_n_cells}} clear above chance**
+({{str_clears}}); **{{str_n_below}} below** ({{str_below}}).
+
+{{str_table}}
+
+#### Two definitions of "below", and the read-out gates on the stricter one
+
+The verdict column above is the **run's**: the corrected interval excludes
+chance on the wrong side. `scripts/repurposing_candidates.py` gates a
+shortlist on a stricter tier — `auc < 0.5 OR direction == below` — because a
+ranking of unlabelled compounds out of a cell whose point estimate sits under
+chance is not something to print with a caveat attached. The two disagree on
+exactly one cell, and conflating them is how a document comes to contradict
+the tool it describes.
+
+{{str_tier_table}}
+
+By that tier: **{{str_n_tier_clears}} clears**, {{str_n_tier_weak}} weak,
+**{{str_n_tier_below}} below** ({{str_tier_below}}). The read-out prints no
+list for the last group.
+
+### The plate-matched populations
+
+Matched by **construction** rather than by a filter: one source, one protocol,
+one concentration range produced both classes. Family {{plate_family}},
+z {{plate_z}}.
+
+{{plate_table}}
+
+---
+
+## The structure scorer, prospectively
+
+`temporal_structure_scorer.json`. Trained on activity published at or before
+{{temporal_cutoff}}, scored on compounds measured after. This is the strongest
+positive result in the project and the one with the most ways to be
+misread.
+
+**{{temporal_n_clears}} of {{temporal_n_evaluable}} cells clear above chance**:
+{{temporal_clears}}. **{{temporal_n_below}} clear below chance**:
+{{temporal_below}} — the scorer, trained on what was known and asked to rank
+what came next, put the actives **last**.
+
+{{temporal_table}}
+
+Three things this table is not:
+
+- **Not comparable to a baseline.** {{temporal_comparator_usable}} cells have
+  a usable degree comparator, because the pre-cutoff training graph reaches
+  0.3%–6.5% of the compounds being ranked. The registered rule's second clause
+  is satisfied by nothing, so the result is *measurable, not comparable*.
+- **Not uniform in kind.** `make prospective-analogy` recomputes each clearing
+  cell's AUC with the *k* nearest pre-cutoff actives withheld (k = 0, 5, 10,
+  20, 40; k=0 and k=10 reproduce the published columns). Three of the six
+  survive to k=40 — DENV-2, HCoV-229E, SARS-CoV-2 — two stop clearing before
+  k=10, and one clears at k=10 but not k=20. **The headline AUC is close to
+  anti-correlated with robustness**: the cell with the highest primary loses
+  the most.
+- **Not a contradiction where it disagrees with the cross-sectional run.**
+  {{denv4_name}} anti-ranks cross-sectionally ({{denv4_cross_auc}}, with
+  `k_cell` = {{denv4_k_cell}}) and clears prospectively
+  ({{denv4_prospective_auc}}). `make protocol-disagreement` shows the two
+  protocols are nested
+  exactly in their compounds and differ only in their **reference set**: for a
+  post-cutoff active, the cross-sectional control removes its own chemical
+  series while the prospective one cannot, because that series is not in the
+  pre-cutoff reference set at all. Both results stand; they answer different
+  questions.
+
+---
+
+## The graph's own reasoning channels
+
+`hard_negatives.json`, under the registered publication-disjoint protocol on
+the plate-matched population.
+
+{{hn_table}}
+
+Read the `floor` and `skill` columns before the AUC.
+{{hn_n_channels_clearing}} of the {{hn_n_channels}} metapath channels has an
+interval excluding {{chance}} ({{hn_channels_clearing}}). The two scorers that
+do are the ensemble ({{hn_combined_auc}} {{hn_combined_ci}}, skill
+{{hn_combined_skill}}) and the **degree baseline** ({{hn_degree_auc}}
+{{hn_degree_ci}}, skill {{hn_degree_skill}}) — and the difference between them
+is the floor, not the AUC: degree reaches {{hn_degree_cov}} of the positives so
+its floor is exactly {{chance}} and all of its margin is ranking, while the
+ensemble reaches {{hn_combined_cov}} and its coverage asymmetry **alone** scores
+{{hn_combined_floor}}.
+
+`metapath_comparison.json` covers {{mc_n_viruses}} viruses and the channels
+{{mc_channels}}. With the correction family fixed in advance, the survivors
+are:
+
+{{correction_table}}
+
+---
+
+## The clinical-label axis
+
+`clinical_labels.json`. {{clinical_virus}} / {{clinical_disease}},
+{{clinical_trials}} `IN_TRIAL_FOR` and {{clinical_treats}} `TREATS` edges,
+family {{clinical_family}}, alpha {{clinical_alpha}}.
+
+| scorer | AUC | corrected interval | verdict |
+|:---|---:|:---|:---|
+| max Tanimoto, symmetric k=10 | {{clinical_structure_auc}} | {{clinical_structure_ci}} | clears **{{clinical_structure_dir}}** chance |
+| degree | {{clinical_degree_auc}} | {{clinical_degree_ci}} | clears above chance |
+
+Degree at or above structure: **{{clinical_degree_wins}}**. What predicts
+whether a compound reached a trial is how well studied it is. This is the one
+independent label axis in the repository and it does not support the
+structure scorer.
+
+{{clinical_pop_table}}
+
+---
+
+## The pathway-overlap landscape
+
+`pathway_landscape.json`. {{pl_permutations}} degree-matched permutations,
+{{pl_n_tests}} tests, {{pl_drugged_proteome}} proteins in the drugged
+proteome.
+
+{{pl_table}}
+
+**{{pl_n_uncovered}} viruses have no cell at all**: {{pl_uncovered}}. A null
+result is only a finding if the reader knows what would have survived, so
+`docs/scope_and_limits.md` carries the minimum detectable effect per cell —
+failing to detect a 2× excess is not evidence against a 2× excess when the
+test needed 7×.
+
+`landscape_count_move.json` records why two cells moved between releases, and
+that the mechanism accounts for **every** move: a protein already inside the
+factor set joined the drugged proteome, with no edge in its own channel
+changing.
+
+---
+
+## The circularity confound, measured
+
+`label_overlap.json`. Of {{lo_both}} compounds carrying both an `INHIBITS`
+edge and an antiviral label, **{{lo_share_a_pub}} cite the same publication on
+both** — {{lo_share_pct}} of those where both sides have one — because one
+paper reports the target IC50 and the cell-based EC50 together.
+{{lo_unwithholdable}} pairs cannot be withheld at all, because one side
+carries no PMID. {{lo_viral_proteins}} viral proteins are reached.
+
+This is why `--publication-disjoint` exists, why the NCATS panel was ingested,
+and why an M1 figure measured without the control (0.660) and with it (0.499)
+are not two estimates of one quantity.
+
+---
+
+## The read-out: what the graph actually suggests
+
+`repurposing_candidates.json`, `make repurposing-candidates`. **Not a
+protocol** — it points the scorer that survived the registered controls at the
+question the graph exists for and prints compound names, with the nearest known
+active named beside each one, because a similarity score with no neighbour
+named is unauditable.
+
+{{rc_table}}
+
+{{rc_rows_shown}} rows in total, top {{rc_top}} per phase tier per cell. A
+cell whose verdict is `below` or `unknown` prints **no list**, because a caveat
+beside fifteen named drugs loses to the drugs.
+
+The chemistry filter, over {{rc_n_molecules}} molecules:
+{{rc_n_annotated}} annotated ({{rc_n_by_inchikey}} of them by InChIKey,
+carrying no ChEMBL id in the release), **{{rc_n_unchecked}} unchecked** —
+unchecked is not clean. {{rc_n_diagnostic}} compounds are diagnostic, contrast
+or radiotracer agents and are **dropped and named**
+({{rc_n_diagnostic_keyed}} of them resolvable only by structure, which is
+where the dyes are). {{rc_n_cytotoxic}} antineoplastics and
+{{rc_n_withdrawn}} withdrawn compounds are **labelled and kept**. The
+non-therapeutic ATC classes are {{rc_atc}}, and the rule is **every** class,
+not any: TOLBUTAMIDE is a diagnostic *and* a sulfonylurea.
+
+Each surviving row also carries where it sits in that cell's own
+**failed-resemblance distribution** — the max-Tanimoto its screened-and-
+inactive compounds reach — because a bare Tanimoto cannot be compared across
+cells. The floor is the 50% line on it, and the floors in the table above span
+a factor of three.
+
+---
+
+## What is licensed, derived from both runs at once
+
+{{capability_table}}
+
+**{{n_licensed}} viruses are licensed for a shortlist**:
+{{licensed_viruses}}. **{{contradicted_viruses}}** clear cross-sectionally and
+anti-rank prospectively, and are refused by name — a shortlist ranks compounds
+nobody has screened, which is the prospective act those cells have been
+measured getting backwards.

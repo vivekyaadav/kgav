@@ -29,19 +29,30 @@ tested to 20 uM and saw nothing. The distribution of those bounds is
 therefore a direct measurement of the assay ceilings in this corpus.
 
 censored_bound_census() below computes it. On data/releases/v0.1, over the
-18,074 censored HAS_ANTIVIRAL_ACTIVITY_AGAINST rows:
+21,656 censored HAS_ANTIVIRAL_ACTIVITY_AGAINST rows:
 
-    bound >= 10 uM    17,734   98.1%
-    bound <  10 uM       340    1.9%   <- the rows the floor must refuse
-    distinct bounds      191
-    mode              20 uM    9,924 rows (54.9%)
-    next              99.5 uM  2,549 | 100 uM 2,276 | 10 uM 1,009
+    bound >= 10 uM    21,323   98.5%
+    bound <  10 uM       333    1.5%   <- the rows the floor must refuse
+    distinct bounds      194
+    mode              20 uM    9,901 rows (45.7%)
+    next              57.1 uM  3,312 | 99.5 uM 2,549 | 100 uM 2,276
 
-So 10 uM admits 98.1% of the censored evidence while rejecting exactly the
+So 10 uM admits 98.5% of the censored evidence while rejecting exactly the
 weak bounds the rule exists to reject. The corpus would support anywhere in
-10-20 uM and 10 is the conservative end of that range. tests/test_labels.py
-re-derives these figures from the release, so they cannot rot into a claim
-with no way back to the data.
+10-20 uM and 10 is the conservative end of that range.
+
+THESE FIGURES WERE STALE AND THE PARAGRAPH BELOW THEM SAID THEY COULD NOT
+BE. It read "tests/test_labels.py re-derives these figures from the release,
+so they cannot rot into a claim with no way back to the data" -- and the test
+that covers them,
+test_the_floor_admits_almost_all_censored_evidence, deliberately asserts the
+PROPERTY (`above / total > 0.95`) rather than the figures, saying so in its
+own failure message: "the docstring says 98.1% and would need re-deriving".
+That is the right test and it was the wrong claim: the previous block read
+18,074 rows / 17,734 / 340 / 191 bounds / mode 54.9%, measured on an earlier
+release, and the figures above differ in every line. Found 2026-11-21 by
+deriving them for doc2, which renders them at generation time -- so the copy
+in doc2/05-labels.md cannot rot, and this one can. A docstring is a copy.
 
 THE ACTIVE CUT IS A DIFFERENT QUANTITY, AND ONLY HALF DERIVED.
 

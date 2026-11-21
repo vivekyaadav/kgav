@@ -1,0 +1,69 @@
+# kgav, described from the code
+
+An antiviral drug-repurposing knowledge graph, its evaluation, and an agent
+that answers questions about it without overstating what it measured.
+
+**Release `{{release_id}}`** — {{n_nodes}} nodes, {{n_edges}} edges,
+schema `{{schema_version}}`, built at commit `{{build_commit}}`
+(nodes `{{nodes_sha}}`, edges `{{edges_sha}}`).
+
+---
+
+## This folder is generated
+
+Every figure below is computed from the repository at the moment of writing:
+from `schema/kg_schema.yaml`, `config/viruses.yaml`,
+`data/releases/v0.1/MANIFEST.json`, the {{n_results_files}} artifacts in
+`data/results/`, and the constants imported from `src/kgav/`. The prose lives
+in `doc2/_templates/*.md.in`; `scripts/write_doc2.py` renders it.
+
+```
+make doc2          # regenerate
+make doc2-check    # fail if any file no longer matches the code
+```
+
+Three rules the generator enforces, each of which this repository learned by
+shipping its opposite:
+
+- **a placeholder with no value is an error**, not an empty string — a figure
+  that renders blank reads like prose that was always meant to read that way;
+- **a derived value no template uses is reported** — a derivation nothing
+  renders is dead code that looks like coverage;
+- **`--check` diffs and names the first line that moved**, so a stale document
+  fails a gate instead of being read.
+
+**`docs/prereg_*.md` is not reproduced here.** Those are signed
+pre-registrations, amended by appending and never rewritten. doc2 describes
+them, quotes their verdicts out of the results files they registered, and
+links to them. Rewriting a signed registration from scratch would destroy the
+only property that makes it one.
+
+---
+
+## The documents
+
+| file | what it covers |
+|:---|:---|
+| [01-overview.md](01-overview.md) | what the project claims, what it refuses to claim, and the one-paragraph version of every result |
+| [02-graph-model.md](02-graph-model.md) | the schema: {{n_node_classes_declared}} node classes, {{n_predicates_declared}} predicates, qualifiers, the two held-out flags, {{n_metapaths}} metapaths |
+| [03-data-sources.md](03-data-sources.md) | every source, its version, what it contributed, and what it cost |
+| [04-build-pipeline.md](04-build-pipeline.md) | {{n_layers}} ingest layers in dependency order, assembly, and the three provenance stamps |
+| [05-labels.md](05-labels.md) | what counts as active, what counts as measured-inactive, and where both thresholds come from |
+| [06-protocols.md](06-protocols.md) | every evaluation protocol: baselines, the three structure-scorer controls, the temporal split, clinical labels, the pathway landscape |
+| [07-results.md](07-results.md) | every measured number, per virus, with its interval and its verdict |
+| [08-limits.md](08-limits.md) | what this graph cannot do, each limit with the figure behind it |
+| [09-agent.md](09-agent.md) | the agent: guards, tools, verification, the frontend, follow-ups |
+| [10-reproducing.md](10-reproducing.md) | {{n_make_targets}} make targets, what each writes, and what checks it |
+| [11-tests.md](11-tests.md) | {{n_test_functions}} tests in {{n_test_files}} files, and the classes of property they enforce |
+| [12-defect-ledger.md](12-defect-ledger.md) | the recurring defect patterns, named, with the instances that named them |
+
+## The repository at a glance
+
+| | |
+|:---|---:|
+| library modules (`src/kgav/`) | {{n_src_modules}} files, {{n_src_lines}} lines |
+| scripts (`scripts/`) | {{n_scripts}} files, {{n_script_lines}} lines |
+| tests (`tests/`) | {{n_test_files}} files, {{n_test_lines}} lines, {{n_test_functions}} test functions |
+| viruses built | {{n_viruses_built}} ({{virus_families}}) |
+| viruses surveyed, not built | {{n_viruses_surveyed}} |
+| registered results | {{n_results_files}} artifacts, {{n_refused_results}} of them a recorded refusal |

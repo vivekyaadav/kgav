@@ -1,4 +1,4 @@
-.PHONY: agent-ui agent-ask auc-contribution hit-rate screen-power protocol-disagreement prospective-analogy metagraph-figure metagraph-figure-check arch-figures results-doc results-doc-check identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
+.PHONY: doc2 doc2-check agent-ui agent-ask auc-contribution hit-rate screen-power protocol-disagreement prospective-analogy metagraph-figure metagraph-figure-check arch-figures results-doc results-doc-check identity-fixed-points auc-delta kg-report kg-report-check scorer-table scorer-table-check clinical-labels degree-sensitivity landscape-count-move temporal-structure-scorer install lint-fast test test-all test-serial test-slowest lint gate release-validate check-results check-raw fetch-raw pathway-landscape label-overlap clean
 
 install:
 	pip install -e ".[dev]"
@@ -395,6 +395,26 @@ prospective-analogy:
 
 data-audit:
 	python scripts/data_audit.py
+
+# doc2: THE WHOLE PROJECT DESCRIBED FROM THE CODE AND THE ARTIFACTS.
+#
+# Prose in doc2/_templates/*.md.in, every figure computed at render time
+# from the schema, the register, the MANIFEST, data/results and the
+# constants imported from src/kgav. A hand-written description cannot
+# stay right for longer than one rebuild: this repository has shipped a
+# typed 0.7841 beside a cell reading 0.7822, a "none below chance" for a
+# family with two below, and thirteen stale figures in a hand-drawn
+# metagraph. Every one was true when typed.
+#
+# A placeholder with no value is an ERROR rather than an empty string,
+# and a derived value no template uses is reported -- the two failure
+# modes of a generated document, both of which read as prose that was
+# always meant to read that way.
+doc2:
+	python scripts/write_doc2.py
+
+doc2-check:
+	python scripts/write_doc2.py --check
 
 # WHAT HAS BEEN INGESTED, BUILT, AND IS STILL MISSING, per layer and per
 # virus. docs/kg_audit_report.txt has cited this as `make audit` in three
